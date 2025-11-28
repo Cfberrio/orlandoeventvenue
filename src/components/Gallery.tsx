@@ -1,40 +1,50 @@
 import { Card } from "@/components/ui/card";
-import { useState } from "react";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
+import gallery1 from "@/assets/gallery-1.jpg";
+import gallery2 from "@/assets/gallery-2.jpg";
+import gallery3 from "@/assets/gallery-3.jpg";
+import gallery4 from "@/assets/gallery-4.jpg";
+import gallery5 from "@/assets/gallery-5.jpg";
+import gallery6 from "@/assets/gallery-6.jpg";
 
 const Gallery = () => {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-
   const images = [
     {
-      url: "https://images.unsplash.com/photo-1540575467063-178a50c2df87",
-      title: "Main Event Space",
+      url: gallery1,
+      title: "Welcome Area",
     },
     {
-      url: "https://images.unsplash.com/photo-1511578314322-379afb476865",
-      title: "Setup Configuration",
+      url: gallery2,
+      title: "Main Entrance",
     },
     {
-      url: "https://images.unsplash.com/photo-1519167758481-83f29da8c6c7",
-      title: "Professional Events",
-    },
-    {
-      url: "https://images.unsplash.com/photo-1464047736614-af63643285bf",
+      url: gallery3,
       title: "Presentation Setup",
     },
     {
-      url: "https://images.unsplash.com/photo-1505236858219-8359eb29e329",
-      title: "Corporate Meetings",
+      url: gallery4,
+      title: "Event Space",
     },
     {
-      url: "https://images.unsplash.com/photo-1478146896981-b80fe463b330",
-      title: "Event Details",
+      url: gallery5,
+      title: "Storage Area",
+    },
+    {
+      url: gallery6,
+      title: "Restroom Facilities",
     },
   ];
 
   return (
     <section id="gallery" className="py-16 md:py-24 bg-gradient-to-b from-background to-accent">
       <div className="container mx-auto px-4">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-7xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-foreground animate-fade-in">
             Gallery
           </h2>
@@ -42,35 +52,36 @@ const Gallery = () => {
             Take a look at our modern venue space
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fade-in">
-            {images.map((image, index) => (
-              <Card
-                key={index}
-                className="overflow-hidden border-border hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 cursor-pointer group"
-                onMouseEnter={() => setHoveredIndex(index)}
-                onMouseLeave={() => setHoveredIndex(null)}
-              >
-                <div className="relative h-64 overflow-hidden">
-                  <img
-                    src={image.url}
-                    alt={image.title}
-                    className={`w-full h-full object-cover transition-all duration-700 ${
-                      hoveredIndex === index ? "scale-110" : "scale-100"
-                    }`}
-                  />
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-t from-black/70 to-transparent transition-opacity duration-500 ${
-                      hoveredIndex === index ? "opacity-100" : "opacity-0"
-                    }`}
-                  >
-                    <div className="absolute bottom-4 left-4 right-4">
-                      <h3 className="text-white font-semibold text-lg">{image.title}</h3>
+          <Carousel
+            opts={{
+              align: "start",
+              loop: true,
+            }}
+            className="w-full animate-fade-in"
+          >
+            <CarouselContent className="-ml-2 md:-ml-4">
+              {images.map((image, index) => (
+                <CarouselItem key={index} className="pl-2 md:pl-4 md:basis-1/2 lg:basis-1/3">
+                  <Card className="overflow-hidden border-border hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 group">
+                    <div className="relative h-80 md:h-96 overflow-hidden">
+                      <img
+                        src={image.url}
+                        alt={image.title}
+                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-110"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div className="absolute bottom-4 left-4 right-4">
+                          <h3 className="text-white font-semibold text-lg">{image.title}</h3>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </div>
+                  </Card>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+            <CarouselPrevious className="hidden md:flex -left-12 hover:scale-110 transition-transform duration-300" />
+            <CarouselNext className="hidden md:flex -right-12 hover:scale-110 transition-transform duration-300" />
+          </Carousel>
         </div>
       </div>
     </section>
