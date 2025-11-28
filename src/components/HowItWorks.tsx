@@ -45,9 +45,9 @@ const HowItWorks = () => {
             Simple booking process in 4 easy steps
           </p>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
             {steps.map((step, index) => (
-              <Card key={index} className="border-border relative hover:shadow-xl transition-shadow">
+              <Card key={index} className="border-border relative hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <div className="absolute -top-4 -left-4 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">
                   {index + 1}
                 </div>

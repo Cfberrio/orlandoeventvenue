@@ -15,7 +15,7 @@ const Navigation = () => {
   };
 
   return (
-    <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm">
+    <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm transition-all duration-300">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-3">
@@ -27,25 +27,25 @@ const Navigation = () => {
           <div className="hidden md:flex items-center gap-6">
             <button
               onClick={() => scrollToSection("pricing")}
-              className="text-muted hover:text-foreground transition-colors"
+              className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105"
             >
               Pricing
             </button>
             <button
               onClick={() => scrollToSection("production")}
-              className="text-muted hover:text-foreground transition-colors"
+              className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105"
             >
               Production
             </button>
             <button
               onClick={() => scrollToSection("how-it-works")}
-              className="text-muted hover:text-foreground transition-colors"
+              className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105"
             >
               How It Works
             </button>
             <button
               onClick={() => scrollToSection("faq")}
-              className="text-muted hover:text-foreground transition-colors"
+              className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105"
             >
               FAQ
             </button>

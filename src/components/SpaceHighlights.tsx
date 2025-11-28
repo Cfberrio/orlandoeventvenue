@@ -27,9 +27,9 @@ const SpaceHighlights = () => {
             Everything you need for a successful event in one place
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 animate-fade-in">
             {highlights.map((item, index) => (
-              <Card key={index} className="border-border hover:shadow-lg transition-shadow">
+              <Card key={index} className="border-border hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                 <CardContent className="p-6 text-center">
                   <item.icon className="w-8 h-8 mx-auto mb-3 text-primary" />
                   <p className="text-sm font-medium text-foreground">{item.label}</p>

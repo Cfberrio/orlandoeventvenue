@@ -64,9 +64,9 @@ const Production = () => {
             Choose the level of support you need. Prices are per hour and added to your rental.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-12">
+          <div className="grid md:grid-cols-3 gap-6 mb-12 animate-fade-in">
             {packages.map((pkg, index) => (
-              <Card key={index} className="border-border hover:shadow-xl transition-shadow">
+              <Card key={index} className="border-border hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <CardHeader>
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mb-4">
                     <pkg.icon className="w-6 h-6 text-primary" />
