@@ -40,10 +40,10 @@ const FAQ = () => {
             Everything you need to know about booking our venue
           </p>
 
-          <Accordion type="single" collapsible className="w-full">
+          <Accordion type="single" collapsible className="w-full animate-fade-in">
             {faqs.map((faq, index) => (
               <AccordionItem key={index} value={`item-${index}`}>
-                <AccordionTrigger className="text-left text-foreground hover:text-primary">
+                <AccordionTrigger className="text-left text-foreground hover:text-primary transition-colors duration-300">
                   {faq.question}
                 </AccordionTrigger>
                 <AccordionContent className="text-muted">

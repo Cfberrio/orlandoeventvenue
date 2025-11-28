@@ -22,8 +22,8 @@ const Pricing = () => {
             No hidden fees. Choose what works for your event.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8">
-            <Card className="border-border hover:shadow-xl transition-shadow">
+          <div className="grid md:grid-cols-2 gap-6 mb-8 animate-fade-in">
+            <Card className="border-border hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="w-5 h-5 text-primary" />
@@ -38,14 +38,16 @@ const Pricing = () => {
                 </div>
                 <p className="text-sm text-muted mb-4">4-hour minimum</p>
                 <ul className="space-y-2 text-sm text-muted mb-6">
-                  <li>✓ All venue amenities included</li>
                   <li>✓ Flexible scheduling</li>
-                  <li>✓ Great for meetings & workshops</li>
+                  <li>✓ 90 chairs</li>
+                  <li>✓ 10 tables</li>
+                  <li>✓ Prep kitchen</li>
+                  <li>✓ Two bathrooms</li>
                 </ul>
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-primary relative hover:shadow-xl transition-shadow">
+            <Card className="border-2 border-primary relative hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
                 Most Popular
               </Badge>
@@ -64,9 +66,10 @@ const Pricing = () => {
                 <p className="text-sm text-muted mb-4">24-hour access</p>
                 <ul className="space-y-2 text-sm text-muted mb-6">
                   <li>✓ Full 24-hour access</li>
-                  <li>✓ All venue amenities included</li>
-                  <li>✓ Perfect for full-day events</li>
-                  <li>✓ Setup & breakdown time included</li>
+                  <li>✓ 90 chairs</li>
+                  <li>✓ 10 tables</li>
+                  <li>✓ Prep kitchen</li>
+                  <li>✓ Two bathrooms</li>
                 </ul>
               </CardContent>
             </Card>

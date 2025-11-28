@@ -13,8 +13,8 @@ const Hero = () => {
   return (
     <section className="py-20 md:py-32 bg-gradient-to-b from-background to-accent">
       <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 leading-tight">
+        <div className="max-w-4xl mx-auto text-center animate-fade-in">
+          <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 leading-tight animate-fade-in">
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
@@ -44,11 +44,11 @@ const Hero = () => {
             </Badge>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-4 mb-6">
-            <Button size="lg" onClick={() => scrollToSection("book-now")}>
+          <div className="flex flex-wrap justify-center gap-4 mb-6 animate-fade-in">
+            <Button size="lg" onClick={() => scrollToSection("book-now")} className="hover:scale-105 transition-all duration-300">
               Book Now
             </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollToSection("pricing")}>
+            <Button size="lg" variant="outline" onClick={() => scrollToSection("pricing")} className="hover:scale-105 transition-all duration-300">
               See Pricing
             </Button>
           </div>
