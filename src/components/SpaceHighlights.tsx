@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, Star, Clock, MapPin, ChefHat, Grid3x3 } from "lucide-react";
+import { Car, Star, Clock, MapPin, ChefHat, Armchair, Table, Bath } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const SpaceHighlights = () => {
@@ -13,10 +13,10 @@ const SpaceHighlights = () => {
   ];
 
   const included = [
-    { icon: Grid3x3, label: "90 chairs" },
-    { icon: Grid3x3, label: "10 tables" },
+    { icon: Armchair, label: "90 chairs" },
+    { icon: Table, label: "10 tables" },
     { icon: ChefHat, label: "Prep kitchen" },
-    { icon: Grid3x3, label: "Two bathrooms" },
+    { icon: Bath, label: "Two bathrooms" },
   ];
 
   return (
@@ -51,7 +51,12 @@ const SpaceHighlights = () => {
                       {item.label}
                     </a>
                   ) : (
-                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{item.label}</p>
+                      {item.icon === MapPin && (
+                        <p className="text-xs text-muted mt-1">(Near Downtown Orlando)</p>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
