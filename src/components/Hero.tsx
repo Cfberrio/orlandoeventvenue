@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MapPin, Users, Sparkles } from "lucide-react";
+import heroBg from "@/assets/hero-bg.jpg";
 
 const Hero = () => {
   const scrollToSection = (id: string) => {
@@ -11,8 +12,16 @@ const Hero = () => {
   };
 
   return (
-    <section className="py-20 md:py-32 bg-gradient-to-b from-background to-accent">
-      <div className="container mx-auto px-4">
+    <section className="relative py-20 md:py-32 overflow-hidden">
+      {/* Background Image with Overlay */}
+      <div 
+        className="absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${heroBg})` }}
+      />
+      <div className="absolute inset-0 bg-background/85" />
+      
+      {/* Content */}
+      <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center animate-fade-in">
           <h1 className="text-4xl md:text-6xl font-bold text-foreground mb-6 leading-tight animate-fade-in">
             Modern venue for corporate events, celebrations, and presentations.

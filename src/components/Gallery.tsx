@@ -79,8 +79,8 @@ const Gallery = () => {
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="hidden md:flex -left-12 hover:scale-110 transition-transform duration-300" />
-            <CarouselNext className="hidden md:flex -right-12 hover:scale-110 transition-transform duration-300" />
+            <CarouselPrevious className="-left-4 md:-left-12 hover:scale-110 transition-transform duration-300 bg-background/80 backdrop-blur-sm" />
+            <CarouselNext className="-right-4 md:-right-12 hover:scale-110 transition-transform duration-300 bg-background/80 backdrop-blur-sm" />
           </Carousel>
         </div>
       </div>
