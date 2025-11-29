@@ -22,6 +22,8 @@ import gallery6 from "@/assets/gallery-6.jpg";
 const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<{ url: string; title: string } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [api, setApi] = useState<any>();
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -42,6 +44,16 @@ const Gallery = () => {
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    if (!api) return;
+
+    setCurrentIndex(api.selectedScrollSnap());
+
+    api.on("select", () => {
+      setCurrentIndex(api.selectedScrollSnap());
+    });
+  }, [api]);
 
   const images = [
     {
@@ -103,6 +115,7 @@ const Gallery = () => {
                     delay: 4000,
                   })
                 ]}
+                setApi={setApi}
                 className="w-full"
               >
                 <CarouselContent className="-ml-2 md:-ml-4">
@@ -131,6 +144,22 @@ const Gallery = () => {
                 <CarouselPrevious className="-left-4 md:-left-12 hover:scale-110 transition-transform duration-300 bg-background/80 backdrop-blur-sm" />
                 <CarouselNext className="-right-4 md:-right-12 hover:scale-110 transition-transform duration-300 bg-background/80 backdrop-blur-sm" />
               </Carousel>
+
+              {/* Progress Indicators */}
+              <div className="flex justify-center gap-2 mt-6">
+                {images.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => api?.scrollTo(index)}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      index === currentIndex
+                        ? "w-8 bg-primary"
+                        : "w-2 bg-muted-foreground/30 hover:bg-muted-foreground/50"
+                    }`}
+                    aria-label={`Go to image ${index + 1}`}
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>
