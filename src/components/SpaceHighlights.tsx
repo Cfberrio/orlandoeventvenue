@@ -1,7 +1,10 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Car, Star, Clock, MapPin, ChefHat, Grid3x3 } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const SpaceHighlights = () => {
+  const { ref, isVisible } = useScrollAnimation();
+
   const highlights = [
     { icon: Car, label: "Free parking", link: null },
     { icon: Star, label: "⭐️ 5.0 Reviews", link: "https://www.google.com/maps?q=Orlando+Event+Venue,+3847+E+Colonial+Dr,+Orlando,+FL+32803&ftid=0x88e7658349956c29:0x14dd97040d50b24f&entry=gps&lucs=,94275415,94284463,94224825,94227247,94227248,94231188,94280568,47071704,47069508,94218641,94282134,94203019,47084304,94286869&g_ep=CAISEjI1LjQ3LjAuODMzNTQyOTMwMBgAIIgnKn4sOTQyNzU0MTUsOTQyODQ0NjMsOTQyMjQ4MjUsOTQyMjcyNDcsOTQyMjcyNDgsOTQyMzExODgsOTQyODA1NjgsNDcwNzE3MDQsNDcwNjk1MDgsOTQyMTg2NDEsOTQyODIxMzQsOTQyMDMwMTksNDcwODQzMDQsOTQyODY4NjlCAlVT&skid=d985b2d1-525a-4aaf-b447-cd75ebff9886&g_st=ipc" },
@@ -17,17 +20,23 @@ const SpaceHighlights = () => {
   ];
 
   return (
-    <section className="py-16 md:py-24 bg-background">
+    <section ref={ref as any} className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-foreground animate-fade-in">
+          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Orlando Event Venue
           </h2>
-          <p className="text-center text-muted mb-12 max-w-2xl mx-auto">
+          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Everything you need for a successful event in one place
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 animate-fade-in">
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             {highlights.map((item, index) => (
               <Card key={index} className="border-border hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
                 <CardContent className="p-6 text-center">

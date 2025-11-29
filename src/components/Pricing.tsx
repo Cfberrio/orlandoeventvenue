@@ -2,8 +2,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, Calendar, Sparkles } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const Pricing = () => {
+  const { ref, isVisible } = useScrollAnimation();
+
   const scrollToBooking = () => {
     const element = document.getElementById("book-now");
     if (element) {
@@ -12,17 +15,23 @@ const Pricing = () => {
   };
 
   return (
-    <section id="pricing" className="py-16 md:py-24 bg-accent">
+    <section ref={ref as any} id="pricing" className="py-16 md:py-24 bg-accent">
       <div className="container mx-auto px-4">
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-foreground">
+          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Simple, Transparent Pricing
           </h2>
-          <p className="text-center text-muted mb-12 max-w-2xl mx-auto">
+          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             No hidden fees. Choose what works for your event.
           </p>
 
-          <div className="grid md:grid-cols-2 gap-6 mb-8 animate-fade-in">
+          <div className={`grid md:grid-cols-2 gap-6 mb-8 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             <Card className="border-border hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
               <CardHeader>
                 <div className="flex items-center gap-2 mb-2">
