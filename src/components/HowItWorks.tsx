@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Calendar, FileText, CreditCard, PartyPopper } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const HowItWorks = () => {
+  const { ref, isVisible } = useScrollAnimation();
+
   const steps = [
     {
       icon: Calendar,
@@ -35,17 +38,23 @@ const HowItWorks = () => {
   };
 
   return (
-    <section id="how-it-works" className="py-16 md:py-24 bg-accent">
+    <section ref={ref as any} id="how-it-works" className="py-16 md:py-24 bg-accent">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-foreground">
+          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             How It Works
           </h2>
-          <p className="text-center text-muted mb-12 max-w-2xl mx-auto">
+          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Simple booking process in 4 easy steps
           </p>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
+          <div className={`grid md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             {steps.map((step, index) => (
               <Card key={index} className="border-border relative hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <div className="absolute -top-4 -left-4 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold">

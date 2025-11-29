@@ -1,8 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Mic, Monitor, Video, Wrench } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const Production = () => {
+  const { ref, isVisible } = useScrollAnimation();
+
   const packages = [
     {
       icon: Mic,
@@ -54,17 +57,23 @@ const Production = () => {
   };
 
   return (
-    <section id="production" className="py-16 md:py-24 bg-background">
+    <section ref={ref as any} id="production" className="py-16 md:py-24 bg-background">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4 text-foreground">
+          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Production Packages
           </h2>
-          <p className="text-center text-muted mb-12 max-w-2xl mx-auto">
+          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             Choose the level of support you need. Prices are per hour and added to your rental.
           </p>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-12 animate-fade-in">
+          <div className={`grid md:grid-cols-3 gap-6 mb-12 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
             {packages.map((pkg, index) => (
               <Card key={index} className="border-border hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
                 <CardHeader>
