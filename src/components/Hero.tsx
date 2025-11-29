@@ -27,7 +27,7 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <div className="flex flex-wrap justify-center gap-3 mb-6 text-muted">
+          <div className="flex flex-wrap justify-center gap-3 mb-6 text-foreground/90 font-medium">
             <div className="flex items-center gap-2">
               <Users size={20} />
               <span>Capacity 90</span>
@@ -62,7 +62,7 @@ const Hero = () => {
             </Button>
           </div>
 
-          <p className="text-sm text-muted">
+          <p className="text-sm text-foreground/80 font-medium">
             Flat pricing + Flexibility
           </p>
         </div>
