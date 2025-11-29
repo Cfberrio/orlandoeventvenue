@@ -3,8 +3,7 @@ import { Card } from "@/components/ui/card";
 
 const FinalCTA = () => {
   const handleBooking = () => {
-    // In production, this would link to a booking form or calendar
-    alert("Booking system would be integrated here. Contact: [Your Twilio Number]");
+    window.location.href = "/book";
   };
 
   return (
