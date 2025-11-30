@@ -27,29 +27,35 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <div className="flex flex-wrap justify-center gap-3 mb-6 text-foreground/90 font-medium">
-            <div className="flex items-center gap-2">
-              <Users size={20} />
-              <span>Capacity 90</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 mb-8 max-w-5xl mx-auto">
+            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0s' }}>
+              <div className="text-4xl md:text-5xl font-bold text-primary">90</div>
+              <div className="text-sm md:text-base text-foreground/80 text-center">Capacity</div>
             </div>
-            <span>•</span>
-            <div className="flex items-center gap-2">
-              <MapPin size={20} />
-              <span>Near Downtown Orlando</span>
+            
+            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.2s' }}>
+              <div className="text-4xl md:text-5xl font-bold text-primary">24/7</div>
+              <div className="text-sm md:text-base text-foreground/80 text-center">Access</div>
             </div>
-            <span>•</span>
-            <div className="flex items-center gap-2">
-              <Sparkles size={20} />
-              <span>High Level Production A/V</span>
+            
+            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.4s' }}>
+              <div className="text-3xl md:text-4xl font-bold text-primary flex items-center gap-2">
+                <MapPin size={32} className="text-primary" />
+              </div>
+              <div className="text-sm md:text-base text-foreground/80 text-center">Near Downtown Orlando</div>
+            </div>
+            
+            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.6s' }}>
+              <div className="text-3xl md:text-4xl font-bold text-primary flex items-center gap-2">
+                <Sparkles size={32} className="text-primary" />
+              </div>
+              <div className="text-sm md:text-base text-foreground/80 text-center">High Level Production A/V</div>
             </div>
           </div>
 
           <div className="flex flex-wrap justify-center gap-3 mb-8">
-            <Badge variant="secondary" className="px-4 py-2 text-sm">
+            <Badge variant="secondary" className="px-4 py-2 text-sm animate-float" style={{ animationDelay: '0.8s' }}>
               No catering restrictions
-            </Badge>
-            <Badge variant="secondary" className="px-4 py-2 text-sm">
-              24-hr Access
             </Badge>
           </div>
 
