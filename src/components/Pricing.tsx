@@ -32,15 +32,16 @@ const Pricing = () => {
           <div className={`grid md:grid-cols-2 gap-6 mb-8 transition-all duration-1000 delay-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
-            <Card className="border-border hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <CardHeader>
+            <Card className="border-border bg-gradient-to-br from-card to-card/90 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 hover:-translate-y-2 hover:scale-105 group overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <CardHeader className="relative z-10">
                 <div className="flex items-center gap-2 mb-2">
                   <Clock className="w-5 h-5 text-primary" />
                   <CardTitle>Hourly Rate</CardTitle>
                 </div>
                 <CardDescription>Perfect for shorter events</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10">
                 <div className="mb-4">
                   <span className="text-4xl font-bold text-foreground">$140</span>
                   <span className="text-muted">/hour</span>
@@ -56,18 +57,19 @@ const Pricing = () => {
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-primary relative hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground">
+            <Card className="border-2 border-primary relative bg-gradient-to-br from-card via-primary/5 to-card hover:shadow-2xl hover:shadow-primary/20 transition-all duration-500 hover:-translate-y-3 hover:scale-105 group overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50 group-hover:opacity-70 transition-opacity duration-500" />
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary via-primary to-primary/80 text-primary-foreground shadow-lg group-hover:scale-110 transition-transform duration-300 z-10">
                 Most Popular
               </Badge>
-              <CardHeader>
+              <CardHeader className="relative z-10">
                 <div className="flex items-center gap-2 mb-2">
                   <Calendar className="w-5 h-5 text-primary" />
                   <CardTitle>Daily Special</CardTitle>
                 </div>
                 <CardDescription>Best value for all-day events</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="relative z-10">
                 <div className="mb-4">
                   <span className="text-4xl font-bold text-foreground">$899</span>
                   <span className="text-muted">/day</span>
@@ -84,7 +86,7 @@ const Pricing = () => {
             </Card>
           </div>
 
-          <Card className="border-border bg-card">
+          <Card className="border-border bg-gradient-to-r from-card via-accent to-card shadow-lg hover:shadow-xl transition-all duration-300">
             <CardHeader>
               <div className="flex items-center gap-2">
                 <Sparkles className="w-5 h-5 text-primary" />
