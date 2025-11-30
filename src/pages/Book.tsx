@@ -45,8 +45,11 @@ export interface BookingFormData {
   email: string;
   phone: string;
   company?: string;
-  policies: Record<string, boolean>;
+  agreeToRules: boolean;
+  initials: string;
+  signerName: string;
   signature: string;
+  signatureDate: string;
   
   // Step 6
   paymentStatus: "pending" | "paid";
@@ -62,7 +65,7 @@ const Book = () => {
     setupBreakdown: false,
     tablecloths: false,
     tableclothQuantity: 0,
-    policies: {},
+    agreeToRules: false,
   });
 
   const totalSteps = 6;
