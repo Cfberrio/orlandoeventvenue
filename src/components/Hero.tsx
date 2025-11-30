@@ -53,7 +53,7 @@ const Hero = () => {
           </Card>
 
           <div className="flex flex-wrap justify-center gap-3 mb-8">
-            <Badge variant="secondary" className="px-4 py-2 text-sm animate-float" style={{ animationDelay: '0.8s' }}>
+            <Badge variant="secondary" className="px-4 py-2 text-sm">
               No catering restrictions
             </Badge>
           </div>
