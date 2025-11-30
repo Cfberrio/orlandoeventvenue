@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MapPin, Users, Sparkles } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { MapPin, Sparkles } from "lucide-react";
 import heroBg from "@/assets/hero-bg.jpg";
 
 const Hero = () => {
@@ -27,30 +28,26 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8 mb-8 max-w-5xl mx-auto">
-            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0s' }}>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8 max-w-5xl mx-auto">
+            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0s' }}>
               <div className="text-4xl md:text-5xl font-bold text-primary">90</div>
-              <div className="text-sm md:text-base text-foreground/80 text-center">Capacity</div>
-            </div>
+              <div className="text-sm md:text-base text-foreground/70 text-center">Capacity</div>
+            </Card>
             
-            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.2s' }}>
+            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.2s' }}>
               <div className="text-4xl md:text-5xl font-bold text-primary">24/7</div>
-              <div className="text-sm md:text-base text-foreground/80 text-center">Access</div>
-            </div>
+              <div className="text-sm md:text-base text-foreground/70 text-center">Access</div>
+            </Card>
             
-            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.4s' }}>
-              <div className="text-3xl md:text-4xl font-bold text-primary flex items-center gap-2">
-                <MapPin size={32} className="text-primary" />
-              </div>
-              <div className="text-sm md:text-base text-foreground/80 text-center">Near Downtown Orlando</div>
-            </div>
+            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.4s' }}>
+              <MapPin size={40} className="text-primary" />
+              <div className="text-sm md:text-base text-foreground/70 text-center">Near Downtown Orlando</div>
+            </Card>
             
-            <div className="flex flex-col items-center gap-2 animate-float" style={{ animationDelay: '0.6s' }}>
-              <div className="text-3xl md:text-4xl font-bold text-primary flex items-center gap-2">
-                <Sparkles size={32} className="text-primary" />
-              </div>
-              <div className="text-sm md:text-base text-foreground/80 text-center">High Level Production A/V</div>
-            </div>
+            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.6s' }}>
+              <Sparkles size={40} className="text-primary" />
+              <div className="text-sm md:text-base text-foreground/70 text-center">High Level Production A/V</div>
+            </Card>
           </div>
 
           <div className="flex flex-wrap justify-center gap-3 mb-8">
