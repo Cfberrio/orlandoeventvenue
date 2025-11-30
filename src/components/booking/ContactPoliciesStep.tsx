@@ -5,21 +5,22 @@ import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { BookingFormData } from "@/pages/Book";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
-const policyItems = [
-  { id: "no-alcohol", label: "No Alcoholic Drinks — $250 violation fee" },
-  { id: "no-drugs", label: "No Drugs — $300 violation fee" },
-  { id: "no-smoking", label: "No Smoking — $300 cleaning fee" },
-  { id: "no-pets", label: "No Pets (service animals exempt with certification) — $100 cleaning fee" },
-  { id: "food-beverage", label: "Food & Beverage Compliance — $300 violation fee" },
-  { id: "no-glitter", label: "No Glitter / Confetti / Rice (or similar) — $300 cleaning fee" },
-  { id: "setup-breakdown", label: "Setup & Breakdown Time — $200/hr overtime + $150 if not restored" },
-  { id: "max-occupancy", label: "Maximum Occupancy (≤ 90) — $200 violation fee" },
-  { id: "decoration-rules", label: "Decoration Rules — $200 damage fee" },
-  { id: "damage-repair", label: "Damage & Repair — Repair costs (min $200)" },
-  { id: "chairs-tables", label: "Chairs & Tables Reset — $150 fee" },
+const venueRules = [
+  "No Alcoholic Drinks (only beer & wine allowed) — $250 fee",
+  "No Drugs — $300 fee",
+  "No Smoking — $300 cleaning fee",
+  "No Pets (service animals with certification only) — $100 cleaning fee",
+  "Food & Beverage Compliance — $300 fee",
+  "No Glitter / Confetti / Rice — $300 cleaning fee",
+  "Setup & Breakdown Time — $200/hr overtime + $150 if not restored",
+  "Maximum Occupancy: 90 Guests — $200 fee",
+  "Decoration Rules — $200 damage fee",
+  "Damage & Repair — Repair costs (min. $200)",
+  "Chairs & Tables Reset — $150 fee",
 ];
 
 const formSchema = z.object({
@@ -27,10 +28,13 @@ const formSchema = z.object({
   email: z.string().trim().email("Invalid email address").max(255),
   phone: z.string().trim().min(10, "Phone number must be at least 10 digits").max(20),
   company: z.string().max(100).optional(),
-  policies: z.record(z.boolean()).refine((policies) => {
-    return policyItems.every((item) => policies[item.id] === true);
-  }, "You must agree to all policies"),
+  agreeToRules: z.boolean().refine((val) => val === true, {
+    message: "You must agree to the Venue Rules & Fee Schedule",
+  }),
+  initials: z.string().trim().min(2, "Initials must be at least 2 characters").max(4, "Initials must be 4 characters or less"),
+  signerName: z.string().trim().min(2, "Name is required"),
   signature: z.string().min(2, "Signature is required"),
+  signatureDate: z.string(),
 });
 
 interface ContactPoliciesStepProps {
@@ -43,6 +47,11 @@ interface ContactPoliciesStepProps {
 const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPoliciesStepProps) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const currentDate = new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -51,10 +60,23 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
       email: data.email || "",
       phone: data.phone || "",
       company: data.company || "",
-      policies: data.policies || {},
+      agreeToRules: data.agreeToRules || false,
+      initials: data.initials || "",
+      signerName: data.signerName || data.fullName || "",
       signature: data.signature || "",
+      signatureDate: currentDate,
     },
   });
+
+  // Auto-fill signer name when full name changes
+  useEffect(() => {
+    const subscription = form.watch((value, { name }) => {
+      if (name === "fullName" && value.fullName) {
+        form.setValue("signerName", value.fullName);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
     setIsDrawing(true);
@@ -170,70 +192,137 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
 
         <div className="space-y-4 pt-6">
           <div>
-            <h3 className="text-lg font-semibold mb-2">Venue Policies Agreement</h3>
-            <p className="text-sm text-muted-foreground mb-4">
-              Please read and agree to all venue policies below. These are required to proceed.
+            <h3 className="text-lg font-semibold mb-2">Venue Rules & Fee Schedule (Required)</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Please review all venue rules before proceeding
             </p>
           </div>
 
-          {policyItems.map((item) => (
-            <FormField
-              key={item.id}
-              control={form.control}
-              name={`policies.${item.id}`}
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 border rounded-lg p-3">
-                  <FormControl>
-                    <Checkbox
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                  <div className="space-y-1 leading-none">
-                    <FormLabel className="text-sm font-normal cursor-pointer">
-                      {item.label}
-                    </FormLabel>
-                  </div>
-                </FormItem>
-              )}
-            />
-          ))}
-          {form.formState.errors.policies?.message && (
-            <p className="text-sm font-medium text-destructive">
-              {String(form.formState.errors.policies.message)}
-            </p>
-          )}
+          <ScrollArea className="h-[250px] w-full border rounded-lg p-4 bg-muted/30">
+            <ul className="space-y-2">
+              {venueRules.map((rule, index) => (
+                <li key={index} className="text-sm text-foreground flex items-start">
+                  <span className="mr-2 text-primary font-medium">•</span>
+                  <span>{rule}</span>
+                </li>
+              ))}
+            </ul>
+          </ScrollArea>
+
+          <FormField
+            control={form.control}
+            name="agreeToRules"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 border rounded-lg p-4 bg-background">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-medium cursor-pointer">
+                    I have read and agree to the Venue Rules & Fee Schedule for this booking. *
+                  </FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+          <FormMessage>
+            {form.formState.errors.agreeToRules?.message}
+          </FormMessage>
         </div>
 
         <div className="space-y-4 pt-6">
           <div>
-            <h3 className="text-lg font-semibold mb-2">Signature *</h3>
-            <FormDescription>
-              Draw your signature in the box below
-            </FormDescription>
+            <h3 className="text-lg font-semibold mb-2">Initials & Signature</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Confirm your understanding by providing your initials and signature
+            </p>
           </div>
-          
-          <div className="border-2 border-border rounded-lg overflow-hidden">
-            <canvas
-              ref={canvasRef}
-              width={600}
-              height={200}
-              className="w-full bg-background cursor-crosshair touch-none"
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
+
+          <FormField
+            control={form.control}
+            name="initials"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Initials (to confirm you understand these rules) *</FormLabel>
+                <FormControl>
+                  <Input 
+                    placeholder="e.g., JD" 
+                    maxLength={4}
+                    className="w-32 uppercase"
+                    {...field} 
+                    onChange={(e) => field.onChange(e.target.value.toUpperCase())}
+                  />
+                </FormControl>
+                <FormDescription>2-4 characters</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="signerName"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Name *</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="signatureDate"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date</FormLabel>
+                  <FormControl>
+                    <Input {...field} readOnly className="bg-muted" />
+                  </FormControl>
+                </FormItem>
+              )}
             />
           </div>
-          
-          <Button type="button" variant="outline" size="sm" onClick={clearSignature}>
-            Clear Signature
-          </Button>
-          {form.formState.errors.signature?.message && (
-            <p className="text-sm font-medium text-destructive">
-              {String(form.formState.errors.signature.message)}
+
+          <div>
+            <FormLabel>Signature *</FormLabel>
+            <FormDescription className="mb-2">
+              Draw your signature in the box below
+            </FormDescription>
+            
+            <div className="border-2 border-border rounded-lg overflow-hidden">
+              <canvas
+                ref={canvasRef}
+                width={600}
+                height={200}
+                className="w-full bg-background cursor-crosshair touch-none"
+                onMouseDown={startDrawing}
+                onMouseMove={draw}
+                onMouseUp={stopDrawing}
+                onMouseLeave={stopDrawing}
+              />
+            </div>
+            
+            <Button type="button" variant="outline" size="sm" onClick={clearSignature} className="mt-2">
+              Clear Signature
+            </Button>
+            {form.formState.errors.signature?.message && (
+              <p className="text-sm font-medium text-destructive mt-2">
+                {String(form.formState.errors.signature.message)}
+              </p>
+            )}
+
+            <p className="text-xs text-muted-foreground mt-4 leading-relaxed">
+              By initialing and signing, I agree to the Orlando Event Venue Terms & Conditions and Venue Rules & Fee Schedule for this booking.
             </p>
-          )}
+          </div>
         </div>
 
         <div className="flex justify-between pt-4">
