@@ -28,26 +28,26 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <Card className="mb-8 max-w-5xl mx-auto bg-card/50 backdrop-blur-sm border-border/50 animate-float">
+          <Card className="mb-8 max-w-5xl mx-auto bg-card/50 backdrop-blur-sm border-border/50">
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
-              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
-                <div className="text-4xl md:text-5xl font-bold text-primary">90</div>
-                <div className="text-sm md:text-base text-foreground/70 text-center">Capacity</div>
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+                <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">Capacity</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
-                <div className="text-4xl md:text-5xl font-bold text-primary">24/7</div>
-                <div className="text-sm md:text-base text-foreground/70 text-center">Access</div>
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+                <div className="text-5xl md:text-6xl font-bold text-primary">24/7</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">Access</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
-                <MapPin size={40} className="text-primary" />
-                <div className="text-sm md:text-base text-foreground/70 text-center">Near Downtown Orlando</div>
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+                <MapPin size={48} strokeWidth={2.5} className="text-primary" />
+                <div className="text-sm text-foreground/70 text-center font-medium">Near Downtown Orlando</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
-                <Sparkles size={40} className="text-primary" />
-                <div className="text-sm md:text-base text-foreground/70 text-center">High Level Production A/V</div>
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+                <Sparkles size={48} strokeWidth={2.5} className="text-primary" />
+                <div className="text-sm text-foreground/70 text-center font-medium">High Level Production A/V</div>
               </div>
             </div>
           </Card>
