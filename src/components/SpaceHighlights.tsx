@@ -38,9 +38,9 @@ const SpaceHighlights = () => {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
             {highlights.map((item, index) => (
-              <Card key={index} className="border-border hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
+              <Card key={index} className="border-border bg-gradient-to-br from-card to-card/80 hover:shadow-xl hover:shadow-primary/10 transition-all duration-300 hover:-translate-y-2 group">
                 <CardContent className="p-6 text-center">
-                  <item.icon className="w-8 h-8 mx-auto mb-3 text-primary transition-transform duration-300 hover:scale-110" />
+                  <item.icon className="w-8 h-8 mx-auto mb-3 text-primary transition-all duration-300 group-hover:scale-125 group-hover:rotate-6" />
                   {item.link ? (
                     <a 
                       href={item.link} 
@@ -63,7 +63,7 @@ const SpaceHighlights = () => {
             ))}
           </div>
 
-          <div className="bg-card border border-border rounded-lg p-8">
+          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg">
             <h3 className="text-2xl font-bold mb-6 text-center text-foreground">
               What's Included
             </h3>

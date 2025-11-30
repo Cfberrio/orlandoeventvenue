@@ -19,7 +19,8 @@ const Hero = () => {
         className="absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${heroBg})` }}
       />
-      <div className="absolute inset-0 bg-background/70" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.15),transparent_50%)]" />
       
       {/* Content */}
       <div className="container mx-auto px-4 relative z-10">
@@ -28,7 +29,7 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <Card className="mb-8 max-w-5xl mx-auto bg-card/50 backdrop-blur-sm border-border/50">
+          <Card className="mb-8 max-w-5xl mx-auto bg-card/60 backdrop-blur-md border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02]">
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-float" style={{ animationDelay: '0.2s' }}>
                 <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
