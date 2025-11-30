@@ -28,27 +28,29 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8 max-w-5xl mx-auto">
-            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0s' }}>
-              <div className="text-4xl md:text-5xl font-bold text-primary">90</div>
-              <div className="text-sm md:text-base text-foreground/70 text-center">Capacity</div>
-            </Card>
-            
-            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.2s' }}>
-              <div className="text-4xl md:text-5xl font-bold text-primary">24/7</div>
-              <div className="text-sm md:text-base text-foreground/70 text-center">Access</div>
-            </Card>
-            
-            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.4s' }}>
-              <MapPin size={40} className="text-primary" />
-              <div className="text-sm md:text-base text-foreground/70 text-center">Near Downtown Orlando</div>
-            </Card>
-            
-            <Card className="flex flex-col items-center justify-center gap-3 p-6 bg-card/50 backdrop-blur-sm border-border/50 animate-float h-32 md:h-36" style={{ animationDelay: '0.6s' }}>
-              <Sparkles size={40} className="text-primary" />
-              <div className="text-sm md:text-base text-foreground/70 text-center">High Level Production A/V</div>
-            </Card>
-          </div>
+          <Card className="mb-8 max-w-5xl mx-auto bg-card/50 backdrop-blur-sm border-border/50 animate-float">
+            <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
+              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
+                <div className="text-4xl md:text-5xl font-bold text-primary">90</div>
+                <div className="text-sm md:text-base text-foreground/70 text-center">Capacity</div>
+              </div>
+              
+              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
+                <div className="text-4xl md:text-5xl font-bold text-primary">24/7</div>
+                <div className="text-sm md:text-base text-foreground/70 text-center">Access</div>
+              </div>
+              
+              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
+                <MapPin size={40} className="text-primary" />
+                <div className="text-sm md:text-base text-foreground/70 text-center">Near Downtown Orlando</div>
+              </div>
+              
+              <div className="flex flex-col items-center justify-center gap-3 p-6 h-36">
+                <Sparkles size={40} className="text-primary" />
+                <div className="text-sm md:text-base text-foreground/70 text-center">High Level Production A/V</div>
+              </div>
+            </div>
+          </Card>
 
           <div className="flex flex-wrap justify-center gap-3 mb-8">
             <Badge variant="secondary" className="px-4 py-2 text-sm animate-float" style={{ animationDelay: '0.8s' }}>
