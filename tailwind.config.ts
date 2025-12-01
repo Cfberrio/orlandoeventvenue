@@ -85,7 +85,7 @@ export default {
 					transform: 'translateY(0px)'
 				},
 				'50%': {
-					transform: 'translateY(-5px)'
+					transform: 'translateY(-2px)'
 				}
 			},
 			'ripple': {
