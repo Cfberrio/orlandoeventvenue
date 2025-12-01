@@ -37,7 +37,7 @@ const Hero = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0s' }}>
                 <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
-                <div className="text-sm text-foreground/70 text-center font-medium">Capacity</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">Guest Capacity</div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.2s' }}>
