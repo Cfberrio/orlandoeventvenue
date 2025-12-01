@@ -85,7 +85,7 @@ export default {
 					transform: 'translateY(0px)'
 				},
 				'50%': {
-					transform: 'translateY(-10px)'
+					transform: 'translateY(-5px)'
 				}
 			},
 			'ripple': {
@@ -106,7 +106,7 @@ export default {
 		animation: {
 			'accordion-down': 'accordion-down 0.2s ease-out',
 			'accordion-up': 'accordion-up 0.2s ease-out',
-			'float': 'float 3s ease-in-out infinite',
+			'float': 'float 4s ease-in-out infinite',
 			'ripple': 'ripple 0.6s ease-out'
 		},
   		fontFamily: {
