@@ -29,7 +29,7 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <Card className="mb-8 max-w-5xl mx-auto bg-card/60 backdrop-blur-md border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] animate-enter">
+          <Card className="mb-8 max-w-5xl mx-auto bg-card/60 backdrop-blur-md border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] animate-float">
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
                 <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
