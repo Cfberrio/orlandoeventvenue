@@ -30,11 +30,8 @@ const HowItWorks = () => {
     },
   ];
 
-  const scrollToBooking = () => {
-    const element = document.getElementById("book-now");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleBooking = () => {
+    window.location.href = "/book";
   };
 
   return (
@@ -65,7 +62,7 @@ const HowItWorks = () => {
                   <h3 className="text-lg font-bold mb-2 text-foreground">{step.title}</h3>
                   <p className="text-sm text-muted mb-4">{step.description}</p>
                   {step.cta && (
-                    <Button variant="link" className="p-0 h-auto text-primary" onClick={scrollToBooking}>
+                    <Button variant="link" className="p-0 h-auto text-primary" onClick={handleBooking}>
                       {step.cta} →
                     </Button>
                   )}

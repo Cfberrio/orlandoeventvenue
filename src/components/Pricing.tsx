@@ -7,11 +7,8 @@ import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 const Pricing = () => {
   const { ref, isVisible } = useScrollAnimation();
 
-  const scrollToBooking = () => {
-    const element = document.getElementById("book-now");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleBooking = () => {
+    window.location.href = "/book";
   };
 
   return (
@@ -111,7 +108,7 @@ const Pricing = () => {
           </p>
 
           <div className="text-center mt-8">
-            <Button size="lg" onClick={scrollToBooking}>
+            <Button size="lg" onClick={handleBooking}>
               Book Now
             </Button>
           </div>
