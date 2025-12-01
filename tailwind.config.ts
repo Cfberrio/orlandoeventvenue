@@ -90,12 +90,12 @@ export default {
 			},
 			'pulse-glow': {
 				'0%, 100%': {
-					boxShadow: '0 0 20px hsl(var(--primary) / 0.5)',
+					boxShadow: '0 0 25px hsl(var(--primary) / 0.6)',
 					transform: 'scale(1)'
 				},
 				'50%': {
-					boxShadow: '0 0 30px hsl(var(--primary) / 0.8)',
-					transform: 'scale(1.02)'
+					boxShadow: '0 0 40px hsl(var(--primary) / 1)',
+					transform: 'scale(1.03)'
 				}
 			},
 			'ripple': {
@@ -117,7 +117,7 @@ export default {
 			'accordion-down': 'accordion-down 0.2s ease-out',
 			'accordion-up': 'accordion-up 0.2s ease-out',
 			'wave': 'wave 3s ease-in-out infinite',
-			'pulse-glow': 'pulse-glow 2s ease-in-out infinite',
+			'pulse-glow': 'pulse-glow 2.5s ease-in-out infinite',
 			'ripple': 'ripple 0.6s ease-out'
 		},
   		fontFamily: {
