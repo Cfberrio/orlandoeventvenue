@@ -62,7 +62,11 @@ const Hero = () => {
               <Badge variant="secondary" className="px-4 py-2 text-sm">
                 No catering restrictions
               </Badge>
-              <Badge variant="secondary" className="px-4 py-2 text-sm cursor-pointer" onClick={() => scrollToSection("pricing")}>
+              <Badge 
+                variant="secondary" 
+                className="px-4 py-2 text-sm cursor-pointer hover:scale-105 transition-all duration-300" 
+                onClick={() => scrollToSection("pricing")}
+              >
                 See Pricing
               </Badge>
             </div>
