@@ -49,11 +49,8 @@ const Production = () => {
     { name: "Tablecloth", price: "$5/ea + $25 cleaning" },
   ];
 
-  const scrollToBooking = () => {
-    const element = document.getElementById("book-now");
-    if (element) {
-      element.scrollIntoView({ behavior: "smooth" });
-    }
+  const handleBooking = () => {
+    window.location.href = "/book";
   };
 
   return (
@@ -119,7 +116,7 @@ const Production = () => {
           </Card>
 
           <div className="text-center">
-            <Button size="lg" onClick={scrollToBooking}>
+            <Button size="lg" onClick={handleBooking}>
               Add to My Booking
             </Button>
           </div>
