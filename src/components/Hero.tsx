@@ -54,7 +54,7 @@ const Hero = () => {
           </Card>
 
           <div className="flex flex-col items-center gap-6 mb-6">
-            <Button size="lg" onClick={() => scrollToSection("book-now")} className="text-lg px-8 py-6 hover:scale-105 transition-all duration-300 shadow-lg animate-enter" style={{ animationDuration: '0.8s' }}>
+            <Button size="lg" onClick={() => scrollToSection("book-now")} className="text-lg px-8 py-6 hover:scale-105 transition-all duration-300 shadow-lg animate-enter animate-pulse-glow" style={{ animationDuration: '0.8s' }}>
               Book Now
             </Button>
             
