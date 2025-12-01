@@ -80,12 +80,12 @@ export default {
 					height: '0'
 				}
 			},
-			'float': {
+			'wave': {
 				'0%, 100%': {
 					transform: 'translateY(0px)'
 				},
 				'50%': {
-					transform: 'translateY(-2px)'
+					transform: 'translateY(-8px)'
 				}
 			},
 			'ripple': {
@@ -106,7 +106,7 @@ export default {
 		animation: {
 			'accordion-down': 'accordion-down 0.2s ease-out',
 			'accordion-up': 'accordion-up 0.2s ease-out',
-			'float': 'float 40s ease-in-out infinite',
+			'wave': 'wave 3s ease-in-out infinite',
 			'ripple': 'ripple 0.6s ease-out'
 		},
   		fontFamily: {

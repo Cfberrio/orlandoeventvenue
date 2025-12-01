@@ -29,24 +29,24 @@ const Hero = () => {
             Modern venue for corporate events, celebrations, and presentations.
           </h1>
           
-          <Card className="mb-8 max-w-5xl mx-auto bg-card/60 backdrop-blur-md border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02] animate-float">
+          <Card className="mb-8 max-w-5xl mx-auto bg-card/60 backdrop-blur-md border-border/50 shadow-xl hover:shadow-2xl transition-all duration-500 hover:scale-[1.02]">
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
-              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0s' }}>
                 <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
                 <div className="text-sm text-foreground/70 text-center font-medium">Capacity</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.2s' }}>
                 <div className="text-5xl md:text-6xl font-bold text-primary">24/7</div>
                 <div className="text-sm text-foreground/70 text-center font-medium">Access</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.4s' }}>
                 <MapPin size={48} strokeWidth={2.5} className="text-primary" />
                 <div className="text-sm text-foreground/70 text-center font-medium">Near Downtown Orlando</div>
               </div>
               
-              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40">
+              <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.6s' }}>
                 <Sparkles size={48} strokeWidth={2.5} className="text-primary" />
                 <div className="text-sm text-foreground/70 text-center font-medium">High Level Production A/V</div>
               </div>
