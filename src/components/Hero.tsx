@@ -53,19 +53,19 @@ const Hero = () => {
             </div>
           </Card>
 
-          <div className="flex flex-wrap justify-center gap-3 mb-8">
-            <Badge variant="secondary" className="px-4 py-2 text-sm">
-              No catering restrictions
-            </Badge>
-          </div>
-
-          <div className="flex flex-wrap justify-center gap-4 mb-6 animate-fade-in">
-            <Button size="lg" onClick={() => scrollToSection("book-now")} className="hover:scale-105 transition-all duration-300">
+          <div className="flex flex-col items-center gap-6 mb-6">
+            <Button size="lg" onClick={() => scrollToSection("book-now")} className="text-lg px-8 py-6 hover:scale-105 transition-all duration-300 shadow-lg animate-fade-in">
               Book Now
             </Button>
-            <Button size="lg" variant="outline" onClick={() => scrollToSection("pricing")} className="hover:scale-105 transition-all duration-300">
-              See Pricing
-            </Button>
+            
+            <div className="flex flex-wrap justify-center gap-3">
+              <Badge variant="secondary" className="px-4 py-2 text-sm">
+                No catering restrictions
+              </Badge>
+              <Badge variant="secondary" className="px-4 py-2 text-sm cursor-pointer" onClick={() => scrollToSection("pricing")}>
+                See Pricing
+              </Badge>
+            </div>
           </div>
 
           <p className="text-sm text-foreground/80 font-medium">
