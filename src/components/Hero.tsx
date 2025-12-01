@@ -26,6 +26,9 @@ const Hero = () => {
       <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.15),transparent_50%)]" />
       
+      {/* Fade out effect at bottom */}
+      <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-background" />
+      
       {/* Content */}
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto text-center animate-fade-in">
