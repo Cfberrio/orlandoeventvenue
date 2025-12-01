@@ -87,7 +87,7 @@ const Gallery = () => {
       <section 
         ref={sectionRef}
         id="gallery" 
-        className="py-16 md:py-24 bg-gradient-to-b from-background to-accent overflow-hidden"
+        className="py-8 md:py-12 bg-gradient-to-b from-background to-accent overflow-hidden"
       >
         <div className="container mx-auto px-4">
           <div className="max-w-7xl mx-auto">
