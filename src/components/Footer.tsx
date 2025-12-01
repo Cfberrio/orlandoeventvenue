@@ -3,12 +3,12 @@ import oevLogoFull from "@/assets/oev-logo-full.png";
 
 const Footer = () => {
   return (
-    <footer className="bg-secondary text-secondary-foreground py-12">
+    <footer className="bg-black text-white py-12">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-3 gap-8 mb-8">
             <div>
-              <img src={oevLogoFull} alt="Orlando Event Venue" className="h-12 mb-4" />
+              <img src={oevLogoFull} alt="Orlando Event Venue" className="h-20 mb-4" />
               <p className="text-sm opacity-90">
                 Modern venue for corporate events, celebrations, and presentations.
               </p>
@@ -35,7 +35,7 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="border-t border-secondary-foreground/20 pt-8 text-center text-sm opacity-75">
+          <div className="border-t border-white/20 pt-8 text-center text-sm opacity-75">
             <p>© {new Date().getFullYear()} Orlando Event Venue. All rights reserved.</p>
           </div>
         </div>
