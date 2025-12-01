@@ -7,7 +7,7 @@ const SpaceHighlights = () => {
 
   const highlights = [
     { icon: Car, label: "Free parking", link: null },
-    { icon: Star, label: "⭐️ 5.0 Reviews", link: "https://www.google.com/maps?q=Orlando+Event+Venue,+3847+E+Colonial+Dr,+Orlando,+FL+32803&ftid=0x88e7658349956c29:0x14dd97040d50b24f&entry=gps&lucs=,94275415,94284463,94224825,94227247,94227248,94231188,94280568,47071704,47069508,94218641,94282134,94203019,47084304,94286869&g_ep=CAISEjI1LjQ3LjAuODMzNTQyOTMwMBgAIIgnKn4sOTQyNzU0MTUsOTQyODQ0NjMsOTQyMjQ4MjUsOTQyMjcyNDcsOTQyMjcyNDgsOTQyMzExODgsOTQyODA1NjgsNDcwNzE3MDQsNDcwNjk1MDgsOTQyMTg2NDEsOTQyODIxMzQsOTQyMDMwMTksNDcwODQzMDQsOTQyODY4NjlCAlVT&skid=d985b2d1-525a-4aaf-b447-cd75ebff9886&g_st=ipc" },
+    { icon: Star, label: "⭐️ 5.0 Reviews", link: "https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTEyMy4xIKXMDSoASAFQAw%3D%3D" },
     { icon: Clock, label: "24/7 Availability", link: null },
     { icon: MapPin, label: "3847 E Colonial Dr, Orlando, FL 32803", link: null },
   ];
