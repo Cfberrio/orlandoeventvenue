@@ -6,6 +6,10 @@ import oevLogoIcon from "@/assets/oev-logo-icon.png";
 const Navigation = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  const goToHome = () => {
+    window.location.href = "/";
+  };
+
   const scrollToSection = (id: string) => {
     if (id === "book-now") {
       window.location.href = "/book";
@@ -22,9 +26,9 @@ const Navigation = () => {
     <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm transition-all duration-300">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
-            <img src={oevLogoIcon} alt="OEV" className="h-10 w-auto" />
-            <span className="font-bold text-xl text-foreground">OEV</span>
+          <div className="flex items-center gap-3 cursor-pointer" onClick={goToHome}>
+            <img src={oevLogoIcon} alt="OEV" className="h-10 w-auto transition-transform duration-300 hover:scale-110" />
+            <span className="font-bold text-xl text-foreground transition-colors duration-300 hover:text-primary">OEV</span>
           </div>
 
           {/* Desktop Navigation */}
