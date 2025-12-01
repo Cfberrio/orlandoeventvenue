@@ -14,16 +14,321 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      blackout_dates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          end_date: string
+          id: string
+          reason: string | null
+          start_date: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          end_date: string
+          id?: string
+          reason?: string | null
+          start_date: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          end_date?: string
+          id?: string
+          reason?: string | null
+          start_date?: string
+        }
+        Relationships: []
+      }
+      booking_attachments: {
+        Row: {
+          booking_id: string
+          content_type: string
+          created_at: string
+          filename: string
+          id: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          booking_id: string
+          content_type: string
+          created_at?: string
+          filename: string
+          id?: string
+          size_bytes: number
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          booking_id?: string
+          content_type?: string
+          created_at?: string
+          filename?: string
+          id?: string
+          size_bytes?: number
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_attachments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bookings: {
+        Row: {
+          agree_to_rules: boolean
+          balance_amount: number
+          balance_paid_at: string | null
+          base_rental: number
+          booking_type: Database["public"]["Enums"]["booking_type"]
+          cancelled_at: string | null
+          cleaning_fee: number
+          client_notes: string | null
+          company: string | null
+          confirmed_at: string | null
+          contract_version: string | null
+          created_at: string
+          deposit_amount: number
+          deposit_paid_at: string | null
+          email: string
+          end_time: string | null
+          event_date: string
+          event_type: string
+          event_type_other: string | null
+          full_name: string
+          id: string
+          initials: string
+          internal_notes: Json | null
+          ip_address: unknown
+          number_of_guests: number
+          optional_services: number
+          package: Database["public"]["Enums"]["package_type"]
+          package_cost: number
+          payment_status: Database["public"]["Enums"]["payment_status"]
+          phone: string
+          setup_breakdown: boolean
+          signature: string
+          signature_date: string
+          signer_name: string
+          start_time: string | null
+          status: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          tablecloth_quantity: number
+          tablecloths: boolean
+          taxes_fees: number
+          total_amount: number
+          updated_at: string
+          user_agent: string | null
+        }
+        Insert: {
+          agree_to_rules?: boolean
+          balance_amount: number
+          balance_paid_at?: string | null
+          base_rental: number
+          booking_type: Database["public"]["Enums"]["booking_type"]
+          cancelled_at?: string | null
+          cleaning_fee?: number
+          client_notes?: string | null
+          company?: string | null
+          confirmed_at?: string | null
+          contract_version?: string | null
+          created_at?: string
+          deposit_amount: number
+          deposit_paid_at?: string | null
+          email: string
+          end_time?: string | null
+          event_date: string
+          event_type: string
+          event_type_other?: string | null
+          full_name: string
+          id?: string
+          initials: string
+          internal_notes?: Json | null
+          ip_address?: unknown
+          number_of_guests: number
+          optional_services?: number
+          package?: Database["public"]["Enums"]["package_type"]
+          package_cost?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          phone: string
+          setup_breakdown?: boolean
+          signature: string
+          signature_date: string
+          signer_name: string
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tablecloth_quantity?: number
+          tablecloths?: boolean
+          taxes_fees?: number
+          total_amount: number
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Update: {
+          agree_to_rules?: boolean
+          balance_amount?: number
+          balance_paid_at?: string | null
+          base_rental?: number
+          booking_type?: Database["public"]["Enums"]["booking_type"]
+          cancelled_at?: string | null
+          cleaning_fee?: number
+          client_notes?: string | null
+          company?: string | null
+          confirmed_at?: string | null
+          contract_version?: string | null
+          created_at?: string
+          deposit_amount?: number
+          deposit_paid_at?: string | null
+          email?: string
+          end_time?: string | null
+          event_date?: string
+          event_type?: string
+          event_type_other?: string | null
+          full_name?: string
+          id?: string
+          initials?: string
+          internal_notes?: Json | null
+          ip_address?: unknown
+          number_of_guests?: number
+          optional_services?: number
+          package?: Database["public"]["Enums"]["package_type"]
+          package_cost?: number
+          payment_status?: Database["public"]["Enums"]["payment_status"]
+          phone?: string
+          setup_breakdown?: boolean
+          signature?: string
+          signature_date?: string
+          signer_name?: string
+          start_time?: string | null
+          status?: Database["public"]["Enums"]["booking_status"]
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tablecloth_quantity?: number
+          tablecloths?: boolean
+          taxes_fees?: number
+          total_amount?: number
+          updated_at?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      venue_config: {
+        Row: {
+          description: string | null
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          id?: string
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      add_internal_note: {
+        Args: { _author_id: string; _booking_id: string; _note: string }
+        Returns: undefined
+      }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "staff"
+      booking_status:
+        | "pending_review"
+        | "confirmed"
+        | "cancelled"
+        | "completed"
+        | "needs_info"
+        | "needs_payment"
+        | "declined"
+      booking_type: "hourly" | "daily"
+      package_type: "none" | "basic" | "led" | "workshop"
+      payment_status:
+        | "pending"
+        | "deposit_paid"
+        | "fully_paid"
+        | "failed"
+        | "refunded"
+        | "invoiced"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +455,27 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "staff"],
+      booking_status: [
+        "pending_review",
+        "confirmed",
+        "cancelled",
+        "completed",
+        "needs_info",
+        "needs_payment",
+        "declined",
+      ],
+      booking_type: ["hourly", "daily"],
+      package_type: ["none", "basic", "led", "workshop"],
+      payment_status: [
+        "pending",
+        "deposit_paid",
+        "fully_paid",
+        "failed",
+        "refunded",
+        "invoiced",
+      ],
+    },
   },
 } as const
