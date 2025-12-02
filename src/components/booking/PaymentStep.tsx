@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { BookingFormData } from "@/pages/Book";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, CreditCard } from "lucide-react";
+import { CheckCircle2, CreditCard, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { format, addDays } from "date-fns";
+import { useCreateBooking } from "@/hooks/useCreateBooking";
+import { toast } from "sonner";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -11,13 +13,32 @@ interface PaymentStepProps {
   onBack: () => void;
 }
 
-const PaymentStep = ({ data, onBack }: PaymentStepProps) => {
+const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
   const [isPaid, setIsPaid] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const createBooking = useCreateBooking();
 
-  const handlePayment = () => {
-    // TODO: Integrate with Stripe
-    // For now, simulate payment success
-    setIsPaid(true);
+  const handlePayment = async () => {
+    try {
+      // First, create the booking in the database
+      const result = await createBooking.mutateAsync(data);
+      setBookingId(result.bookingId);
+      
+      // Update form data with payment status
+      updateData({ paymentStatus: "paid" });
+      
+      // Mark as paid (simulated for now)
+      setIsPaid(true);
+      
+      toast.success("Booking submitted successfully!", {
+        description: "You will receive a confirmation email within 24 hours.",
+      });
+    } catch (error) {
+      console.error("Payment/booking error:", error);
+      toast.error("Failed to submit booking", {
+        description: error instanceof Error ? error.message : "Please try again.",
+      });
+    }
   };
 
   if (isPaid) {
@@ -34,6 +55,11 @@ const PaymentStep = ({ data, onBack }: PaymentStepProps) => {
           <p className="text-lg text-muted-foreground">
             Pending Confirmation
           </p>
+          {bookingId && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Booking Reference: <span className="font-mono">{bookingId.slice(0, 8).toUpperCase()}</span>
+            </p>
+          )}
         </div>
 
         <Card className="p-6 bg-accent/30 text-left max-w-2xl mx-auto">
@@ -125,17 +151,28 @@ const PaymentStep = ({ data, onBack }: PaymentStepProps) => {
             Stripe payment integration will be connected here
           </p>
           <p className="text-sm text-muted-foreground">
-            For now, click below to simulate payment
+            For now, click below to submit your booking
           </p>
         </div>
       </Card>
 
       <div className="flex justify-between pt-4">
-        <Button type="button" variant="outline" onClick={onBack}>
+        <Button type="button" variant="outline" onClick={onBack} disabled={createBooking.isPending}>
           Back
         </Button>
-        <Button size="lg" onClick={handlePayment}>
-          Pay ${data.pricing?.deposit.toFixed(2)} Now
+        <Button 
+          size="lg" 
+          onClick={handlePayment} 
+          disabled={createBooking.isPending}
+        >
+          {createBooking.isPending ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Processing...
+            </>
+          ) : (
+            `Pay $${data.pricing?.deposit.toFixed(2)} Now`
+          )}
         </Button>
       </div>
     </div>
