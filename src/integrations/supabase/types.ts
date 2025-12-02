@@ -44,8 +44,10 @@ export type Database = {
       booking_attachments: {
         Row: {
           booking_id: string
+          category: string
           content_type: string
           created_at: string
+          description: string | null
           filename: string
           id: string
           size_bytes: number
@@ -54,8 +56,10 @@ export type Database = {
         }
         Insert: {
           booking_id: string
+          category?: string
           content_type: string
           created_at?: string
+          description?: string | null
           filename: string
           id?: string
           size_bytes: number
@@ -64,8 +68,10 @@ export type Database = {
         }
         Update: {
           booking_id?: string
+          category?: string
           content_type?: string
           created_at?: string
+          description?: string | null
           filename?: string
           id?: string
           size_bytes?: number
@@ -78,6 +84,250 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_cleaning_reports: {
+        Row: {
+          booking_id: string
+          cleaner_id: string | null
+          completed_at: string | null
+          created_at: string
+          damage_found: boolean | null
+          damage_notes: string | null
+          floors_clean: boolean | null
+          id: string
+          restrooms_clean: boolean | null
+          scheduled_end: string | null
+          scheduled_start: string | null
+          started_at: string | null
+          status: string
+          surfaces_clean: boolean | null
+          trash_removed: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          cleaner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          damage_found?: boolean | null
+          damage_notes?: string | null
+          floors_clean?: boolean | null
+          id?: string
+          restrooms_clean?: boolean | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          started_at?: string | null
+          status?: string
+          surfaces_clean?: boolean | null
+          trash_removed?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          cleaner_id?: string | null
+          completed_at?: string | null
+          created_at?: string
+          damage_found?: boolean | null
+          damage_notes?: string | null
+          floors_clean?: boolean | null
+          id?: string
+          restrooms_clean?: boolean | null
+          scheduled_end?: string | null
+          scheduled_start?: string | null
+          started_at?: string | null
+          status?: string
+          surfaces_clean?: boolean | null
+          trash_removed?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_cleaning_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_cleaning_reports_cleaner_id_fkey"
+            columns: ["cleaner_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_events: {
+        Row: {
+          booking_id: string
+          channel: string | null
+          created_at: string
+          event_type: string
+          id: string
+          metadata: Json | null
+        }
+        Insert: {
+          booking_id: string
+          channel?: string | null
+          created_at?: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+        }
+        Update: {
+          booking_id?: string
+          channel?: string | null
+          created_at?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_host_reports: {
+        Row: {
+          booking_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          reviewed_at: string | null
+          reviewed_by_id: string | null
+          status: string
+          submitted_at: string
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_id?: string | null
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by_id?: string | null
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_host_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_host_reports_reviewed_by_id_fkey"
+            columns: ["reviewed_by_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_reviews: {
+        Row: {
+          booking_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          review_url: string | null
+          reviewer_name: string | null
+          source: string
+        }
+        Insert: {
+          booking_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          review_url?: string | null
+          reviewer_name?: string | null
+          source: string
+        }
+        Update: {
+          booking_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          review_url?: string | null
+          reviewer_name?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_staff_assignments: {
+        Row: {
+          assignment_role: string
+          booking_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          staff_id: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_role: string
+          booking_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          staff_id: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_role?: string
+          booking_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          staff_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
         ]
@@ -108,12 +358,16 @@ export type Database = {
           initials: string
           internal_notes: Json | null
           ip_address: unknown
+          lead_source: string | null
+          lifecycle_status: string
           number_of_guests: number
           optional_services: number
           package: Database["public"]["Enums"]["package_type"]
           package_cost: number
           payment_status: Database["public"]["Enums"]["payment_status"]
           phone: string
+          pre_event_checklist_completed_at: string | null
+          pre_event_ready: boolean
           setup_breakdown: boolean
           signature: string
           signature_date: string
@@ -154,12 +408,16 @@ export type Database = {
           initials: string
           internal_notes?: Json | null
           ip_address?: unknown
+          lead_source?: string | null
+          lifecycle_status?: string
           number_of_guests: number
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone: string
+          pre_event_checklist_completed_at?: string | null
+          pre_event_ready?: boolean
           setup_breakdown?: boolean
           signature: string
           signature_date: string
@@ -200,12 +458,16 @@ export type Database = {
           initials?: string
           internal_notes?: Json | null
           ip_address?: unknown
+          lead_source?: string | null
+          lifecycle_status?: string
           number_of_guests?: number
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone?: string
+          pre_event_checklist_completed_at?: string | null
+          pre_event_ready?: boolean
           setup_breakdown?: boolean
           signature?: string
           signature_date?: string
@@ -222,6 +484,59 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: []
+      }
+      maintenance_tickets: {
+        Row: {
+          booking_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          issue_type: string | null
+          priority: string
+          reported_by_role: string | null
+          resolved_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          venue_area: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          issue_type?: string | null
+          priority?: string
+          reported_by_role?: string | null
+          resolved_at?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          venue_area?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          issue_type?: string | null
+          priority?: string
+          reported_by_role?: string | null
+          resolved_at?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          venue_area?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "maintenance_tickets_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -243,6 +558,39 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      staff_members: {
+        Row: {
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          is_active: boolean
+          phone: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          role: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          phone?: string | null
+          role?: string
           updated_at?: string
         }
         Relationships: []
