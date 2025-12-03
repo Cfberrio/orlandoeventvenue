@@ -39,7 +39,7 @@ export const useCreateBooking = () => {
         cleaning_fee: formData.pricing.cleaningFee,
         package_cost: formData.pricing.packageCost,
         optional_services: formData.pricing.optionalServices,
-        taxes_fees: formData.pricing.taxes,
+        taxes_fees: 0,
         total_amount: formData.pricing.total,
         deposit_amount: formData.pricing.deposit,
         balance_amount: formData.pricing.balance,
