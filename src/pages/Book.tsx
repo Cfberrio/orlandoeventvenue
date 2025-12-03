@@ -24,6 +24,7 @@ export interface BookingFormData {
   
   // Step 3
   package: "none" | "basic" | "led" | "workshop";
+  packageHours: number;
   setupBreakdown: boolean;
   tablecloths: boolean;
   tableclothQuantity: number;
@@ -34,7 +35,6 @@ export interface BookingFormData {
     cleaningFee: number;
     packageCost: number;
     optionalServices: number;
-    taxes: number;
     total: number;
     deposit: number;
     balance: number;
@@ -62,6 +62,7 @@ const Book = () => {
     numberOfGuests: 1,
     eventType: "",
     package: "none",
+    packageHours: 4,
     setupBreakdown: false,
     tablecloths: false,
     tableclothQuantity: 0,

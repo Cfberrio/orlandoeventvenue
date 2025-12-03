@@ -2,18 +2,11 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, FormMessage } from "@/components/ui/form";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { BookingFormData } from "@/pages/Book";
-
-const formSchema = z.object({
-  package: z.enum(["none", "basic", "led", "workshop"]),
-  setupBreakdown: z.boolean(),
-  tablecloths: z.boolean(),
-  tableclothQuantity: z.coerce.number().min(0),
-});
 
 interface AddOnsStepProps {
   data: Partial<BookingFormData>;
@@ -23,10 +16,36 @@ interface AddOnsStepProps {
 }
 
 const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
+  // Calculate max hours based on booking type
+  const getMaxPackageHours = () => {
+    if (data.bookingType === "daily") {
+      return 12;
+    }
+    // For hourly, calculate from start/end time
+    if (data.startTime && data.endTime) {
+      const start = new Date(`2000-01-01T${data.startTime}`);
+      const end = new Date(`2000-01-01T${data.endTime}`);
+      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      return Math.max(4, hours);
+    }
+    return 4;
+  };
+
+  const maxPackageHours = getMaxPackageHours();
+
+  const formSchema = z.object({
+    package: z.enum(["none", "basic", "led", "workshop"]),
+    packageHours: z.coerce.number().min(4, "Minimum 4 hours").max(maxPackageHours, `Maximum ${maxPackageHours} hours`),
+    setupBreakdown: z.boolean(),
+    tablecloths: z.boolean(),
+    tableclothQuantity: z.coerce.number().min(0).max(10, "Maximum 10 tablecloths"),
+  });
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       package: data.package || "none",
+      packageHours: data.packageHours || 4,
       setupBreakdown: data.setupBreakdown || false,
       tablecloths: data.tablecloths || false,
       tableclothQuantity: data.tableclothQuantity || 0,
@@ -34,9 +53,13 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
   });
 
   const tableclothsChecked = form.watch("tablecloths");
+  const selectedPackage = form.watch("package");
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
-    updateData(values);
+    updateData({
+      ...values,
+      packageHours: values.package === "none" ? 0 : values.packageHours,
+    });
     onNext();
   };
 
@@ -57,7 +80,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
             <FormItem>
               <FormLabel className="text-lg font-semibold">Production Packages</FormLabel>
               <FormDescription className="mb-4">
-                Select one package (charged per hour booked)
+                Select one package (charged per hour)
               </FormDescription>
               <FormControl>
                 <RadioGroup
@@ -108,6 +131,35 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
           )}
         />
 
+        {selectedPackage !== "none" && (
+          <FormField
+            control={form.control}
+            name="packageHours"
+            render={({ field }) => (
+              <FormItem className="border rounded-lg p-4 bg-accent/20">
+                <FormLabel className="font-semibold">Package Hours</FormLabel>
+                <FormDescription>
+                  {data.bookingType === "daily" 
+                    ? "Select how many hours you need the package (4-12 hours)"
+                    : `Select how many hours you need the package (4-${maxPackageHours} hours)`
+                  }
+                </FormDescription>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={4}
+                    max={maxPackageHours}
+                    placeholder="Enter hours"
+                    className="max-w-xs"
+                    {...field}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <div className="space-y-4">
           <FormLabel className="text-lg font-semibold">Optional Services</FormLabel>
           <FormDescription className="mb-4">
@@ -153,7 +205,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                     Tablecloth Rental — $5 each + $25 cleaning fee
                   </FormLabel>
                   <FormDescription>
-                    Professional tablecloths for your event
+                    Professional tablecloths for your event (max 10)
                   </FormDescription>
                 </div>
               </FormItem>
@@ -166,16 +218,18 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
               name="tableclothQuantity"
               render={({ field }) => (
                 <FormItem className="ml-9">
-                  <FormLabel>Number of Tablecloths</FormLabel>
+                  <FormLabel>Number of Tablecloths (max 10)</FormLabel>
                   <FormControl>
                     <Input
                       type="number"
                       min={1}
+                      max={10}
                       placeholder="Enter quantity"
                       className="max-w-xs"
                       {...field}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />

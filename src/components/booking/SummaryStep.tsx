@@ -38,7 +38,8 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         led: 99,
         workshop: 149,
       };
-      const packageCost = (packageRates[data.package || "none"] || 0) * hours;
+      const packageHours = data.packageHours || 0;
+      const packageCost = (packageRates[data.package || "none"] || 0) * packageHours;
 
       let optionalServices = 0;
       if (data.setupBreakdown) optionalServices += 100;
@@ -46,9 +47,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         optionalServices += data.tableclothQuantity * 5 + 25;
       }
 
-      const subtotal = baseRental + cleaningFee + packageCost + optionalServices;
-      const taxes = subtotal * 0.07; // 7% tax estimate
-      const total = subtotal + taxes;
+      const total = baseRental + cleaningFee + packageCost + optionalServices;
       const deposit = Math.round(total * 0.5);
       const balance = total - deposit;
 
@@ -58,7 +57,6 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           cleaningFee,
           packageCost,
           optionalServices,
-          taxes,
           total,
           deposit,
           balance,
@@ -158,6 +156,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <p>
                 <span className="text-muted-foreground">Package:</span>{" "}
                 {packageNames[data.package || "none"]}
+                {data.package !== "none" && data.packageHours && (
+                  <span> ({data.packageHours} hours)</span>
+                )}
               </p>
               {data.setupBreakdown && <p>• Setup & Breakdown of Chairs/Tables</p>}
               {data.tablecloths && (
@@ -202,10 +203,6 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 <span>${data.pricing.optionalServices.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-muted-foreground">
-              <span>Taxes & Fees (est.)</span>
-              <span>${data.pricing.taxes.toFixed(2)}</span>
-            </div>
           </div>
 
           <Separator className="my-4" />
