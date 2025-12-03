@@ -24,7 +24,8 @@ export interface BookingFormData {
   
   // Step 3
   package: "none" | "basic" | "led" | "workshop";
-  packageHours: number;
+  packageStartTime: string;
+  packageEndTime: string;
   setupBreakdown: boolean;
   tablecloths: boolean;
   tableclothQuantity: number;
@@ -62,7 +63,8 @@ const Book = () => {
     numberOfGuests: 1,
     eventType: "",
     package: "none",
-    packageHours: 4,
+    packageStartTime: "",
+    packageEndTime: "",
     setupBreakdown: false,
     tablecloths: false,
     tableclothQuantity: 0,

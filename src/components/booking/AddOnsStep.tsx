@@ -16,36 +16,62 @@ interface AddOnsStepProps {
 }
 
 const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
-  // Calculate max hours based on booking type
-  const getMaxPackageHours = () => {
+  // Get booking time constraints
+  const getTimeConstraints = () => {
     if (data.bookingType === "daily") {
-      return 12;
+      return { minHours: 4, maxHours: 12 };
     }
-    // For hourly, calculate from start/end time
+    // For hourly, max is the rental duration
     if (data.startTime && data.endTime) {
       const start = new Date(`2000-01-01T${data.startTime}`);
       const end = new Date(`2000-01-01T${data.endTime}`);
       const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      return Math.max(4, hours);
+      return { minHours: 4, maxHours: hours, rentalStart: data.startTime, rentalEnd: data.endTime };
     }
-    return 4;
+    return { minHours: 4, maxHours: 12 };
   };
 
-  const maxPackageHours = getMaxPackageHours();
+  const constraints = getTimeConstraints();
 
   const formSchema = z.object({
     package: z.enum(["none", "basic", "led", "workshop"]),
-    packageHours: z.coerce.number().min(4, "Minimum 4 hours").max(maxPackageHours, `Maximum ${maxPackageHours} hours`),
+    packageStartTime: z.string(),
+    packageEndTime: z.string(),
     setupBreakdown: z.boolean(),
     tablecloths: z.boolean(),
     tableclothQuantity: z.coerce.number().min(0).max(10, "Maximum 10 tablecloths"),
+  }).refine((data) => {
+    if (data.package === "none") return true;
+    if (!data.packageStartTime || !data.packageEndTime) return false;
+    
+    const start = new Date(`2000-01-01T${data.packageStartTime}`);
+    const end = new Date(`2000-01-01T${data.packageEndTime}`);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    
+    return hours >= 4;
+  }, {
+    message: "Package time must be at least 4 hours",
+    path: ["packageEndTime"],
+  }).refine((data) => {
+    if (data.package === "none") return true;
+    if (!data.packageStartTime || !data.packageEndTime) return false;
+    
+    const start = new Date(`2000-01-01T${data.packageStartTime}`);
+    const end = new Date(`2000-01-01T${data.packageEndTime}`);
+    const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+    
+    return hours <= constraints.maxHours;
+  }, {
+    message: `Package time cannot exceed ${constraints.maxHours} hours`,
+    path: ["packageEndTime"],
   });
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       package: data.package || "none",
-      packageHours: data.packageHours || 4,
+      packageStartTime: data.packageStartTime || "",
+      packageEndTime: data.packageEndTime || "",
       setupBreakdown: data.setupBreakdown || false,
       tablecloths: data.tablecloths || false,
       tableclothQuantity: data.tableclothQuantity || 0,
@@ -58,7 +84,8 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     updateData({
       ...values,
-      packageHours: values.package === "none" ? 0 : values.packageHours,
+      packageStartTime: values.package === "none" ? "" : values.packageStartTime,
+      packageEndTime: values.package === "none" ? "" : values.packageEndTime,
     });
     onNext();
   };
@@ -132,32 +159,47 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
         />
 
         {selectedPackage !== "none" && (
-          <FormField
-            control={form.control}
-            name="packageHours"
-            render={({ field }) => (
-              <FormItem className="border rounded-lg p-4 bg-accent/20">
-                <FormLabel className="font-semibold">Package Hours</FormLabel>
-                <FormDescription>
-                  {data.bookingType === "daily" 
-                    ? "Select how many hours you need the package (4-12 hours)"
-                    : `Select how many hours you need the package (4-${maxPackageHours} hours)`
-                  }
-                </FormDescription>
-                <FormControl>
-                  <Input
-                    type="number"
-                    min={4}
-                    max={maxPackageHours}
-                    placeholder="Enter hours"
-                    className="max-w-xs"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="border rounded-lg p-4 bg-accent/20 space-y-4">
+            <div>
+              <FormLabel className="font-semibold text-base">Package Time</FormLabel>
+              <FormDescription>
+                {data.bookingType === "daily" 
+                  ? "Select start and end time for the package (min 4 hours, max 12 hours)"
+                  : `Select start and end time within your rental period (min 4 hours, max ${constraints.maxHours} hours)`
+                }
+              </FormDescription>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="packageStartTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="packageEndTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          </div>
         )}
 
         <div className="space-y-4">
