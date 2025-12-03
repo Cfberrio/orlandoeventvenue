@@ -3,10 +3,13 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
+import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
+import ProtectedRoute from "./components/admin/ProtectedRoute";
 import AdminDashboard from "./pages/admin/Dashboard";
 import BookingsList from "./pages/admin/BookingsList";
 import BookingDetail from "./pages/admin/BookingDetail";
@@ -20,31 +23,38 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/book" element={<Book />} />
-          
-          {/* Admin Routes */}
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route path="dashboard" element={<AdminDashboard />} />
-            <Route path="bookings" element={<BookingsList />} />
-            <Route path="bookings/:id" element={<BookingDetail />} />
-            <Route path="schedule" element={<Schedule />} />
-            <Route path="staff" element={<Staff />} />
-            <Route path="reminders" element={<Reminders />} />
-            <Route path="reports" element={<Reports />} />
-            <Route path="cleaning" element={<Cleaning />} />
-          </Route>
-          
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/book" element={<Book />} />
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Admin Routes - Protected */}
+            <Route path="/admin" element={
+              <ProtectedRoute>
+                <AdminLayout />
+              </ProtectedRoute>
+            }>
+              <Route path="dashboard" element={<AdminDashboard />} />
+              <Route path="bookings" element={<BookingsList />} />
+              <Route path="bookings/:id" element={<BookingDetail />} />
+              <Route path="schedule" element={<Schedule />} />
+              <Route path="staff" element={<Staff />} />
+              <Route path="reminders" element={<Reminders />} />
+              <Route path="reports" element={<Reports />} />
+              <Route path="cleaning" element={<Cleaning />} />
+            </Route>
+            
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
   </QueryClientProvider>
 );
 

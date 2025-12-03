@@ -9,10 +9,12 @@ import {
   Sparkles,
   CalendarDays,
   Menu,
-  X
+  X,
+  LogOut
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/hooks/useAuth";
 
 const navItems = [
   { to: "/admin/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -26,6 +28,12 @@ const navItems = [
 
 export default function AdminLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+    window.location.href = '/auth';
+  };
 
   return (
     <div className="min-h-screen flex w-full bg-background">
@@ -86,9 +94,16 @@ export default function AdminLayout() {
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1" />
+          <span className="text-sm text-muted-foreground hidden sm:inline">
+            {user?.email}
+          </span>
           <NavLink to="/" className="text-sm text-muted-foreground hover:text-foreground">
             View Site →
           </NavLink>
+          <Button variant="ghost" size="sm" onClick={handleSignOut}>
+            <LogOut className="h-4 w-4 mr-2" />
+            Sign Out
+          </Button>
         </header>
 
         {/* Page content */}
