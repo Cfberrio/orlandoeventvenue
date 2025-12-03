@@ -7,6 +7,8 @@ import { AuthProvider } from "@/hooks/useAuth";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
 import Auth from "./pages/Auth";
+import SmsTerms from "./pages/SmsTerms";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
@@ -32,6 +34,8 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/book" element={<Book />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/sms-terms" element={<SmsTerms />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
             
             {/* Admin Routes - Protected */}
             <Route path="/admin" element={

@@ -31,6 +31,9 @@ const formSchema = z.object({
   agreeToRules: z.boolean().refine((val) => val === true, {
     message: "You must agree to the Venue Rules & Fee Schedule",
   }),
+  agreeToSms: z.boolean().refine((val) => val === true, {
+    message: "You must agree to receive SMS messages",
+  }),
   initials: z.string().trim().min(2, "Initials must be at least 2 characters").max(4, "Initials must be 4 characters or less"),
   signerName: z.string().trim().min(2, "Name is required"),
   signature: z.string().min(2, "Signature is required"),
@@ -61,6 +64,7 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
       phone: data.phone || "",
       company: data.company || "",
       agreeToRules: data.agreeToRules || false,
+      agreeToSms: data.agreeToSms || false,
       initials: data.initials || "",
       signerName: data.signerName || data.fullName || "",
       signature: data.signature || "",
@@ -230,6 +234,47 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           />
           <FormMessage>
             {form.formState.errors.agreeToRules?.message}
+          </FormMessage>
+
+          <FormField
+            control={form.control}
+            name="agreeToSms"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 border rounded-lg p-4 bg-background">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-normal cursor-pointer">
+                    By checking this box, I agree to receive SMS messages from Orlando Event Venue about my booking and related promotions at the phone number provided. Message & data rates may apply. Message frequency varies. Consent is not a condition of purchase. Reply STOP to cancel, HELP for help. See our{" "}
+                    <a
+                      href="/sms-terms"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline hover:text-primary/80"
+                    >
+                      SMS Terms
+                    </a>
+                    {" "}and{" "}
+                    <a
+                      href="/privacy-policy"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary underline hover:text-primary/80"
+                    >
+                      Privacy Policy
+                    </a>
+                    . *
+                  </FormLabel>
+                </div>
+              </FormItem>
+            )}
+          />
+          <FormMessage>
+            {form.formState.errors.agreeToSms?.message}
           </FormMessage>
         </div>
 
