@@ -32,6 +32,8 @@ export const useCreateBooking = () => {
         event_type_other: formData.eventType === "other" ? formData.eventTypeOther : null,
         client_notes: formData.notes || null,
         package: (formData.package || "none") as "none" | "basic" | "led" | "workshop",
+        package_start_time: formData.package !== "none" ? formData.packageStartTime || null : null,
+        package_end_time: formData.package !== "none" ? formData.packageEndTime || null : null,
         setup_breakdown: formData.setupBreakdown || false,
         tablecloths: formData.tablecloths || false,
         tablecloth_quantity: formData.tableclothQuantity || 0,
