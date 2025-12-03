@@ -364,6 +364,8 @@ export type Database = {
           optional_services: number
           package: Database["public"]["Enums"]["package_type"]
           package_cost: number
+          package_end_time: string | null
+          package_start_time: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           phone: string
           pre_event_checklist_completed_at: string | null
@@ -414,6 +416,8 @@ export type Database = {
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
+          package_end_time?: string | null
+          package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone: string
           pre_event_checklist_completed_at?: string | null
@@ -464,6 +468,8 @@ export type Database = {
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
+          package_end_time?: string | null
+          package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone?: string
           pre_event_checklist_completed_at?: string | null
