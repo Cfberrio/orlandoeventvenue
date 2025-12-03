@@ -52,8 +52,8 @@ export default function Cleaning() {
   const { data: cleaningReports, isLoading } = useCleaningReports({
     dateFrom: dateFrom ? format(dateFrom, "yyyy-MM-dd") : undefined,
     dateTo: dateTo ? format(dateTo, "yyyy-MM-dd") : undefined,
-    status: statusFilter || undefined,
-    cleanerId: cleanerFilter || undefined,
+    status: statusFilter && statusFilter !== "all" ? statusFilter : undefined,
+    cleanerId: cleanerFilter && cleanerFilter !== "all" ? cleanerFilter : undefined,
   });
 
   const { data: staffMembers } = useStaffMembers({ role: "cleaner", isActive: true });
@@ -127,7 +127,7 @@ export default function Cleaning() {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   {cleaningStatuses.map((status) => (
                     <SelectItem key={status} value={status}>
                       {status.replace(/_/g, " ")}
@@ -143,7 +143,7 @@ export default function Cleaning() {
                   <SelectValue placeholder="All cleaners" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All cleaners</SelectItem>
+                  <SelectItem value="all">All cleaners</SelectItem>
                   {staffMembers?.map((staff) => (
                     <SelectItem key={staff.id} value={staff.id}>
                       {staff.full_name}
@@ -281,16 +281,16 @@ export default function Cleaning() {
               <div>
                 <label className="text-sm font-medium">Cleaner</label>
                 <Select
-                  value={selectedReport.cleaner_id || ""}
+                  value={selectedReport.cleaner_id || "unassigned"}
                   onValueChange={(value) =>
-                    handleUpdateReport(selectedReport.id, { cleaner_id: value || null })
+                    handleUpdateReport(selectedReport.id, { cleaner_id: value === "unassigned" ? null : value })
                   }
                 >
                   <SelectTrigger className="mt-1">
                     <SelectValue placeholder="Assign cleaner" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {staffMembers?.map((staff) => (
                       <SelectItem key={staff.id} value={staff.id}>
                         {staff.full_name}

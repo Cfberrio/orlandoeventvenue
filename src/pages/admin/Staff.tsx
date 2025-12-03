@@ -48,8 +48,8 @@ export default function Staff() {
   const [formActive, setFormActive] = useState(true);
 
   const { data: staffMembers, isLoading } = useStaffMembers({
-    role: roleFilter || undefined,
-    isActive: activeFilter === "" ? undefined : activeFilter === "true",
+    role: roleFilter && roleFilter !== "all" ? roleFilter : undefined,
+    isActive: activeFilter === "all" || activeFilter === "" ? undefined : activeFilter === "true",
   });
 
   const createStaff = useCreateStaffMember();
@@ -193,7 +193,7 @@ export default function Staff() {
                   <SelectValue placeholder="All roles" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All roles</SelectItem>
+                  <SelectItem value="all">All roles</SelectItem>
                   {staffRoles.map((role) => (
                     <SelectItem key={role} value={role}>
                       {role.replace(/_/g, " ")}
@@ -209,7 +209,7 @@ export default function Staff() {
                   <SelectValue placeholder="All" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
                   <SelectItem value="true">Active</SelectItem>
                   <SelectItem value="false">Inactive</SelectItem>
                 </SelectContent>
