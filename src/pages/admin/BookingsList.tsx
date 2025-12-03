@@ -59,8 +59,8 @@ export default function BookingsList() {
   const { data: bookings, isLoading } = useBookings({
     dateFrom: dateFrom ? format(dateFrom, "yyyy-MM-dd") : undefined,
     dateTo: dateTo ? format(dateTo, "yyyy-MM-dd") : undefined,
-    lifecycleStatus: lifecycleStatus ? [lifecycleStatus] : undefined,
-    paymentStatus: paymentStatus || undefined,
+    lifecycleStatus: lifecycleStatus && lifecycleStatus !== "all" ? [lifecycleStatus] : undefined,
+    paymentStatus: paymentStatus && paymentStatus !== "all" ? paymentStatus : undefined,
     eventType: eventType || undefined,
   });
 
@@ -72,7 +72,7 @@ export default function BookingsList() {
     setEventType("");
   };
 
-  const hasFilters = dateFrom || dateTo || lifecycleStatus || paymentStatus || eventType;
+  const hasFilters = dateFrom || dateTo || (lifecycleStatus && lifecycleStatus !== "all") || (paymentStatus && paymentStatus !== "all") || eventType;
 
   return (
     <div className="space-y-6">
@@ -151,7 +151,7 @@ export default function BookingsList() {
                     <SelectValue placeholder="All statuses" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All statuses</SelectItem>
+                    <SelectItem value="all">All statuses</SelectItem>
                     {lifecycleStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status.replace(/_/g, " ")}
@@ -169,7 +169,7 @@ export default function BookingsList() {
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                     {paymentStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
                         {status.replace(/_/g, " ")}

@@ -38,7 +38,7 @@ export default function Reports() {
     dateFrom: format(dateFrom, "yyyy-MM-dd"),
     dateTo: format(dateTo, "yyyy-MM-dd"),
     eventType: eventType || undefined,
-    leadSource: leadSource || undefined,
+    leadSource: leadSource && leadSource !== "all" ? leadSource : undefined,
     lifecycleStatus: revenueStatuses,
   });
 
@@ -143,7 +143,7 @@ export default function Reports() {
                   <SelectValue placeholder="All sources" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All sources</SelectItem>
+                  <SelectItem value="all">All sources</SelectItem>
                   {leadSources.map((source) => (
                     <SelectItem key={source} value={source}>
                       {source.replace(/_/g, " ")}

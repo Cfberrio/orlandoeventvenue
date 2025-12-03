@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
+import type { Json } from "@/integrations/supabase/types";
 
 // Types
 export interface Booking {
@@ -502,10 +503,15 @@ export function useUpdateBooking() {
 export function useCreateBookingEvent() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (event: { booking_id: string; event_type: string; channel?: string | null; metadata?: Record<string, unknown> | null }) => {
+    mutationFn: async (event: { booking_id: string; event_type: string; channel?: string | null; metadata?: Json }) => {
       const { data, error } = await supabase
         .from("booking_events")
-        .insert(event)
+        .insert([{
+          booking_id: event.booking_id,
+          event_type: event.event_type,
+          channel: event.channel,
+          metadata: event.metadata,
+        }])
         .select()
         .single();
       if (error) throw error;
