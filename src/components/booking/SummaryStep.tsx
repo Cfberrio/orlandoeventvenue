@@ -38,7 +38,13 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         led: 99,
         workshop: 149,
       };
-      const packageHours = data.packageHours || 0;
+      
+      let packageHours = 0;
+      if (data.package !== "none" && data.packageStartTime && data.packageEndTime) {
+        const start = new Date(`2000-01-01T${data.packageStartTime}`);
+        const end = new Date(`2000-01-01T${data.packageEndTime}`);
+        packageHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      }
       const packageCost = (packageRates[data.package || "none"] || 0) * packageHours;
 
       let optionalServices = 0;
@@ -156,8 +162,8 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <p>
                 <span className="text-muted-foreground">Package:</span>{" "}
                 {packageNames[data.package || "none"]}
-                {data.package !== "none" && data.packageHours && (
-                  <span> ({data.packageHours} hours)</span>
+                {data.package !== "none" && data.packageStartTime && data.packageEndTime && (
+                  <span> ({data.packageStartTime} - {data.packageEndTime})</span>
                 )}
               </p>
               {data.setupBreakdown && <p>• Setup & Breakdown of Chairs/Tables</p>}
