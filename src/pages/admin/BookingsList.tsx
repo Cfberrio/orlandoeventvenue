@@ -21,8 +21,19 @@ import {
 } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Filter, X } from "lucide-react";
-import { useBookings } from "@/hooks/useAdminData";
+import { 
+  CalendarIcon, 
+  Filter, 
+  X, 
+  CheckCircle, 
+  Play, 
+  ClipboardCheck,
+  XCircle,
+  Star,
+  Eye
+} from "lucide-react";
+import { useBookings, useUpdateBooking } from "@/hooks/useAdminData";
+import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -38,17 +49,58 @@ const lifecycleStatuses = [
 
 const paymentStatuses = ["pending", "deposit_paid", "fully_paid", "failed", "refunded", "invoiced"];
 
-const lifecycleColors: Record<string, string> = {
-  pending: "bg-muted text-muted-foreground",
-  confirmed: "bg-primary/10 text-primary",
-  pre_event_ready: "bg-chart-1/20 text-chart-5",
-  in_progress: "bg-chart-2/20 text-chart-5",
-  post_event: "bg-chart-3/20 text-chart-5",
-  closed_review_complete: "bg-chart-4/20 text-foreground",
-  cancelled: "bg-destructive/10 text-destructive",
+const lifecycleConfig: Record<string, { label: string; color: string; nextAction?: string; nextStatus?: string }> = {
+  pending: { 
+    label: "Pending Review", 
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
+    nextAction: "Confirm",
+    nextStatus: "confirmed"
+  },
+  confirmed: { 
+    label: "Confirmed", 
+    color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
+    nextAction: "Mark Ready",
+    nextStatus: "pre_event_ready"
+  },
+  pre_event_ready: { 
+    label: "Pre-Event Ready", 
+    color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
+    nextAction: "Start Event",
+    nextStatus: "in_progress"
+  },
+  in_progress: { 
+    label: "In Progress", 
+    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
+    nextAction: "End Event",
+    nextStatus: "post_event"
+  },
+  post_event: { 
+    label: "Post-Event", 
+    color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
+    nextAction: "Close",
+    nextStatus: "closed_review_complete"
+  },
+  closed_review_complete: { 
+    label: "Closed", 
+    color: "bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400"
+  },
+  cancelled: { 
+    label: "Cancelled", 
+    color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
+  },
+};
+
+const paymentConfig: Record<string, { label: string; color: string }> = {
+  pending: { label: "Pending", color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" },
+  deposit_paid: { label: "Deposit Paid", color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400" },
+  fully_paid: { label: "Paid", color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400" },
+  failed: { label: "Failed", color: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400" },
+  refunded: { label: "Refunded", color: "bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-400" },
+  invoiced: { label: "Invoiced", color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400" },
 };
 
 export default function BookingsList() {
+  const { toast } = useToast();
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [lifecycleStatus, setLifecycleStatus] = useState<string>("");
@@ -64,6 +116,8 @@ export default function BookingsList() {
     eventType: eventType || undefined,
   });
 
+  const updateBooking = useUpdateBooking();
+
   const clearFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
@@ -73,6 +127,55 @@ export default function BookingsList() {
   };
 
   const hasFilters = dateFrom || dateTo || (lifecycleStatus && lifecycleStatus !== "all") || (paymentStatus && paymentStatus !== "all") || eventType;
+
+  const handleQuickAction = async (bookingId: string, nextStatus: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      const updates: Record<string, unknown> = { lifecycle_status: nextStatus };
+      
+      // Add specific updates for certain status transitions
+      if (nextStatus === "confirmed") {
+        updates.confirmed_at = new Date().toISOString();
+      } else if (nextStatus === "pre_event_ready") {
+        updates.pre_event_ready = true;
+        updates.pre_event_checklist_completed_at = new Date().toISOString();
+      } else if (nextStatus === "cancelled") {
+        updates.cancelled_at = new Date().toISOString();
+      }
+      
+      await updateBooking.mutateAsync({ id: bookingId, updates });
+      toast({ title: `Booking moved to ${lifecycleConfig[nextStatus]?.label || nextStatus}` });
+    } catch {
+      toast({ title: "Failed to update booking", variant: "destructive" });
+    }
+  };
+
+  const getActionButton = (booking: { id: string; lifecycle_status: string }) => {
+    const config = lifecycleConfig[booking.lifecycle_status];
+    if (!config?.nextAction || !config?.nextStatus) return null;
+
+    const iconMap: Record<string, React.ReactNode> = {
+      "Confirm": <CheckCircle className="h-3 w-3" />,
+      "Mark Ready": <ClipboardCheck className="h-3 w-3" />,
+      "Start Event": <Play className="h-3 w-3" />,
+      "End Event": <XCircle className="h-3 w-3" />,
+      "Close": <Star className="h-3 w-3" />,
+    };
+
+    return (
+      <Button 
+        size="sm" 
+        variant="outline"
+        className="h-7 text-xs gap-1"
+        onClick={(e) => handleQuickAction(booking.id, config.nextStatus!, e)}
+        disabled={updateBooking.isPending}
+      >
+        {iconMap[config.nextAction]}
+        {config.nextAction}
+      </Button>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -154,7 +257,7 @@ export default function BookingsList() {
                     <SelectItem value="all">All statuses</SelectItem>
                     {lifecycleStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status.replace(/_/g, " ")}
+                        {lifecycleConfig[status]?.label || status}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -172,7 +275,7 @@ export default function BookingsList() {
                     <SelectItem value="all">All</SelectItem>
                     {paymentStatuses.map((status) => (
                       <SelectItem key={status} value={status}>
-                        {status.replace(/_/g, " ")}
+                        {paymentConfig[status]?.label || status}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -206,68 +309,64 @@ export default function BookingsList() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Date</TableHead>
-                    <TableHead>Time</TableHead>
                     <TableHead>Client</TableHead>
-                    <TableHead>Event Type</TableHead>
+                    <TableHead>Event</TableHead>
                     <TableHead>Guests</TableHead>
-                    <TableHead>Type</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead>Next Action</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bookings?.map((booking) => (
-                    <TableRow key={booking.id} className="cursor-pointer hover:bg-accent/50">
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          {format(new Date(booking.event_date), "MMM d, yyyy")}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          {booking.start_time?.slice(0, 5) || "-"} - {booking.end_time?.slice(0, 5) || "-"}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block font-medium">
-                          {booking.full_name}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          {booking.event_type}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          {booking.number_of_guests}
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          <Badge variant="outline">{booking.booking_type}</Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          <Badge variant="secondary">{booking.payment_status}</Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell>
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
-                          <Badge className={lifecycleColors[booking.lifecycle_status] || "bg-muted"}>
-                            {booking.lifecycle_status.replace(/_/g, " ")}
+                  {bookings?.map((booking) => {
+                    const lifecycle = lifecycleConfig[booking.lifecycle_status] || { label: booking.lifecycle_status, color: "bg-muted" };
+                    const payment = paymentConfig[booking.payment_status] || { label: booking.payment_status, color: "bg-muted" };
+                    
+                    return (
+                      <TableRow key={booking.id} className="group">
+                        <TableCell>
+                          <div className="font-medium">{format(new Date(booking.event_date), "MMM d, yyyy")}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {booking.start_time?.slice(0, 5) || "All day"}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="font-medium">{booking.full_name}</div>
+                          <div className="text-xs text-muted-foreground">{booking.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div>{booking.event_type}</div>
+                          <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
+                        </TableCell>
+                        <TableCell>{booking.number_of_guests}</TableCell>
+                        <TableCell>
+                          <Badge className={cn("text-xs", payment.color)}>
+                            {payment.label}
                           </Badge>
-                        </Link>
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        <Link to={`/admin/bookings/${booking.id}`} className="block">
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={cn("text-xs", lifecycle.color)}>
+                            {lifecycle.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {getActionButton(booking)}
+                        </TableCell>
+                        <TableCell className="text-right font-medium">
                           ${Number(booking.total_amount).toLocaleString()}
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                        </TableCell>
+                        <TableCell>
+                          <Link to={`/admin/bookings/${booking.id}`}>
+                            <Button variant="ghost" size="sm" className="h-7">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
