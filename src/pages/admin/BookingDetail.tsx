@@ -116,6 +116,14 @@ export default function BookingDetail() {
   const [newTicketArea, setNewTicketArea] = useState("");
   const [newTicketPriority, setNewTicketPriority] = useState("medium");
 
+  // Confirmation checklist states
+  const [scheduleAvailability, setScheduleAvailability] = useState(false);
+  const [staffingAvailability, setStaffingAvailability] = useState(false);
+  const [eventTypeConflicts, setEventTypeConflicts] = useState(false);
+
+  // Post-event close state
+  const [reviewReceived, setReviewReceived] = useState(false);
+
   if (isLoading) {
     return <div className="p-8 text-center text-muted-foreground">Loading booking...</div>;
   }
@@ -146,6 +154,49 @@ export default function BookingDetail() {
       toast({ title: "Pre-event checklist completed" });
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
+    }
+  };
+
+  // Handle confirmation checklist - auto-confirm when all 3 are checked
+  const handleConfirmationCheck = async (
+    field: "schedule" | "staffing" | "conflicts",
+    checked: boolean
+  ) => {
+    const newSchedule = field === "schedule" ? checked : scheduleAvailability;
+    const newStaffing = field === "staffing" ? checked : staffingAvailability;
+    const newConflicts = field === "conflicts" ? checked : eventTypeConflicts;
+
+    if (field === "schedule") setScheduleAvailability(checked);
+    if (field === "staffing") setStaffingAvailability(checked);
+    if (field === "conflicts") setEventTypeConflicts(checked);
+
+    // Auto-confirm when all 3 are checked
+    if (newSchedule && newStaffing && newConflicts) {
+      try {
+        await updateBooking.mutateAsync({
+          id: booking.id,
+          updates: { lifecycle_status: "confirmed" },
+        });
+        toast({ title: "Booking confirmed" });
+      } catch {
+        toast({ title: "Failed to confirm booking", variant: "destructive" });
+      }
+    }
+  };
+
+  // Handle review received checkbox - auto-close when checked
+  const handleReviewReceivedCheck = async (checked: boolean) => {
+    setReviewReceived(checked);
+    if (checked) {
+      try {
+        await updateBooking.mutateAsync({
+          id: booking.id,
+          updates: { lifecycle_status: "closed_review_complete" },
+        });
+        toast({ title: "Booking closed" });
+      } catch {
+        toast({ title: "Failed to close booking", variant: "destructive" });
+      }
     }
   };
 
@@ -338,7 +389,89 @@ export default function BookingDetail() {
         </TabsContent>
 
         {/* Pre-Event Checklist Tab */}
-        <TabsContent value="checklist">
+        <TabsContent value="checklist" className="space-y-4">
+          {/* Confirmation Checklist - shown when pending */}
+          {booking.lifecycle_status === "pending" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" />
+                  Confirmation Checklist
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  Complete all items to confirm this booking
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="schedule"
+                      checked={scheduleAvailability}
+                      onCheckedChange={(checked) =>
+                        handleConfirmationCheck("schedule", checked as boolean)
+                      }
+                    />
+                    <label htmlFor="schedule" className="text-sm font-medium cursor-pointer">
+                      Schedule Availability
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="staffing"
+                      checked={staffingAvailability}
+                      onCheckedChange={(checked) =>
+                        handleConfirmationCheck("staffing", checked as boolean)
+                      }
+                    />
+                    <label htmlFor="staffing" className="text-sm font-medium cursor-pointer">
+                      Staffing Availability
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-3">
+                    <Checkbox
+                      id="conflicts"
+                      checked={eventTypeConflicts}
+                      onCheckedChange={(checked) =>
+                        handleConfirmationCheck("conflicts", checked as boolean)
+                      }
+                    />
+                    <label htmlFor="conflicts" className="text-sm font-medium cursor-pointer">
+                      Event Type Conflicts (No conflicts found)
+                    </label>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Post-Event Close - shown when post_event */}
+          {booking.lifecycle_status === "post_event" && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5" />
+                  Close Booking
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center space-x-3">
+                  <Checkbox
+                    id="reviewReceived"
+                    checked={reviewReceived}
+                    onCheckedChange={(checked) =>
+                      handleReviewReceivedCheck(checked as boolean)
+                    }
+                  />
+                  <label htmlFor="reviewReceived" className="text-sm font-medium cursor-pointer">
+                    Guest review has been received
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pre-Event Ready - shown for other statuses */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
