@@ -7,10 +7,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-import { CalendarIcon } from "lucide-react";
+import { CalendarIcon, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { BookingFormData } from "@/pages/Book";
+import { useBookedDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
+import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 const formSchema = z.object({
   bookingType: z.enum(["hourly", "daily"]),
@@ -40,6 +43,9 @@ interface BookingTypeStepProps {
 }
 
 const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => {
+  const { data: bookedSlots = [], isLoading: isLoadingDates } = useBookedDates();
+  const [timeConflict, setTimeConflict] = useState(false);
+  
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -51,8 +57,29 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
   });
 
   const bookingType = form.watch("bookingType");
+  const selectedDate = form.watch("date");
+  const startTime = form.watch("startTime");
+  const endTime = form.watch("endTime");
+
+  // Check time availability when date or times change (for hourly bookings)
+  useEffect(() => {
+    if (bookingType === "hourly" && selectedDate && startTime && endTime) {
+      const isAvailable = isTimeRangeAvailable(selectedDate, startTime, endTime, bookedSlots);
+      setTimeConflict(!isAvailable);
+    } else {
+      setTimeConflict(false);
+    }
+  }, [selectedDate, startTime, endTime, bookingType, bookedSlots]);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    // For hourly bookings, check time availability before proceeding
+    if (values.bookingType === "hourly" && values.date && values.startTime && values.endTime) {
+      if (!isTimeRangeAvailable(values.date, values.startTime, values.endTime, bookedSlots)) {
+        toast.error("Selected time range conflicts with an existing booking. Please choose different times.");
+        return;
+      }
+    }
+    
     updateData(values);
     onNext();
   };
@@ -140,12 +167,20 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
                     mode="single"
                     selected={field.value}
                     onSelect={field.onChange}
-                    disabled={(date) =>
-                      date < new Date(new Date().setHours(0, 0, 0, 0))
-                    }
+                    disabled={(date) => {
+                      // Disable past dates
+                      if (date < new Date(new Date().setHours(0, 0, 0, 0))) {
+                        return true;
+                      }
+                      // Disable dates with daily bookings (fully booked)
+                      return isDateFullyBooked(date, bookedSlots);
+                    }}
                     initialFocus
                     className="pointer-events-auto"
                   />
+                  {isLoadingDates && (
+                    <p className="text-xs text-muted-foreground p-2">Loading availability...</p>
+                  )}
                 </PopoverContent>
               </Popover>
               <FormMessage />
@@ -154,39 +189,50 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
         />
 
         {bookingType === "hourly" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FormField
-              control={form.control}
-              name="startTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-semibold">Start Time</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="startTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-semibold">Start Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={form.control}
-              name="endTime"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-base font-semibold">End Time</FormLabel>
-                  <FormControl>
-                    <Input type="time" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+              <FormField
+                control={form.control}
+                name="endTime"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-base font-semibold">End Time</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+          
+            {timeConflict && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <p className="text-sm">
+                  This time range conflicts with an existing booking. Please select different times.
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         <div className="flex justify-end pt-4">
-          <Button type="submit" size="lg">
+          <Button type="submit" size="lg" disabled={timeConflict}>
             Continue to Guests & Event
           </Button>
         </div>
