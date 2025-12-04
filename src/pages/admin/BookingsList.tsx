@@ -21,19 +21,8 @@ import {
 } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { 
-  CalendarIcon, 
-  Filter, 
-  X, 
-  CheckCircle, 
-  Play, 
-  ClipboardCheck,
-  XCircle,
-  Star,
-  Eye
-} from "lucide-react";
-import { useBookings, useUpdateBooking } from "@/hooks/useAdminData";
-import { useToast } from "@/hooks/use-toast";
+import { CalendarIcon, Filter, X, Eye } from "lucide-react";
+import { useBookings } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -49,36 +38,26 @@ const lifecycleStatuses = [
 
 const paymentStatuses = ["pending", "deposit_paid", "fully_paid", "failed", "refunded", "invoiced"];
 
-const lifecycleConfig: Record<string, { label: string; color: string; nextAction?: string; nextStatus?: string }> = {
+const lifecycleConfig: Record<string, { label: string; color: string }> = {
   pending: { 
     label: "Pending Review", 
-    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    nextAction: "Confirm",
-    nextStatus: "confirmed"
+    color: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400"
   },
   confirmed: { 
     label: "Confirmed", 
-    color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400",
-    nextAction: "Mark Ready",
-    nextStatus: "pre_event_ready"
+    color: "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
   },
   pre_event_ready: { 
     label: "Pre-Event Ready", 
-    color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400",
-    nextAction: "Start Event",
-    nextStatus: "in_progress"
+    color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-400"
   },
   in_progress: { 
     label: "In Progress", 
-    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400",
-    nextAction: "End Event",
-    nextStatus: "post_event"
+    color: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
   },
   post_event: { 
     label: "Post-Event", 
-    color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400",
-    nextAction: "Close",
-    nextStatus: "closed_review_complete"
+    color: "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400"
   },
   closed_review_complete: { 
     label: "Closed", 
@@ -100,7 +79,6 @@ const paymentConfig: Record<string, { label: string; color: string }> = {
 };
 
 export default function BookingsList() {
-  const { toast } = useToast();
   const [dateFrom, setDateFrom] = useState<Date | undefined>();
   const [dateTo, setDateTo] = useState<Date | undefined>();
   const [lifecycleStatus, setLifecycleStatus] = useState<string>("");
@@ -116,8 +94,6 @@ export default function BookingsList() {
     eventType: eventType || undefined,
   });
 
-  const updateBooking = useUpdateBooking();
-
   const clearFilters = () => {
     setDateFrom(undefined);
     setDateTo(undefined);
@@ -127,55 +103,6 @@ export default function BookingsList() {
   };
 
   const hasFilters = dateFrom || dateTo || (lifecycleStatus && lifecycleStatus !== "all") || (paymentStatus && paymentStatus !== "all") || eventType;
-
-  const handleQuickAction = async (bookingId: string, nextStatus: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    try {
-      const updates: Record<string, unknown> = { lifecycle_status: nextStatus };
-      
-      // Add specific updates for certain status transitions
-      if (nextStatus === "confirmed") {
-        updates.confirmed_at = new Date().toISOString();
-      } else if (nextStatus === "pre_event_ready") {
-        updates.pre_event_ready = true;
-        updates.pre_event_checklist_completed_at = new Date().toISOString();
-      } else if (nextStatus === "cancelled") {
-        updates.cancelled_at = new Date().toISOString();
-      }
-      
-      await updateBooking.mutateAsync({ id: bookingId, updates });
-      toast({ title: `Booking moved to ${lifecycleConfig[nextStatus]?.label || nextStatus}` });
-    } catch {
-      toast({ title: "Failed to update booking", variant: "destructive" });
-    }
-  };
-
-  const getActionButton = (booking: { id: string; lifecycle_status: string }) => {
-    const config = lifecycleConfig[booking.lifecycle_status];
-    if (!config?.nextAction || !config?.nextStatus) return null;
-
-    const iconMap: Record<string, React.ReactNode> = {
-      "Confirm": <CheckCircle className="h-3 w-3" />,
-      "Mark Ready": <ClipboardCheck className="h-3 w-3" />,
-      "Start Event": <Play className="h-3 w-3" />,
-      "End Event": <XCircle className="h-3 w-3" />,
-      "Close": <Star className="h-3 w-3" />,
-    };
-
-    return (
-      <Button 
-        size="sm" 
-        variant="outline"
-        className="h-7 text-xs gap-1"
-        onClick={(e) => handleQuickAction(booking.id, config.nextStatus!, e)}
-        disabled={updateBooking.isPending}
-      >
-        {iconMap[config.nextAction]}
-        {config.nextAction}
-      </Button>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -314,7 +241,6 @@ export default function BookingsList() {
                     <TableHead>Guests</TableHead>
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Next Action</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
@@ -350,9 +276,6 @@ export default function BookingsList() {
                           <Badge className={cn("text-xs", lifecycle.color)}>
                             {lifecycle.label}
                           </Badge>
-                        </TableCell>
-                        <TableCell>
-                          {getActionButton(booking)}
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           ${Number(booking.total_amount).toLocaleString()}
