@@ -90,7 +90,7 @@ serve(async (req: Request) => {
         },
       ],
       success_url: `${successUrl}?session_id={CHECKOUT_SESSION_ID}&booking_id=${bookingId}`,
-      cancel_url: cancelUrl,
+      cancel_url: `${cancelUrl}?cancelled=true&booking_id=${bookingId}`,
       metadata: {
         booking_id: bookingId,
         payment_type: "deposit",

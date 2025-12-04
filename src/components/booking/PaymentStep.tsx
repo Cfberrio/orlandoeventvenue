@@ -58,8 +58,8 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
           customerName: data.fullName || "",
           eventDate: data.date ? format(data.date, "PPP") : "",
           eventType: data.eventType || "Event",
-          successUrl: `${window.location.origin}/book?step=5`,
-          cancelUrl: `${window.location.origin}/book?step=5`,
+          successUrl: `${window.location.origin}/booking-confirmation`,
+          cancelUrl: `${window.location.origin}/booking-confirmation`,
         },
       });
 
