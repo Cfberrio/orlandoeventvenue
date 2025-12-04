@@ -11,18 +11,27 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
+  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
   if (!signature) {
     console.error("No Stripe signature found");
     return new Response("No signature", { status: 400 });
   }
 
+  if (!webhookSecret) {
+    console.error("No webhook secret configured");
+    return new Response("Webhook secret not configured", { status: 500 });
+  }
+
   try {
     const body = await req.text();
     
-    // For now, we'll parse the event directly since we don't have webhook secret configured
-    // In production, you should verify the signature with stripe.webhooks.constructEvent
-    const event = JSON.parse(body);
+    // Verify webhook signature
+    const event = await stripe.webhooks.constructEventAsync(
+      body,
+      signature,
+      webhookSecret
+    );
 
     console.log("Received Stripe event:", event.type);
 
