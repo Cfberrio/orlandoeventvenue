@@ -1,11 +1,13 @@
 import { Button } from "@/components/ui/button";
 import { BookingFormData } from "@/pages/Book";
 import { Card } from "@/components/ui/card";
-import { CheckCircle2, CreditCard, Loader2 } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, CreditCard, Loader2, Shield } from "lucide-react";
+import { useState, useEffect } from "react";
 import { format, addDays } from "date-fns";
 import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
+import { useSearchParams } from "react-router-dom";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -16,28 +18,70 @@ interface PaymentStepProps {
 const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
   const [isPaid, setIsPaid] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const createBooking = useCreateBooking();
+  const [searchParams] = useSearchParams();
+
+  // Check if returning from successful Stripe payment
+  useEffect(() => {
+    const sessionId = searchParams.get("session_id");
+    const returnedBookingId = searchParams.get("booking_id");
+    
+    if (sessionId && returnedBookingId) {
+      setBookingId(returnedBookingId);
+      setIsPaid(true);
+      updateData({ paymentStatus: "paid" });
+      toast.success("Payment successful!", {
+        description: "Your deposit has been received.",
+      });
+    }
+  }, [searchParams, updateData]);
 
   const handlePayment = async () => {
+    setIsProcessing(true);
+    
     try {
       // First, create the booking in the database
       const result = await createBooking.mutateAsync(data);
-      setBookingId(result.bookingId);
+      const newBookingId = result.bookingId;
+      setBookingId(newBookingId);
       
-      // Update form data with payment status
-      updateData({ paymentStatus: "paid" });
-      
-      // Mark as paid (simulated for now)
-      setIsPaid(true);
-      
-      toast.success("Booking submitted successfully!", {
-        description: "You will receive a confirmation email within 24 hours.",
+      console.log("Booking created:", newBookingId);
+      console.log("Creating Stripe checkout session...");
+
+      // Create Stripe checkout session
+      const { data: checkoutData, error } = await supabase.functions.invoke("create-checkout", {
+        body: {
+          bookingId: newBookingId,
+          depositAmount: data.pricing?.deposit || 0,
+          customerEmail: data.email || "",
+          customerName: data.fullName || "",
+          eventDate: data.date ? format(data.date, "PPP") : "",
+          eventType: data.eventType || "Event",
+          successUrl: `${window.location.origin}/book?step=5`,
+          cancelUrl: `${window.location.origin}/book?step=5`,
+        },
       });
+
+      if (error) {
+        console.error("Checkout error:", error);
+        throw new Error(error.message || "Failed to create checkout session");
+      }
+
+      console.log("Checkout session created:", checkoutData);
+
+      // Redirect to Stripe Checkout
+      if (checkoutData?.url) {
+        window.location.href = checkoutData.url;
+      } else {
+        throw new Error("No checkout URL returned");
+      }
     } catch (error) {
       console.error("Payment/booking error:", error);
-      toast.error("Failed to submit booking", {
+      toast.error("Failed to process payment", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
+      setIsProcessing(false);
     }
   };
 
@@ -135,7 +179,10 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
       </Card>
 
       <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-lg p-4 text-sm">
-        <p className="font-semibold mb-2">Payment Information:</p>
+        <div className="flex items-center gap-2 mb-2">
+          <Shield className="h-4 w-4 text-blue-600" />
+          <p className="font-semibold">Secure Payment via Stripe:</p>
+        </div>
         <ul className="space-y-1 text-muted-foreground">
           <li>• Your card will be securely saved for the balance payment</li>
           <li>• Booking status will be "Pending Review" until confirmed</li>
@@ -144,34 +191,30 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
         </ul>
       </div>
 
-      <Card className="p-6 border-2 border-dashed">
-        <div className="text-center space-y-4">
-          <CreditCard className="h-12 w-12 mx-auto text-muted-foreground" />
-          <p className="text-muted-foreground">
-            Stripe payment integration will be connected here
-          </p>
-          <p className="text-sm text-muted-foreground">
-            For now, click below to submit your booking
-          </p>
-        </div>
-      </Card>
-
       <div className="flex justify-between pt-4">
-        <Button type="button" variant="outline" onClick={onBack} disabled={createBooking.isPending}>
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onBack} 
+          disabled={isProcessing || createBooking.isPending}
+        >
           Back
         </Button>
         <Button 
           size="lg" 
           onClick={handlePayment} 
-          disabled={createBooking.isPending}
+          disabled={isProcessing || createBooking.isPending}
         >
-          {createBooking.isPending ? (
+          {isProcessing || createBooking.isPending ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Processing...
             </>
           ) : (
-            `Pay $${data.pricing?.deposit.toFixed(2)} Now`
+            <>
+              <CreditCard className="mr-2 h-4 w-4" />
+              Pay ${data.pricing?.deposit.toFixed(2)} Now
+            </>
           )}
         </Button>
       </div>
