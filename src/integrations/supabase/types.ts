@@ -370,6 +370,7 @@ export type Database = {
           phone: string
           pre_event_checklist_completed_at: string | null
           pre_event_ready: boolean
+          reservation_number: string | null
           setup_breakdown: boolean
           signature: string
           signature_date: string
@@ -422,6 +423,7 @@ export type Database = {
           phone: string
           pre_event_checklist_completed_at?: string | null
           pre_event_ready?: boolean
+          reservation_number?: string | null
           setup_breakdown?: boolean
           signature: string
           signature_date: string
@@ -474,6 +476,7 @@ export type Database = {
           phone?: string
           pre_event_checklist_completed_at?: string | null
           pre_event_ready?: boolean
+          reservation_number?: string | null
           setup_breakdown?: boolean
           signature?: string
           signature_date?: string
@@ -655,6 +658,7 @@ export type Database = {
         Args: { _author_id: string; _booking_id: string; _note: string }
         Returns: undefined
       }
+      generate_reservation_number: { Args: never; Returns: string }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

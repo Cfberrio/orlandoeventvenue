@@ -5,7 +5,18 @@ import { format } from "date-fns";
 
 interface CreateBookingResult {
   bookingId: string;
+  reservationNumber: string;
 }
+
+// Generate a unique reservation number
+const generateReservationNumber = (): string => {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude confusing chars like 0, O, 1, I
+  let result = "OEV-";
+  for (let i = 0; i < 6; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+};
 
 export const useCreateBooking = () => {
   return useMutation({
@@ -20,6 +31,9 @@ export const useCreateBooking = () => {
       if (!formData.signature) throw new Error("Signature is required");
       if (!formData.initials) throw new Error("Initials are required");
       if (!formData.signerName) throw new Error("Signer name is required");
+
+      // Generate unique reservation number
+      const reservationNumber = generateReservationNumber();
 
       // Map form data to database columns
       const bookingData = {
@@ -58,6 +72,7 @@ export const useCreateBooking = () => {
         payment_status: "pending" as const,
         lifecycle_status: "pending",
         lead_source: "direct_site",
+        reservation_number: reservationNumber,
       };
 
       console.log("Creating booking with data:", { 
@@ -68,7 +83,7 @@ export const useCreateBooking = () => {
       const { data, error } = await supabase
         .from("bookings")
         .insert(bookingData)
-        .select("id")
+        .select("id, reservation_number")
         .single();
 
       if (error) {
@@ -80,8 +95,8 @@ export const useCreateBooking = () => {
         throw new Error("No data returned from booking creation");
       }
 
-      console.log("Booking created successfully:", data.id);
-      return { bookingId: data.id };
+      console.log("Booking created successfully:", data.id, data.reservation_number);
+      return { bookingId: data.id, reservationNumber: data.reservation_number || reservationNumber };
     },
   });
 };
