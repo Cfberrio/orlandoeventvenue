@@ -3,6 +3,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
 
+// Helper function to sync booking to GHL
+async function syncToGHL(bookingId: string) {
+  try {
+    const { error } = await supabase.functions.invoke("sync-to-ghl", {
+      body: { booking_id: bookingId },
+    });
+    if (error) {
+      console.error("Error syncing to GHL:", error);
+    }
+  } catch (err) {
+    console.error("Failed to sync to GHL:", err);
+  }
+}
 // Types
 export interface Booking {
   id: string;
@@ -537,6 +550,8 @@ export function useCreateStaffAssignment() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", variables.booking_id] });
+      // Sync to GHL after staff assignment created
+      syncToGHL(variables.booking_id);
     },
   });
 }
@@ -550,6 +565,8 @@ export function useDeleteStaffAssignment() {
     },
     onSuccess: (_, { bookingId }) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
+      // Sync to GHL after staff assignment deleted
+      syncToGHL(bookingId);
     },
   });
 }
@@ -569,6 +586,8 @@ export function useCreateCleaningReport() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-cleaning-reports", variables.booking_id] });
       queryClient.invalidateQueries({ queryKey: ["cleaning-reports"] });
+      // Sync to GHL after cleaning report created
+      syncToGHL(variables.booking_id);
     },
   });
 }
@@ -576,7 +595,7 @@ export function useCreateCleaningReport() {
 export function useUpdateCleaningReport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<CleaningReport> }) => {
+    mutationFn: async ({ id, bookingId, updates }: { id: string; bookingId: string; updates: Partial<CleaningReport> }) => {
       const { data, error } = await supabase
         .from("booking_cleaning_reports")
         .update(updates)
@@ -586,9 +605,11 @@ export function useUpdateCleaningReport() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-cleaning-reports"] });
       queryClient.invalidateQueries({ queryKey: ["cleaning-reports"] });
+      // Sync to GHL after cleaning report updated (especially when completed)
+      syncToGHL(variables.bookingId);
     },
   });
 }
@@ -596,7 +617,7 @@ export function useUpdateCleaningReport() {
 export function useUpdateHostReport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, updates }: { id: string; updates: Partial<HostReport> }) => {
+    mutationFn: async ({ id, bookingId, updates }: { id: string; bookingId: string; updates: Partial<HostReport> }) => {
       const { data, error } = await supabase
         .from("booking_host_reports")
         .update(updates)
@@ -606,8 +627,30 @@ export function useUpdateHostReport() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-host-reports"] });
+      // Sync to GHL after host report updated/submitted
+      syncToGHL(variables.bookingId);
+    },
+  });
+}
+
+export function useCreateBookingReview() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (review: { booking_id: string; source: string; rating: number; comment?: string; reviewer_name?: string; review_url?: string }) => {
+      const { data, error } = await supabase
+        .from("booking_reviews")
+        .insert(review)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["booking-reviews", variables.booking_id] });
+      // Sync to GHL after review created
+      syncToGHL(variables.booking_id);
     },
   });
 }
