@@ -1,5 +1,11 @@
 project_id = "vsvsgesgqjtwutadcshi"
 
+[functions.sync-to-ghl]
+verify_jwt = false
+
+[functions.ghl-update-booking-status]
+verify_jwt = false
+
 [functions.create-checkout]
 verify_jwt = false
 

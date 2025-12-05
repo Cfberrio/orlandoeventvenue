@@ -9,6 +9,38 @@ const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/**
+ * Helper to sync booking to GHL after payment events.
+ */
+async function syncToGHL(bookingId: string): Promise<void> {
+  const ghlWebhookUrl = Deno.env.get("GHL_BOOKING_WEBHOOK_URL");
+  if (!ghlWebhookUrl) {
+    console.log("GHL_BOOKING_WEBHOOK_URL not configured, skipping sync");
+    return;
+  }
+
+  try {
+    // Call the sync-to-ghl edge function internally
+    const response = await fetch(`${supabaseUrl}/functions/v1/sync-to-ghl`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+      },
+      body: JSON.stringify({ booking_id: bookingId }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to sync to GHL:", await response.text());
+    } else {
+      console.log("Successfully synced booking to GHL:", bookingId);
+    }
+  } catch (error) {
+    console.error("Error syncing to GHL:", error);
+    // Don't throw - we don't want to fail the webhook because of GHL sync issues
+  }
+}
+
 serve(async (req) => {
   const signature = req.headers.get("stripe-signature");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
@@ -68,6 +100,9 @@ serve(async (req) => {
       }
 
       console.log("Booking updated successfully:", data);
+
+      // Sync to GHL after successful payment update
+      await syncToGHL(bookingId);
     }
 
     return new Response(JSON.stringify({ received: true }), {
