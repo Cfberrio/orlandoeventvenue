@@ -658,7 +658,7 @@ export default function BookingDetail() {
                       <Select
                         value={cleaningReport.status}
                         onValueChange={(value) =>
-                          updateCleaningReport.mutate({ id: cleaningReport.id, updates: { status: value } })
+                          updateCleaningReport.mutate({ id: cleaningReport.id, bookingId: id!, updates: { status: value } })
                         }
                       >
                         <SelectTrigger>
@@ -677,7 +677,7 @@ export default function BookingDetail() {
                       <Select
                         value={cleaningReport.cleaner_id || ""}
                         onValueChange={(value) =>
-                          updateCleaningReport.mutate({ id: cleaningReport.id, updates: { cleaner_id: value } })
+                          updateCleaningReport.mutate({ id: cleaningReport.id, bookingId: id!, updates: { cleaner_id: value } })
                         }
                       >
                         <SelectTrigger>
@@ -702,6 +702,7 @@ export default function BookingDetail() {
                           onCheckedChange={(checked) =>
                             updateCleaningReport.mutate({
                               id: cleaningReport.id,
+                              bookingId: id!,
                               updates: { [field]: checked },
                             })
                           }
@@ -718,6 +719,7 @@ export default function BookingDetail() {
                       onChange={(e) =>
                         updateCleaningReport.mutate({
                           id: cleaningReport.id,
+                          bookingId: id!,
                           updates: { damage_notes: e.target.value },
                         })
                       }
@@ -730,6 +732,7 @@ export default function BookingDetail() {
                       onClick={() =>
                         updateCleaningReport.mutate({
                           id: cleaningReport.id,
+                          bookingId: id!,
                           updates: { started_at: new Date().toISOString(), status: "in_progress" },
                         })
                       }
@@ -741,6 +744,7 @@ export default function BookingDetail() {
                       onClick={() =>
                         updateCleaningReport.mutate({
                           id: cleaningReport.id,
+                          bookingId: id!,
                           updates: { completed_at: new Date().toISOString(), status: "completed" },
                         })
                       }
@@ -751,6 +755,7 @@ export default function BookingDetail() {
                       onClick={() =>
                         updateCleaningReport.mutate({
                           id: cleaningReport.id,
+                          bookingId: id!,
                           updates: { status: "approved" },
                         })
                       }
@@ -786,6 +791,7 @@ export default function BookingDetail() {
                         onValueChange={(value) =>
                           updateHostReport.mutate({
                             id: hostReport.id,
+                            bookingId: id!,
                             updates: {
                               status: value,
                               reviewed_at: new Date().toISOString(),

@@ -59,9 +59,9 @@ export default function Cleaning() {
   const { data: staffMembers } = useStaffMembers({ role: "cleaner", isActive: true });
   const updateCleaningReport = useUpdateCleaningReport();
 
-  const handleUpdateReport = async (id: string, updates: Partial<CleaningReport>) => {
+  const handleUpdateReport = async (reportId: string, bookingId: string, updates: Partial<CleaningReport>) => {
     try {
-      await updateCleaningReport.mutateAsync({ id, updates });
+      await updateCleaningReport.mutateAsync({ id: reportId, bookingId, updates });
       toast({ title: "Report updated" });
     } catch {
       toast({ title: "Failed to update report", variant: "destructive" });
@@ -261,7 +261,7 @@ export default function Cleaning() {
                   <Select
                     value={selectedReport.status}
                     onValueChange={(value) =>
-                      handleUpdateReport(selectedReport.id, { status: value })
+                      handleUpdateReport(selectedReport.id, selectedReport.booking_id, { status: value })
                     }
                   >
                     <SelectTrigger className="mt-1">
@@ -283,7 +283,7 @@ export default function Cleaning() {
                 <Select
                   value={selectedReport.cleaner_id || "unassigned"}
                   onValueChange={(value) =>
-                    handleUpdateReport(selectedReport.id, { cleaner_id: value === "unassigned" ? null : value })
+                    handleUpdateReport(selectedReport.id, selectedReport.booking_id, { cleaner_id: value === "unassigned" ? null : value })
                   }
                 >
                   <SelectTrigger className="mt-1">
@@ -307,7 +307,7 @@ export default function Cleaning() {
                       <Checkbox
                         checked={(selectedReport[field as keyof CleaningReport] as boolean) || false}
                         onCheckedChange={(checked) =>
-                          handleUpdateReport(selectedReport.id, { [field]: checked })
+                          handleUpdateReport(selectedReport.id, selectedReport.booking_id, { [field]: checked })
                         }
                       />
                       <label className="text-sm capitalize">{field.replace(/_/g, " ")}</label>
@@ -324,7 +324,7 @@ export default function Cleaning() {
                     placeholder="Describe the damage..."
                     value={selectedReport.damage_notes || ""}
                     onChange={(e) =>
-                      handleUpdateReport(selectedReport.id, { damage_notes: e.target.value })
+                      handleUpdateReport(selectedReport.id, selectedReport.booking_id, { damage_notes: e.target.value })
                     }
                   />
                 </div>
@@ -334,7 +334,7 @@ export default function Cleaning() {
                 <Button
                   variant="outline"
                   onClick={() =>
-                    handleUpdateReport(selectedReport.id, {
+                    handleUpdateReport(selectedReport.id, selectedReport.booking_id, {
                       started_at: new Date().toISOString(),
                       status: "in_progress",
                     })
@@ -345,7 +345,7 @@ export default function Cleaning() {
                 <Button
                   variant="outline"
                   onClick={() =>
-                    handleUpdateReport(selectedReport.id, {
+                    handleUpdateReport(selectedReport.id, selectedReport.booking_id, {
                       completed_at: new Date().toISOString(),
                       status: "completed",
                     })
@@ -354,7 +354,7 @@ export default function Cleaning() {
                   Mark Completed
                 </Button>
                 <Button
-                  onClick={() => handleUpdateReport(selectedReport.id, { status: "approved" })}
+                  onClick={() => handleUpdateReport(selectedReport.id, selectedReport.booking_id, { status: "approved" })}
                 >
                   Approve
                 </Button>
