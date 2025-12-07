@@ -30,6 +30,7 @@ const VALID_LIFECYCLE_STATUSES = [
 /**
  * Edge function called by GHL to update booking status/lifecycle_status.
  * Requires x-ghl-backend-token header for authentication.
+ * GHL sends custom data under body.customData object.
  */
 serve(async (req) => {
   // Handle CORS preflight
@@ -37,33 +38,66 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Only allow POST
+  if (req.method !== "POST") {
+    return new Response(
+      JSON.stringify({ ok: false, error: "Method not allowed" }),
+      { status: 405, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     // Validate GHL token
-    const ghlToken = req.headers.get("x-ghl-backend-token");
     const expectedToken = Deno.env.get("GHL_BACKEND_TOKEN");
+    const incomingToken = req.headers.get("x-ghl-backend-token");
 
-    if (!expectedToken) {
-      console.error("GHL_BACKEND_TOKEN not configured");
-      return new Response(
-        JSON.stringify({ ok: false, error: "Server configuration error" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    if (!ghlToken || ghlToken !== expectedToken) {
+    if (!expectedToken || !incomingToken || incomingToken !== expectedToken) {
       console.error("Invalid or missing GHL token");
       return new Response(
-        JSON.stringify({ ok: false, error: "Unauthorized" }),
+        JSON.stringify({ ok: false, error: "Invalid or missing token" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Parse request body
-    const body = await req.json();
-    const { booking_id, new_status, new_lifecycle_status } = body;
+    // Parse request body safely
+    let body: Record<string, unknown>;
+    try {
+      body = await req.json();
+    } catch {
+      console.error("Failed to parse JSON body");
+      return new Response(
+        JSON.stringify({ ok: false, error: "Invalid JSON" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Log the full body for debugging
+    console.log("GHL webhook body:", JSON.stringify(body, null, 2));
+
+    // Extract customData - GHL wraps custom fields in customData object
+    const customData = (body.customData ?? body.custom_data ?? {}) as Record<string, unknown>;
+
+    // Extract booking_id with fallbacks
+    const booking_id =
+      customData.booking_id ??
+      customData.bookingId ??
+      body.booking_id ??
+      null;
+
+    // Extract status values with fallbacks
+    const new_status =
+      customData.new_status ??
+      body.new_status ??
+      null;
+
+    const new_lifecycle_status =
+      customData.new_lifecycle_status ??
+      body.new_lifecycle_status ??
+      null;
 
     // Validate required fields
     if (!booking_id) {
+      console.error("booking_id is required. Body received:", JSON.stringify(body, null, 2));
       return new Response(
         JSON.stringify({ ok: false, error: "booking_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -77,15 +111,15 @@ serve(async (req) => {
       );
     }
 
-    // Validate status values
-    if (new_status && !VALID_STATUSES.includes(new_status)) {
+    // Validate status values if provided
+    if (new_status && !VALID_STATUSES.includes(new_status as string)) {
       return new Response(
         JSON.stringify({ ok: false, error: `Invalid status: ${new_status}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    if (new_lifecycle_status && !VALID_LIFECYCLE_STATUSES.includes(new_lifecycle_status)) {
+    if (new_lifecycle_status && !VALID_LIFECYCLE_STATUSES.includes(new_lifecycle_status as string)) {
       return new Response(
         JSON.stringify({ ok: false, error: `Invalid lifecycle_status: ${new_lifecycle_status}` }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -97,7 +131,7 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch current booking
+    // Fetch current booking to verify it exists and get current values
     const { data: currentBooking, error: fetchError } = await supabase
       .from("bookings")
       .select("id, status, lifecycle_status")
@@ -124,18 +158,14 @@ serve(async (req) => {
     const from_lifecycle = currentBooking.lifecycle_status;
 
     // Build update object
-    const updateData: Record<string, string> = {};
+    const updateData: Record<string, string> = {
+      updated_at: new Date().toISOString(),
+    };
     if (new_status) {
-      updateData.status = new_status;
+      updateData.status = new_status as string;
     }
     if (new_lifecycle_status) {
-      updateData.lifecycle_status = new_lifecycle_status;
-    }
-
-    // Simple protection against obviously invalid transitions
-    if (from_lifecycle === "cancelled" && new_lifecycle_status && new_lifecycle_status !== "cancelled") {
-      console.warn(`Warning: Attempting to transition cancelled booking ${booking_id} to ${new_lifecycle_status}`);
-      // Log but still allow - GHL has the business logic
+      updateData.lifecycle_status = new_lifecycle_status as string;
     }
 
     // Update the booking
@@ -147,7 +177,7 @@ serve(async (req) => {
     if (updateError) {
       console.error("Error updating booking:", updateError);
       return new Response(
-        JSON.stringify({ ok: false, error: "Failed to update booking" }),
+        JSON.stringify({ ok: false, error: "DB update failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
