@@ -157,7 +157,7 @@ export default function BookingDetail() {
     }
   };
 
-  // Handle confirmation checklist - auto-confirm when all 3 are checked
+  // Handle confirmation checklist - save timestamp when all 3 are checked (GHL handles the status change)
   const handleConfirmationCheck = async (
     field: "schedule" | "staffing" | "conflicts",
     checked: boolean
@@ -170,16 +170,16 @@ export default function BookingDetail() {
     if (field === "staffing") setStaffingAvailability(checked);
     if (field === "conflicts") setEventTypeConflicts(checked);
 
-    // Auto-confirm when all 3 are checked
+    // When all 3 are checked, save the timestamp (GHL will handle the status change to confirmed)
     if (newSchedule && newStaffing && newConflicts) {
       try {
         await updateBooking.mutateAsync({
           id: booking.id,
-          updates: { lifecycle_status: "confirmed" },
+          updates: { pre_event_checklist_completed_at: new Date().toISOString() },
         });
-        toast({ title: "Booking confirmed" });
+        toast({ title: "Checklist completed - awaiting GHL confirmation" });
       } catch {
-        toast({ title: "Failed to confirm booking", variant: "destructive" });
+        toast({ title: "Failed to save checklist", variant: "destructive" });
       }
     }
   };
