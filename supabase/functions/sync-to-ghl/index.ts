@@ -29,6 +29,7 @@ interface BookingSnapshot {
   cleaning_report_completed: boolean;
   host_report_completed: boolean;
   review_received: boolean;
+  pre_event_ready: boolean;
   customer: {
     full_name: string | null;
     email: string | null;
@@ -53,6 +54,7 @@ interface BookingRow {
   total_amount: number | null;
   deposit_amount: number | null;
   balance_amount: number | null;
+  pre_event_ready: boolean;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -135,6 +137,7 @@ async function buildBookingSnapshot(
   const cleaning_report_completed = (cleaningReports?.length || 0) > 0;
   const host_report_completed = (hostReports?.length || 0) > 0;
   const review_received = (reviews?.length || 0) > 0;
+  const pre_event_ready = booking.pre_event_ready === true;
 
   // Build and return the snapshot
   return {
@@ -159,6 +162,7 @@ async function buildBookingSnapshot(
     cleaning_report_completed,
     host_report_completed,
     review_received,
+    pre_event_ready,
     customer: {
       full_name: booking.full_name,
       email: booking.email,
