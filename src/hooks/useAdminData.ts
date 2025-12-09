@@ -48,7 +48,6 @@ export interface Booking {
   lifecycle_status: string;
   lead_source: string | null;
   pre_event_ready: boolean;
-  pre_event_checklist_completed_at: string | null;
   created_at: string;
 }
 

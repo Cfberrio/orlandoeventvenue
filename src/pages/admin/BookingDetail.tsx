@@ -170,12 +170,12 @@ export default function BookingDetail() {
     if (field === "staffing") setStaffingAvailability(checked);
     if (field === "conflicts") setEventTypeConflicts(checked);
 
-    // When all 3 are checked, save the timestamp (GHL will handle the status change to confirmed)
+    // When all 3 are checked, set pre_event_ready to true (GHL will handle the status change to confirmed)
     if (newSchedule && newStaffing && newConflicts) {
       try {
         await updateBooking.mutateAsync({
           id: booking.id,
-          updates: { pre_event_checklist_completed_at: new Date().toISOString() },
+          updates: { pre_event_ready: true },
         });
         toast({ title: "Checklist completed - awaiting GHL confirmation" });
       } catch {
@@ -484,11 +484,6 @@ export default function BookingDetail() {
                 <Badge variant={booking.pre_event_ready ? "default" : "secondary"}>
                   {booking.pre_event_ready ? "Ready" : "Not Ready"}
                 </Badge>
-                {booking.pre_event_checklist_completed_at && (
-                  <span className="text-sm text-muted-foreground">
-                    Completed: {format(new Date(booking.pre_event_checklist_completed_at), "PPp")}
-                  </span>
-                )}
               </div>
               {!booking.pre_event_ready && (
                 <Button onClick={handleMarkPreEventReady}>
