@@ -368,7 +368,7 @@ export type Database = {
           package_start_time: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           phone: string
-          pre_event_ready: boolean
+          pre_event_ready: string
           reservation_number: string | null
           setup_breakdown: boolean
           signature: string
@@ -420,7 +420,7 @@ export type Database = {
           package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone: string
-          pre_event_ready?: boolean
+          pre_event_ready?: string
           reservation_number?: string | null
           setup_breakdown?: boolean
           signature: string
@@ -472,7 +472,7 @@ export type Database = {
           package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone?: string
-          pre_event_ready?: boolean
+          pre_event_ready?: string
           reservation_number?: string | null
           setup_breakdown?: boolean
           signature?: string
