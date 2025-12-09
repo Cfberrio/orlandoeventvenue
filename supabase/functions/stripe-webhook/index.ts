@@ -91,7 +91,7 @@ serve(async (req) => {
           stripe_payment_intent_id: session.payment_intent,
         })
         .eq("id", bookingId)
-        .select("id, reservation_number")
+        .select()
         .single();
 
       if (error) {
@@ -100,6 +100,40 @@ serve(async (req) => {
       }
 
       console.log("Booking updated successfully:", data);
+
+      // Send confirmation email
+      try {
+        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+          },
+          body: JSON.stringify({
+            email: data.email,
+            full_name: data.full_name,
+            reservation_number: data.reservation_number,
+            event_date: data.event_date,
+            event_type: data.event_type,
+            number_of_guests: data.number_of_guests,
+            booking_type: data.booking_type,
+            start_time: data.start_time,
+            end_time: data.end_time,
+            total_amount: data.total_amount,
+            deposit_amount: data.deposit_amount,
+            balance_amount: data.balance_amount,
+          }),
+        });
+
+        if (!emailResponse.ok) {
+          console.error("Failed to send confirmation email:", await emailResponse.text());
+        } else {
+          console.log("Confirmation email sent successfully");
+        }
+      } catch (emailError) {
+        console.error("Error sending confirmation email:", emailError);
+        // Don't fail the webhook because of email issues
+      }
 
       // Sync to GHL after successful payment update
       await syncToGHL(bookingId);
