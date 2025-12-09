@@ -146,8 +146,7 @@ export default function BookingDetail() {
       await updateBooking.mutateAsync({
         id: booking.id,
         updates: {
-          pre_event_ready: true,
-          pre_event_checklist_completed_at: new Date().toISOString(),
+          pre_event_ready: "true",
           lifecycle_status: "pre_event_ready",
         },
       });
@@ -175,7 +174,7 @@ export default function BookingDetail() {
       try {
         await updateBooking.mutateAsync({
           id: booking.id,
-          updates: { pre_event_ready: true },
+          updates: { pre_event_ready: "true" },
         });
         toast({ title: "Checklist completed - awaiting GHL confirmation" });
       } catch {
@@ -481,11 +480,11 @@ export default function BookingDetail() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center gap-4">
-                <Badge variant={booking.pre_event_ready ? "default" : "secondary"}>
-                  {booking.pre_event_ready ? "Ready" : "Not Ready"}
+                <Badge variant={booking.pre_event_ready === "true" ? "default" : "secondary"}>
+                  {booking.pre_event_ready === "true" ? "Ready" : "Not Ready"}
                 </Badge>
               </div>
-              {!booking.pre_event_ready && (
+              {booking.pre_event_ready !== "true" && (
                 <Button onClick={handleMarkPreEventReady}>
                   Mark Pre-Event Checklist as Completed
                 </Button>

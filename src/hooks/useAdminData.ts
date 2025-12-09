@@ -47,7 +47,7 @@ export interface Booking {
   status: string;
   lifecycle_status: string;
   lead_source: string | null;
-  pre_event_ready: boolean;
+  pre_event_ready: string | null;
   created_at: string;
 }
 
@@ -235,7 +235,7 @@ export function useOperationalAlerts() {
         .select("*")
         .gte("event_date", todayStr)
         .lte("event_date", threeDaysLater)
-        .eq("pre_event_ready", false);
+        .neq("pre_event_ready", "true");
       if (bookingsError) throw bookingsError;
       return bookings as Booking[];
     },
