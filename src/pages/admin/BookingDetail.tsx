@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -150,7 +151,11 @@ export default function BookingDetail() {
           lifecycle_status: "pre_event_ready",
         },
       });
-      toast({ title: "Pre-event checklist completed" });
+      // Sync to GHL so it can re-evaluate workflow conditions
+      await supabase.functions.invoke("sync-to-ghl", {
+        body: { booking_id: booking.id },
+      });
+      toast({ title: "Pre-event checklist completed and synced to GHL" });
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
     }
@@ -169,14 +174,18 @@ export default function BookingDetail() {
     if (field === "staffing") setStaffingAvailability(checked);
     if (field === "conflicts") setEventTypeConflicts(checked);
 
-    // When all 3 are checked, set pre_event_ready to true (GHL will handle the status change to confirmed)
+    // When all 3 are checked, set pre_event_ready to true and sync to GHL
     if (newSchedule && newStaffing && newConflicts) {
       try {
         await updateBooking.mutateAsync({
           id: booking.id,
           updates: { pre_event_ready: "true" },
         });
-        toast({ title: "Checklist completed - awaiting GHL confirmation" });
+        // Sync to GHL so it can re-evaluate workflow conditions
+        await supabase.functions.invoke("sync-to-ghl", {
+          body: { booking_id: booking.id },
+        });
+        toast({ title: "Checklist completed and synced to GHL" });
       } catch {
         toast({ title: "Failed to save checklist", variant: "destructive" });
       }
