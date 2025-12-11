@@ -1,12 +1,12 @@
 import { Navigate } from "react-router-dom";
-import { useAuth } from "@/hooks/useAuth";
+import { useStaffSession } from "@/hooks/useStaffSession";
 
 interface StaffProtectedRouteProps {
   children: React.ReactNode;
 }
 
 export default function StaffProtectedRoute({ children }: StaffProtectedRouteProps) {
-  const { user, isLoading, isAdmin } = useAuth();
+  const { staffMember, isLoading } = useStaffSession();
 
   if (isLoading) {
     return (
@@ -16,9 +16,8 @@ export default function StaffProtectedRoute({ children }: StaffProtectedRoutePro
     );
   }
 
-  // Staff and admins can access staff routes
-  if (!user || !isAdmin) {
-    return <Navigate to="/auth" replace />;
+  if (!staffMember) {
+    return <Navigate to="/staff/login" replace />;
   }
 
   return <>{children}</>;

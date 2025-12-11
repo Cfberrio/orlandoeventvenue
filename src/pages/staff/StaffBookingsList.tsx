@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Calendar, Users, Clock, FileText, ChevronRight } from "lucide-react";
-import { useStaffAssignedBookings, useCurrentStaffMember } from "@/hooks/useStaffData";
+import { useStaffAssignedBookings } from "@/hooks/useStaffData";
+import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
 
 const lifecycleColors: Record<string, string> = {
@@ -17,10 +18,8 @@ const lifecycleColors: Record<string, string> = {
 };
 
 export default function StaffBookingsList() {
-  const { data: staffMember, isLoading: staffLoading } = useCurrentStaffMember();
-  const { data: bookings, isLoading: bookingsLoading } = useStaffAssignedBookings();
-
-  const isLoading = staffLoading || bookingsLoading;
+  const { staffMember } = useStaffSession();
+  const { data: bookings, isLoading } = useStaffAssignedBookings();
 
   const today = new Date();
   const upcomingBookings = bookings?.filter(b => 
@@ -40,27 +39,12 @@ export default function StaffBookingsList() {
     );
   }
 
-  if (!staffMember) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-foreground">My Bookings</h1>
-        <Card>
-          <CardContent className="py-12 text-center">
-            <p className="text-muted-foreground">
-              Your email is not linked to a staff member profile. Please contact an administrator.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">My Bookings</h1>
         <p className="text-muted-foreground">
-          Welcome, {staffMember.full_name}. Here are your assigned bookings.
+          Welcome, {staffMember?.full_name}. Here are your assigned bookings.
         </p>
       </div>
 

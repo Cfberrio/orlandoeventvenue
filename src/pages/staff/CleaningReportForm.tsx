@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ArrowLeft, Upload, X, Plus, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useStaffSession } from "@/hooks/useStaffSession";
 import {
   useStaffBookingDetail,
   useBookingCleaningReport,
   useUpdateCleaningReport,
-  useCurrentStaffMember,
   useCreateMaintenanceTicket,
   uploadCleaningMedia,
 } from "@/hooks/useStaffData";
@@ -40,7 +40,7 @@ export default function CleaningReportForm() {
   
   const { data: booking, isLoading: bookingLoading } = useStaffBookingDetail(id || "");
   const { data: existingReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
-  const { data: staffMember } = useCurrentStaffMember();
+  const { staffMember } = useStaffSession();
   const updateReport = useUpdateCleaningReport();
   const createTicket = useCreateMaintenanceTicket();
 

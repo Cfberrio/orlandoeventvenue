@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useStaffSession } from "./useStaffSession";
 
 export interface StaffBooking {
   id: string;
@@ -46,29 +47,9 @@ export interface CleaningReport {
   created_at: string;
 }
 
-// Get current staff member based on logged in user's email
-export function useCurrentStaffMember() {
-  return useQuery({
-    queryKey: ["current-staff-member"],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.email) return null;
-      
-      const { data, error } = await supabase
-        .from("staff_members")
-        .select("*")
-        .eq("email", user.email)
-        .maybeSingle();
-      
-      if (error) throw error;
-      return data;
-    },
-  });
-}
-
-// Get bookings assigned to current staff member
+// Get bookings assigned to current staff member (using staff session)
 export function useStaffAssignedBookings() {
-  const { data: staffMember } = useCurrentStaffMember();
+  const { staffMember } = useStaffSession();
   
   return useQuery({
     queryKey: ["staff-assigned-bookings", staffMember?.id],
