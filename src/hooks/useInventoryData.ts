@@ -223,45 +223,44 @@ export function useUpsertInventoryFromCleaningReport() {
 
       if (!products || !locations) return;
 
-      // Product name to location mapping
+      // Product name to primary location mapping (exact names from inventory_products)
       const productLocationMap: Record<string, string> = {
-        "trash bags": "kitchen_cabinets_lower_left",
-        "bolsas grandes": "kitchen_cabinets_lower_left",
-        "bolsas de 13g": "kitchen_cabinets_lower_left",
-        "esponjas": "kitchen_cabinets_lower_left",
-        "dawn": "kitchen_cabinets_lower_left",
-        "cleaning spray": "kitchen_cabinets_lower_left",
-        "clorox": "kitchen_cabinets_lower_left",
-        "mapo": "kitchen_cabinets_lower_left",
-        "paper towels": "storage_rack_entrance",
-        "toallas de mano": "storage_rack_entrance",
-        "papel higiénico": "storage_rack_entrance",
-        "toilet paper": "bathroom_cabinets_womens",
+        // Kitchen items
+        "bolsas grandes negras": "kitchen_cabinets_lower_left",
+        "bolsas de 13g (kitchen trash bags)": "kitchen_cabinets_lower_left",
+        "esponjas de lavar los platos": "kitchen_cabinets_lower_left",
+        "dawn dish soap": "kitchen_cabinets_lower_left",
+        "mapo nuevo": "kitchen_cabinets_lower_left",
+        // Storage rack (bulk items)
+        "paper towels (marathon 4000)": "storage_rack_entrance",
+        // Bathroom items
+        "bolsas pequeñas para baños": "bathroom_cabinets_womens",
+        "papel higiénico": "bathroom_cabinets_womens",
         "hand soap": "bathroom_cabinets_womens",
-        "bolsas pequeñas": "bathroom_cabinets_womens",
+        "toallas desinfectantes clorox": "bathroom_cabinets_womens",
         "toallas sanitarias": "bathroom_cabinets_womens",
-        "cepillo": "bathroom_cabinets_womens",
+        "cepillo de inodoros": "bathroom_cabinets_womens",
       };
 
       for (const item of items) {
-        const itemNameLower = item.item_name.toLowerCase();
+        const itemNameLower = item.item_name.toLowerCase().trim();
 
-        // Try to match product
-        const matchedProduct = products.find((p) =>
-          itemNameLower.includes(p.name.toLowerCase()) ||
-          p.name.toLowerCase().includes(itemNameLower)
+        // Try exact match first, then partial match
+        let matchedProduct = products.find((p) =>
+          p.name.toLowerCase() === itemNameLower
         );
+        
+        if (!matchedProduct) {
+          matchedProduct = products.find((p) =>
+            itemNameLower.includes(p.name.toLowerCase()) ||
+            p.name.toLowerCase().includes(itemNameLower)
+          );
+        }
 
         if (!matchedProduct) continue;
 
-        // Determine location
-        let locationSlug = "kitchen_cabinets_lower_left";
-        for (const [keyword, slug] of Object.entries(productLocationMap)) {
-          if (itemNameLower.includes(keyword)) {
-            locationSlug = slug;
-            break;
-          }
-        }
+        // Determine location from mapping or default
+        const locationSlug = productLocationMap[matchedProduct.name.toLowerCase()] || "kitchen_cabinets_lower_left";
 
         const matchedLocation = locations.find((l) => l.slug === locationSlug);
         if (!matchedLocation) continue;
