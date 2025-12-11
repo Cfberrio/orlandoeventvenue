@@ -70,84 +70,123 @@ serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const bookingId = session.metadata?.booking_id;
+      const paymentType = session.metadata?.payment_type || "deposit";
 
       if (!bookingId) {
         console.error("No booking_id in session metadata");
         return new Response("No booking_id", { status: 400 });
       }
 
-      console.log("Processing payment for booking:", bookingId);
+      console.log(`Processing ${paymentType} payment for booking:`, bookingId);
 
       // Create Supabase client with service role key
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // Update booking payment status
-      const { data, error } = await supabase
-        .from("bookings")
-        .update({
-          payment_status: "deposit_paid",
-          deposit_paid_at: new Date().toISOString(),
-          stripe_session_id: session.id,
-          stripe_payment_intent_id: session.payment_intent,
-        })
-        .eq("id", bookingId)
-        .select()
-        .single();
+      if (paymentType === "balance") {
+        // Handle balance payment
+        const { data, error } = await supabase
+          .from("bookings")
+          .update({
+            payment_status: "fully_paid",
+            balance_paid_at: new Date().toISOString(),
+          })
+          .eq("id", bookingId)
+          .select()
+          .single();
 
-      if (error) {
-        console.error("Error updating booking:", error);
-        return new Response("Database error", { status: 500 });
-      }
+        if (error) {
+          console.error("Error updating booking for balance payment:", error);
+          return new Response("Database error", { status: 500 });
+        }
 
-      console.log("Booking updated successfully:", data);
+        console.log("Booking fully paid:", data);
 
-      // Send confirmation email
-      try {
-        const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+        // Log the balance payment event
+        await supabase.from("booking_events").insert({
+          booking_id: bookingId,
+          event_type: "balance_paid",
+          channel: "stripe",
+          metadata: {
+            session_id: session.id,
+            payment_intent: session.payment_intent,
+            amount: data.balance_amount,
           },
-          body: JSON.stringify({
-            email: data.email,
-            full_name: data.full_name,
-            reservation_number: data.reservation_number,
-            event_date: data.event_date,
-            event_type: data.event_type,
-            number_of_guests: data.number_of_guests,
-            booking_type: data.booking_type,
-            start_time: data.start_time,
-            end_time: data.end_time,
-            base_rental: data.base_rental,
-            cleaning_fee: data.cleaning_fee,
-            package: data.package,
-            package_cost: data.package_cost,
-            package_start_time: data.package_start_time,
-            package_end_time: data.package_end_time,
-            setup_breakdown: data.setup_breakdown,
-            tablecloths: data.tablecloths,
-            tablecloth_quantity: data.tablecloth_quantity,
-            optional_services: data.optional_services,
-            taxes_fees: data.taxes_fees,
-            total_amount: data.total_amount,
-            deposit_amount: data.deposit_amount,
-            balance_amount: data.balance_amount,
-          }),
         });
 
-        if (!emailResponse.ok) {
-          console.error("Failed to send confirmation email:", await emailResponse.text());
-        } else {
-          console.log("Confirmation email sent successfully");
-        }
-      } catch (emailError) {
-        console.error("Error sending confirmation email:", emailError);
-        // Don't fail the webhook because of email issues
-      }
+        // TODO: Send balance payment confirmation email if needed
 
-      // Sync to GHL after successful payment update
-      await syncToGHL(bookingId);
+        // Sync to GHL after balance payment
+        await syncToGHL(bookingId);
+
+      } else {
+        // Handle deposit payment (existing logic)
+        const { data, error } = await supabase
+          .from("bookings")
+          .update({
+            payment_status: "deposit_paid",
+            deposit_paid_at: new Date().toISOString(),
+            stripe_session_id: session.id,
+            stripe_payment_intent_id: session.payment_intent,
+          })
+          .eq("id", bookingId)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("Error updating booking:", error);
+          return new Response("Database error", { status: 500 });
+        }
+
+        console.log("Booking updated successfully:", data);
+
+        // Send confirmation email
+        try {
+          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            },
+            body: JSON.stringify({
+              email: data.email,
+              full_name: data.full_name,
+              reservation_number: data.reservation_number,
+              event_date: data.event_date,
+              event_type: data.event_type,
+              number_of_guests: data.number_of_guests,
+              booking_type: data.booking_type,
+              start_time: data.start_time,
+              end_time: data.end_time,
+              base_rental: data.base_rental,
+              cleaning_fee: data.cleaning_fee,
+              package: data.package,
+              package_cost: data.package_cost,
+              package_start_time: data.package_start_time,
+              package_end_time: data.package_end_time,
+              setup_breakdown: data.setup_breakdown,
+              tablecloths: data.tablecloths,
+              tablecloth_quantity: data.tablecloth_quantity,
+              optional_services: data.optional_services,
+              taxes_fees: data.taxes_fees,
+              total_amount: data.total_amount,
+              deposit_amount: data.deposit_amount,
+              balance_amount: data.balance_amount,
+            }),
+          });
+
+          if (!emailResponse.ok) {
+            console.error("Failed to send confirmation email:", await emailResponse.text());
+          } else {
+            console.log("Confirmation email sent successfully");
+          }
+        } catch (emailError) {
+          console.error("Error sending confirmation email:", emailError);
+          // Don't fail the webhook because of email issues
+        }
+
+        // Sync to GHL after successful payment update
+        await syncToGHL(bookingId);
+      }
     }
 
     return new Response(JSON.stringify({ received: true }), {
