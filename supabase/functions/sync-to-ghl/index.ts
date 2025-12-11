@@ -23,12 +23,12 @@ interface BookingSnapshot {
   total_amount: number | null;
   deposit_amount: number | null;
   balance_amount: number | null;
-  is_deposit_paid: boolean;
-  is_fully_paid: boolean;
-  has_staff_assigned: boolean;
-  cleaning_report_completed: boolean;
-  host_report_completed: boolean;
-  review_received: boolean;
+  is_deposit_paid: string;
+  is_fully_paid: string;
+  has_staff_assigned: string;
+  cleaning_report_completed: string;
+  host_report_completed: string;
+  review_received: string;
   pre_event_ready: string;
   customer: {
     full_name: string | null;
@@ -130,13 +130,13 @@ async function buildBookingSnapshot(
     console.error("Error fetching reviews:", reviewError);
   }
 
-  // Compute boolean flags
-  const has_staff_assigned = (staffCount || 0) >= 1;
-  const is_deposit_paid = booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid";
-  const is_fully_paid = booking.payment_status === "fully_paid";
-  const cleaning_report_completed = (cleaningReports?.length || 0) > 0;
-  const host_report_completed = (hostReports?.length || 0) > 0;
-  const review_received = (reviews?.length || 0) > 0;
+  // Compute string flags (GHL requires text values)
+  const has_staff_assigned = (staffCount || 0) >= 1 ? "true" : "false";
+  const is_deposit_paid = (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") ? "true" : "false";
+  const is_fully_paid = booking.payment_status === "fully_paid" ? "true" : "false";
+  const cleaning_report_completed = (cleaningReports?.length || 0) > 0 ? "true" : "false";
+  const host_report_completed = (hostReports?.length || 0) > 0 ? "true" : "false";
+  const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
   const pre_event_ready = booking.pre_event_ready || 'false';
 
   // Build and return the snapshot
