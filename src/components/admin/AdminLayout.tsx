@@ -10,7 +10,8 @@ import {
   CalendarDays,
   Menu,
   X,
-  LogOut
+  LogOut,
+  Package
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ const navItems = [
   { to: "/admin/reminders", icon: Bell, label: "Reminders" },
   { to: "/admin/reports", icon: FileText, label: "Reports" },
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },
+  { to: "/admin/inventory", icon: Package, label: "Inventory" },
 ];
 
 export default function AdminLayout() {

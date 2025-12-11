@@ -18,6 +18,7 @@ import {
   useCreateMaintenanceTicket,
   uploadCleaningMedia,
 } from "@/hooks/useStaffData";
+import { useUpsertInventoryFromCleaningReport } from "@/hooks/useInventoryData";
 
 interface InventoryItem {
   item_name: string;
@@ -43,6 +44,7 @@ export default function CleaningReportForm() {
   const { staffMember } = useStaffSession();
   const updateReport = useUpdateCleaningReport();
   const createTicket = useCreateMaintenanceTicket();
+  const upsertInventory = useUpsertInventoryFromCleaningReport();
 
   // Form state
   const [cleanerName, setCleanerName] = useState("");
@@ -211,6 +213,12 @@ export default function CleaningReportForm() {
           priority: "medium",
         });
       }
+
+      // Sync inventory from cleaning report
+      await upsertInventory.mutateAsync({
+        items: inventoryItems,
+        bookingReservationNumber: booking?.reservation_number,
+      });
 
       // Sync to GHL
       await supabase.functions.invoke("sync-to-ghl", {
