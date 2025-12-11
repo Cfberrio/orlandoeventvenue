@@ -420,20 +420,34 @@ export default function Cleaning() {
                   <div>
                     <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                       <Package className="h-4 w-4" />
-                      Inventory Check
+                      Inventory / Supplies Used
                       {selectedReport.inventory_update_needed && (
-                        <Badge variant="destructive" className="ml-2">Needs Update</Badge>
+                        <Badge variant="destructive" className="ml-2">Needs Restock</Badge>
                       )}
                     </h3>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                      {(selectedReport.inventory_items as Array<{ item_name: string; status: string }>).map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-2 rounded-md border border-border">
-                          <span className="text-sm">{item.item_name}</span>
-                          <Badge variant={item.status === 'stocked' ? 'default' : item.status === 'low' ? 'secondary' : 'destructive'}>
-                            {item.status}
-                          </Badge>
-                        </div>
-                      ))}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="text-left py-2 font-medium">Item</th>
+                            <th className="text-center py-2 font-medium">Qty Used</th>
+                            <th className="text-center py-2 font-medium">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(selectedReport.inventory_items as Array<{ item_name: string; status: string; qty_used?: string }>).map((item, idx) => (
+                            <tr key={idx} className="border-b border-border/50">
+                              <td className="py-2">{item.item_name}</td>
+                              <td className="py-2 text-center">{item.qty_used || "-"}</td>
+                              <td className="py-2 text-center">
+                                <Badge variant={item.status === 'stocked' ? 'default' : item.status === 'low' ? 'secondary' : 'destructive'}>
+                                  {item.status}
+                                </Badge>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   </div>
                 )}
