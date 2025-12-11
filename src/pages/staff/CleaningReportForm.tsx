@@ -22,15 +22,15 @@ import {
 interface InventoryItem {
   item_name: string;
   status: "stocked" | "low" | "out";
-  qty_estimate: string;
+  qty_used: string;
 }
 
 const defaultInventoryItems: InventoryItem[] = [
-  { item_name: "Trash Bags", status: "stocked", qty_estimate: "" },
-  { item_name: "Paper Towels", status: "stocked", qty_estimate: "" },
-  { item_name: "Toilet Paper", status: "stocked", qty_estimate: "" },
-  { item_name: "Hand Soap", status: "stocked", qty_estimate: "" },
-  { item_name: "Cleaning Spray", status: "stocked", qty_estimate: "" },
+  { item_name: "Trash Bags", status: "stocked", qty_used: "" },
+  { item_name: "Paper Towels", status: "stocked", qty_used: "" },
+  { item_name: "Toilet Paper", status: "stocked", qty_used: "" },
+  { item_name: "Hand Soap", status: "stocked", qty_used: "" },
+  { item_name: "Cleaning Spray", status: "stocked", qty_used: "" },
 ];
 
 export default function CleaningReportForm() {
@@ -140,7 +140,7 @@ export default function CleaningReportForm() {
   };
 
   const addInventoryItem = () => {
-    setInventoryItems(prev => [...prev, { item_name: "", status: "stocked", qty_estimate: "" }]);
+    setInventoryItems(prev => [...prev, { item_name: "", status: "stocked", qty_used: "" }]);
   };
 
   const removeInventoryItem = (index: number) => {
@@ -486,10 +486,10 @@ export default function CleaningReportForm() {
                 </SelectContent>
               </Select>
               <Input
-                placeholder="Qty"
-                value={item.qty_estimate}
-                onChange={(e) => updateInventoryItem(index, "qty_estimate", e.target.value)}
-                className="w-20"
+                placeholder="Qty Used"
+                value={item.qty_used}
+                onChange={(e) => updateInventoryItem(index, "qty_used", e.target.value)}
+                className="w-24"
               />
               <Button
                 variant="ghost"
