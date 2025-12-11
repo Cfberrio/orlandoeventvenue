@@ -75,6 +75,8 @@ export interface CleaningReport {
   id: string;
   booking_id: string;
   cleaner_id: string | null;
+  cleaner_name: string | null;
+  cleaner_role: string | null;
   scheduled_start: string | null;
   scheduled_end: string | null;
   started_at: string | null;
@@ -86,6 +88,25 @@ export interface CleaningReport {
   surfaces_clean: boolean | null;
   damage_found: boolean | null;
   damage_notes: string | null;
+  clean_issues_notes: string | null;
+  inventory_update_needed: boolean | null;
+  inventory_items: Json | null;
+  media_front_door: Json | null;
+  media_main_area: Json | null;
+  media_rack: Json | null;
+  media_bathrooms: Json | null;
+  media_kitchen: Json | null;
+  media_deep_cleaning: Json | null;
+  clean_check_floors: boolean | null;
+  clean_check_bathrooms: boolean | null;
+  clean_check_kitchen: boolean | null;
+  clean_check_trash_removed: boolean | null;
+  clean_check_equipment_stored: boolean | null;
+  clean_check_tables_chairs_positioned: boolean | null;
+  clean_check_lights_off: boolean | null;
+  clean_check_office_door_closed: boolean | null;
+  clean_check_door_locked: boolean | null;
+  clean_check_deep_cleaning_done: boolean | null;
   created_at: string;
   updated_at: string;
 }
