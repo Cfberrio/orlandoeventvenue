@@ -7,12 +7,14 @@ import { Label } from "@/components/ui/label";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useStaffSession } from "@/hooks/useStaffSession";
 
 export default function StaffLogin() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { refreshSession } = useStaffSession();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +61,9 @@ export default function StaffLogin() {
         role: staffMember.role,
         logged_in_at: new Date().toISOString(),
       }));
+
+      // Refresh the session context to pick up the new session
+      await refreshSession();
 
       toast({ title: `Welcome, ${staffMember.full_name}!` });
       navigate("/staff");
