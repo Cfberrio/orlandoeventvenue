@@ -21,6 +21,12 @@ import Staff from "./pages/admin/Staff";
 import Reminders from "./pages/admin/Reminders";
 import Reports from "./pages/admin/Reports";
 import Cleaning from "./pages/admin/Cleaning";
+// Staff Dashboard imports
+import StaffLayout from "./components/staff/StaffLayout";
+import StaffProtectedRoute from "./components/staff/StaffProtectedRoute";
+import StaffBookingsList from "./pages/staff/StaffBookingsList";
+import StaffBookingDetail from "./pages/staff/StaffBookingDetail";
+import CleaningReportForm from "./pages/staff/CleaningReportForm";
 
 const queryClient = new QueryClient();
 
@@ -53,6 +59,17 @@ const App = () => (
               <Route path="reminders" element={<Reminders />} />
               <Route path="reports" element={<Reports />} />
               <Route path="cleaning" element={<Cleaning />} />
+            </Route>
+
+            {/* Staff Routes - Protected */}
+            <Route path="/staff" element={
+              <StaffProtectedRoute>
+                <StaffLayout />
+              </StaffProtectedRoute>
+            }>
+              <Route index element={<StaffBookingsList />} />
+              <Route path="bookings/:id" element={<StaffBookingDetail />} />
+              <Route path="bookings/:id/cleaning-report" element={<CleaningReportForm />} />
             </Route>
             
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

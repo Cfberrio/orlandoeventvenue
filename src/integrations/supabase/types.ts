@@ -91,13 +91,34 @@ export type Database = {
       booking_cleaning_reports: {
         Row: {
           booking_id: string
+          clean_check_bathrooms: boolean | null
+          clean_check_deep_cleaning_done: boolean | null
+          clean_check_door_locked: boolean | null
+          clean_check_equipment_stored: boolean | null
+          clean_check_floors: boolean | null
+          clean_check_kitchen: boolean | null
+          clean_check_lights_off: boolean | null
+          clean_check_office_door_closed: boolean | null
+          clean_check_tables_chairs_positioned: boolean | null
+          clean_check_trash_removed: boolean | null
+          clean_issues_notes: string | null
           cleaner_id: string | null
+          cleaner_name: string | null
+          cleaner_role: string | null
           completed_at: string | null
           created_at: string
           damage_found: boolean | null
           damage_notes: string | null
           floors_clean: boolean | null
           id: string
+          inventory_items: Json | null
+          inventory_update_needed: boolean | null
+          media_bathrooms: Json | null
+          media_deep_cleaning: Json | null
+          media_front_door: Json | null
+          media_kitchen: Json | null
+          media_main_area: Json | null
+          media_rack: Json | null
           restrooms_clean: boolean | null
           scheduled_end: string | null
           scheduled_start: string | null
@@ -109,13 +130,34 @@ export type Database = {
         }
         Insert: {
           booking_id: string
+          clean_check_bathrooms?: boolean | null
+          clean_check_deep_cleaning_done?: boolean | null
+          clean_check_door_locked?: boolean | null
+          clean_check_equipment_stored?: boolean | null
+          clean_check_floors?: boolean | null
+          clean_check_kitchen?: boolean | null
+          clean_check_lights_off?: boolean | null
+          clean_check_office_door_closed?: boolean | null
+          clean_check_tables_chairs_positioned?: boolean | null
+          clean_check_trash_removed?: boolean | null
+          clean_issues_notes?: string | null
           cleaner_id?: string | null
+          cleaner_name?: string | null
+          cleaner_role?: string | null
           completed_at?: string | null
           created_at?: string
           damage_found?: boolean | null
           damage_notes?: string | null
           floors_clean?: boolean | null
           id?: string
+          inventory_items?: Json | null
+          inventory_update_needed?: boolean | null
+          media_bathrooms?: Json | null
+          media_deep_cleaning?: Json | null
+          media_front_door?: Json | null
+          media_kitchen?: Json | null
+          media_main_area?: Json | null
+          media_rack?: Json | null
           restrooms_clean?: boolean | null
           scheduled_end?: string | null
           scheduled_start?: string | null
@@ -127,13 +169,34 @@ export type Database = {
         }
         Update: {
           booking_id?: string
+          clean_check_bathrooms?: boolean | null
+          clean_check_deep_cleaning_done?: boolean | null
+          clean_check_door_locked?: boolean | null
+          clean_check_equipment_stored?: boolean | null
+          clean_check_floors?: boolean | null
+          clean_check_kitchen?: boolean | null
+          clean_check_lights_off?: boolean | null
+          clean_check_office_door_closed?: boolean | null
+          clean_check_tables_chairs_positioned?: boolean | null
+          clean_check_trash_removed?: boolean | null
+          clean_issues_notes?: string | null
           cleaner_id?: string | null
+          cleaner_name?: string | null
+          cleaner_role?: string | null
           completed_at?: string | null
           created_at?: string
           damage_found?: boolean | null
           damage_notes?: string | null
           floors_clean?: boolean | null
           id?: string
+          inventory_items?: Json | null
+          inventory_update_needed?: boolean | null
+          media_bathrooms?: Json | null
+          media_deep_cleaning?: Json | null
+          media_front_door?: Json | null
+          media_kitchen?: Json | null
+          media_main_area?: Json | null
+          media_rack?: Json | null
           restrooms_clean?: boolean | null
           scheduled_end?: string | null
           scheduled_start?: string | null
