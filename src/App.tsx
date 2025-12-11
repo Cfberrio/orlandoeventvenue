@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
+import { StaffSessionProvider } from "@/hooks/useStaffSession";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
 import BookingConfirmation from "./pages/BookingConfirmation";
@@ -24,6 +25,7 @@ import Cleaning from "./pages/admin/Cleaning";
 // Staff Dashboard imports
 import StaffLayout from "./components/staff/StaffLayout";
 import StaffProtectedRoute from "./components/staff/StaffProtectedRoute";
+import StaffLogin from "./pages/staff/StaffLogin";
 import StaffBookingsList from "./pages/staff/StaffBookingsList";
 import StaffBookingDetail from "./pages/staff/StaffBookingDetail";
 import CleaningReportForm from "./pages/staff/CleaningReportForm";
@@ -33,50 +35,53 @@ const queryClient = new QueryClient();
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/book" element={<Book />} />
-            <Route path="/booking-confirmation" element={<BookingConfirmation />} />
-            <Route path="/auth" element={<Auth />} />
-            <Route path="/sms-terms" element={<SmsTerms />} />
-            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
-            
-            {/* Admin Routes - Protected */}
-            <Route path="/admin" element={
-              <ProtectedRoute>
-                <AdminLayout />
-              </ProtectedRoute>
-            }>
-              <Route path="dashboard" element={<AdminDashboard />} />
-              <Route path="bookings" element={<BookingsList />} />
-              <Route path="bookings/:id" element={<BookingDetail />} />
-              <Route path="schedule" element={<Schedule />} />
-              <Route path="staff" element={<Staff />} />
-              <Route path="reminders" element={<Reminders />} />
-              <Route path="reports" element={<Reports />} />
-              <Route path="cleaning" element={<Cleaning />} />
-            </Route>
+      <StaffSessionProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/book" element={<Book />} />
+              <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/sms-terms" element={<SmsTerms />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              
+              {/* Admin Routes - Protected */}
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }>
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="bookings" element={<BookingsList />} />
+                <Route path="bookings/:id" element={<BookingDetail />} />
+                <Route path="schedule" element={<Schedule />} />
+                <Route path="staff" element={<Staff />} />
+                <Route path="reminders" element={<Reminders />} />
+                <Route path="reports" element={<Reports />} />
+                <Route path="cleaning" element={<Cleaning />} />
+              </Route>
 
-            {/* Staff Routes - Protected */}
-            <Route path="/staff" element={
-              <StaffProtectedRoute>
-                <StaffLayout />
-              </StaffProtectedRoute>
-            }>
-              <Route index element={<StaffBookingsList />} />
-              <Route path="bookings/:id" element={<StaffBookingDetail />} />
-              <Route path="bookings/:id/cleaning-report" element={<CleaningReportForm />} />
-            </Route>
-            
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+              {/* Staff Routes */}
+              <Route path="/staff/login" element={<StaffLogin />} />
+              <Route path="/staff" element={
+                <StaffProtectedRoute>
+                  <StaffLayout />
+                </StaffProtectedRoute>
+              }>
+                <Route index element={<StaffBookingsList />} />
+                <Route path="bookings/:id" element={<StaffBookingDetail />} />
+                <Route path="bookings/:id/cleaning-report" element={<CleaningReportForm />} />
+              </Route>
+              
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </StaffSessionProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

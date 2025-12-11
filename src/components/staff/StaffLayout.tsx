@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, ClipboardCheck, Menu, X, LogOut } from "lucide-react";
+import { CalendarDays, Menu, X, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth";
+import { useStaffSession } from "@/hooks/useStaffSession";
+import { useNavigate } from "react-router-dom";
 
 const navItems = [
   { to: "/staff", icon: CalendarDays, label: "My Bookings", end: true },
@@ -11,11 +12,12 @@ const navItems = [
 
 export default function StaffLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const { signOut, user } = useAuth();
+  const { staffMember, logout } = useStaffSession();
+  const navigate = useNavigate();
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/auth';
+  const handleSignOut = () => {
+    logout();
+    navigate("/staff/login");
   };
 
   return (
@@ -79,7 +81,7 @@ export default function StaffLayout() {
           </Button>
           <div className="flex-1" />
           <span className="text-sm text-muted-foreground hidden sm:inline">
-            {user?.email}
+            {staffMember?.full_name} ({staffMember?.role})
           </span>
           <Button variant="ghost" size="sm" onClick={handleSignOut}>
             <LogOut className="h-4 w-4 mr-2" />
