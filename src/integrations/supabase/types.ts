@@ -554,6 +554,117 @@ export type Database = {
         }
         Relationships: []
       }
+      inventory_locations: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          slug: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          slug: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          slug?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_products: {
+        Row: {
+          created_at: string
+          default_min_level: number
+          id: string
+          is_active: boolean
+          name: string
+          unit: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_min_level?: number
+          id?: string
+          is_active?: boolean
+          name: string
+          unit?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_min_level?: number
+          id?: string
+          is_active?: boolean
+          name?: string
+          unit?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      inventory_stock: {
+        Row: {
+          current_level: number
+          id: string
+          location_id: string
+          min_level: number | null
+          notes: string | null
+          photo_url: string | null
+          product_id: string
+          shelf_label: string | null
+          status: string
+          updated_at: string
+          updated_by_user_id: string | null
+        }
+        Insert: {
+          current_level?: number
+          id?: string
+          location_id: string
+          min_level?: number | null
+          notes?: string | null
+          photo_url?: string | null
+          product_id: string
+          shelf_label?: string | null
+          status?: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+        }
+        Update: {
+          current_level?: number
+          id?: string
+          location_id?: string
+          min_level?: number | null
+          notes?: string | null
+          photo_url?: string | null
+          product_id?: string
+          shelf_label?: string | null
+          status?: string
+          updated_at?: string
+          updated_by_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "inventory_stock_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inventory_stock_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "inventory_products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       maintenance_tickets: {
         Row: {
           booking_id: string | null
