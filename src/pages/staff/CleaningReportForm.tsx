@@ -27,11 +27,14 @@ interface InventoryItem {
 }
 
 const defaultInventoryItems: InventoryItem[] = [
-  { item_name: "Trash Bags", status: "stocked", qty_used: "" },
-  { item_name: "Paper Towels", status: "stocked", qty_used: "" },
-  { item_name: "Toilet Paper", status: "stocked", qty_used: "" },
+  { item_name: "Bolsas grandes negras", status: "stocked", qty_used: "" },
+  { item_name: "Bolsas de 13g (kitchen trash bags)", status: "stocked", qty_used: "" },
+  { item_name: "Bolsas pequeñas para baños", status: "stocked", qty_used: "" },
+  { item_name: "Paper Towels (Marathon 4000)", status: "stocked", qty_used: "" },
+  { item_name: "Papel higiénico", status: "stocked", qty_used: "" },
   { item_name: "Hand Soap", status: "stocked", qty_used: "" },
-  { item_name: "Cleaning Spray", status: "stocked", qty_used: "" },
+  { item_name: "Toallas desinfectantes Clorox", status: "stocked", qty_used: "" },
+  { item_name: "Toallas sanitarias", status: "stocked", qty_used: "" },
 ];
 
 export default function CleaningReportForm() {
