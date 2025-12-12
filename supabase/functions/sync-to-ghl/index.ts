@@ -23,6 +23,8 @@ interface BookingSnapshot {
   total_amount: number | null;
   deposit_amount: number | null;
   balance_amount: number | null;
+  balance_payment_url: string | null;
+  balance_link_expires_at: string | null;
   is_deposit_paid: string;
   is_fully_paid: string;
   has_staff_assigned: string;
@@ -54,6 +56,8 @@ interface BookingRow {
   total_amount: number | null;
   deposit_amount: number | null;
   balance_amount: number | null;
+  balance_payment_url: string | null;
+  balance_link_expires_at: string | null;
   pre_event_ready: string | null;
   full_name: string | null;
   email: string | null;
@@ -156,6 +160,8 @@ async function buildBookingSnapshot(
     total_amount: booking.total_amount ? Number(booking.total_amount) : null,
     deposit_amount: booking.deposit_amount ? Number(booking.deposit_amount) : null,
     balance_amount: booking.balance_amount ? Number(booking.balance_amount) : null,
+    balance_payment_url: booking.balance_payment_url,
+    balance_link_expires_at: booking.balance_link_expires_at,
     is_deposit_paid,
     is_fully_paid,
     has_staff_assigned,
