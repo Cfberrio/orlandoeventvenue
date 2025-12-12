@@ -32,6 +32,7 @@ interface BookingSnapshot {
   host_report_completed: string;
   review_received: string;
   pre_event_ready: string;
+  short_notice_balance: string;
   customer: {
     full_name: string | null;
     email: string | null;
@@ -143,6 +144,27 @@ async function buildBookingSnapshot(
   const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
   const pre_event_ready = booking.pre_event_ready || 'false';
 
+  // Calculate short_notice_balance: "true" if event is 15 days or less away
+  let short_notice_balance = "false";
+  try {
+    if (booking.event_date) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Normalize to start of day
+      const eventDate = new Date(booking.event_date);
+      eventDate.setHours(0, 0, 0, 0);
+      
+      const diffMs = eventDate.getTime() - today.getTime();
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      
+      // "true" if 15 days or less (includes past dates)
+      short_notice_balance = diffDays <= 15 ? "true" : "false";
+      console.log(`short_notice_balance for booking ${booking.id}: ${short_notice_balance} (${diffDays} days until event)`);
+    }
+  } catch (err) {
+    console.error("Error calculating short_notice_balance:", err);
+    short_notice_balance = "false";
+  }
+
   // Build and return the snapshot
   return {
     booking_id: booking.id,
@@ -169,6 +191,7 @@ async function buildBookingSnapshot(
     host_report_completed,
     review_received,
     pre_event_ready,
+    short_notice_balance,
     customer: {
       full_name: booking.full_name,
       email: booking.email,
