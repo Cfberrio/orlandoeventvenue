@@ -14,3 +14,12 @@ verify_jwt = false
 
 [functions.create-balance-payment-link]
 verify_jwt = false
+
+[functions.schedule-balance-payment]
+verify_jwt = false
+
+[functions.process-scheduled-jobs]
+verify_jwt = false
+
+[functions.send-booking-confirmation]
+verify_jwt = false
