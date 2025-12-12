@@ -169,7 +169,8 @@ serve(async (req) => {
         reservation_number: booking.reservation_number || "",
         payment_type: "balance",
       },
-      expires_at: Math.floor(Date.now() / 1000) + (60 * 60 * 24 * 7), // 7 days expiration
+      // Note: Stripe Checkout Sessions expire automatically after 24 hours max
+      // Removed custom expires_at since Stripe doesn't allow > 24h
     });
 
     console.log("Created Stripe Checkout Session:", session.id);
