@@ -399,7 +399,9 @@ export type Database = {
         Row: {
           agree_to_rules: boolean
           balance_amount: number
+          balance_link_expires_at: string | null
           balance_paid_at: string | null
+          balance_payment_url: string | null
           base_rental: number
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at: string | null
@@ -451,7 +453,9 @@ export type Database = {
         Insert: {
           agree_to_rules?: boolean
           balance_amount: number
+          balance_link_expires_at?: string | null
           balance_paid_at?: string | null
+          balance_payment_url?: string | null
           base_rental: number
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null
@@ -503,7 +507,9 @@ export type Database = {
         Update: {
           agree_to_rules?: boolean
           balance_amount?: number
+          balance_link_expires_at?: string | null
           balance_paid_at?: string | null
+          balance_payment_url?: string | null
           base_rental?: number
           booking_type?: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null

@@ -175,6 +175,26 @@ serve(async (req) => {
     console.log("Created Stripe Checkout Session:", session.id);
     console.log("Payment URL:", session.url);
 
+    const expiresAt = new Date(session.expires_at! * 1000).toISOString();
+
+    // Update booking with balance payment link data
+    const { error: updateError } = await supabase
+      .from("bookings")
+      .update({
+        balance_payment_url: session.url,
+        balance_link_expires_at: expiresAt,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", booking.id);
+
+    if (updateError) {
+      console.error("Error updating booking with balance link:", updateError);
+      return new Response(
+        JSON.stringify({ success: false, error: "Failed to save payment link to database" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Log the event
     await supabase.from("booking_events").insert({
       booking_id: booking.id,
@@ -184,9 +204,33 @@ serve(async (req) => {
         session_id: session.id,
         payment_url: session.url,
         amount: booking.balance_amount,
-        expires_at: new Date(session.expires_at! * 1000).toISOString(),
+        expires_at: expiresAt,
       },
     });
+
+    // Call syncToGHL to send updated snapshot with balance_payment_url
+    try {
+      const syncResponse = await fetch(
+        `${supabaseUrl}/functions/v1/sync-to-ghl`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ booking_id: booking.id }),
+        }
+      );
+      
+      if (!syncResponse.ok) {
+        console.error("syncToGHL returned non-2xx:", syncResponse.status);
+      } else {
+        console.log("Successfully synced booking to GHL after balance link creation");
+      }
+    } catch (syncError) {
+      console.error("Error calling syncToGHL:", syncError);
+      // Don't fail the response, just log
+    }
 
     return new Response(
       JSON.stringify({
@@ -198,7 +242,7 @@ serve(async (req) => {
         customer_email: booking.email,
         customer_name: booking.full_name,
         event_date: booking.event_date,
-        expires_at: new Date(session.expires_at! * 1000).toISOString(),
+        expires_at: expiresAt,
       }),
       {
         status: 200,
