@@ -174,7 +174,7 @@ export default function BookingDetail() {
     if (field === "staffing") setStaffingAvailability(checked);
     if (field === "conflicts") setEventTypeConflicts(checked);
 
-    // When all 3 are checked, set pre_event_ready to true and sync to GHL
+    // When all 3 are checked, set pre_event_ready to true, sync to GHL, and schedule balance payment
     if (newSchedule && newStaffing && newConflicts) {
       try {
         await updateBooking.mutateAsync({
@@ -185,6 +185,11 @@ export default function BookingDetail() {
         await supabase.functions.invoke("sync-to-ghl", {
           body: { booking_id: booking.id },
         });
+        // Schedule or create balance payment link based on event proximity
+        const balanceResult = await supabase.functions.invoke("schedule-balance-payment", {
+          body: { booking_id: booking.id },
+        });
+        console.log("Balance payment scheduling result:", balanceResult.data);
         toast({ title: "Checklist completed and synced to GHL" });
       } catch {
         toast({ title: "Failed to save checklist", variant: "destructive" });
