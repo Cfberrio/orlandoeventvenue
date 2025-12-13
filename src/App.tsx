@@ -30,6 +30,8 @@ import StaffLogin from "./pages/staff/StaffLogin";
 import StaffBookingsList from "./pages/staff/StaffBookingsList";
 import StaffBookingDetail from "./pages/staff/StaffBookingDetail";
 import CleaningReportForm from "./pages/staff/CleaningReportForm";
+// Guest Routes
+import GuestReport from "./pages/guest/GuestReport";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +79,10 @@ const App = () => (
                 <Route path="bookings/:id" element={<StaffBookingDetail />} />
                 <Route path="bookings/:id/cleaning-report" element={<CleaningReportForm />} />
               </Route>
+
+              {/* Guest Routes - Public */}
+              <Route path="/guest/report/:reservationNumber" element={<GuestReport />} />
+              <Route path="/guest/report" element={<GuestReport />} />
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
