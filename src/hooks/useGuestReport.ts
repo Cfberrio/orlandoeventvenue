@@ -29,6 +29,11 @@ interface MediaUpload {
   file: File;
 }
 
+interface ReviewData {
+  rating: number;
+  comment: string;
+}
+
 export const useGuestReport = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -108,7 +113,8 @@ export const useGuestReport = () => {
     bookingId: string,
     reservationNumber: string,
     reportData: GuestReportData,
-    mediaUploads: MediaUpload[]
+    mediaUploads: MediaUpload[],
+    reviewData?: ReviewData
   ): Promise<boolean> => {
     setSubmitting(true);
     try {
@@ -164,7 +170,24 @@ export const useGuestReport = () => {
         }
       }
 
-      // Trigger sync to GHL
+      // Create review if rating provided
+      if (reviewData && reviewData.rating > 0) {
+        const { error: reviewError } = await supabase
+          .from('booking_reviews')
+          .insert({
+            booking_id: bookingId,
+            rating: reviewData.rating,
+            comment: reviewData.comment || null,
+            reviewer_name: reportData.guest_name,
+            source: 'guest_report',
+          });
+
+        if (reviewError) {
+          console.error('Review submission error:', reviewError);
+        }
+      }
+
+      // Trigger sync to GHL - this will send updated host_report_completed and review_received flags
       try {
         await supabase.functions.invoke('sync-to-ghl', {
           body: { booking_id: bookingId },

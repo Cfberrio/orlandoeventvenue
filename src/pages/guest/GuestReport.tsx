@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Upload, CheckCircle2, AlertCircle, Camera, X } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, AlertCircle, Camera, X, Star } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface MediaFile {
@@ -44,6 +44,10 @@ const GuestReport = () => {
 
   // Issue report
   const [issueDescription, setIssueDescription] = useState('');
+
+  // Review
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
 
   // File input refs
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -139,7 +143,8 @@ const GuestReport = () => {
         issue_description: issueDescription,
         has_issue: hasIssue,
       },
-      mediaFiles.map((f) => ({ fieldId: f.fieldId, file: f.file }))
+      mediaFiles.map((f) => ({ fieldId: f.fieldId, file: f.file })),
+      reviewRating > 0 ? { rating: reviewRating, comment: reviewComment } : undefined
     );
 
     if (success) {
@@ -494,6 +499,61 @@ const GuestReport = () => {
                 minFiles={0}
                 maxFiles={5}
               />
+            </CardContent>
+          </Card>
+
+          {/* Review Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Leave a Review (Optional) / Deja una Reseña (Opcional)</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                How was your experience? / ¿Cómo fue tu experiencia?
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Rating / Calificación</Label>
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="p-1 hover:scale-110 transition-transform"
+                    >
+                      <Star
+                        className={`h-8 w-8 ${
+                          star <= reviewRating
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-muted-foreground/30'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                {reviewRating > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {reviewRating === 5 && 'Excellent! / ¡Excelente!'}
+                    {reviewRating === 4 && 'Very Good / Muy Bueno'}
+                    {reviewRating === 3 && 'Good / Bueno'}
+                    {reviewRating === 2 && 'Fair / Regular'}
+                    {reviewRating === 1 && 'Poor / Malo'}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="review_comment">
+                  Comments / Comentarios
+                </Label>
+                <Textarea
+                  id="review_comment"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder="Share your experience with us... / Comparte tu experiencia con nosotros..."
+                  rows={3}
+                />
+              </div>
             </CardContent>
           </Card>
 
