@@ -262,7 +262,16 @@ export type Database = {
         Row: {
           booking_id: string
           created_at: string
+          guest_confirm_area_clean: boolean | null
+          guest_confirm_bathrooms_ok: boolean | null
+          guest_confirm_door_closed: boolean | null
+          guest_confirm_trash_bagged: boolean | null
+          guest_email: string | null
+          guest_name: string | null
+          guest_phone: string | null
+          has_issue: boolean | null
           id: string
+          issue_description: string | null
           notes: string | null
           reviewed_at: string | null
           reviewed_by_id: string | null
@@ -273,7 +282,16 @@ export type Database = {
         Insert: {
           booking_id: string
           created_at?: string
+          guest_confirm_area_clean?: boolean | null
+          guest_confirm_bathrooms_ok?: boolean | null
+          guest_confirm_door_closed?: boolean | null
+          guest_confirm_trash_bagged?: boolean | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          has_issue?: boolean | null
           id?: string
+          issue_description?: string | null
           notes?: string | null
           reviewed_at?: string | null
           reviewed_by_id?: string | null
@@ -284,7 +302,16 @@ export type Database = {
         Update: {
           booking_id?: string
           created_at?: string
+          guest_confirm_area_clean?: boolean | null
+          guest_confirm_bathrooms_ok?: boolean | null
+          guest_confirm_door_closed?: boolean | null
+          guest_confirm_trash_bagged?: boolean | null
+          guest_email?: string | null
+          guest_name?: string | null
+          guest_phone?: string | null
+          has_issue?: boolean | null
           id?: string
+          issue_description?: string | null
           notes?: string | null
           reviewed_at?: string | null
           reviewed_by_id?: string | null
