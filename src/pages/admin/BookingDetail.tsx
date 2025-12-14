@@ -778,22 +778,23 @@ export default function BookingDetail() {
         </TabsContent>
 
         {/* Host Report Tab */}
-        <TabsContent value="host">
+        <TabsContent value="host" className="space-y-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileText className="h-5 w-5" />
-                Host Report
+                Guest Post-Event Report
               </CardTitle>
             </CardHeader>
             <CardContent>
               {!hostReport ? (
                 <p className="text-muted-foreground">No host report submitted yet.</p>
               ) : (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-6">
+                  {/* Status and Timing */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-sm font-medium">Status</label>
+                      <label className="text-sm font-medium text-muted-foreground">Status</label>
                       <Select
                         value={hostReport.status}
                         onValueChange={(value) =>
@@ -818,13 +819,79 @@ export default function BookingDetail() {
                       </Select>
                     </div>
                     <div>
-                      <label className="text-sm font-medium">Submitted At</label>
-                      <p>{format(new Date(hostReport.submitted_at), "PPp")}</p>
+                      <label className="text-sm font-medium text-muted-foreground">Submitted At</label>
+                      <p className="mt-1">{format(new Date(hostReport.submitted_at), "PPp")}</p>
+                    </div>
+                    {hostReport.reviewed_at && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Reviewed At</label>
+                        <p className="mt-1">{format(new Date(hostReport.reviewed_at), "PPp")}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Guest Info */}
+                  {(hostReport.guest_name || hostReport.guest_email || hostReport.guest_phone) && (
+                    <div className="border-t pt-4">
+                      <label className="text-sm font-medium text-muted-foreground mb-2 block">Guest Information</label>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {hostReport.guest_name && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Name</p>
+                            <p>{hostReport.guest_name}</p>
+                          </div>
+                        )}
+                        {hostReport.guest_email && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Email</p>
+                            <p>{hostReport.guest_email}</p>
+                          </div>
+                        )}
+                        {hostReport.guest_phone && (
+                          <div>
+                            <p className="text-xs text-muted-foreground">Phone</p>
+                            <p>{hostReport.guest_phone}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Confirmation Checklist */}
+                  <div className="border-t pt-4">
+                    <label className="text-sm font-medium text-muted-foreground mb-2 block">Confirmation Checklist</label>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${hostReport.guest_confirm_area_clean ? 'bg-green-500' : 'bg-muted'}`} />
+                        <span className="text-sm">Area Clean</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${hostReport.guest_confirm_trash_bagged ? 'bg-green-500' : 'bg-muted'}`} />
+                        <span className="text-sm">Trash Bagged</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${hostReport.guest_confirm_bathrooms_ok ? 'bg-green-500' : 'bg-muted'}`} />
+                        <span className="text-sm">Bathrooms OK</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className={`w-4 h-4 rounded-full ${hostReport.guest_confirm_door_closed ? 'bg-green-500' : 'bg-muted'}`} />
+                        <span className="text-sm">Door Closed</span>
+                      </div>
                     </div>
                   </div>
+
+                  {/* Issues */}
+                  {hostReport.has_issue && (
+                    <div className="border-t pt-4">
+                      <label className="text-sm font-medium text-destructive mb-2 block">⚠️ Issue Reported</label>
+                      <p className="text-sm bg-destructive/10 p-3 rounded-lg">{hostReport.issue_description || "No description provided"}</p>
+                    </div>
+                  )}
+
+                  {/* Notes */}
                   {hostReport.notes && (
-                    <div>
-                      <label className="text-sm font-medium">Notes</label>
+                    <div className="border-t pt-4">
+                      <label className="text-sm font-medium text-muted-foreground">Additional Notes</label>
                       <p className="mt-1">{hostReport.notes}</p>
                     </div>
                   )}
@@ -832,6 +899,43 @@ export default function BookingDetail() {
               )}
             </CardContent>
           </Card>
+
+          {/* Associated Review */}
+          {reviews && reviews.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Star className="h-5 w-5" />
+                  Guest Review
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {reviews.map((review) => (
+                  <div key={review.id} className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: 5 }).map((_, i) => (
+                          <Star
+                            key={i}
+                            className={`h-5 w-5 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-muted"}`}
+                          />
+                        ))}
+                      </div>
+                      <Badge variant="outline">{review.rating}/5</Badge>
+                      <Badge>{review.source}</Badge>
+                    </div>
+                    {review.comment && (
+                      <p className="text-sm bg-muted/50 p-3 rounded-lg italic">"{review.comment}"</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      {review.reviewer_name && `By ${review.reviewer_name} • `}
+                      {format(new Date(review.created_at), "PPp")}
+                    </p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         {/* Reviews Tab */}
