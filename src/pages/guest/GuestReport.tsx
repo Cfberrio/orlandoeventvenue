@@ -119,6 +119,11 @@ const GuestReport = () => {
       return false;
     }
 
+    // Check review rating is provided
+    if (reviewRating === 0) {
+      return false;
+    }
+
     return true;
   };
 
@@ -144,7 +149,7 @@ const GuestReport = () => {
         has_issue: hasIssue,
       },
       mediaFiles.map((f) => ({ fieldId: f.fieldId, file: f.file })),
-      reviewRating > 0 ? { rating: reviewRating, comment: reviewComment } : undefined
+      { rating: reviewRating, comment: reviewComment }
     );
 
     if (success) {
@@ -505,14 +510,14 @@ const GuestReport = () => {
           {/* Review Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg">Leave a Review (Optional) / Deja una Reseña (Opcional)</CardTitle>
+              <CardTitle className="text-lg">Leave a Review / Deja una Reseña <span className="text-destructive">*</span></CardTitle>
               <p className="text-sm text-muted-foreground">
                 How was your experience? / ¿Cómo fue tu experiencia?
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label>Rating / Calificación</Label>
+                <Label>Rating / Calificación <span className="text-destructive">*</span></Label>
                 <div className="flex gap-1">
                   {[1, 2, 3, 4, 5].map((star) => (
                     <button
@@ -531,7 +536,7 @@ const GuestReport = () => {
                     </button>
                   ))}
                 </div>
-                {reviewRating > 0 && (
+                {reviewRating > 0 ? (
                   <p className="text-sm text-muted-foreground">
                     {reviewRating === 5 && 'Excellent! / ¡Excelente!'}
                     {reviewRating === 4 && 'Very Good / Muy Bueno'}
@@ -539,6 +544,8 @@ const GuestReport = () => {
                     {reviewRating === 2 && 'Fair / Regular'}
                     {reviewRating === 1 && 'Poor / Malo'}
                   </p>
+                ) : (
+                  <p className="text-xs text-destructive">Please select a rating / Por favor selecciona una calificación</p>
                 )}
               </div>
 
