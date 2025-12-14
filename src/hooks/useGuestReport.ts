@@ -185,6 +185,33 @@ export const useGuestReport = () => {
         if (reviewError) {
           console.error('Review submission error:', reviewError);
         }
+
+        // Send low rating alert if rating is 1 or 2 stars
+        if (reviewData.rating <= 2) {
+          try {
+            // Fetch booking details for the alert
+            const { data: bookingData } = await supabase
+              .from('bookings')
+              .select('event_date, event_type')
+              .eq('id', bookingId)
+              .single();
+
+            await supabase.functions.invoke('send-low-rating-alert', {
+              body: {
+                reservation_number: reservationNumber,
+                guest_name: reportData.guest_name,
+                guest_email: reportData.guest_email,
+                event_date: bookingData?.event_date || '',
+                event_type: bookingData?.event_type || '',
+                rating: reviewData.rating,
+                comment: reviewData.comment || '',
+              },
+            });
+            console.log('Low rating alert sent for reservation:', reservationNumber);
+          } catch (alertError) {
+            console.error('Low rating alert error:', alertError);
+          }
+        }
       }
 
       // Trigger sync to GHL - this will send updated host_report_completed and review_received flags
