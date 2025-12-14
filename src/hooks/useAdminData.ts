@@ -121,6 +121,15 @@ export interface HostReport {
   reviewed_by_id: string | null;
   created_at: string;
   updated_at: string;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  guest_confirm_area_clean: boolean | null;
+  guest_confirm_trash_bagged: boolean | null;
+  guest_confirm_bathrooms_ok: boolean | null;
+  guest_confirm_door_closed: boolean | null;
+  has_issue: boolean | null;
+  issue_description: string | null;
 }
 
 export interface BookingReview {
