@@ -6,6 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Balance retry job types
+const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"];
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -28,7 +31,7 @@ serve(async (req) => {
       .select("*")
       .eq("status", "pending")
       .lte("run_at", now)
-      .lt("attempts", 3) // Max 3 attempts
+      .lt("attempts", 3) // Max 3 attempts per job
       .order("run_at", { ascending: true })
       .limit(50); // Process up to 50 jobs at a time
 
@@ -58,7 +61,8 @@ serve(async (req) => {
       processed: 0,
       succeeded: 0,
       failed: 0,
-      details: [] as { job_id: string; status: string; error?: string }[],
+      skipped: 0,
+      details: [] as { job_id: string; job_type: string; status: string; error?: string }[],
     };
 
     for (const job of pendingJobs) {
@@ -66,13 +70,95 @@ serve(async (req) => {
       console.log(`Processing job ${job.id}: ${job.job_type} for booking ${job.booking_id}`);
 
       try {
-        // Increment attempts
+        // Increment attempts first
         await supabase
           .from("scheduled_jobs")
           .update({ attempts: job.attempts + 1, updated_at: new Date().toISOString() })
           .eq("id", job.id);
 
-        if (job.job_type === "create_balance_payment_link") {
+        // Check if this is a balance retry job
+        if (BALANCE_RETRY_JOB_TYPES.includes(job.job_type)) {
+          // Fetch booking to check current payment status
+          const { data: booking, error: bookingError } = await supabase
+            .from("bookings")
+            .select("id, payment_status, reservation_number")
+            .eq("id", job.booking_id)
+            .single();
+
+          if (bookingError || !booking) {
+            console.error(`Booking not found for job ${job.id}:`, bookingError);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "failed",
+                last_error: "Booking not found",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.failed++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "failed", error: "Booking not found" });
+            continue;
+          }
+
+          // Check if already fully paid - skip without creating new link
+          if (booking.payment_status === "fully_paid") {
+            console.log(`Booking ${job.booking_id} already fully paid - skipping job ${job.id}`);
+            
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                last_error: "Skipped: already fully paid",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+
+            // Log the skip event
+            await supabase.from("booking_events").insert({
+              booking_id: job.booking_id,
+              event_type: "balance_payment_retry_skipped_already_paid",
+              channel: "system",
+              metadata: {
+                job_id: job.id,
+                job_type: job.job_type,
+                reason: "already_fully_paid",
+              },
+            });
+
+            results.skipped++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "skipped", error: "Already fully paid" });
+            continue;
+          }
+
+          // Check if deposit is paid (required for balance link)
+          if (booking.payment_status !== "deposit_paid") {
+            console.log(`Booking ${job.booking_id} deposit not paid - skipping job ${job.id}`);
+            
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "failed",
+                last_error: `Cannot create balance link: payment_status is ${booking.payment_status}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+
+            results.failed++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "failed", error: `Deposit not paid: ${booking.payment_status}` });
+            continue;
+          }
+
+          // Extract attempt number from job_type (balance_retry_1 -> 1, balance_retry_2 -> 2, etc.)
+          let attemptNumber = 1;
+          const match = job.job_type.match(/balance_retry_(\d+)/);
+          if (match) {
+            attemptNumber = parseInt(match[1], 10);
+          }
+
+          console.log(`Creating balance payment link for booking ${job.booking_id} (attempt ${attemptNumber})`);
+
           // Call create-balance-payment-link function
           const response = await fetch(
             `${supabaseUrl}/functions/v1/create-balance-payment-link`,
@@ -89,7 +175,7 @@ serve(async (req) => {
           const result = await response.json();
 
           if (!response.ok) {
-            // Check if it's a "already paid" or similar expected error
+            // Check if it's an expected error (already paid, etc.)
             if (result.error?.includes("already fully paid") || 
                 result.error?.includes("Deposit must be paid")) {
               // Mark as completed since there's nothing to do
@@ -103,14 +189,27 @@ serve(async (req) => {
                 })
                 .eq("id", job.id);
 
-              results.succeeded++;
-              results.details.push({ job_id: job.id, status: "completed_skipped", error: result.error });
+              results.skipped++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "skipped", error: result.error });
               console.log(`Job ${job.id} completed (skipped): ${result.error}`);
               continue;
             }
 
-            throw new Error(result.error || "Unknown error");
+            throw new Error(result.error || "Unknown error from create-balance-payment-link");
           }
+
+          // Success - log the execution event
+          await supabase.from("booking_events").insert({
+            booking_id: job.booking_id,
+            event_type: "balance_payment_retry_executed",
+            channel: "system",
+            metadata: {
+              job_id: job.id,
+              job_type: job.job_type,
+              attempt: attemptNumber,
+              payment_url: result.payment_url,
+            },
+          });
 
           // Mark job as completed
           await supabase
@@ -123,12 +222,12 @@ serve(async (req) => {
             .eq("id", job.id);
 
           results.succeeded++;
-          results.details.push({ job_id: job.id, status: "completed" });
-          console.log(`Job ${job.id} completed successfully`);
+          results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+          console.log(`Job ${job.id} completed successfully - balance link created (attempt ${attemptNumber})`);
 
         } else {
+          // Unknown job type
           console.warn(`Unknown job type: ${job.job_type}`);
-          // Mark unknown job types as failed
           await supabase
             .from("scheduled_jobs")
             .update({ 
@@ -139,7 +238,7 @@ serve(async (req) => {
             .eq("id", job.id);
 
           results.failed++;
-          results.details.push({ job_id: job.id, status: "failed", error: `Unknown job type: ${job.job_type}` });
+          results.details.push({ job_id: job.id, job_type: job.job_type, status: "failed", error: `Unknown job type: ${job.job_type}` });
         }
 
       } catch (jobError: unknown) {
@@ -160,11 +259,11 @@ serve(async (req) => {
           .eq("id", job.id);
 
         results.failed++;
-        results.details.push({ job_id: job.id, status: newStatus, error: errorMessage });
+        results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: errorMessage });
       }
     }
 
-    console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Failed: ${results.failed}`);
+    console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Skipped: ${results.skipped}, Failed: ${results.failed}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
