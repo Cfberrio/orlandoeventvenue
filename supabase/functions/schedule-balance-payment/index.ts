@@ -78,43 +78,28 @@ serve(async (req) => {
       });
     }
 
-    // Skip if balance payment link already exists
-    if (booking.balance_payment_url) {
-      console.log("Skipping - balance payment link already exists");
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "skipped",
-        reason: "Balance payment link already exists"
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // Check if a job is already scheduled for this booking
-    const { data: existingJob } = await supabase
+    // Check if any balance jobs are already scheduled for this booking
+    const { data: existingJobs } = await supabase
       .from("scheduled_jobs")
-      .select("id")
+      .select("id, job_type")
       .eq("booking_id", booking_id)
-      .eq("job_type", "create_balance_payment_link")
-      .eq("status", "pending")
-      .maybeSingle();
+      .in("job_type", ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"])
+      .in("status", ["pending", "completed"]);
 
-    if (existingJob) {
-      console.log("Skipping - job already scheduled for this booking");
+    if (existingJobs && existingJobs.length > 0) {
+      console.log("Skipping - balance jobs already exist for this booking:", existingJobs.map(j => j.job_type));
       return new Response(JSON.stringify({ 
         success: true, 
         action: "skipped",
-        reason: "Job already scheduled"
+        reason: "Balance payment jobs already scheduled"
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Calculate days until event (using Orlando timezone)
+    // Calculate days until event (using Orlando timezone approximation)
     const today = new Date();
-    // Reset to start of day in UTC for comparison
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const eventDate = new Date(booking.event_date + "T00:00:00");
     
@@ -123,10 +108,16 @@ serve(async (req) => {
 
     console.log(`Event date: ${booking.event_date}, Days until event: ${diffDays}`);
 
+    // Helper to add hours to a date
+    const addHours = (date: Date, hours: number) => new Date(date.getTime() + hours * 60 * 60 * 1000);
+
     if (diffDays <= 15) {
-      // Short notice: Create balance payment link immediately
-      console.log("Short notice booking - creating balance payment link immediately");
+      // ===============================
+      // SHORT NOTICE: Max 2 balance links
+      // ===============================
+      console.log("Short notice booking (≤15 days) - creating link immediately + scheduling 1 retry");
       
+      // 1) Create balance payment link immediately (first link)
       const response = await fetch(
         `${supabaseUrl}/functions/v1/create-balance-payment-link`,
         {
@@ -142,7 +133,7 @@ serve(async (req) => {
       const result = await response.json();
       
       if (!response.ok) {
-        console.error("Failed to create balance payment link:", result);
+        console.error("Failed to create initial balance payment link:", result);
         return new Response(JSON.stringify({ 
           success: false, 
           error: "Failed to create balance payment link",
@@ -153,39 +144,109 @@ serve(async (req) => {
         });
       }
 
-      console.log("Balance payment link created immediately:", result.payment_url);
+      console.log("First balance payment link created:", result.payment_url);
+
+      // Log event for first link
+      await supabase.from("booking_events").insert({
+        booking_id: booking_id,
+        event_type: "balance_payment_retry_scheduled",
+        channel: "system",
+        metadata: {
+          attempt: 1,
+          type: "short_notice",
+          days_until_event: diffDays,
+          created_immediately: true,
+        },
+      });
+
+      // 2) Schedule retry #2 for 48 hours later
+      const retryAt = addHours(new Date(), 48);
+
+      const { error: insertError } = await supabase
+        .from("scheduled_jobs")
+        .insert({
+          job_type: "balance_retry_2",
+          booking_id: booking_id,
+          run_at: retryAt.toISOString(),
+          status: "pending",
+        });
+
+      if (insertError) {
+        console.error("Failed to schedule retry job:", insertError);
+      } else {
+        console.log(`Scheduled balance_retry_2 for: ${retryAt.toISOString()}`);
+        
+        await supabase.from("booking_events").insert({
+          booking_id: booking_id,
+          event_type: "balance_payment_retry_scheduled",
+          channel: "system",
+          metadata: {
+            attempt: 2,
+            type: "short_notice",
+            scheduled_for: retryAt.toISOString(),
+          },
+        });
+      }
 
       return new Response(JSON.stringify({ 
         success: true, 
-        action: "created_immediately",
+        action: "short_notice_scheduled",
+        first_link_created: true,
         payment_url: result.payment_url,
-        days_until_event: diffDays
+        retry_scheduled_at: retryAt.toISOString(),
+        days_until_event: diffDays,
+        max_attempts: 2
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
     } else {
-      // Event is > 15 days away: Schedule job for event_date - 15 days
-      const runAt = new Date(eventDate);
-      runAt.setDate(runAt.getDate() - 15);
+      // ===============================
+      // LONG NOTICE: Max 3 balance links
+      // ===============================
+      console.log("Long notice booking (>15 days) - scheduling 3 retry jobs");
+
+      // Calculate run times
+      const firstRun = new Date(eventDate);
+      firstRun.setDate(firstRun.getDate() - 15); // 15 days before event
       
-      console.log(`Scheduling balance payment link creation for: ${runAt.toISOString()}`);
+      const secondRun = addHours(firstRun, 48);   // 48h after first
+      const thirdRun = addHours(secondRun, 48);   // 48h after second
+
+      console.log(`Scheduling jobs: Link #1 at ${firstRun.toISOString()}, Link #2 at ${secondRun.toISOString()}, Link #3 at ${thirdRun.toISOString()}`);
+
+      // Insert all 3 scheduled jobs
+      const jobsToInsert = [
+        {
+          job_type: "balance_retry_1",
+          booking_id: booking_id,
+          run_at: firstRun.toISOString(),
+          status: "pending",
+        },
+        {
+          job_type: "balance_retry_2",
+          booking_id: booking_id,
+          run_at: secondRun.toISOString(),
+          status: "pending",
+        },
+        {
+          job_type: "balance_retry_3",
+          booking_id: booking_id,
+          run_at: thirdRun.toISOString(),
+          status: "pending",
+        },
+      ];
 
       const { error: insertError } = await supabase
         .from("scheduled_jobs")
-        .insert({
-          job_type: "create_balance_payment_link",
-          booking_id: booking_id,
-          run_at: runAt.toISOString(),
-          status: "pending",
-        });
+        .insert(jobsToInsert);
 
       if (insertError) {
-        console.error("Failed to schedule job:", insertError);
+        console.error("Failed to schedule jobs:", insertError);
         return new Response(JSON.stringify({ 
           success: false, 
-          error: "Failed to schedule job",
+          error: "Failed to schedule jobs",
           details: insertError
         }), {
           status: 500,
@@ -193,24 +254,55 @@ serve(async (req) => {
         });
       }
 
-      // Log the event
-      await supabase.from("booking_events").insert({
-        booking_id: booking_id,
-        event_type: "balance_payment_link_scheduled",
-        channel: "system",
-        metadata: {
-          scheduled_for: runAt.toISOString(),
-          days_until_event: diffDays,
+      // Log events for all 3 scheduled links
+      const events = [
+        {
+          booking_id: booking_id,
+          event_type: "balance_payment_retry_scheduled",
+          channel: "system",
+          metadata: {
+            attempt: 1,
+            type: "long_notice",
+            scheduled_for: firstRun.toISOString(),
+            days_until_event: diffDays,
+          },
         },
-      });
+        {
+          booking_id: booking_id,
+          event_type: "balance_payment_retry_scheduled",
+          channel: "system",
+          metadata: {
+            attempt: 2,
+            type: "long_notice",
+            scheduled_for: secondRun.toISOString(),
+          },
+        },
+        {
+          booking_id: booking_id,
+          event_type: "balance_payment_retry_scheduled",
+          channel: "system",
+          metadata: {
+            attempt: 3,
+            type: "long_notice",
+            scheduled_for: thirdRun.toISOString(),
+          },
+        },
+      ];
 
-      console.log("Job scheduled successfully");
+      await supabase.from("booking_events").insert(events);
+
+      console.log("All 3 balance payment jobs scheduled successfully");
 
       return new Response(JSON.stringify({ 
         success: true, 
-        action: "scheduled",
-        scheduled_for: runAt.toISOString(),
-        days_until_event: diffDays
+        action: "long_notice_scheduled",
+        scheduled_jobs: [
+          { attempt: 1, job_type: "balance_retry_1", run_at: firstRun.toISOString() },
+          { attempt: 2, job_type: "balance_retry_2", run_at: secondRun.toISOString() },
+          { attempt: 3, job_type: "balance_retry_3", run_at: thirdRun.toISOString() },
+        ],
+        days_until_event: diffDays,
+        max_attempts: 3
       }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
