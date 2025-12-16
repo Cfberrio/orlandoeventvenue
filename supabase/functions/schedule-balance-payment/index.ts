@@ -52,14 +52,81 @@ serve(async (req) => {
       });
     }
 
+    const responseData: Record<string, unknown> = {
+      success: true,
+      booking_id,
+    };
+
+    // ===============================
+    // PART 1: Schedule lifecycle transition job (set_lifecycle_in_progress)
+    // ===============================
+    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
+      // Check if lifecycle job already exists for this booking
+      const { data: existingLifecycleJob } = await supabase
+        .from("scheduled_jobs")
+        .select("id")
+        .eq("booking_id", booking_id)
+        .eq("job_type", "set_lifecycle_in_progress")
+        .in("status", ["pending"]);
+
+      if (!existingLifecycleJob || existingLifecycleJob.length === 0) {
+        // Schedule job for the start of event_date (or start_time if available)
+        let runAt: Date;
+        if (booking.start_time) {
+          // Combine event_date with start_time
+          runAt = new Date(`${booking.event_date}T${booking.start_time}`);
+        } else {
+          // Use start of day (6 AM Orlando time as approximation)
+          runAt = new Date(`${booking.event_date}T06:00:00`);
+        }
+
+        const { error: lifecycleJobError } = await supabase
+          .from("scheduled_jobs")
+          .insert({
+            job_type: "set_lifecycle_in_progress",
+            booking_id: booking_id,
+            run_at: runAt.toISOString(),
+            status: "pending",
+          });
+
+        if (lifecycleJobError) {
+          console.error("Failed to schedule lifecycle job:", lifecycleJobError);
+        } else {
+          console.log(`Scheduled set_lifecycle_in_progress for: ${runAt.toISOString()}`);
+          
+          await supabase.from("booking_events").insert({
+            booking_id: booking_id,
+            event_type: "lifecycle_transition_scheduled",
+            channel: "system",
+            metadata: {
+              job_type: "set_lifecycle_in_progress",
+              scheduled_for: runAt.toISOString(),
+              from_lifecycle: "pre_event_ready",
+              to_lifecycle: "in_progress",
+            },
+          });
+
+          responseData.lifecycle_job_scheduled = true;
+          responseData.lifecycle_job_run_at = runAt.toISOString();
+        }
+      } else {
+        console.log("Lifecycle job already exists for this booking, skipping");
+        responseData.lifecycle_job_scheduled = false;
+        responseData.lifecycle_job_reason = "already_exists";
+      }
+    }
+
+    // ===============================
+    // PART 2: Balance payment scheduling (existing logic)
+    // ===============================
+
     // Skip if not deposit_paid
     if (booking.payment_status !== "deposit_paid") {
-      console.log("Skipping - payment status is not deposit_paid:", booking.payment_status);
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "skipped",
-        reason: `Payment status is ${booking.payment_status}, not deposit_paid`
-      }), {
+      console.log("Skipping balance payment scheduling - payment status is not deposit_paid:", booking.payment_status);
+      responseData.balance_action = "skipped";
+      responseData.balance_reason = `Payment status is ${booking.payment_status}, not deposit_paid`;
+      
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -67,12 +134,11 @@ serve(async (req) => {
 
     // Skip if already fully paid
     if (booking.payment_status === "fully_paid") {
-      console.log("Skipping - already fully paid");
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "skipped",
-        reason: "Already fully paid"
-      }), {
+      console.log("Skipping balance payment scheduling - already fully paid");
+      responseData.balance_action = "skipped";
+      responseData.balance_reason = "Already fully paid";
+      
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -88,11 +154,10 @@ serve(async (req) => {
 
     if (existingJobs && existingJobs.length > 0) {
       console.log("Skipping - balance jobs already exist for this booking:", existingJobs.map(j => j.job_type));
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "skipped",
-        reason: "Balance payment jobs already scheduled"
-      }), {
+      responseData.balance_action = "skipped";
+      responseData.balance_reason = "Balance payment jobs already scheduled";
+      
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -135,6 +200,7 @@ serve(async (req) => {
       if (!response.ok) {
         console.error("Failed to create initial balance payment link:", result);
         return new Response(JSON.stringify({ 
+          ...responseData,
           success: false, 
           error: "Failed to create balance payment link",
           details: result
@@ -188,15 +254,14 @@ serve(async (req) => {
         });
       }
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "short_notice_scheduled",
-        first_link_created: true,
-        payment_url: result.payment_url,
-        retry_scheduled_at: retryAt.toISOString(),
-        days_until_event: diffDays,
-        max_attempts: 2
-      }), {
+      responseData.balance_action = "short_notice_scheduled";
+      responseData.first_link_created = true;
+      responseData.payment_url = result.payment_url;
+      responseData.retry_scheduled_at = retryAt.toISOString();
+      responseData.days_until_event = diffDays;
+      responseData.max_balance_attempts = 2;
+
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -245,6 +310,7 @@ serve(async (req) => {
       if (insertError) {
         console.error("Failed to schedule jobs:", insertError);
         return new Response(JSON.stringify({ 
+          ...responseData,
           success: false, 
           error: "Failed to schedule jobs",
           details: insertError
@@ -293,17 +359,16 @@ serve(async (req) => {
 
       console.log("All 3 balance payment jobs scheduled successfully");
 
-      return new Response(JSON.stringify({ 
-        success: true, 
-        action: "long_notice_scheduled",
-        scheduled_jobs: [
-          { attempt: 1, job_type: "balance_retry_1", run_at: firstRun.toISOString() },
-          { attempt: 2, job_type: "balance_retry_2", run_at: secondRun.toISOString() },
-          { attempt: 3, job_type: "balance_retry_3", run_at: thirdRun.toISOString() },
-        ],
-        days_until_event: diffDays,
-        max_attempts: 3
-      }), {
+      responseData.balance_action = "long_notice_scheduled";
+      responseData.scheduled_jobs = [
+        { attempt: 1, job_type: "balance_retry_1", run_at: firstRun.toISOString() },
+        { attempt: 2, job_type: "balance_retry_2", run_at: secondRun.toISOString() },
+        { attempt: 3, job_type: "balance_retry_3", run_at: thirdRun.toISOString() },
+      ];
+      responseData.days_until_event = diffDays;
+      responseData.max_balance_attempts = 3;
+
+      return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
