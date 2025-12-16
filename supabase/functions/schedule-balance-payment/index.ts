@@ -119,7 +119,7 @@ serve(async (req) => {
     // ===============================
     // PART 1.5: Schedule Host Report Reminder jobs
     // ===============================
-    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date && booking.start_time) {
+    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
       const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
       
       // Check if host report jobs already exist for this booking
@@ -132,14 +132,30 @@ serve(async (req) => {
 
       if (!existingHostReportJobs || existingHostReportJobs.length === 0) {
         // Calculate event start and end times
-        const eventStart = new Date(`${booking.event_date}T${booking.start_time}`);
-        
-        // For end_time, use booking.end_time or default to start + 4 hours
+        // For daily bookings without start_time, use default 9:00 AM start
+        // For hourly bookings, use the actual start_time
+        let eventStart: Date;
         let eventEnd: Date;
-        if (booking.end_time) {
-          eventEnd = new Date(`${booking.event_date}T${booking.end_time}`);
+        
+        if (booking.booking_type === "daily") {
+          // Daily bookings: default 9:00 AM to 9:00 PM (12-hour event day)
+          eventStart = new Date(`${booking.event_date}T09:00:00`);
+          eventEnd = new Date(`${booking.event_date}T21:00:00`);
+          console.log(`Daily booking - using default times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
+        } else if (booking.start_time) {
+          // Hourly bookings with start_time
+          eventStart = new Date(`${booking.event_date}T${booking.start_time}`);
+          if (booking.end_time) {
+            eventEnd = new Date(`${booking.event_date}T${booking.end_time}`);
+          } else {
+            eventEnd = new Date(eventStart.getTime() + 4 * 60 * 60 * 1000); // Default 4 hours
+          }
+          console.log(`Hourly booking - using actual times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
         } else {
-          eventEnd = new Date(eventStart.getTime() + 4 * 60 * 60 * 1000); // Default 4 hours
+          // Hourly without start_time (shouldn't happen but fallback)
+          eventStart = new Date(`${booking.event_date}T09:00:00`);
+          eventEnd = new Date(`${booking.event_date}T13:00:00`);
+          console.log(`Hourly booking without start_time - using fallback times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
         }
 
         const now = new Date();
@@ -151,6 +167,8 @@ serve(async (req) => {
         const duringRunAt = new Date(eventStart.getTime() + 2 * 60 * 60 * 1000);
         // Job 3: 30 min after end
         const postRunAt = new Date(eventEnd.getTime() + 30 * 60 * 1000);
+
+        console.log(`Host report job times: pre_start=${preStartRunAt.toISOString()}, during=${duringRunAt.toISOString()}, post=${postRunAt.toISOString()}`);
 
         const hostReportJobs: { job_type: string; run_at: string }[] = [];
 
@@ -210,6 +228,7 @@ serve(async (req) => {
                 })),
                 event_start: eventStart.toISOString(),
                 event_end: eventEnd.toISOString(),
+                booking_type: booking.booking_type,
               },
             });
 
@@ -226,10 +245,6 @@ serve(async (req) => {
         responseData.host_report_jobs_scheduled = false;
         responseData.host_report_jobs_reason = "already_exists";
       }
-    } else if (booking.lifecycle_status === "pre_event_ready" && booking.event_date && !booking.start_time) {
-      console.log("Cannot schedule host report jobs - start_time is null");
-      responseData.host_report_jobs_scheduled = false;
-      responseData.host_report_jobs_reason = "start_time_null";
     }
 
     // ===============================
