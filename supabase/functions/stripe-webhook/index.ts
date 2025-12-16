@@ -101,6 +101,25 @@ serve(async (req) => {
 
         console.log("Booking fully paid:", data);
 
+        // Cancel any pending balance retry jobs since payment is complete
+        const { data: cancelledJobs, error: cancelError } = await supabase
+          .from("scheduled_jobs")
+          .update({
+            status: "cancelled",
+            last_error: "payment_completed_before_job_run",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("booking_id", bookingId)
+          .in("job_type", ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"])
+          .eq("status", "pending")
+          .select("id, job_type");
+
+        if (cancelError) {
+          console.error("Error cancelling pending balance jobs:", cancelError);
+        } else if (cancelledJobs && cancelledJobs.length > 0) {
+          console.log(`Cancelled ${cancelledJobs.length} pending balance retry jobs:`, cancelledJobs.map(j => j.job_type));
+        }
+
         // Log the balance payment event
         await supabase.from("booking_events").insert({
           booking_id: bookingId,
@@ -110,6 +129,7 @@ serve(async (req) => {
             session_id: session.id,
             payment_intent: session.payment_intent,
             amount: data.balance_amount,
+            cancelled_jobs: cancelledJobs?.map(j => j.job_type) || [],
           },
         });
 
