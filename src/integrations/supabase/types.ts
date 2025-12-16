@@ -446,6 +446,7 @@ export type Database = {
           event_type: string
           event_type_other: string | null
           full_name: string
+          host_report_step: string | null
           id: string
           initials: string
           internal_notes: Json | null
@@ -500,6 +501,7 @@ export type Database = {
           event_type: string
           event_type_other?: string | null
           full_name: string
+          host_report_step?: string | null
           id?: string
           initials: string
           internal_notes?: Json | null
@@ -554,6 +556,7 @@ export type Database = {
           event_type?: string
           event_type_other?: string | null
           full_name?: string
+          host_report_step?: string | null
           id?: string
           initials?: string
           internal_notes?: Json | null

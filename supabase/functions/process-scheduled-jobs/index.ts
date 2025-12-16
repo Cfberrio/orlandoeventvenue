@@ -12,6 +12,9 @@ const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_
 // Lifecycle transition job types
 const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress"];
 
+// Host report reminder job types
+const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -432,6 +435,179 @@ serve(async (req) => {
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
             console.log(`Job ${job.id} completed - booking ${job.booking_id} transitioned to in_progress`);
           }
+
+        // ===============================
+        // HOST REPORT REMINDER JOBS
+        // ===============================
+        } else if (HOST_REPORT_JOB_TYPES.includes(job.job_type)) {
+          // Fetch booking with needed fields
+          const { data: booking, error: bookingError } = await supabase
+            .from("bookings")
+            .select("id, status, lifecycle_status, reservation_number, host_report_step")
+            .eq("id", job.booking_id)
+            .maybeSingle();
+
+          if (bookingError || !booking) {
+            console.error(`Booking not found for host report job ${job.id}:`, bookingError);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "cancelled",
+                last_error: "booking_not_found_for_host_report",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_not_found_for_host_report" });
+            continue;
+          }
+
+          // Check if booking is cancelled
+          if (booking.status === "cancelled") {
+            console.log(`Booking ${job.booking_id} is cancelled - cancelling host report job ${job.id}`);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "cancelled",
+                last_error: "booking_cancelled_before_host_report",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_cancelled_before_host_report" });
+            continue;
+          }
+
+          // Check if host report is already completed (by checking booking_host_reports table)
+          const { data: hostReports } = await supabase
+            .from("booking_host_reports")
+            .select("id")
+            .eq("booking_id", job.booking_id)
+            .limit(1);
+
+          const hostReportCompleted = hostReports && hostReports.length > 0;
+
+          if (hostReportCompleted) {
+            console.log(`Host report already completed for booking ${job.booking_id} - cancelling job ${job.id}`);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "cancelled",
+                last_error: "host_report_already_completed",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "host_report_already_completed" });
+            continue;
+          }
+
+          // Determine the new host_report_step based on job_type
+          let newStep: string | null = null;
+          if (job.job_type === "host_report_pre_start") newStep = "pre_start";
+          if (job.job_type === "host_report_during") newStep = "during_event";
+          if (job.job_type === "host_report_post") newStep = "post_event";
+
+          if (!newStep) {
+            console.error(`Invalid host report job type: ${job.job_type}`);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "failed",
+                last_error: "invalid_host_report_job_type",
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.failed++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "failed", error: "invalid_host_report_job_type" });
+            continue;
+          }
+
+          // Update booking.host_report_step
+          const { error: updateError } = await supabase
+            .from("bookings")
+            .update({
+              host_report_step: newStep,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.booking_id);
+
+          if (updateError) {
+            console.error(`Failed to update host_report_step for booking ${job.booking_id}:`, updateError);
+            
+            const newAttempts = job.attempts + 1;
+            const newStatus = newAttempts >= 3 ? "failed" : "pending";
+            
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: newStatus,
+                last_error: `db_update_failed: ${updateError.message}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+
+            results.failed++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `db_update_failed: ${updateError.message}` });
+            continue;
+          }
+
+          // Log the step change in booking_events
+          await supabase.from("booking_events").insert({
+            booking_id: job.booking_id,
+            event_type: "host_report_step_changed",
+            channel: "system",
+            metadata: {
+              job_id: job.id,
+              job_type: job.job_type,
+              new_step: newStep,
+              previous_step: booking.host_report_step,
+              timestamp: new Date().toISOString(),
+            },
+          });
+
+          // Call syncToGHL to notify GHL of the step change
+          console.log(`Calling syncToGHL for booking ${job.booking_id} after host_report_step change to ${newStep}`);
+          try {
+            const syncResponse = await fetch(
+              `${supabaseUrl}/functions/v1/sync-to-ghl`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({ booking_id: job.booking_id }),
+              }
+            );
+
+            if (!syncResponse.ok) {
+              const syncError = await syncResponse.text();
+              console.error(`syncToGHL failed for booking ${job.booking_id}:`, syncError);
+            } else {
+              console.log(`syncToGHL completed for booking ${job.booking_id}`);
+            }
+          } catch (syncError) {
+            console.error(`syncToGHL exception for booking ${job.booking_id}:`, syncError);
+          }
+
+          // Mark job as completed
+          await supabase
+            .from("scheduled_jobs")
+            .update({ 
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq("id", job.id);
+
+          results.succeeded++;
+          results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+          console.log(`Job ${job.id} completed - booking ${job.booking_id} host_report_step changed to ${newStep}`);
 
         } else {
           // Unknown job type

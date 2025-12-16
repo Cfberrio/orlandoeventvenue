@@ -30,6 +30,7 @@ interface BookingSnapshot {
   has_staff_assigned: string;
   cleaning_report_completed: string;
   host_report_completed: string;
+  host_report_step: string | null;
   review_received: string;
   pre_event_ready: string;
   short_notice_balance: string;
@@ -60,6 +61,7 @@ interface BookingRow {
   balance_payment_url: string | null;
   balance_link_expires_at: string | null;
   pre_event_ready: string | null;
+  host_report_step: string | null;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -189,6 +191,7 @@ async function buildBookingSnapshot(
     has_staff_assigned,
     cleaning_report_completed,
     host_report_completed,
+    host_report_step: booking.host_report_step,
     review_received,
     pre_event_ready,
     short_notice_balance,
