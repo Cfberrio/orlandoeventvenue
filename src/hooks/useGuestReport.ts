@@ -151,6 +151,49 @@ export const useGuestReport = () => {
         return false;
       }
 
+      // Update booking host_report_step to 'completed'
+      const { error: updateError } = await supabase
+        .from('bookings')
+        .update({
+          host_report_step: 'completed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId);
+
+      if (updateError) {
+        console.error('Failed to update host_report_step:', updateError);
+      }
+
+      // Cancel any pending host report reminder jobs
+      const { error: cancelJobsError } = await supabase
+        .from('scheduled_jobs')
+        .update({
+          status: 'cancelled',
+          last_error: 'host_report_completed_before_job_run',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('booking_id', bookingId)
+        .in('job_type', ['host_report_pre_start', 'host_report_during', 'host_report_post'])
+        .eq('status', 'pending');
+
+      if (cancelJobsError) {
+        console.error('Failed to cancel host report jobs:', cancelJobsError);
+      } else {
+        console.log('Cancelled pending host report reminder jobs for booking:', bookingId);
+      }
+
+      // Log host report completed event
+      await supabase.from('booking_events').insert({
+        booking_id: bookingId,
+        event_type: 'host_report_completed',
+        channel: 'host',
+        metadata: {
+          submitted_at: new Date().toISOString(),
+          guest_name: reportData.guest_name,
+          guest_email: reportData.guest_email,
+        },
+      });
+
       // Create maintenance ticket if there's an issue
       if (reportData.has_issue && reportData.issue_description) {
         const { error: ticketError } = await supabase

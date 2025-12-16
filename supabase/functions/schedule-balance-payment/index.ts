@@ -117,6 +117,122 @@ serve(async (req) => {
     }
 
     // ===============================
+    // PART 1.5: Schedule Host Report Reminder jobs
+    // ===============================
+    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date && booking.start_time) {
+      const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
+      
+      // Check if host report jobs already exist for this booking
+      const { data: existingHostReportJobs } = await supabase
+        .from("scheduled_jobs")
+        .select("id, job_type")
+        .eq("booking_id", booking_id)
+        .in("job_type", HOST_REPORT_JOB_TYPES)
+        .in("status", ["pending"]);
+
+      if (!existingHostReportJobs || existingHostReportJobs.length === 0) {
+        // Calculate event start and end times
+        const eventStart = new Date(`${booking.event_date}T${booking.start_time}`);
+        
+        // For end_time, use booking.end_time or default to start + 4 hours
+        let eventEnd: Date;
+        if (booking.end_time) {
+          eventEnd = new Date(`${booking.event_date}T${booking.end_time}`);
+        } else {
+          eventEnd = new Date(eventStart.getTime() + 4 * 60 * 60 * 1000); // Default 4 hours
+        }
+
+        const now = new Date();
+
+        // Calculate run_at for each job
+        // Job 1: 30 min before start
+        const preStartRunAt = new Date(eventStart.getTime() - 30 * 60 * 1000);
+        // Job 2: 2 hours after start
+        const duringRunAt = new Date(eventStart.getTime() + 2 * 60 * 60 * 1000);
+        // Job 3: 30 min after end
+        const postRunAt = new Date(eventEnd.getTime() + 30 * 60 * 1000);
+
+        const hostReportJobs: { job_type: string; run_at: string }[] = [];
+
+        // Only schedule jobs that are in the future
+        if (preStartRunAt > now) {
+          hostReportJobs.push({
+            job_type: "host_report_pre_start",
+            run_at: preStartRunAt.toISOString(),
+          });
+        } else {
+          console.log(`Skipping host_report_pre_start - run_at ${preStartRunAt.toISOString()} is in the past`);
+        }
+
+        if (duringRunAt > now) {
+          hostReportJobs.push({
+            job_type: "host_report_during",
+            run_at: duringRunAt.toISOString(),
+          });
+        } else {
+          console.log(`Skipping host_report_during - run_at ${duringRunAt.toISOString()} is in the past`);
+        }
+
+        if (postRunAt > now) {
+          hostReportJobs.push({
+            job_type: "host_report_post",
+            run_at: postRunAt.toISOString(),
+          });
+        } else {
+          console.log(`Skipping host_report_post - run_at ${postRunAt.toISOString()} is in the past`);
+        }
+
+        if (hostReportJobs.length > 0) {
+          const jobsToInsert = hostReportJobs.map((j) => ({
+            job_type: j.job_type,
+            booking_id: booking_id,
+            run_at: j.run_at,
+            status: "pending",
+          }));
+
+          const { error: hostReportJobError } = await supabase
+            .from("scheduled_jobs")
+            .insert(jobsToInsert);
+
+          if (hostReportJobError) {
+            console.error("Failed to schedule host report jobs:", hostReportJobError);
+          } else {
+            console.log(`Scheduled ${hostReportJobs.length} host report reminder jobs`);
+
+            await supabase.from("booking_events").insert({
+              booking_id: booking_id,
+              event_type: "host_report_reminders_scheduled",
+              channel: "system",
+              metadata: {
+                jobs_scheduled: hostReportJobs.map((j) => ({
+                  job_type: j.job_type,
+                  run_at: j.run_at,
+                })),
+                event_start: eventStart.toISOString(),
+                event_end: eventEnd.toISOString(),
+              },
+            });
+
+            responseData.host_report_jobs_scheduled = true;
+            responseData.host_report_jobs = hostReportJobs;
+          }
+        } else {
+          console.log("All host report job times are in the past, skipping");
+          responseData.host_report_jobs_scheduled = false;
+          responseData.host_report_jobs_reason = "all_times_in_past";
+        }
+      } else {
+        console.log("Host report jobs already exist for this booking, skipping");
+        responseData.host_report_jobs_scheduled = false;
+        responseData.host_report_jobs_reason = "already_exists";
+      }
+    } else if (booking.lifecycle_status === "pre_event_ready" && booking.event_date && !booking.start_time) {
+      console.log("Cannot schedule host report jobs - start_time is null");
+      responseData.host_report_jobs_scheduled = false;
+      responseData.host_report_jobs_reason = "start_time_null";
+    }
+
+    // ===============================
     // PART 2: Balance payment scheduling (existing logic)
     // ===============================
 
