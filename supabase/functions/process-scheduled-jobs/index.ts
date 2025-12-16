@@ -9,6 +9,9 @@ const corsHeaders = {
 // Balance retry job types
 const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"];
 
+// Lifecycle transition job types
+const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress"];
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -62,6 +65,7 @@ serve(async (req) => {
       succeeded: 0,
       failed: 0,
       skipped: 0,
+      cancelled: 0,
       details: [] as { job_id: string; job_type: string; status: string; error?: string }[],
     };
 
@@ -76,7 +80,9 @@ serve(async (req) => {
           .update({ attempts: job.attempts + 1, updated_at: new Date().toISOString() })
           .eq("id", job.id);
 
-        // Check if this is a balance retry job
+        // ===============================
+        // BALANCE RETRY JOBS
+        // ===============================
         if (BALANCE_RETRY_JOB_TYPES.includes(job.job_type)) {
           // Fetch booking to check current payment status
           const { data: booking, error: bookingError } = await supabase
@@ -225,6 +231,208 @@ serve(async (req) => {
           results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
           console.log(`Job ${job.id} completed successfully - balance link created (attempt ${attemptNumber})`);
 
+        // ===============================
+        // LIFECYCLE TRANSITION JOBS
+        // ===============================
+        } else if (LIFECYCLE_JOB_TYPES.includes(job.job_type)) {
+          
+          if (job.job_type === "set_lifecycle_in_progress") {
+            // Fetch booking with all needed fields
+            const { data: booking, error: bookingError } = await supabase
+              .from("bookings")
+              .select("id, event_date, lifecycle_status, payment_status, status, reservation_number")
+              .eq("id", job.booking_id)
+              .maybeSingle();
+
+            if (bookingError || !booking) {
+              console.error(`Booking not found for lifecycle job ${job.id}:`, bookingError);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: "booking_not_found",
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_not_found" });
+              continue;
+            }
+
+            // Check if booking is cancelled
+            if (booking.status === "cancelled") {
+              console.log(`Booking ${job.booking_id} is cancelled - cancelling lifecycle job ${job.id}`);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: "booking_cancelled_before_event",
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_cancelled_before_event" });
+              continue;
+            }
+
+            // Check if still in pre_event_ready
+            if (booking.lifecycle_status !== "pre_event_ready") {
+              console.log(`Booking ${job.booking_id} lifecycle is ${booking.lifecycle_status}, not pre_event_ready - cancelling job ${job.id}`);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: `lifecycle_not_pre_event_ready_current=${booking.lifecycle_status}`,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: `lifecycle_not_pre_event_ready_current=${booking.lifecycle_status}` });
+              continue;
+            }
+
+            // Check if fully paid
+            const isFullyPaid = booking.payment_status === "fully_paid";
+
+            // Check if has staff assigned (query booking_staff_assignments)
+            const { data: staffAssignments, error: staffError } = await supabase
+              .from("booking_staff_assignments")
+              .select("id")
+              .eq("booking_id", job.booking_id)
+              .limit(1);
+
+            if (staffError) {
+              console.error(`Error checking staff assignments for job ${job.id}:`, staffError);
+            }
+
+            const hasStaff = staffAssignments && staffAssignments.length > 0;
+
+            // Validate business conditions
+            if (!isFullyPaid || !hasStaff) {
+              const reason = `conditions_not_met: fully_paid=${isFullyPaid}, has_staff=${hasStaff}`;
+              console.log(`Booking ${job.booking_id} conditions not met - cancelling job ${job.id}: ${reason}`);
+              
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: reason,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+
+              // Log the cancellation event
+              await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "lifecycle_transition_cancelled",
+                channel: "system",
+                metadata: {
+                  job_id: job.id,
+                  job_type: job.job_type,
+                  reason: "conditions_not_met",
+                  is_fully_paid: isFullyPaid,
+                  has_staff_assigned: hasStaff,
+                  current_lifecycle: booking.lifecycle_status,
+                },
+              });
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: reason });
+              continue;
+            }
+
+            // All conditions met - update to in_progress
+            console.log(`All conditions met for booking ${job.booking_id} - transitioning to in_progress`);
+
+            const { error: updateError } = await supabase
+              .from("bookings")
+              .update({
+                lifecycle_status: "in_progress",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", job.booking_id);
+
+            if (updateError) {
+              console.error(`Failed to update booking ${job.booking_id}:`, updateError);
+              
+              // Increment attempts and keep as pending if under limit
+              const newAttempts = job.attempts + 1;
+              const newStatus = newAttempts >= 3 ? "failed" : "pending";
+              
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: newStatus,
+                  last_error: `db_update_failed: ${updateError.message}`,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+
+              results.failed++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `db_update_failed: ${updateError.message}` });
+              continue;
+            }
+
+            // Log the successful transition in booking_events
+            await supabase.from("booking_events").insert({
+              booking_id: job.booking_id,
+              event_type: "auto_lifecycle_in_progress",
+              channel: "system",
+              metadata: {
+                job_id: job.id,
+                from_lifecycle: "pre_event_ready",
+                to_lifecycle: "in_progress",
+                is_fully_paid: isFullyPaid,
+                has_staff_assigned: hasStaff,
+                timestamp: new Date().toISOString(),
+              },
+            });
+
+            // Call syncToGHL to notify GHL of the lifecycle change
+            console.log(`Calling syncToGHL for booking ${job.booking_id}`);
+            try {
+              const syncResponse = await fetch(
+                `${supabaseUrl}/functions/v1/sync-to-ghl`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({ booking_id: job.booking_id }),
+                }
+              );
+
+              if (!syncResponse.ok) {
+                const syncError = await syncResponse.text();
+                console.error(`syncToGHL failed for booking ${job.booking_id}:`, syncError);
+                // Don't fail the job, just log the error - the lifecycle is already updated
+              } else {
+                console.log(`syncToGHL completed for booking ${job.booking_id}`);
+              }
+            } catch (syncError) {
+              console.error(`syncToGHL exception for booking ${job.booking_id}:`, syncError);
+              // Don't fail the job, just log the error
+            }
+
+            // Mark job as completed
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+
+            results.succeeded++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+            console.log(`Job ${job.id} completed - booking ${job.booking_id} transitioned to in_progress`);
+          }
+
         } else {
           // Unknown job type
           console.warn(`Unknown job type: ${job.job_type}`);
@@ -263,7 +471,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Skipped: ${results.skipped}, Failed: ${results.failed}`);
+    console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Skipped: ${results.skipped}, Cancelled: ${results.cancelled}, Failed: ${results.failed}`);
 
     return new Response(JSON.stringify({ 
       success: true, 
