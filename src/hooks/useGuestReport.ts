@@ -257,6 +257,75 @@ export const useGuestReport = () => {
         }
       }
 
+      // Check if we should immediately transition to post_event
+      // Conditions: lifecycle_status = 'in_progress' AND event_date + 24h has passed
+      try {
+        const { data: bookingStatus } = await supabase
+          .from('bookings')
+          .select('lifecycle_status, event_date, end_time')
+          .eq('id', bookingId)
+          .single();
+
+        if (bookingStatus && bookingStatus.lifecycle_status === 'in_progress') {
+          // Calculate if 24h have passed since event end
+          let eventEndTime: Date;
+          if (bookingStatus.end_time) {
+            eventEndTime = new Date(`${bookingStatus.event_date}T${bookingStatus.end_time}`);
+          } else {
+            eventEndTime = new Date(`${bookingStatus.event_date}T23:59:00`);
+          }
+          const twentyFourHoursAfter = new Date(eventEndTime.getTime() + 24 * 60 * 60 * 1000);
+          const now = new Date();
+
+          if (now >= twentyFourHoursAfter) {
+            // 24h have passed - immediately transition to post_event
+            console.log('24h passed and host report completed - transitioning to post_event');
+            
+            const { error: transitionError } = await supabase
+              .from('bookings')
+              .update({
+                lifecycle_status: 'post_event',
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', bookingId);
+
+            if (transitionError) {
+              console.error('Failed to transition to post_event:', transitionError);
+            } else {
+              // Cancel pending post_event job since we're handling it now
+              await supabase
+                .from('scheduled_jobs')
+                .update({
+                  status: 'cancelled',
+                  last_error: 'host_report_submitted_triggered_transition',
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('booking_id', bookingId)
+                .eq('job_type', 'set_lifecycle_post_event')
+                .eq('status', 'pending');
+
+              // Log the transition event
+              await supabase.from('booking_events').insert({
+                booking_id: bookingId,
+                event_type: 'auto_lifecycle_post_event',
+                channel: 'host',
+                metadata: {
+                  from_lifecycle: 'in_progress',
+                  to_lifecycle: 'post_event',
+                  triggered_by: 'host_report_submission',
+                  event_end_plus_24h: twentyFourHoursAfter.toISOString(),
+                  timestamp: new Date().toISOString(),
+                },
+              });
+
+              console.log('Booking transitioned to post_event after host report submission');
+            }
+          }
+        }
+      } catch (transitionCheckError) {
+        console.error('Error checking for post_event transition:', transitionCheckError);
+      }
+
       // Trigger sync to GHL - this will send updated host_report_completed and review_received flags
       try {
         await supabase.functions.invoke('sync-to-ghl', {

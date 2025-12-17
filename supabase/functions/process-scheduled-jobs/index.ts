@@ -10,7 +10,7 @@ const corsHeaders = {
 const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"];
 
 // Lifecycle transition job types
-const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress"];
+const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress", "set_lifecycle_post_event"];
 
 // Host report reminder job types
 const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
@@ -431,9 +431,283 @@ serve(async (req) => {
               })
               .eq("id", job.id);
 
+            // Schedule the post_event transition job for event_date + 24 hours
+            const { data: bookingForPostEvent } = await supabase
+              .from("bookings")
+              .select("event_date, end_time")
+              .eq("id", job.booking_id)
+              .single();
+
+            if (bookingForPostEvent) {
+              // Check if post_event job already exists
+              const { data: existingPostEventJob } = await supabase
+                .from("scheduled_jobs")
+                .select("id")
+                .eq("booking_id", job.booking_id)
+                .eq("job_type", "set_lifecycle_post_event")
+                .in("status", ["pending"]);
+
+              if (!existingPostEventJob || existingPostEventJob.length === 0) {
+                // Calculate run_at: event_date + 24 hours (or end_time + 24h if available)
+                let baseTime: Date;
+                if (bookingForPostEvent.end_time) {
+                  baseTime = new Date(`${bookingForPostEvent.event_date}T${bookingForPostEvent.end_time}`);
+                } else {
+                  // For daily bookings, use end of day (23:59)
+                  baseTime = new Date(`${bookingForPostEvent.event_date}T23:59:00`);
+                }
+                const postEventRunAt = new Date(baseTime.getTime() + 24 * 60 * 60 * 1000);
+
+                const { error: postEventJobError } = await supabase
+                  .from("scheduled_jobs")
+                  .insert({
+                    job_type: "set_lifecycle_post_event",
+                    booking_id: job.booking_id,
+                    run_at: postEventRunAt.toISOString(),
+                    status: "pending",
+                  });
+
+                if (postEventJobError) {
+                  console.error(`Failed to schedule set_lifecycle_post_event:`, postEventJobError);
+                } else {
+                  console.log(`Scheduled set_lifecycle_post_event for booking ${job.booking_id} at ${postEventRunAt.toISOString()}`);
+                  
+                  await supabase.from("booking_events").insert({
+                    booking_id: job.booking_id,
+                    event_type: "lifecycle_post_event_scheduled",
+                    channel: "system",
+                    metadata: {
+                      job_type: "set_lifecycle_post_event",
+                      scheduled_for: postEventRunAt.toISOString(),
+                      from_lifecycle: "in_progress",
+                      to_lifecycle: "post_event",
+                    },
+                  });
+                }
+              }
+            }
+
             results.succeeded++;
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
             console.log(`Job ${job.id} completed - booking ${job.booking_id} transitioned to in_progress`);
+          
+          } else if (job.job_type === "set_lifecycle_post_event") {
+            // ===============================
+            // LIFECYCLE: in_progress -> post_event
+            // Conditions: event_date + 24h passed AND host_report_completed
+            // ===============================
+            
+            const { data: booking, error: bookingError } = await supabase
+              .from("bookings")
+              .select("id, event_date, end_time, lifecycle_status, status, reservation_number")
+              .eq("id", job.booking_id)
+              .maybeSingle();
+
+            if (bookingError || !booking) {
+              console.error(`Booking not found for post_event job ${job.id}:`, bookingError);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: "booking_not_found",
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_not_found" });
+              continue;
+            }
+
+            // Check if booking is cancelled
+            if (booking.status === "cancelled") {
+              console.log(`Booking ${job.booking_id} is cancelled - cancelling post_event job ${job.id}`);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: "booking_cancelled",
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_cancelled" });
+              continue;
+            }
+
+            // Check if booking is in_progress
+            if (booking.lifecycle_status !== "in_progress") {
+              console.log(`Booking ${job.booking_id} lifecycle is ${booking.lifecycle_status}, not in_progress - cancelling job ${job.id}`);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: "cancelled",
+                  last_error: `lifecycle_not_in_progress_current=${booking.lifecycle_status}`,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: `lifecycle_not_in_progress` });
+              continue;
+            }
+
+            // Check if 24h have passed since event end
+            let eventEndTime: Date;
+            if (booking.end_time) {
+              eventEndTime = new Date(`${booking.event_date}T${booking.end_time}`);
+            } else {
+              eventEndTime = new Date(`${booking.event_date}T23:59:00`);
+            }
+            const twentyFourHoursAfter = new Date(eventEndTime.getTime() + 24 * 60 * 60 * 1000);
+            const now = new Date();
+
+            if (now < twentyFourHoursAfter) {
+              // 24h haven't passed yet - reschedule
+              console.log(`24h not yet passed for booking ${job.booking_id} - rescheduling job ${job.id}`);
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  run_at: twentyFourHoursAfter.toISOString(),
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+              
+              results.skipped++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "rescheduled", error: "24h_not_passed" });
+              continue;
+            }
+
+            // Check if host report is completed
+            const { data: hostReports } = await supabase
+              .from("booking_host_reports")
+              .select("id")
+              .eq("booking_id", job.booking_id)
+              .limit(1);
+
+            const hostReportCompleted = hostReports && hostReports.length > 0;
+
+            if (!hostReportCompleted) {
+              // Host report not completed - reschedule to check again in 1 hour (max 72 hours of retries)
+              const maxRetries = 72; // 72 hours = 3 days
+              if (job.attempts < maxRetries) {
+                const rescheduleAt = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour later
+                console.log(`Host report not completed for booking ${job.booking_id} - rescheduling job ${job.id} (attempt ${job.attempts + 1}/${maxRetries})`);
+                
+                await supabase
+                  .from("scheduled_jobs")
+                  .update({ 
+                    run_at: rescheduleAt.toISOString(),
+                    last_error: `host_report_not_completed_retry_${job.attempts + 1}`,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq("id", job.id);
+                
+                results.skipped++;
+                results.details.push({ job_id: job.id, job_type: job.job_type, status: "rescheduled", error: `host_report_not_completed_attempt_${job.attempts + 1}` });
+              } else {
+                // Max retries reached - cancel job
+                console.log(`Max retries reached for post_event job ${job.id} - cancelling`);
+                await supabase
+                  .from("scheduled_jobs")
+                  .update({ 
+                    status: "cancelled",
+                    last_error: "host_report_not_completed_max_retries",
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq("id", job.id);
+                
+                results.cancelled++;
+                results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "max_retries_host_report_not_completed" });
+              }
+              continue;
+            }
+
+            // All conditions met - transition to post_event
+            console.log(`All conditions met for booking ${job.booking_id} - transitioning to post_event`);
+
+            const { error: updateError } = await supabase
+              .from("bookings")
+              .update({
+                lifecycle_status: "post_event",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", job.booking_id);
+
+            if (updateError) {
+              console.error(`Failed to update booking ${job.booking_id} to post_event:`, updateError);
+              
+              const newAttempts = job.attempts + 1;
+              const newStatus = newAttempts >= 3 ? "failed" : "pending";
+              
+              await supabase
+                .from("scheduled_jobs")
+                .update({ 
+                  status: newStatus,
+                  last_error: `db_update_failed: ${updateError.message}`,
+                  updated_at: new Date().toISOString()
+                })
+                .eq("id", job.id);
+
+              results.failed++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `db_update_failed` });
+              continue;
+            }
+
+            // Log the successful transition
+            await supabase.from("booking_events").insert({
+              booking_id: job.booking_id,
+              event_type: "auto_lifecycle_post_event",
+              channel: "system",
+              metadata: {
+                job_id: job.id,
+                from_lifecycle: "in_progress",
+                to_lifecycle: "post_event",
+                host_report_completed: true,
+                event_end_plus_24h: twentyFourHoursAfter.toISOString(),
+                timestamp: new Date().toISOString(),
+              },
+            });
+
+            // Sync to GHL
+            console.log(`Calling syncToGHL for booking ${job.booking_id} after post_event transition`);
+            try {
+              const syncResponse = await fetch(
+                `${supabaseUrl}/functions/v1/sync-to-ghl`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${supabaseServiceKey}`,
+                  },
+                  body: JSON.stringify({ booking_id: job.booking_id }),
+                }
+              );
+
+              if (!syncResponse.ok) {
+                const syncError = await syncResponse.text();
+                console.error(`syncToGHL failed for booking ${job.booking_id}:`, syncError);
+              } else {
+                console.log(`syncToGHL completed for booking ${job.booking_id}`);
+              }
+            } catch (syncError) {
+              console.error(`syncToGHL exception for booking ${job.booking_id}:`, syncError);
+            }
+
+            // Mark job as completed
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+
+            results.succeeded++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+            console.log(`Job ${job.id} completed - booking ${job.booking_id} transitioned to post_event`);
           }
 
         // ===============================
