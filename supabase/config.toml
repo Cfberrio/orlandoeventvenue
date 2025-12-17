@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.send-low-rating-alert]
 verify_jwt = false
+
+[functions.check-post-event-transition]
+verify_jwt = false
