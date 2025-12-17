@@ -39,6 +39,10 @@ interface BookingSnapshot {
     email: string | null;
     phone: string | null;
   };
+  // Staff assignment info for cleaning report reminders
+  staff_email: string | null;
+  staff_name: string | null;
+  staff_id: string | null;
 }
 
 // Booking row type from database
@@ -96,15 +100,34 @@ async function buildBookingSnapshot(
 
   const booking = bookingData as BookingRow;
 
-  // Fetch staff assignments count
-  const { count: staffCount, error: staffError } = await supabase
+  // Fetch staff assignments with staff member details
+  const { data: staffAssignments, error: staffError } = await supabase
     .from("booking_staff_assignments")
-    .select("*", { count: "exact", head: true })
+    .select(`
+      staff_id,
+      assignment_role,
+      staff_members (
+        id,
+        full_name,
+        email
+      )
+    `)
     .eq("booking_id", bookingId);
 
   if (staffError) {
     console.error("Error fetching staff assignments:", staffError);
   }
+
+  // Get staff count and first assigned staff's info
+  const staffCount = staffAssignments?.length || 0;
+  // staff_members comes back as a single object (not array) due to the foreign key join
+  const firstAssignment = staffAssignments?.[0];
+  const staffMember = firstAssignment?.staff_members as unknown as { id: string; full_name: string; email: string } | null;
+  const staff_email = staffMember?.email || null;
+  const staff_name = staffMember?.full_name || null;
+  const staff_id = staffMember?.id || null;
+
+  console.log(`Staff info for booking ${bookingId}: email=${staff_email}, name=${staff_name}, count=${staffCount}`);
 
   // Check for completed cleaning reports
   const { data: cleaningReports, error: cleaningError } = await supabase
@@ -200,6 +223,10 @@ async function buildBookingSnapshot(
       email: booking.email,
       phone: booking.phone,
     },
+    // Staff assignment info for cleaning report reminders
+    staff_email,
+    staff_name,
+    staff_id,
   };
 }
 
