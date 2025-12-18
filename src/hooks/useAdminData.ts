@@ -49,6 +49,7 @@ export interface Booking {
   lifecycle_status: string;
   lead_source: string | null;
   pre_event_ready: string | null;
+  host_report_step: string | null;
   created_at: string;
 }
 

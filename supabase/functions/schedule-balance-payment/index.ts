@@ -236,7 +236,82 @@ serve(async (req) => {
             responseData.host_report_jobs = hostReportJobs;
           }
         } else {
-          console.log("All host report job times are in the past, skipping");
+          // All times are in the past - directly update host_report_step based on current time
+          console.log("All host report job times are in the past - updating host_report_step directly");
+          
+          const now = new Date();
+          let immediateStep: string | null = null;
+          
+          // Determine what step we should be at based on current time
+          if (now >= postRunAt) {
+            immediateStep = "post_event";
+          } else if (now >= duringRunAt) {
+            immediateStep = "during_event";
+          } else if (now >= preStartRunAt) {
+            immediateStep = "pre_start";
+          }
+          
+          if (immediateStep && booking.host_report_step !== immediateStep) {
+            console.log(`Updating host_report_step directly to ${immediateStep} (current: ${booking.host_report_step})`);
+            
+            const { error: stepUpdateError } = await supabase
+              .from("bookings")
+              .update({ 
+                host_report_step: immediateStep,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", booking_id);
+            
+            if (stepUpdateError) {
+              console.error("Failed to update host_report_step:", stepUpdateError);
+            } else {
+              // Log the event
+              await supabase.from("booking_events").insert({
+                booking_id: booking_id,
+                event_type: "host_report_step_set_directly",
+                channel: "system",
+                metadata: {
+                  new_step: immediateStep,
+                  previous_step: booking.host_report_step,
+                  reason: "all_job_times_in_past",
+                  preStartRunAt: preStartRunAt.toISOString(),
+                  duringRunAt: duringRunAt.toISOString(),
+                  postRunAt: postRunAt.toISOString(),
+                },
+              });
+              
+              // Sync to GHL immediately
+              console.log(`Triggering sync-to-ghl for immediate host_report_step update`);
+              try {
+                const syncResponse = await fetch(
+                  `${supabaseUrl}/functions/v1/sync-to-ghl`,
+                  {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${supabaseServiceKey}`,
+                    },
+                    body: JSON.stringify({ booking_id }),
+                  }
+                );
+                
+                if (!syncResponse.ok) {
+                  const syncError = await syncResponse.text();
+                  console.error(`sync-to-ghl failed: ${syncError}`);
+                } else {
+                  console.log(`sync-to-ghl completed successfully`);
+                }
+              } catch (syncErr) {
+                console.error(`sync-to-ghl exception:`, syncErr);
+              }
+              
+              responseData.host_report_step_set_directly = true;
+              responseData.host_report_step = immediateStep;
+            }
+          } else {
+            console.log(`host_report_step already at ${booking.host_report_step}, no update needed`);
+          }
+          
           responseData.host_report_jobs_scheduled = false;
           responseData.host_report_jobs_reason = "all_times_in_past";
         }
