@@ -19,6 +19,7 @@ async function syncToGHL(bookingId: string) {
 // Types
 export interface Booking {
   id: string;
+  reservation_number: string | null;
   event_date: string;
   start_time: string | null;
   end_time: string | null;
