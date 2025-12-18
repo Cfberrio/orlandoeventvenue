@@ -7,14 +7,17 @@ import {
   AlertTriangle, 
   TrendingUp,
   Clock,
-  Users
+  Users,
+  Wrench,
+  MessageSquareWarning
 } from "lucide-react";
 import { 
   useTodaysBookings, 
   useUpcomingBookings, 
   useWeeklyRevenue, 
   usePipelineSummary,
-  useOperationalAlerts 
+  useOperationalAlerts,
+  useIssueAlerts
 } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 
@@ -34,6 +37,9 @@ export default function AdminDashboard() {
   const { data: weeklyRevenue, isLoading: loadingRevenue } = useWeeklyRevenue();
   const { data: pipeline, isLoading: loadingPipeline } = usePipelineSummary();
   const { data: alerts, isLoading: loadingAlerts } = useOperationalAlerts();
+  const { data: issueAlerts, isLoading: loadingIssueAlerts } = useIssueAlerts();
+
+  const totalAlerts = (alerts?.length || 0) + (issueAlerts?.length || 0);
 
   return (
     <div className="space-y-6">
@@ -82,19 +88,76 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className={totalAlerts > 0 ? "border-destructive/50 bg-destructive/5" : ""}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Alerts</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">⚠️ Alerts</CardTitle>
+            <AlertTriangle className={`h-4 w-4 ${totalAlerts > 0 ? "text-destructive" : "text-muted-foreground"}`} />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-destructive">
-              {loadingAlerts ? "..." : alerts?.length || 0}
+            <div className={`text-2xl font-bold ${totalAlerts > 0 ? "text-destructive" : ""}`}>
+              {loadingAlerts || loadingIssueAlerts ? "..." : totalAlerts}
             </div>
-            <p className="text-xs text-muted-foreground">need attention (next 3 days)</p>
+            <p className="text-xs text-muted-foreground">need attention</p>
           </CardContent>
         </Card>
       </div>
+
+      {/* Issue Alerts Section - Prominent */}
+      {issueAlerts && issueAlerts.length > 0 && (
+        <Card className="border-2 border-destructive bg-destructive/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-destructive text-lg">
+              <AlertTriangle className="h-5 w-5" />
+              🚨 Issue Reports - Require Attention
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              These issues were reported by staff or guests and need to be reviewed
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {issueAlerts.map((alert) => (
+                <Link
+                  key={alert.id}
+                  to={`/admin/bookings/${alert.booking_id}`}
+                  className="block p-4 rounded-lg border border-destructive/30 bg-background hover:bg-destructive/10 transition-colors"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className={`p-2 rounded-full ${alert.type === 'cleaning' ? 'bg-chart-1/20' : 'bg-chart-2/20'}`}>
+                      {alert.type === 'cleaning' ? (
+                        <Wrench className="h-4 w-4 text-chart-1" />
+                      ) : (
+                        <MessageSquareWarning className="h-4 w-4 text-chart-2" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Badge variant={alert.type === 'cleaning' ? 'secondary' : 'outline'}>
+                          {alert.type === 'cleaning' ? '🧹 Staff Report' : '👤 Guest Report'}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(alert.created_at), "MMM d, yyyy 'at' h:mm a")}
+                        </span>
+                      </div>
+                      <p className="font-medium text-foreground">
+                        {alert.booking?.reservation_number || 'N/A'} - {alert.booking?.full_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Event: {alert.booking?.event_date ? format(new Date(alert.booking.event_date), "MMM d, yyyy") : 'N/A'}
+                        {alert.reported_by && ` • Reported by: ${alert.reported_by}`}
+                      </p>
+                      <div className="p-3 bg-muted rounded-md">
+                        <p className="text-sm font-medium text-foreground mb-1">📝 Issue Description:</p>
+                        <p className="text-sm text-foreground">{alert.issue_text}</p>
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Upcoming Bookings */}
@@ -174,14 +237,17 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Operational Alerts */}
+      {/* Operational Alerts - Events Not Ready */}
       {alerts && alerts.length > 0 && (
-        <Card className="border-destructive/50">
+        <Card className="border-chart-1/50">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-destructive">
-              <AlertTriangle className="h-5 w-5" />
-              Operational Alerts
+            <CardTitle className="flex items-center gap-2 text-chart-1">
+              <Clock className="h-5 w-5" />
+              📅 Upcoming Events Not Ready
             </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Events in the next 3 days that are not marked as pre_event_ready
+            </p>
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
@@ -189,7 +255,7 @@ export default function AdminDashboard() {
                 <Link
                   key={booking.id}
                   to={`/admin/bookings/${booking.id}`}
-                  className="block p-3 rounded-lg border border-destructive/30 hover:bg-destructive/5 transition-colors"
+                  className="block p-3 rounded-lg border border-chart-1/30 hover:bg-chart-1/5 transition-colors"
                 >
                   <div className="flex items-center justify-between">
                     <div>
@@ -198,7 +264,7 @@ export default function AdminDashboard() {
                         {format(new Date(booking.event_date), "MMM d, yyyy")} - {booking.event_type}
                       </p>
                     </div>
-                    <Badge variant="destructive">Not Ready</Badge>
+                    <Badge variant="outline" className="border-chart-1 text-chart-1">Not Ready</Badge>
                   </div>
                 </Link>
               ))}
