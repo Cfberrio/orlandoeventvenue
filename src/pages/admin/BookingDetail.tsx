@@ -268,6 +268,52 @@ export default function BookingDetail() {
     }
   };
 
+  const handleForceSyncHostReport = async () => {
+    try {
+      toast({ title: "Triggering host report sync..." });
+      
+      // First call schedule-balance-payment to set host_report_step
+      const { data: scheduleResult, error: scheduleError } = await supabase.functions.invoke(
+        "schedule-balance-payment",
+        { body: { booking_id: booking.id } }
+      );
+      
+      if (scheduleError) {
+        console.error("schedule-balance-payment error:", scheduleError);
+        throw scheduleError;
+      }
+      
+      console.log("schedule-balance-payment result:", scheduleResult);
+      
+      // Then sync to GHL
+      const { error: syncError } = await supabase.functions.invoke("sync-to-ghl", {
+        body: { booking_id: booking.id },
+      });
+      
+      if (syncError) {
+        console.error("sync-to-ghl error:", syncError);
+        throw syncError;
+      }
+      
+      toast({ 
+        title: "Host report sync completed",
+        description: scheduleResult?.host_report_step 
+          ? `Step set to: ${scheduleResult.host_report_step}` 
+          : "Check booking for updated host_report_step"
+      });
+      
+      // Refetch booking data
+      window.location.reload();
+    } catch (error) {
+      console.error("Force sync error:", error);
+      toast({ 
+        title: "Failed to sync host report", 
+        description: String(error),
+        variant: "destructive" 
+      });
+    }
+  };
+
   const hostReport = hostReports?.[0];
 
   return (
@@ -740,6 +786,50 @@ export default function BookingDetail() {
 
         {/* Host Report Tab */}
         <TabsContent value="host" className="space-y-4">
+          {/* Host Report Step Status Card */}
+          <Card className="border-l-4 border-l-orange-500">
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-orange-500" />
+                  Host Report Step (GHL Sync)
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={handleForceSyncHostReport}
+                  className="text-xs"
+                >
+                  🔄 Force Sync
+                </Button>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Step</p>
+                  <Badge 
+                    variant={booking.host_report_step ? "default" : "secondary"}
+                    className="mt-1"
+                  >
+                    {booking.host_report_step || "Not Set"}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Lifecycle</p>
+                  <Badge variant="outline" className="mt-1">
+                    {booking.lifecycle_status}
+                  </Badge>
+                </div>
+              </div>
+              {!booking.host_report_step && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Click "Force Sync" to trigger host_report_step calculation and GHL sync
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
