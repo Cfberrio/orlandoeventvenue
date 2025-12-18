@@ -149,19 +149,39 @@ export default function BookingDetail() {
     );
   }
 
+  // Helper to trigger automation ONLY on false->true transition
+  const triggerAutomationIfNeeded = async (wasPreEventReady: boolean) => {
+    if (!wasPreEventReady) {
+      console.log("Triggering booking automation (pre_event_ready: false -> true)");
+      const { data, error } = await supabase.functions.invoke("trigger-booking-automation", {
+        body: { booking_id: booking.id },
+      });
+      if (error) {
+        console.error("trigger-booking-automation failed:", error);
+        toast({ title: "⚠️ Automation scheduling may have failed", variant: "destructive" });
+      } else {
+        console.log("trigger-booking-automation OK:", data);
+      }
+    } else {
+      console.log("Skipping automation trigger - already pre_event_ready=true");
+    }
+  };
+
   const handleStatusChange = async (newStatus: string) => {
     try {
+      const wasPreEventReady = booking.pre_event_ready === "true";
+      
       await updateBooking.mutateAsync({ id: booking.id, updates: { lifecycle_status: newStatus } });
       
-      // If changing to pre_event_ready, schedule host report reminders
+      // If changing to pre_event_ready, trigger full automation
       if (newStatus === "pre_event_ready") {
-        await supabase.functions.invoke("sync-to-ghl", {
-          body: { booking_id: booking.id },
-        });
-        await supabase.functions.invoke("schedule-balance-payment", {
-          body: { booking_id: booking.id },
-        });
+        await triggerAutomationIfNeeded(wasPreEventReady);
       }
+      
+      // Always sync to GHL on status change
+      await supabase.functions.invoke("sync-to-ghl", {
+        body: { booking_id: booking.id },
+      });
       
       toast({ title: "Status updated successfully" });
     } catch {
@@ -171,6 +191,8 @@ export default function BookingDetail() {
 
   const handleMarkPreEventReady = async () => {
     try {
+      const wasPreEventReady = booking.pre_event_ready === "true";
+      
       await updateBooking.mutateAsync({
         id: booking.id,
         updates: {
@@ -178,14 +200,15 @@ export default function BookingDetail() {
           lifecycle_status: "pre_event_ready",
         },
       });
-      // Sync to GHL
+      
+      // Trigger automation only if transitioning from false to true
+      await triggerAutomationIfNeeded(wasPreEventReady);
+      
+      // Always sync to GHL
       await supabase.functions.invoke("sync-to-ghl", {
         body: { booking_id: booking.id },
       });
-      // Schedule host report reminders and balance payment jobs
-      await supabase.functions.invoke("schedule-balance-payment", {
-        body: { booking_id: booking.id },
-      });
+      
       toast({ title: "Booking marked as ready for event" });
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
@@ -206,16 +229,21 @@ export default function BookingDetail() {
 
     if (newSchedule && newStaffing && newConflicts) {
       try {
+        const wasPreEventReady = booking.pre_event_ready === "true";
+        
         await updateBooking.mutateAsync({
           id: booking.id,
           updates: { pre_event_ready: "true" },
         });
+        
+        // Trigger automation only if transitioning from false to true
+        await triggerAutomationIfNeeded(wasPreEventReady);
+        
+        // Always sync to GHL
         await supabase.functions.invoke("sync-to-ghl", {
           body: { booking_id: booking.id },
         });
-        await supabase.functions.invoke("schedule-balance-payment", {
-          body: { booking_id: booking.id },
-        });
+        
         toast({ title: "✅ Checklist complete! Booking confirmed." });
       } catch {
         toast({ title: "Failed to save checklist", variant: "destructive" });
