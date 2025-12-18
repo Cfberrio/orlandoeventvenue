@@ -152,6 +152,17 @@ export default function BookingDetail() {
   const handleStatusChange = async (newStatus: string) => {
     try {
       await updateBooking.mutateAsync({ id: booking.id, updates: { lifecycle_status: newStatus } });
+      
+      // If changing to pre_event_ready, schedule host report reminders
+      if (newStatus === "pre_event_ready") {
+        await supabase.functions.invoke("sync-to-ghl", {
+          body: { booking_id: booking.id },
+        });
+        await supabase.functions.invoke("schedule-balance-payment", {
+          body: { booking_id: booking.id },
+        });
+      }
+      
       toast({ title: "Status updated successfully" });
     } catch {
       toast({ title: "Failed to update status", variant: "destructive" });
@@ -167,7 +178,12 @@ export default function BookingDetail() {
           lifecycle_status: "pre_event_ready",
         },
       });
+      // Sync to GHL
       await supabase.functions.invoke("sync-to-ghl", {
+        body: { booking_id: booking.id },
+      });
+      // Schedule host report reminders and balance payment jobs
+      await supabase.functions.invoke("schedule-balance-payment", {
         body: { booking_id: booking.id },
       });
       toast({ title: "Booking marked as ready for event" });
