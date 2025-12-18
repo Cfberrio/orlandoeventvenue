@@ -6,6 +6,17 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Orlando timezone offset: UTC-5 (EST)
+const ORLANDO_OFFSET_HOURS = -5;
+
+/**
+ * Converts a date string to Orlando local midnight UTC
+ */
+function getOrlandoMidnight(dateStr: string): Date {
+  const localDate = new Date(`${dateStr}T00:00:00`);
+  return new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -30,7 +41,8 @@ serve(async (req) => {
       });
     }
 
-    console.log("Processing balance payment scheduling for booking:", booking_id);
+    console.log("=== schedule-balance-payment ===");
+    console.log("Processing booking:", booking_id);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -55,13 +67,13 @@ serve(async (req) => {
     const responseData: Record<string, unknown> = {
       success: true,
       booking_id,
+      reservation_number: booking.reservation_number,
     };
 
     // ===============================
     // PART 1: Schedule lifecycle transition job (set_lifecycle_in_progress)
     // ===============================
     if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
-      // Check if lifecycle job already exists for this booking
       const { data: existingLifecycleJob } = await supabase
         .from("scheduled_jobs")
         .select("id")
@@ -70,14 +82,16 @@ serve(async (req) => {
         .in("status", ["pending"]);
 
       if (!existingLifecycleJob || existingLifecycleJob.length === 0) {
-        // Schedule job for the start of event_date (or start_time if available)
         let runAt: Date;
         if (booking.start_time) {
-          // Combine event_date with start_time
-          runAt = new Date(`${booking.event_date}T${booking.start_time}`);
+          // Combine event_date with start_time (Orlando local -> UTC)
+          const localDateTimeStr = `${booking.event_date}T${booking.start_time}`;
+          const localDate = new Date(localDateTimeStr);
+          runAt = new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
         } else {
-          // Use start of day (6 AM Orlando time as approximation)
-          runAt = new Date(`${booking.event_date}T06:00:00`);
+          // Daily booking: use 6 AM Orlando time
+          const localDate = new Date(`${booking.event_date}T06:00:00`);
+          runAt = new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
         }
 
         const { error: lifecycleJobError } = await supabase
@@ -117,213 +131,7 @@ serve(async (req) => {
     }
 
     // ===============================
-    // PART 1.5: Schedule Host Report Reminder jobs
-    // ===============================
-    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
-      const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
-      
-      // Check if host report jobs already exist for this booking
-      const { data: existingHostReportJobs } = await supabase
-        .from("scheduled_jobs")
-        .select("id, job_type")
-        .eq("booking_id", booking_id)
-        .in("job_type", HOST_REPORT_JOB_TYPES)
-        .in("status", ["pending"]);
-
-      if (!existingHostReportJobs || existingHostReportJobs.length === 0) {
-        // Calculate event start and end times
-        // For daily bookings without start_time, use default 9:00 AM start
-        // For hourly bookings, use the actual start_time
-        let eventStart: Date;
-        let eventEnd: Date;
-        
-        if (booking.booking_type === "daily") {
-          // Daily bookings: default 9:00 AM to 9:00 PM (12-hour event day)
-          eventStart = new Date(`${booking.event_date}T09:00:00`);
-          eventEnd = new Date(`${booking.event_date}T21:00:00`);
-          console.log(`Daily booking - using default times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
-        } else if (booking.start_time) {
-          // Hourly bookings with start_time
-          eventStart = new Date(`${booking.event_date}T${booking.start_time}`);
-          if (booking.end_time) {
-            eventEnd = new Date(`${booking.event_date}T${booking.end_time}`);
-          } else {
-            eventEnd = new Date(eventStart.getTime() + 4 * 60 * 60 * 1000); // Default 4 hours
-          }
-          console.log(`Hourly booking - using actual times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
-        } else {
-          // Hourly without start_time (shouldn't happen but fallback)
-          eventStart = new Date(`${booking.event_date}T09:00:00`);
-          eventEnd = new Date(`${booking.event_date}T13:00:00`);
-          console.log(`Hourly booking without start_time - using fallback times: ${eventStart.toISOString()} to ${eventEnd.toISOString()}`);
-        }
-
-        const now = new Date();
-
-        // Calculate run_at for each job
-        // Job 1: 30 min before start
-        const preStartRunAt = new Date(eventStart.getTime() - 30 * 60 * 1000);
-        // Job 2: 2 hours after start
-        const duringRunAt = new Date(eventStart.getTime() + 2 * 60 * 60 * 1000);
-        // Job 3: 30 min after end
-        const postRunAt = new Date(eventEnd.getTime() + 30 * 60 * 1000);
-
-        console.log(`Host report job times: pre_start=${preStartRunAt.toISOString()}, during=${duringRunAt.toISOString()}, post=${postRunAt.toISOString()}`);
-
-        const hostReportJobs: { job_type: string; run_at: string }[] = [];
-
-        // Only schedule jobs that are in the future
-        if (preStartRunAt > now) {
-          hostReportJobs.push({
-            job_type: "host_report_pre_start",
-            run_at: preStartRunAt.toISOString(),
-          });
-        } else {
-          console.log(`Skipping host_report_pre_start - run_at ${preStartRunAt.toISOString()} is in the past`);
-        }
-
-        if (duringRunAt > now) {
-          hostReportJobs.push({
-            job_type: "host_report_during",
-            run_at: duringRunAt.toISOString(),
-          });
-        } else {
-          console.log(`Skipping host_report_during - run_at ${duringRunAt.toISOString()} is in the past`);
-        }
-
-        if (postRunAt > now) {
-          hostReportJobs.push({
-            job_type: "host_report_post",
-            run_at: postRunAt.toISOString(),
-          });
-        } else {
-          console.log(`Skipping host_report_post - run_at ${postRunAt.toISOString()} is in the past`);
-        }
-
-        if (hostReportJobs.length > 0) {
-          const jobsToInsert = hostReportJobs.map((j) => ({
-            job_type: j.job_type,
-            booking_id: booking_id,
-            run_at: j.run_at,
-            status: "pending",
-          }));
-
-          const { error: hostReportJobError } = await supabase
-            .from("scheduled_jobs")
-            .insert(jobsToInsert);
-
-          if (hostReportJobError) {
-            console.error("Failed to schedule host report jobs:", hostReportJobError);
-          } else {
-            console.log(`Scheduled ${hostReportJobs.length} host report reminder jobs`);
-
-            await supabase.from("booking_events").insert({
-              booking_id: booking_id,
-              event_type: "host_report_reminders_scheduled",
-              channel: "system",
-              metadata: {
-                jobs_scheduled: hostReportJobs.map((j) => ({
-                  job_type: j.job_type,
-                  run_at: j.run_at,
-                })),
-                event_start: eventStart.toISOString(),
-                event_end: eventEnd.toISOString(),
-                booking_type: booking.booking_type,
-              },
-            });
-
-            responseData.host_report_jobs_scheduled = true;
-            responseData.host_report_jobs = hostReportJobs;
-          }
-        } else {
-          // All times are in the past - directly update host_report_step based on current time
-          console.log("All host report job times are in the past - updating host_report_step directly");
-          
-          const now = new Date();
-          let immediateStep: string | null = null;
-          
-          // Determine what step we should be at based on current time
-          if (now >= postRunAt) {
-            immediateStep = "post_event";
-          } else if (now >= duringRunAt) {
-            immediateStep = "during_event";
-          } else if (now >= preStartRunAt) {
-            immediateStep = "pre_start";
-          }
-          
-          if (immediateStep && booking.host_report_step !== immediateStep) {
-            console.log(`Updating host_report_step directly to ${immediateStep} (current: ${booking.host_report_step})`);
-            
-            const { error: stepUpdateError } = await supabase
-              .from("bookings")
-              .update({ 
-                host_report_step: immediateStep,
-                updated_at: new Date().toISOString()
-              })
-              .eq("id", booking_id);
-            
-            if (stepUpdateError) {
-              console.error("Failed to update host_report_step:", stepUpdateError);
-            } else {
-              // Log the event
-              await supabase.from("booking_events").insert({
-                booking_id: booking_id,
-                event_type: "host_report_step_set_directly",
-                channel: "system",
-                metadata: {
-                  new_step: immediateStep,
-                  previous_step: booking.host_report_step,
-                  reason: "all_job_times_in_past",
-                  preStartRunAt: preStartRunAt.toISOString(),
-                  duringRunAt: duringRunAt.toISOString(),
-                  postRunAt: postRunAt.toISOString(),
-                },
-              });
-              
-              // Sync to GHL immediately
-              console.log(`Triggering sync-to-ghl for immediate host_report_step update`);
-              try {
-                const syncResponse = await fetch(
-                  `${supabaseUrl}/functions/v1/sync-to-ghl`,
-                  {
-                    method: "POST",
-                    headers: {
-                      "Content-Type": "application/json",
-                      "Authorization": `Bearer ${supabaseServiceKey}`,
-                    },
-                    body: JSON.stringify({ booking_id }),
-                  }
-                );
-                
-                if (!syncResponse.ok) {
-                  const syncError = await syncResponse.text();
-                  console.error(`sync-to-ghl failed: ${syncError}`);
-                } else {
-                  console.log(`sync-to-ghl completed successfully`);
-                }
-              } catch (syncErr) {
-                console.error(`sync-to-ghl exception:`, syncErr);
-              }
-              
-              responseData.host_report_step_set_directly = true;
-              responseData.host_report_step = immediateStep;
-            }
-          } else {
-            console.log(`host_report_step already at ${booking.host_report_step}, no update needed`);
-          }
-          
-          responseData.host_report_jobs_scheduled = false;
-          responseData.host_report_jobs_reason = "all_times_in_past";
-        }
-      } else {
-        console.log("Host report jobs already exist for this booking, skipping");
-        responseData.host_report_jobs_scheduled = false;
-        responseData.host_report_jobs_reason = "already_exists";
-      }
-    }
-
-    // ===============================
-    // PART 2: Balance payment scheduling (existing logic)
+    // PART 2: Balance payment scheduling (ONLY balance - no host report logic)
     // ===============================
 
     // Skip if not deposit_paid
@@ -369,12 +177,12 @@ serve(async (req) => {
       });
     }
 
-    // Calculate days until event (using Orlando timezone approximation)
-    const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const eventDate = new Date(booking.event_date + "T00:00:00");
+    // Calculate days until event (using Orlando timezone)
+    const now = new Date();
+    const eventDateOrlando = getOrlandoMidnight(booking.event_date);
+    const nowOrlandoMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     
-    const diffMs = eventDate.getTime() - todayStart.getTime();
+    const diffMs = eventDateOrlando.getTime() - nowOrlandoMidnight.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
     console.log(`Event date: ${booking.event_date}, Days until event: ${diffDays}`);
@@ -460,135 +268,81 @@ serve(async (req) => {
         });
       }
 
-      responseData.balance_action = "short_notice_scheduled";
-      responseData.first_link_created = true;
-      responseData.payment_url = result.payment_url;
-      responseData.retry_scheduled_at = retryAt.toISOString();
+      responseData.balance_action = "short_notice";
+      responseData.balance_link_created = true;
+      responseData.balance_retry_scheduled = retryAt.toISOString();
       responseData.days_until_event = diffDays;
-      responseData.max_balance_attempts = 2;
-
-      return new Response(JSON.stringify(responseData), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
 
     } else {
       // ===============================
-      // LONG NOTICE: Max 3 balance links
+      // LONG NOTICE: Schedule 3 balance retries
       // ===============================
-      console.log("Long notice booking (>15 days) - scheduling 3 retry jobs");
+      console.log("Long notice booking (>15 days) - scheduling 3 balance payment retries");
 
-      // Calculate run times
-      const firstRun = new Date(eventDate);
-      firstRun.setDate(firstRun.getDate() - 15); // 15 days before event
+      // Calculate the first retry at T-15 days (9 AM Orlando time)
+      const eventDateObj = new Date(booking.event_date + "T09:00:00");
+      const fifteenDaysBefore = new Date(eventDateObj.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000) - 15 * 24 * 60 * 60 * 1000);
       
-      const secondRun = addHours(firstRun, 48);   // 48h after first
-      const thirdRun = addHours(secondRun, 48);   // 48h after second
+      // Retry 1: T-15 days
+      const retry1At = fifteenDaysBefore;
+      // Retry 2: 48h after retry 1
+      const retry2At = addHours(retry1At, 48);
+      // Retry 3: 48h after retry 2
+      const retry3At = addHours(retry2At, 48);
 
-      console.log(`Scheduling jobs: Link #1 at ${firstRun.toISOString()}, Link #2 at ${secondRun.toISOString()}, Link #3 at ${thirdRun.toISOString()}`);
-
-      // Insert all 3 scheduled jobs
-      const jobsToInsert = [
-        {
-          job_type: "balance_retry_1",
-          booking_id: booking_id,
-          run_at: firstRun.toISOString(),
-          status: "pending",
-        },
-        {
-          job_type: "balance_retry_2",
-          booking_id: booking_id,
-          run_at: secondRun.toISOString(),
-          status: "pending",
-        },
-        {
-          job_type: "balance_retry_3",
-          booking_id: booking_id,
-          run_at: thirdRun.toISOString(),
-          status: "pending",
-        },
+      const retries = [
+        { job_type: "balance_retry_1", run_at: retry1At },
+        { job_type: "balance_retry_2", run_at: retry2At },
+        { job_type: "balance_retry_3", run_at: retry3At },
       ];
 
-      const { error: insertError } = await supabase
-        .from("scheduled_jobs")
-        .insert(jobsToInsert);
+      for (const retry of retries) {
+        const { error: insertError } = await supabase
+          .from("scheduled_jobs")
+          .insert({
+            job_type: retry.job_type,
+            booking_id: booking_id,
+            run_at: retry.run_at.toISOString(),
+            status: "pending",
+          });
 
-      if (insertError) {
-        console.error("Failed to schedule jobs:", insertError);
-        return new Response(JSON.stringify({ 
-          ...responseData,
-          success: false, 
-          error: "Failed to schedule jobs",
-          details: insertError
-        }), {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        if (insertError) {
+          console.error(`Failed to schedule ${retry.job_type}:`, insertError);
+        } else {
+          console.log(`Scheduled ${retry.job_type} for: ${retry.run_at.toISOString()}`);
+          
+          await supabase.from("booking_events").insert({
+            booking_id: booking_id,
+            event_type: "balance_payment_retry_scheduled",
+            channel: "system",
+            metadata: {
+              job_type: retry.job_type,
+              type: "long_notice",
+              scheduled_for: retry.run_at.toISOString(),
+            },
+          });
+        }
       }
 
-      // Log events for all 3 scheduled links
-      const events = [
-        {
-          booking_id: booking_id,
-          event_type: "balance_payment_retry_scheduled",
-          channel: "system",
-          metadata: {
-            attempt: 1,
-            type: "long_notice",
-            scheduled_for: firstRun.toISOString(),
-            days_until_event: diffDays,
-          },
-        },
-        {
-          booking_id: booking_id,
-          event_type: "balance_payment_retry_scheduled",
-          channel: "system",
-          metadata: {
-            attempt: 2,
-            type: "long_notice",
-            scheduled_for: secondRun.toISOString(),
-          },
-        },
-        {
-          booking_id: booking_id,
-          event_type: "balance_payment_retry_scheduled",
-          channel: "system",
-          metadata: {
-            attempt: 3,
-            type: "long_notice",
-            scheduled_for: thirdRun.toISOString(),
-          },
-        },
-      ];
-
-      await supabase.from("booking_events").insert(events);
-
-      console.log("All 3 balance payment jobs scheduled successfully");
-
-      responseData.balance_action = "long_notice_scheduled";
-      responseData.scheduled_jobs = [
-        { attempt: 1, job_type: "balance_retry_1", run_at: firstRun.toISOString() },
-        { attempt: 2, job_type: "balance_retry_2", run_at: secondRun.toISOString() },
-        { attempt: 3, job_type: "balance_retry_3", run_at: thirdRun.toISOString() },
-      ];
+      responseData.balance_action = "long_notice";
+      responseData.balance_retries_scheduled = retries.map(r => ({
+        job_type: r.job_type,
+        run_at: r.run_at.toISOString(),
+      }));
       responseData.days_until_event = diffDays;
-      responseData.max_balance_attempts = 3;
-
-      return new Response(JSON.stringify(responseData), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
+
+    return new Response(JSON.stringify(responseData), {
+      status: 200,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   } catch (error: unknown) {
     console.error("Error in schedule-balance-payment:", error);
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
-    return new Response(
-      JSON.stringify({ error: errorMessage }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: errorMessage }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });

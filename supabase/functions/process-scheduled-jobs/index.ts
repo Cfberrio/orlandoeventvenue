@@ -765,6 +765,8 @@ serve(async (req) => {
 
           if (hostReportCompleted) {
             console.log(`Host report already completed for booking ${job.booking_id} - cancelling job ${job.id}`);
+            
+            // Cancel this and all other pending host report jobs for this booking
             await supabase
               .from("scheduled_jobs")
               .update({ 
@@ -772,7 +774,9 @@ serve(async (req) => {
                 last_error: "host_report_already_completed",
                 updated_at: new Date().toISOString()
               })
-              .eq("id", job.id);
+              .eq("booking_id", job.booking_id)
+              .in("job_type", HOST_REPORT_JOB_TYPES)
+              .eq("status", "pending");
             
             results.cancelled++;
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "host_report_already_completed" });
@@ -801,7 +805,27 @@ serve(async (req) => {
             continue;
           }
 
+          // Only update if the step is different (CRITICAL for GHL trigger)
+          const previousStep = booking.host_report_step;
+          if (previousStep === newStep) {
+            console.log(`Booking ${job.booking_id} already at step '${newStep}' - marking job complete without update`);
+            await supabase
+              .from("scheduled_jobs")
+              .update({ 
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                last_error: `step_already_at_${newStep}`,
+                updated_at: new Date().toISOString()
+              })
+              .eq("id", job.id);
+            
+            results.skipped++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "skipped", error: `step_already_at_${newStep}` });
+            continue;
+          }
+
           // Update booking.host_report_step
+          console.log(`Updating booking ${job.booking_id} host_report_step from '${previousStep}' to '${newStep}'`);
           const { error: updateError } = await supabase
             .from("bookings")
             .update({
@@ -839,13 +863,13 @@ serve(async (req) => {
               job_id: job.id,
               job_type: job.job_type,
               new_step: newStep,
-              previous_step: booking.host_report_step,
+              previous_step: previousStep,
               timestamp: new Date().toISOString(),
             },
           });
 
-          // Call syncToGHL to notify GHL of the step change
-          console.log(`Calling syncToGHL for booking ${job.booking_id} after host_report_step change to ${newStep}`);
+          // CRITICAL: Call syncToGHL IMMEDIATELY after changing host_report_step
+          console.log(`CRITICAL: Calling syncToGHL for booking ${job.booking_id} after host_report_step change: ${previousStep} -> ${newStep}`);
           try {
             const syncResponse = await fetch(
               `${supabaseUrl}/functions/v1/sync-to-ghl`,
@@ -861,12 +885,33 @@ serve(async (req) => {
 
             if (!syncResponse.ok) {
               const syncError = await syncResponse.text();
-              console.error(`syncToGHL failed for booking ${job.booking_id}:`, syncError);
+              console.error(`syncToGHL FAILED for booking ${job.booking_id}:`, syncError);
+              // Log the sync failure but don't fail the job
+              await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "sync_to_ghl_failed",
+                channel: "system",
+                metadata: {
+                  context: "host_report_step_change",
+                  new_step: newStep,
+                  error: syncError,
+                },
+              });
             } else {
-              console.log(`syncToGHL completed for booking ${job.booking_id}`);
+              console.log(`syncToGHL SUCCESS for booking ${job.booking_id} (step: ${newStep})`);
+              // Log successful sync
+              await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "sync_to_ghl_success",
+                channel: "system",
+                metadata: {
+                  context: "host_report_step_change",
+                  new_step: newStep,
+                },
+              });
             }
           } catch (syncError) {
-            console.error(`syncToGHL exception for booking ${job.booking_id}:`, syncError);
+            console.error(`syncToGHL EXCEPTION for booking ${job.booking_id}:`, syncError);
           }
 
           // Mark job as completed
@@ -881,7 +926,7 @@ serve(async (req) => {
 
           results.succeeded++;
           results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
-          console.log(`Job ${job.id} completed - booking ${job.booking_id} host_report_step changed to ${newStep}`);
+          console.log(`Job ${job.id} completed - booking ${job.booking_id} host_report_step changed: ${previousStep} -> ${newStep}`);
 
         } else {
           // Unknown job type

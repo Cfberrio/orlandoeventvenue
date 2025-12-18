@@ -29,3 +29,9 @@ verify_jwt = false
 
 [functions.check-post-event-transition]
 verify_jwt = false
+
+[functions.schedule-host-report-reminders]
+verify_jwt = false
+
+[functions.trigger-booking-automation]
+verify_jwt = false
