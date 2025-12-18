@@ -273,6 +273,106 @@ export function useOperationalAlerts() {
   });
 }
 
+export interface IssueAlert {
+  id: string;
+  booking_id: string;
+  type: 'cleaning' | 'guest';
+  issue_text: string;
+  reported_by: string | null;
+  created_at: string;
+  booking?: {
+    reservation_number: string | null;
+    full_name: string;
+    event_date: string;
+    lifecycle_status: string;
+  };
+}
+
+export function useIssueAlerts() {
+  return useQuery({
+    queryKey: ["issue-alerts"],
+    queryFn: async () => {
+      const alerts: IssueAlert[] = [];
+
+      // Get cleaning reports with issues (not closed)
+      const { data: cleaningReports, error: cleaningError } = await supabase
+        .from("booking_cleaning_reports")
+        .select("id, booking_id, clean_issues_notes, cleaner_name, created_at, bookings(reservation_number, full_name, event_date, lifecycle_status)")
+        .not("clean_issues_notes", "is", null)
+        .neq("clean_issues_notes", "");
+      
+      if (cleaningError) throw cleaningError;
+
+      cleaningReports?.forEach((report: {
+        id: string;
+        booking_id: string;
+        clean_issues_notes: string | null;
+        cleaner_name: string | null;
+        created_at: string;
+        bookings: {
+          reservation_number: string | null;
+          full_name: string;
+          event_date: string;
+          lifecycle_status: string;
+        } | null;
+      }) => {
+        if (report.bookings && report.bookings.lifecycle_status !== 'closed_review_complete') {
+          alerts.push({
+            id: report.id,
+            booking_id: report.booking_id,
+            type: 'cleaning',
+            issue_text: report.clean_issues_notes || '',
+            reported_by: report.cleaner_name,
+            created_at: report.created_at,
+            booking: report.bookings,
+          });
+        }
+      });
+
+      // Get host reports with issues (not closed)
+      const { data: hostReports, error: hostError } = await supabase
+        .from("booking_host_reports")
+        .select("id, booking_id, issue_description, guest_name, created_at, bookings(reservation_number, full_name, event_date, lifecycle_status)")
+        .eq("has_issue", true)
+        .not("issue_description", "is", null)
+        .neq("issue_description", "");
+      
+      if (hostError) throw hostError;
+
+      hostReports?.forEach((report: {
+        id: string;
+        booking_id: string;
+        issue_description: string | null;
+        guest_name: string | null;
+        created_at: string;
+        bookings: {
+          reservation_number: string | null;
+          full_name: string;
+          event_date: string;
+          lifecycle_status: string;
+        } | null;
+      }) => {
+        if (report.bookings && report.bookings.lifecycle_status !== 'closed_review_complete') {
+          alerts.push({
+            id: report.id,
+            booking_id: report.booking_id,
+            type: 'guest',
+            issue_text: report.issue_description || '',
+            reported_by: report.guest_name,
+            created_at: report.created_at,
+            booking: report.bookings,
+          });
+        }
+      });
+
+      // Sort by created_at descending
+      alerts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return alerts;
+    },
+  });
+}
+
 // Bookings hooks
 export function useBookings(filters?: {
   dateFrom?: string;
