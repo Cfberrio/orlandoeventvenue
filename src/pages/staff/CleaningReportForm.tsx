@@ -18,24 +18,20 @@ import {
   useCreateMaintenanceTicket,
   uploadCleaningMedia,
 } from "@/hooks/useStaffData";
-import { useUpsertInventoryFromCleaningReport } from "@/hooks/useInventoryData";
+import { 
+  useInventoryProducts, 
+  useInventoryLocations, 
+  useInventoryStock 
+} from "@/hooks/useInventoryData";
 
 interface InventoryItem {
-  item_name: string;
+  product_id: string;
+  product_name: string;
+  location_id: string;
+  location_name: string;
   status: "stocked" | "low" | "out";
   qty_used: string;
 }
-
-const defaultInventoryItems: InventoryItem[] = [
-  { item_name: "Bolsas grandes negras", status: "stocked", qty_used: "" },
-  { item_name: "Bolsas de 13g (kitchen trash bags)", status: "stocked", qty_used: "" },
-  { item_name: "Bolsas pequeñas para baños", status: "stocked", qty_used: "" },
-  { item_name: "Paper Towels (Marathon 4000)", status: "stocked", qty_used: "" },
-  { item_name: "Papel higiénico", status: "stocked", qty_used: "" },
-  { item_name: "Hand Soap", status: "stocked", qty_used: "" },
-  { item_name: "Toallas desinfectantes Clorox", status: "stocked", qty_used: "" },
-  { item_name: "Toallas sanitarias", status: "stocked", qty_used: "" },
-];
 
 export default function CleaningReportForm() {
   const { id } = useParams<{ id: string }>();
@@ -47,13 +43,17 @@ export default function CleaningReportForm() {
   const { staffMember } = useStaffSession();
   const updateReport = useUpdateCleaningReport();
   const createTicket = useCreateMaintenanceTicket();
-  const upsertInventory = useUpsertInventoryFromCleaningReport();
+  
+  // Inventory data from DB
+  const { data: inventoryProducts, isLoading: productsLoading } = useInventoryProducts();
+  const { data: inventoryLocations, isLoading: locationsLoading } = useInventoryLocations();
+  const { data: inventoryStock } = useInventoryStock();
 
   // Form state
   const [cleanerName, setCleanerName] = useState("");
   const [cleanerRole, setCleanerRole] = useState("");
   const [issuesNotes, setIssuesNotes] = useState("");
-  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>(defaultInventoryItems);
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   
   // Media uploads state
   const [mediaFrontDoor, setMediaFrontDoor] = useState<string[]>([]);
@@ -87,9 +87,9 @@ export default function CleaningReportForm() {
     
     if (existingReport) {
       setIssuesNotes(existingReport.clean_issues_notes || "");
-      setInventoryItems((existingReport.inventory_items as InventoryItem[])?.length > 0 
-        ? existingReport.inventory_items as InventoryItem[]
-        : defaultInventoryItems);
+      if ((existingReport.inventory_items as InventoryItem[])?.length > 0) {
+        setInventoryItems(existingReport.inventory_items as InventoryItem[]);
+      }
       setMediaFrontDoor(existingReport.media_front_door as string[] || []);
       setMediaMainArea(existingReport.media_main_area as string[] || []);
       setMediaRack(existingReport.media_rack as string[] || []);
@@ -145,7 +145,14 @@ export default function CleaningReportForm() {
   };
 
   const addInventoryItem = () => {
-    setInventoryItems(prev => [...prev, { item_name: "", status: "stocked", qty_used: "" }]);
+    setInventoryItems(prev => [...prev, { 
+      product_id: "", 
+      product_name: "", 
+      location_id: "", 
+      location_name: "",
+      status: "stocked", 
+      qty_used: "" 
+    }]);
   };
 
   const removeInventoryItem = (index: number) => {
@@ -217,11 +224,44 @@ export default function CleaningReportForm() {
         });
       }
 
-      // Sync inventory from cleaning report
-      await upsertInventory.mutateAsync({
-        items: inventoryItems,
-        bookingReservationNumber: booking?.reservation_number,
-      });
+      // Update inventory_stock directly
+      for (const item of inventoryItems) {
+        if (!item.product_id || !item.location_id) continue;
+        
+        // Check if stock record exists
+        const { data: existingStock } = await supabase
+          .from("inventory_stock")
+          .select("id, current_level")
+          .eq("product_id", item.product_id)
+          .eq("location_id", item.location_id)
+          .maybeSingle();
+        
+        const qtyUsed = parseInt(item.qty_used) || 0;
+        const newLevel = existingStock 
+          ? Math.max(0, existingStock.current_level - qtyUsed)
+          : (item.status === "out" ? 0 : item.status === "low" ? 1 : 5);
+        
+        const notes = `Updated from cleaning report for booking ${booking?.reservation_number}`;
+        
+        if (existingStock) {
+          await supabase
+            .from("inventory_stock")
+            .update({ 
+              status: item.status, 
+              current_level: newLevel, 
+              notes 
+            })
+            .eq("id", existingStock.id);
+        } else {
+          await supabase.from("inventory_stock").insert({
+            product_id: item.product_id,
+            location_id: item.location_id,
+            status: item.status,
+            current_level: newLevel,
+            notes,
+          });
+        }
+      }
 
       // Sync to GHL
       await supabase.functions.invoke("sync-to-ghl", {
@@ -469,52 +509,137 @@ export default function CleaningReportForm() {
       {/* Inventory Check */}
       <Card>
         <CardHeader>
-          <CardTitle>Inventory Check</CardTitle>
+          <CardTitle>Inventory Check / Verificación de Inventario</CardTitle>
           <CardDescription>
-            Check the status of supplies. Items marked as "low" or "out" will trigger a restock notification.
+            EN: Select products from the dropdown and report their status. Items marked as "low" or "out" will trigger a restock notification.
+            <br />
+            ES: Selecciona productos del menú y reporta su estado. Los items marcados como "bajo" o "agotado" activarán una notificación de reabastecimiento.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {inventoryItems.map((item, index) => (
-            <div key={index} className="flex items-center gap-3">
-              <Input
-                placeholder="Item name"
-                value={item.item_name}
-                onChange={(e) => updateInventoryItem(index, "item_name", e.target.value)}
-                className="flex-1"
-              />
-              <Select
-                value={item.status}
-                onValueChange={(value) => updateInventoryItem(index, "status", value)}
-              >
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="stocked">Stocked</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                  <SelectItem value="out">Out</SelectItem>
-                </SelectContent>
-              </Select>
-              <Input
-                placeholder="Qty Used"
-                value={item.qty_used}
-                onChange={(e) => updateInventoryItem(index, "qty_used", e.target.value)}
-                className="w-24"
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => removeInventoryItem(index)}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
+          {(productsLoading || locationsLoading) ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">Loading inventory...</span>
             </div>
-          ))}
-          <Button variant="outline" size="sm" onClick={addInventoryItem}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Item
-          </Button>
+          ) : (
+            <>
+              {inventoryItems.map((item, index) => (
+                <div key={index} className="flex flex-col sm:flex-row gap-3 p-3 border rounded-lg bg-muted/30">
+                  {/* Location Select */}
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Location / Ubicación</Label>
+                    <Select
+                      value={item.location_id}
+                      onValueChange={(value) => {
+                        const location = inventoryLocations?.find(l => l.id === value);
+                        setInventoryItems(prev => prev.map((it, i) => 
+                          i === index ? { 
+                            ...it, 
+                            location_id: value,
+                            location_name: location?.name || ""
+                          } : it
+                        ));
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select location..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryLocations?.map((location) => (
+                          <SelectItem key={location.id} value={location.id}>
+                            {location.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Product Select */}
+                  <div className="flex-1 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Product / Producto</Label>
+                    <Select
+                      value={item.product_id}
+                      onValueChange={(value) => {
+                        const product = inventoryProducts?.find(p => p.id === value);
+                        setInventoryItems(prev => prev.map((it, i) => 
+                          i === index ? { 
+                            ...it, 
+                            product_id: value,
+                            product_name: product?.name || ""
+                          } : it
+                        ));
+                      }}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select product..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {inventoryProducts?.map((product) => (
+                          <SelectItem key={product.id} value={product.id}>
+                            {product.name} ({product.unit})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Status Select */}
+                  <div className="w-full sm:w-32 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Status / Estado</Label>
+                    <Select
+                      value={item.status}
+                      onValueChange={(value) => updateInventoryItem(index, "status", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="stocked">✅ Stocked</SelectItem>
+                        <SelectItem value="low">⚠️ Low</SelectItem>
+                        <SelectItem value="out">❌ Out</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Qty Used */}
+                  <div className="w-full sm:w-24 space-y-1">
+                    <Label className="text-xs text-muted-foreground">Qty Used</Label>
+                    <Input
+                      placeholder="0"
+                      type="number"
+                      min="0"
+                      value={item.qty_used}
+                      onChange={(e) => updateInventoryItem(index, "qty_used", e.target.value)}
+                    />
+                  </div>
+
+                  {/* Remove Button */}
+                  <div className="flex items-end">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeInventoryItem(index)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {inventoryItems.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No items added. Click "Add Item" to report inventory usage.
+                </p>
+              )}
+              
+              <Button variant="outline" size="sm" onClick={addInventoryItem}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Item / Agregar Item
+              </Button>
+            </>
+          )}
         </CardContent>
       </Card>
 
