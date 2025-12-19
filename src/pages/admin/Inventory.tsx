@@ -6,18 +6,40 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ChevronDown, ChevronRight, Package, AlertTriangle, XCircle, CheckCircle, Loader2 } from "lucide-react";
+import { 
+  ChevronDown, ChevronRight, Package, AlertTriangle, XCircle, CheckCircle, 
+  Loader2, Plus, Settings, MapPin, Trash2 
+} from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   useInventoryLocations,
   useInventoryProducts,
   useInventoryStock,
   useInventoryKPIs,
   useUpdateInventoryStock,
-  useCreateInventoryStock,
+  useDeleteInventoryStock,
   InventoryStockWithDetails,
 } from "@/hooks/useInventoryData";
+import { ManageProductsDialog } from "@/components/inventory/ManageProductsDialog";
+import { ManageLocationsDialog } from "@/components/inventory/ManageLocationsDialog";
+import { StockItemDialog } from "@/components/inventory/StockItemDialog";
 
 const statusConfig = {
   stocked: { color: "bg-green-500/10 text-green-600 border-green-500/20", icon: CheckCircle },
@@ -27,18 +49,20 @@ const statusConfig = {
 
 export default function Inventory() {
   const [locationFilter, setLocationFilter] = useState("all");
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-    kitchen_cabinets_lower_left: true,
-    storage_rack_entrance: true,
-    bathroom_cabinets_womens: true,
-  });
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [productsDialogOpen, setProductsDialogOpen] = useState(false);
+  const [locationsDialogOpen, setLocationsDialogOpen] = useState(false);
+  const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>();
+  const [deleteStockConfirmOpen, setDeleteStockConfirmOpen] = useState(false);
+  const [stockToDelete, setStockToDelete] = useState<InventoryStockWithDetails | null>(null);
 
   const { data: locations, isLoading: locationsLoading } = useInventoryLocations();
   const { data: products, isLoading: productsLoading } = useInventoryProducts();
   const { data: stock, isLoading: stockLoading } = useInventoryStock(locationFilter);
   const { data: kpis, isLoading: kpisLoading } = useInventoryKPIs();
   const updateStock = useUpdateInventoryStock();
-  const createStock = useCreateInventoryStock();
+  const deleteStock = useDeleteInventoryStock();
   const { toast } = useToast();
 
   const isLoading = locationsLoading || productsLoading || stockLoading || kpisLoading;
@@ -47,11 +71,9 @@ export default function Inventory() {
     setExpandedSections((prev) => ({ ...prev, [slug]: !prev[slug] }));
   };
 
-  const getStockForLocation = (locationSlug: string) => {
-    if (!stock || !locations) return [];
-    const location = locations.find((l) => l.slug === locationSlug);
-    if (!location) return [];
-    return stock.filter((s) => s.location_id === location.id);
+  const getStockForLocation = (locationId: string) => {
+    if (!stock) return [];
+    return stock.filter((s) => s.location_id === locationId);
   };
 
   const handleUpdateLevel = async (stockItem: InventoryStockWithDetails, newLevel: number) => {
@@ -89,34 +111,78 @@ export default function Inventory() {
     }
   };
 
-  const renderLocationSection = (locationSlug: string, title: string, showShelfLabel: boolean = false) => {
-    const locationStock = getStockForLocation(locationSlug);
-    const isExpanded = expandedSections[locationSlug];
+  const handleAddStockToLocation = (locationId: string) => {
+    setPreselectedLocationId(locationId);
+    setStockDialogOpen(true);
+  };
 
-    if (locationFilter !== "all" && locationFilter !== locationSlug) {
+  const handleDeleteStockClick = (item: InventoryStockWithDetails) => {
+    setStockToDelete(item);
+    setDeleteStockConfirmOpen(true);
+  };
+
+  const handleDeleteStockConfirm = async () => {
+    if (!stockToDelete) return;
+    try {
+      await deleteStock.mutateAsync(stockToDelete.id);
+      toast({ title: "Stock item deleted" });
+    } catch {
+      toast({ title: "Failed to delete stock item", variant: "destructive" });
+    }
+    setDeleteStockConfirmOpen(false);
+    setStockToDelete(null);
+  };
+
+  const renderLocationSection = (location: { id: string; name: string; slug: string }) => {
+    const locationStock = getStockForLocation(location.id);
+    const isExpanded = expandedSections[location.slug] ?? true;
+
+    if (locationFilter !== "all" && locationFilter !== location.slug) {
       return null;
     }
 
     return (
-      <Collapsible open={isExpanded} onOpenChange={() => toggleSection(locationSlug)}>
+      <Collapsible key={location.id} open={isExpanded} onOpenChange={() => toggleSection(location.slug)}>
         <Card>
           <CollapsibleTrigger asChild>
             <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                  {title}
+                  {location.name}
                 </CardTitle>
-                <Badge variant="outline">{locationStock.length} items</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline">{locationStock.length} items</Badge>
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleAddStockToLocation(location.id);
+                    }}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent>
               {locationStock.length === 0 ? (
-                <p className="text-muted-foreground text-sm py-4 text-center">
-                  No inventory items in this location yet.
-                </p>
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground text-sm mb-4">
+                    No inventory items in this location yet.
+                  </p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => handleAddStockToLocation(location.id)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add First Item
+                  </Button>
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <Table>
@@ -127,8 +193,9 @@ export default function Inventory() {
                         <TableHead className="w-24">Min Level</TableHead>
                         <TableHead className="w-24">Current</TableHead>
                         <TableHead>Status</TableHead>
-                        {showShelfLabel && <TableHead>Shelf Label</TableHead>}
+                        <TableHead>Shelf Label</TableHead>
                         <TableHead>Notes</TableHead>
+                        <TableHead className="w-12"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -176,16 +243,14 @@ export default function Inventory() {
                                 {item.status}
                               </Badge>
                             </TableCell>
-                            {showShelfLabel && (
-                              <TableCell>
-                                <Input
-                                  className="w-32 h-8"
-                                  placeholder="e.g. Rack 2"
-                                  defaultValue={item.shelf_label || ""}
-                                  onBlur={(e) => handleUpdateShelfLabel(item, e.target.value)}
-                                />
-                              </TableCell>
-                            )}
+                            <TableCell>
+                              <Input
+                                className="w-32 h-8"
+                                placeholder="e.g. Rack 2"
+                                defaultValue={item.shelf_label || ""}
+                                onBlur={(e) => handleUpdateShelfLabel(item, e.target.value)}
+                              />
+                            </TableCell>
                             <TableCell>
                               <Input
                                 className="w-40 h-8"
@@ -193,6 +258,16 @@ export default function Inventory() {
                                 defaultValue={item.notes || ""}
                                 onBlur={(e) => handleUpdateNotes(item, e.target.value)}
                               />
+                            </TableCell>
+                            <TableCell>
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                className="h-8 w-8 text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteStockClick(item)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </TableCell>
                           </TableRow>
                         );
@@ -223,6 +298,33 @@ export default function Inventory() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Inventory & Storage</h1>
           <p className="text-muted-foreground">Manage venue supplies and stock levels</p>
+        </div>
+        <div className="flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Settings className="h-4 w-4 mr-2" />
+                Manage
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setProductsDialogOpen(true)}>
+                <Package className="h-4 w-4 mr-2" />
+                Manage Products
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setLocationsDialogOpen(true)}>
+                <MapPin className="h-4 w-4 mr-2" />
+                Manage Locations
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => {
+            setPreselectedLocationId(undefined);
+            setStockDialogOpen(true);
+          }}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Stock Item
+          </Button>
         </div>
       </div>
 
@@ -275,12 +377,54 @@ export default function Inventory() {
         </div>
       </div>
 
-      {/* Inventory Sections */}
+      {/* Inventory Sections - Dynamic based on locations */}
       <div className="space-y-4">
-        {renderLocationSection("kitchen_cabinets_lower_left", "Kitchen Cabinets – Lower Left")}
-        {renderLocationSection("storage_rack_entrance", "Storage Rack – Entrance Right Side", true)}
-        {renderLocationSection("bathroom_cabinets_womens", "Bathroom Cabinets – Women's Bathroom")}
+        {locations?.length === 0 ? (
+          <Card className="p-8 text-center">
+            <MapPin className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">No Locations Yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Start by adding your first storage location.
+            </p>
+            <Button onClick={() => setLocationsDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Location
+            </Button>
+          </Card>
+        ) : (
+          locations?.map((location) => renderLocationSection(location))
+        )}
       </div>
+
+      {/* Dialogs */}
+      <ManageProductsDialog open={productsDialogOpen} onOpenChange={setProductsDialogOpen} />
+      <ManageLocationsDialog open={locationsDialogOpen} onOpenChange={setLocationsDialogOpen} />
+      <StockItemDialog 
+        open={stockDialogOpen} 
+        onOpenChange={setStockDialogOpen} 
+        preselectedLocationId={preselectedLocationId}
+      />
+
+      <AlertDialog open={deleteStockConfirmOpen} onOpenChange={setDeleteStockConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Stock Item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the stock record for "{stockToDelete?.product.name}" 
+              from "{stockToDelete?.location.name}". This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleDeleteStockConfirm} 
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
