@@ -140,48 +140,41 @@ serve(async (req) => {
       });
     }
 
-    // Calculate event start and end times in Orlando timezone
+    // Calculate event start time in Orlando timezone
     let eventStartOrlando: Date;
-    let eventEndOrlando: Date;
 
     if (booking.booking_type === "daily") {
-      // Daily bookings: 9:00 AM to 9:00 PM Orlando time
-      eventStartOrlando = toOrlandoUTC(booking.event_date, "09:00:00");
-      eventEndOrlando = toOrlandoUTC(booking.event_date, "21:00:00");
-      console.log(`Daily booking - Orlando times: 09:00 to 21:00`);
+      // Daily bookings: use start_time if provided, else default 10:00 AM Orlando time
+      const startTimeStr = booking.start_time || "10:00:00";
+      eventStartOrlando = toOrlandoUTC(booking.event_date, startTimeStr);
+      console.log(`Daily booking - Orlando start time: ${startTimeStr}`);
     } else if (booking.start_time) {
       // Hourly bookings with start_time
       eventStartOrlando = toOrlandoUTC(booking.event_date, booking.start_time);
-      if (booking.end_time) {
-        eventEndOrlando = toOrlandoUTC(booking.event_date, booking.end_time);
-      } else {
-        eventEndOrlando = new Date(eventStartOrlando.getTime() + 4 * 60 * 60 * 1000); // Default 4 hours
-      }
-      console.log(`Hourly booking - start: ${booking.start_time}, end: ${booking.end_time || 'start+4h'}`);
+      console.log(`Hourly booking - start: ${booking.start_time}`);
     } else {
-      // Fallback: 12:00 PM to 4:00 PM Orlando time
-      eventStartOrlando = toOrlandoUTC(booking.event_date, "12:00:00");
-      eventEndOrlando = toOrlandoUTC(booking.event_date, "16:00:00");
-      console.log(`Hourly booking without times - using fallback: 12:00 to 16:00`);
+      // Fallback: 10:00 AM Orlando time
+      eventStartOrlando = toOrlandoUTC(booking.event_date, "10:00:00");
+      console.log(`Hourly booking without times - using fallback: 10:00 AM`);
     }
 
-    console.log(`Event times (UTC): start=${eventStartOrlando.toISOString()}, end=${eventEndOrlando.toISOString()}`);
+    console.log(`Event start (UTC): ${eventStartOrlando.toISOString()}`);
 
     const now = new Date();
     console.log(`Current time (UTC): ${now.toISOString()}`);
 
-    // Calculate the three timestamps for host report steps
-    // t_pre_start = start - 30 min
-    const t_pre_start = new Date(eventStartOrlando.getTime() - 30 * 60 * 1000);
-    // t_during_event = start + 2 hours
-    const t_during_event = new Date(eventStartOrlando.getTime() + 2 * 60 * 60 * 1000);
-    // t_post_event = end + 30 min
-    const t_post_event = new Date(eventEndOrlando.getTime() + 30 * 60 * 1000);
+    // Calculate the three timestamps for host report email scheduling:
+    // pre_start = event_start - 7 days
+    const t_pre_start = new Date(eventStartOrlando.getTime() - 7 * 24 * 60 * 60 * 1000);
+    // during_event = event_start - 1 day
+    const t_during_event = new Date(eventStartOrlando.getTime() - 1 * 24 * 60 * 60 * 1000);
+    // post_event = event_start - 3 hours
+    const t_post_event = new Date(eventStartOrlando.getTime() - 3 * 60 * 60 * 1000);
 
-    console.log(`Host report times (UTC):`);
-    console.log(`  pre_start: ${t_pre_start.toISOString()}`);
-    console.log(`  during_event: ${t_during_event.toISOString()}`);
-    console.log(`  post_event: ${t_post_event.toISOString()}`);
+    console.log(`Host report scheduled times (UTC):`);
+    console.log(`  pre_start (event-7d): ${t_pre_start.toISOString()}`);
+    console.log(`  during_event (event-1d): ${t_during_event.toISOString()}`);
+    console.log(`  post_event (event-3h): ${t_post_event.toISOString()}`);
 
     // Determine current step and catch-up logic
     let immediateStep: string | null = null;
@@ -333,7 +326,6 @@ serve(async (req) => {
             metadata: {
               jobs_created: newJobs,
               event_start: eventStartOrlando.toISOString(),
-              event_end: eventEndOrlando.toISOString(),
               booking_type: booking.booking_type,
               orlando_offset: ORLANDO_OFFSET_HOURS,
             },
