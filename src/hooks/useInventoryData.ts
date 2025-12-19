@@ -202,6 +202,132 @@ export function useCreateInventoryStock() {
   });
 }
 
+// ============ PRODUCT MUTATIONS ============
+
+export function useCreateInventoryProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; unit: string; default_min_level: number }) => {
+      const { error } = await supabase.from("inventory_products").insert(data);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
+    },
+  });
+}
+
+export function useUpdateInventoryProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<{ name: string; unit: string; default_min_level: number; is_active: boolean }>;
+    }) => {
+      const { error } = await supabase.from("inventory_products").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+    },
+  });
+}
+
+export function useDeleteInventoryProduct() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // Soft delete by setting is_active = false
+      const { error } = await supabase.from("inventory_products").update({ is_active: false }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-products"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+    },
+  });
+}
+
+// ============ LOCATION MUTATIONS ============
+
+export function useCreateInventoryLocation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; slug: string }) => {
+      const { error } = await supabase.from("inventory_locations").insert(data);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-locations"] });
+    },
+  });
+}
+
+export function useUpdateInventoryLocation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: Partial<{ name: string; slug: string }>;
+    }) => {
+      const { error } = await supabase.from("inventory_locations").update(data).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-locations"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+    },
+  });
+}
+
+export function useDeleteInventoryLocation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      // First delete all stock associated with this location
+      await supabase.from("inventory_stock").delete().eq("location_id", id);
+      // Then delete the location
+      const { error } = await supabase.from("inventory_locations").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-locations"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-kpis"] });
+    },
+  });
+}
+
+// ============ DELETE STOCK ============
+
+export function useDeleteInventoryStock() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("inventory_stock").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
+      queryClient.invalidateQueries({ queryKey: ["inventory-kpis"] });
+    },
+  });
+}
+
 export function useUpsertInventoryFromCleaningReport() {
   const queryClient = useQueryClient();
 
