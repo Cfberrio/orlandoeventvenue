@@ -40,6 +40,7 @@ import {
 import { ManageProductsDialog } from "@/components/inventory/ManageProductsDialog";
 import { ManageLocationsDialog } from "@/components/inventory/ManageLocationsDialog";
 import { StockItemDialog } from "@/components/inventory/StockItemDialog";
+import { ProductDialog } from "@/components/inventory/ProductDialog";
 
 const statusConfig = {
   stocked: { color: "bg-green-500/10 text-green-600 border-green-500/20", icon: CheckCircle },
@@ -53,6 +54,7 @@ export default function Inventory() {
   const [productsDialogOpen, setProductsDialogOpen] = useState(false);
   const [locationsDialogOpen, setLocationsDialogOpen] = useState(false);
   const [stockDialogOpen, setStockDialogOpen] = useState(false);
+  const [addProductDialogOpen, setAddProductDialogOpen] = useState(false);
   const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>();
   const [deleteStockConfirmOpen, setDeleteStockConfirmOpen] = useState(false);
   const [stockToDelete, setStockToDelete] = useState<InventoryStockWithDetails | null>(null);
@@ -318,6 +320,10 @@ export default function Inventory() {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          <Button variant="outline" onClick={() => setAddProductDialogOpen(true)}>
+            <Package className="h-4 w-4 mr-2" />
+            Add Product
+          </Button>
           <Button onClick={() => {
             setPreselectedLocationId(undefined);
             setStockDialogOpen(true);
@@ -403,6 +409,11 @@ export default function Inventory() {
         open={stockDialogOpen} 
         onOpenChange={setStockDialogOpen} 
         preselectedLocationId={preselectedLocationId}
+      />
+      <ProductDialog 
+        open={addProductDialogOpen} 
+        onOpenChange={setAddProductDialogOpen} 
+        product={null}
       />
 
       <AlertDialog open={deleteStockConfirmOpen} onOpenChange={setDeleteStockConfirmOpen}>
