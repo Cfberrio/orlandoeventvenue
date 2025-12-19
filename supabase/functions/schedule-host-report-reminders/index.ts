@@ -161,64 +161,81 @@ serve(async (req) => {
     console.log(`Event start (UTC): ${eventStartOrlando.toISOString()}`);
 
     const now = new Date();
+    const nowMs = now.getTime();
+    const eventStartMs = eventStartOrlando.getTime();
     console.log(`Current time (UTC): ${now.toISOString()}`);
 
     // Calculate the three timestamps for host report email scheduling:
     // pre_start = event_start - 7 days
-    const t_pre_start = new Date(eventStartOrlando.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const t_pre_start_ms = eventStartMs - 7 * 24 * 60 * 60 * 1000;
     // during_event = event_start - 1 day
-    const t_during_event = new Date(eventStartOrlando.getTime() - 1 * 24 * 60 * 60 * 1000);
+    const t_during_event_ms = eventStartMs - 1 * 24 * 60 * 60 * 1000;
     // post_event = event_start - 3 hours
-    const t_post_event = new Date(eventStartOrlando.getTime() - 3 * 60 * 60 * 1000);
+    const t_post_event_ms = eventStartMs - 3 * 60 * 60 * 1000;
 
     console.log(`Host report scheduled times (UTC):`);
-    console.log(`  pre_start (event-7d): ${t_pre_start.toISOString()}`);
-    console.log(`  during_event (event-1d): ${t_during_event.toISOString()}`);
-    console.log(`  post_event (event-3h): ${t_post_event.toISOString()}`);
+    console.log(`  pre_start (event-7d): ${new Date(t_pre_start_ms).toISOString()}`);
+    console.log(`  during_event (event-1d): ${new Date(t_during_event_ms).toISOString()}`);
+    console.log(`  post_event (event-3h): ${new Date(t_post_event_ms).toISOString()}`);
 
-    // Determine current step and catch-up logic
+    // SMART CATCH-UP: Pick ONLY ONE immediate step, create only FUTURE jobs
+    // Rule: for short-notice bookings, don't send 2-3 emails at once
     let immediateStep: string | null = null;
     const jobsToCreate: { job_type: string; run_at: string }[] = [];
 
-    if (now >= t_post_event) {
-      // All times have passed - set to post_event
+    // Priority order: check from closest to event → furthest
+    if (nowMs >= t_post_event_ms) {
+      // We're within 3h of event start (or past it) → set post_event immediately
+      // NO jobs created - all email times have passed
       immediateStep = "post_event";
-      console.log("All times passed - setting immediately to post_event");
-    } else if (now >= t_during_event) {
-      // During event time has passed - set to during_event, schedule post
+      console.log("CATCH-UP: now >= event-3h → setting post_event immediately, no jobs");
+    } else if (nowMs >= t_during_event_ms) {
+      // We're within 1 day but more than 3h out → set during_event immediately
+      // Only create post_event job (it's still in the future)
       immediateStep = "during_event";
-      jobsToCreate.push({
-        job_type: "host_report_post",
-        run_at: t_post_event.toISOString(),
-      });
-      console.log("During event time passed - setting to during_event, scheduling post");
-    } else if (now >= t_pre_start) {
-      // Pre-start time has passed - set to pre_start, schedule during and post
+      if (t_post_event_ms > nowMs) {
+        jobsToCreate.push({
+          job_type: "host_report_post",
+          run_at: new Date(t_post_event_ms).toISOString(),
+        });
+        console.log("CATCH-UP: now >= event-1d → during_event immediate + scheduling post_event job");
+      } else {
+        console.log("CATCH-UP: now >= event-1d → during_event immediate, post_event already passed");
+      }
+    } else if (nowMs >= t_pre_start_ms) {
+      // We're within 7 days but more than 1 day out → set pre_start immediately
+      // Only create during_event and post_event if they're still in the future
       immediateStep = "pre_start";
-      jobsToCreate.push({
-        job_type: "host_report_during",
-        run_at: t_during_event.toISOString(),
-      });
-      jobsToCreate.push({
-        job_type: "host_report_post",
-        run_at: t_post_event.toISOString(),
-      });
-      console.log("Pre-start time passed - setting to pre_start, scheduling during & post");
+      console.log("CATCH-UP: now >= event-7d → pre_start immediate");
+      if (t_during_event_ms > nowMs) {
+        jobsToCreate.push({
+          job_type: "host_report_during",
+          run_at: new Date(t_during_event_ms).toISOString(),
+        });
+        console.log("  + scheduling during_event job");
+      }
+      if (t_post_event_ms > nowMs) {
+        jobsToCreate.push({
+          job_type: "host_report_post",
+          run_at: new Date(t_post_event_ms).toISOString(),
+        });
+        console.log("  + scheduling post_event job");
+      }
     } else {
-      // All times are in the future - schedule all three
+      // Event is > 7 days away → no immediate step, schedule all 3 jobs
+      console.log("Event > 7 days away → scheduling all 3 jobs, no immediate step");
       jobsToCreate.push({
         job_type: "host_report_pre_start",
-        run_at: t_pre_start.toISOString(),
+        run_at: new Date(t_pre_start_ms).toISOString(),
       });
       jobsToCreate.push({
         job_type: "host_report_during",
-        run_at: t_during_event.toISOString(),
+        run_at: new Date(t_during_event_ms).toISOString(),
       });
       jobsToCreate.push({
         job_type: "host_report_post",
-        run_at: t_post_event.toISOString(),
+        run_at: new Date(t_post_event_ms).toISOString(),
       });
-      console.log("All times in future - scheduling all three jobs");
     }
 
     // If there's an immediate step to set
@@ -246,10 +263,10 @@ serve(async (req) => {
             metadata: {
               new_step: immediateStep,
               previous_step: booking.host_report_step,
-              reason: "catch_up_logic",
-              t_pre_start: t_pre_start.toISOString(),
-              t_during_event: t_during_event.toISOString(),
-              t_post_event: t_post_event.toISOString(),
+              reason: "smart_catch_up",
+              t_pre_start: new Date(t_pre_start_ms).toISOString(),
+              t_during_event: new Date(t_during_event_ms).toISOString(),
+              t_post_event: new Date(t_post_event_ms).toISOString(),
             },
           });
 
