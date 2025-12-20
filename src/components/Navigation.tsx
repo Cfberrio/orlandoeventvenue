@@ -25,10 +25,10 @@ const Navigation = () => {
   return (
     <nav className="sticky top-0 z-50 bg-card/95 backdrop-blur-sm border-b border-border shadow-sm transition-all duration-300">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-20">
           <div className="flex items-center gap-3 cursor-pointer" onClick={goToHome}>
-            <img src={oevLogoIcon} alt="OEV" className="h-10 w-auto transition-transform duration-300 hover:scale-110" />
-            <span className="font-bold text-xl text-foreground transition-colors duration-300 hover:text-primary">OEV</span>
+            <img src={oevLogoIcon} alt="OEV" className="h-16 w-auto transition-transform duration-300 hover:scale-110" />
+            <span className="font-bold text-xl text-foreground transition-colors duration-300 hover:text-primary">Orlando Event Venue</span>
           </div>
 
           {/* Desktop Navigation */}
