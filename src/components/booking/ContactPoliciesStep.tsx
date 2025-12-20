@@ -249,7 +249,7 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
                 </FormControl>
                 <div className="space-y-1 leading-none">
                   <FormLabel className="text-sm font-normal cursor-pointer">
-                    By checking this box, I agree to receive SMS messages from Orlando Event Venue about my booking and related promotions at the phone number provided. Message & data rates may apply. Message frequency varies. Consent is not a condition of purchase. Reply STOP to cancel, HELP for help. See our{" "}
+                    I agree to receive text messages from Orlando Event Venue related to my booking, including confirmations, reminders, and important updates. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our{" "}
                     <a
                       href="/sms-terms"
                       target="_blank"
