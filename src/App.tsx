@@ -11,6 +11,7 @@ import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
 import SmsTerms from "./pages/SmsTerms";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/sms-terms" element={<SmsTerms />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms-of-use" element={<TermsOfUse />} />
               
               {/* Admin Routes - Protected */}
               <Route path="/admin" element={
