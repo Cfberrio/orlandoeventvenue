@@ -4,8 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Lock } from "lucide-react";
 import { useScheduleData } from "@/hooks/useAdminData";
+import { useAvailabilityBlocks } from "@/hooks/useAvailabilityBlocks";
+import { InternalBookingWizard } from "@/components/admin/InternalBookingWizard";
 import { 
   format, 
   startOfWeek, 
@@ -18,7 +20,8 @@ import {
   subMonths,
   eachDayOfInterval,
   isSameDay,
-  parseISO
+  parseISO,
+  isWithinInterval
 } from "date-fns";
 
 const lifecycleColors: Record<string, string> = {
@@ -38,6 +41,8 @@ export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [showBookings, setShowBookings] = useState(true);
   const [showCleaning, setShowCleaning] = useState(true);
+  const [showBlocks, setShowBlocks] = useState(true);
+  const [internalBookingOpen, setInternalBookingOpen] = useState(false);
 
   const dateFrom = viewMode === "week" 
     ? format(startOfWeek(currentDate), "yyyy-MM-dd")
@@ -47,6 +52,7 @@ export default function Schedule() {
     : format(endOfMonth(currentDate), "yyyy-MM-dd");
 
   const { data, isLoading } = useScheduleData(dateFrom, dateTo);
+  const { data: blocks = [] } = useAvailabilityBlocks(dateFrom, dateTo);
 
   const days = eachDayOfInterval({
     start: viewMode === "week" ? startOfWeek(currentDate) : startOfMonth(currentDate),
@@ -61,9 +67,16 @@ export default function Schedule() {
     }
   };
 
+  // Check if a date falls within a block's range
+  const isDateInBlock = (day: Date, block: { start_date: string; end_date: string }) => {
+    const start = parseISO(block.start_date);
+    const end = parseISO(block.end_date);
+    return isWithinInterval(day, { start, end });
+  };
+
   const getEventsForDay = (day: Date) => {
     const events: Array<{
-      type: "booking" | "cleaning";
+      type: "booking" | "cleaning" | "block";
       id: string;
       title: string;
       subtitle: string;
@@ -71,6 +84,42 @@ export default function Schedule() {
       color: string;
       linkTo: string;
     }> = [];
+
+    // Add availability blocks
+    if (showBlocks) {
+      blocks
+        .filter((block) => isDateInBlock(day, block))
+        .forEach((block) => {
+          // Only add if it's the start date or we want to show on all days
+          const isStartDate = isSameDay(parseISO(block.start_date), day);
+          const isEndDate = isSameDay(parseISO(block.end_date), day);
+          const isMultiDay = block.start_date !== block.end_date;
+          
+          events.push({
+            type: "block",
+            id: block.id,
+            title: block.source === "internal_admin" 
+              ? `Internal${block.notes ? `: ${block.notes.substring(0, 20)}` : ""}` 
+              : block.source === "blackout" 
+                ? "Blackout" 
+                : "System Block",
+            subtitle: block.block_type === "hourly" && block.start_time && block.end_time
+              ? `${block.start_time.slice(0,5)} - ${block.end_time.slice(0,5)}`
+              : isMultiDay
+                ? isStartDate 
+                  ? `Starts → ${format(parseISO(block.end_date), "MMM d")}`
+                  : isEndDate
+                    ? `← Ends`
+                    : "Continues"
+                : "All day",
+            time: block.block_type === "hourly" && block.start_time 
+              ? block.start_time.slice(0, 5) 
+              : "Block",
+            color: block.source === "internal_admin" ? "bg-amber-500" : "bg-slate-500",
+            linkTo: block.booking_id ? `/admin/bookings/${block.booking_id}` : "#",
+          });
+        });
+    }
 
     if (showBookings) {
       data?.bookings
@@ -112,6 +161,10 @@ export default function Schedule() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <h1 className="text-2xl font-bold text-foreground">Schedule</h1>
         <div className="flex items-center gap-4">
+          <Button onClick={() => setInternalBookingOpen(true)} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Internal Booking
+          </Button>
           <div className="flex items-center gap-2">
             <Checkbox 
               id="show-bookings" 
@@ -127,6 +180,14 @@ export default function Schedule() {
               onCheckedChange={(c) => setShowCleaning(!!c)} 
             />
             <label htmlFor="show-cleaning" className="text-sm">Cleaning</label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox 
+              id="show-blocks" 
+              checked={showBlocks} 
+              onCheckedChange={(c) => setShowBlocks(!!c)} 
+            />
+            <label htmlFor="show-blocks" className="text-sm">Blocks</label>
           </div>
           <div className="flex gap-1">
             <Button 
@@ -235,6 +296,9 @@ export default function Schedule() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Internal Booking Wizard */}
+      <InternalBookingWizard open={internalBookingOpen} onOpenChange={setInternalBookingOpen} />
     </div>
   );
 }
