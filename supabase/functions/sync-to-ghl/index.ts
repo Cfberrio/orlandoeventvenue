@@ -264,6 +264,28 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+    // First check if this is an internal booking - skip GHL sync for those
+    const supabaseCheck = createClient(supabaseUrl, supabaseServiceKey);
+    const { data: bookingCheck, error: checkError } = await supabaseCheck
+      .from("bookings")
+      .select("lead_source")
+      .eq("id", booking_id)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error("Error checking booking:", checkError);
+      throw new Error(`Failed to check booking: ${checkError.message}`);
+    }
+
+    // Skip GHL sync for internal admin bookings
+    if (bookingCheck?.lead_source === "internal_admin") {
+      console.log("Skipping GHL sync for internal_admin booking:", booking_id);
+      return new Response(
+        JSON.stringify({ ok: true, skipped: true, reason: "internal_admin booking" }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Build the booking snapshot
     console.log("Building snapshot for booking:", booking_id);
     const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id);

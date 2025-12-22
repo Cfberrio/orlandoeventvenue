@@ -14,6 +14,53 @@ export type Database = {
   }
   public: {
     Tables: {
+      availability_blocks: {
+        Row: {
+          block_type: string
+          booking_id: string | null
+          created_at: string
+          end_date: string
+          end_time: string | null
+          id: string
+          notes: string | null
+          source: string
+          start_date: string
+          start_time: string | null
+        }
+        Insert: {
+          block_type: string
+          booking_id?: string | null
+          created_at?: string
+          end_date: string
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          source: string
+          start_date: string
+          start_time?: string | null
+        }
+        Update: {
+          block_type?: string
+          booking_id?: string | null
+          created_at?: string
+          end_date?: string
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          source?: string
+          start_date?: string
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_blocks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       blackout_dates: {
         Row: {
           created_at: string
