@@ -7,8 +7,12 @@ import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 const Pricing = () => {
   const { ref, isVisible } = useScrollAnimation();
 
-  const handleBooking = () => {
-    window.location.href = "/book";
+  const handleBooking = (bookingType?: "hourly" | "daily") => {
+    if (bookingType) {
+      window.location.href = `/book?type=${bookingType}`;
+    } else {
+      window.location.href = "/book";
+    }
   };
 
   return (
@@ -51,12 +55,19 @@ const Pricing = () => {
                   <li>✓ Prep kitchen</li>
                   <li>✓ Two bathrooms</li>
                 </ul>
+                <Button 
+                  className="w-full mt-4" 
+                  variant="outline"
+                  onClick={() => handleBooking("hourly")}
+                >
+                  Select Hourly
+                </Button>
               </CardContent>
             </Card>
 
-            <Card className="border-2 border-primary relative bg-gradient-to-br from-card via-primary/5 to-card hover:shadow-2xl hover:shadow-primary/20 transition-all duration-500 hover:-translate-y-3 hover:scale-105 group overflow-hidden">
+            <Card className="border-2 border-primary relative bg-gradient-to-br from-card via-primary/5 to-card hover:shadow-2xl hover:shadow-primary/20 transition-all duration-500 hover:-translate-y-3 hover:scale-105 group overflow-visible pt-6">
               <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50 group-hover:opacity-70 transition-opacity duration-500" />
-              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary via-primary to-primary/80 text-primary-foreground shadow-lg group-hover:scale-110 transition-transform duration-300 z-10">
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary via-primary to-primary/80 text-primary-foreground shadow-lg group-hover:scale-110 transition-transform duration-300 z-20">
                 Most Popular
               </Badge>
               <CardHeader className="relative z-10">
@@ -79,6 +90,12 @@ const Pricing = () => {
                   <li>✓ Prep kitchen</li>
                   <li>✓ Two bathrooms</li>
                 </ul>
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={() => handleBooking("daily")}
+                >
+                  Select Daily
+                </Button>
               </CardContent>
             </Card>
           </div>

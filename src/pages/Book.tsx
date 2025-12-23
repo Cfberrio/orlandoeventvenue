@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -58,6 +59,7 @@ export interface BookingFormData {
 }
 
 const Book = () => {
+  const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<BookingFormData>>({
     bookingType: "hourly",
@@ -75,6 +77,14 @@ const Book = () => {
 
   const totalSteps = 6;
   const progress = (currentStep / totalSteps) * 100;
+
+  // Pre-select booking type from URL parameter
+  useEffect(() => {
+    const typeParam = searchParams.get("type");
+    if (typeParam === "hourly" || typeParam === "daily") {
+      setFormData(prev => ({ ...prev, bookingType: typeParam }));
+    }
+  }, [searchParams]);
 
   const updateFormData = (data: Partial<BookingFormData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
