@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { BookingFormData } from "@/pages/Book";
-import { format } from "date-fns";
+import { format, parseISO, isWithinInterval } from "date-fns";
 
 interface CreateBookingResult {
   bookingId: string;
@@ -18,6 +18,33 @@ const generateReservationNumber = (): string => {
   return result;
 };
 
+// Helper: Convert time string to minutes
+const toMinutes = (time: string): number => {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+};
+
+// Check if two time ranges overlap
+const doTimeRangesOverlap = (
+  start1: string,
+  end1: string,
+  start2: string,
+  end2: string
+): boolean => {
+  const start1Min = toMinutes(start1);
+  const end1Min = toMinutes(end1);
+  const start2Min = toMinutes(start2);
+  const end2Min = toMinutes(end2);
+  return start1Min < end2Min && end1Min > start2Min;
+};
+
+// Check if date is within a range
+const isDateInRange = (date: Date, startDate: string, endDate: string): boolean => {
+  const start = parseISO(startDate);
+  const end = parseISO(endDate);
+  return isWithinInterval(date, { start, end });
+};
+
 export const useCreateBooking = () => {
   return useMutation({
     mutationFn: async (formData: Partial<BookingFormData>): Promise<CreateBookingResult> => {
@@ -32,13 +59,121 @@ export const useCreateBooking = () => {
       if (!formData.initials) throw new Error("Initials are required");
       if (!formData.signerName) throw new Error("Signer name is required");
 
+      const eventDateStr = format(formData.date, "yyyy-MM-dd");
+      const bookingType = formData.bookingType as "hourly" | "daily";
+
+      // Validate availability
+      // 1. Check existing paid bookings
+      const { data: existingBookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("event_date, booking_type, start_time, end_time")
+        .in("payment_status", ["deposit_paid", "fully_paid", "invoiced"])
+        .eq("event_date", eventDateStr);
+
+      if (bookingsError) {
+        console.error("Error checking bookings:", bookingsError);
+        throw new Error("Failed to check availability");
+      }
+
+      // 2. Check availability blocks
+      const { data: availabilityBlocks, error: blocksError } = await supabase
+        .from("availability_blocks")
+        .select("block_type, start_date, end_date, start_time, end_time")
+        .lte("start_date", eventDateStr)
+        .gte("end_date", eventDateStr);
+
+      if (blocksError) {
+        console.error("Error checking availability blocks:", blocksError);
+        throw new Error("Failed to check availability");
+      }
+
+      // 3. Check blackout dates
+      const { data: blackoutDates, error: blackoutError } = await supabase
+        .from("blackout_dates")
+        .select("start_date, end_date")
+        .lte("start_date", eventDateStr)
+        .gte("end_date", eventDateStr);
+
+      if (blackoutError) {
+        console.error("Error checking blackout dates:", blackoutError);
+        throw new Error("Failed to check availability");
+      }
+
+      // Check if date is in blackout period
+      if (blackoutDates && blackoutDates.length > 0) {
+        throw new Error("This date is not available. Please select a different date.");
+      }
+
+      // Validate based on booking type
+      if (bookingType === "daily") {
+        // Daily booking: Cannot book if ANY booking or block exists on this date
+        if (existingBookings && existingBookings.length > 0) {
+          throw new Error("This date is not available for full-day booking. There are existing bookings on this date.");
+        }
+
+        if (availabilityBlocks && availabilityBlocks.length > 0) {
+          const hasBlockingBlock = availabilityBlocks.some((block) => 
+            isDateInRange(formData.date!, block.start_date, block.end_date)
+          );
+          if (hasBlockingBlock) {
+            throw new Error("This date is not available for full-day booking. There are existing bookings on this date.");
+          }
+        }
+      } else if (bookingType === "hourly") {
+        // Hourly booking: Check for conflicts
+        if (!formData.startTime || !formData.endTime) {
+          throw new Error("Start and end times are required for hourly bookings");
+        }
+
+        // Check if there's a daily booking
+        const hasDailyBooking = existingBookings?.some((b) => b.booking_type === "daily");
+        if (hasDailyBooking) {
+          throw new Error("This date is not available for hourly booking. There is a full-day booking on this date.");
+        }
+
+        // Check if there's a daily block
+        const hasDailyBlock = availabilityBlocks?.some(
+          (block) => 
+            block.block_type === "daily" && 
+            isDateInRange(formData.date!, block.start_date, block.end_date)
+        );
+        if (hasDailyBlock) {
+          throw new Error("This date is not available for hourly booking. There is a full-day booking on this date.");
+        }
+
+        // Check for hourly time conflicts
+        const hasHourlyConflict = existingBookings?.some((b) => {
+          if (b.booking_type === "hourly" && b.start_time && b.end_time) {
+            return doTimeRangesOverlap(formData.startTime!, formData.endTime!, b.start_time, b.end_time);
+          }
+          return false;
+        });
+
+        if (hasHourlyConflict) {
+          throw new Error("This time slot is not available. There are conflicting hourly bookings.");
+        }
+
+        // Check for hourly block conflicts
+        const hasBlockConflict = availabilityBlocks?.some((block) => {
+          if (block.block_type === "hourly" && block.start_time && block.end_time &&
+              isDateInRange(formData.date!, block.start_date, block.end_date)) {
+            return doTimeRangesOverlap(formData.startTime!, formData.endTime!, block.start_time, block.end_time);
+          }
+          return false;
+        });
+
+        if (hasBlockConflict) {
+          throw new Error("This time slot is not available. There are conflicting hourly bookings.");
+        }
+      }
+
       // Generate unique reservation number
       const reservationNumber = generateReservationNumber();
 
       // Map form data to database columns
       const bookingData = {
-        booking_type: formData.bookingType as "hourly" | "daily",
-        event_date: format(formData.date, "yyyy-MM-dd"),
+        booking_type: bookingType,
+        event_date: eventDateStr,
         start_time: formData.bookingType === "hourly" ? formData.startTime : null,
         end_time: formData.bookingType === "hourly" ? formData.endTime : null,
         number_of_guests: formData.numberOfGuests || 1,

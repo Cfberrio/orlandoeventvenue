@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, addMonths, addDays } from "date-fns";
+import { format, addMonths, addDays, addWeeks, isSameDay, getDay } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCreateAvailabilityBlock, calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
+import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
 
 interface InternalBookingWizardProps {
   open: boolean;
@@ -39,9 +40,35 @@ const TIME_SLOTS = [
   "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00", "22:00"
 ];
 
+// Helper function to generate recurring dates for hourly bookings
+const generateRecurringDates = (startDate: Date, duration: BlockDuration): Date[] => {
+  const dates: Date[] = [startDate];
+  
+  if (duration === "1_day") {
+    return dates;
+  }
+  
+  const dayOfWeek = getDay(startDate);
+  const endDate = calculateEndDate(startDate, duration);
+  let currentDate = addWeeks(startDate, 1);
+  
+  // Generate all dates with the same day of week until endDate
+  while (currentDate <= endDate) {
+    if (getDay(currentDate) === dayOfWeek) {
+      dates.push(new Date(currentDate));
+    }
+    currentDate = addDays(currentDate, 1);
+  }
+  
+  return dates;
+};
+
 export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWizardProps) {
   const queryClient = useQueryClient();
   const createBlock = useCreateAvailabilityBlock();
+  const { data: bookedSlots = [] } = useBookedDates();
+  const { data: availabilityBlocks = [] } = useAvailabilityBlocksForCalendar();
+  const { data: blackoutDates = [] } = useBlackoutDates();
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Form state
@@ -95,9 +122,39 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
       toast.error("Please enter client name");
       return;
     }
+    if (!clientEmail.trim()) {
+      toast.error("Please enter client email");
+      return;
+    }
+    if (!clientPhone.trim()) {
+      toast.error("Please enter client phone");
+      return;
+    }
     if (bookingType === "hourly" && (!startTime || !endTime)) {
       toast.error("Please select start and end times for hourly booking");
       return;
+    }
+
+    // Validate availability
+    if (bookingType === "daily") {
+      const isAvailable = !isDateFullyBooked(date, bookedSlots, availabilityBlocks, blackoutDates);
+      if (!isAvailable) {
+        toast.error("This date is not available for daily booking. There may be existing hourly or daily bookings.");
+        return;
+      }
+    }
+
+    if (bookingType === "hourly") {
+      // For hourly bookings, check all recurring dates
+      const recurringDates = generateRecurringDates(date, duration);
+      
+      for (const recurringDate of recurringDates) {
+        const isAvailable = isTimeRangeAvailable(recurringDate, startTime, endTime, bookedSlots, availabilityBlocks, blackoutDates);
+        if (!isAvailable) {
+          toast.error(`This time slot is not available on ${format(recurringDate, "MMM d, yyyy")}. Please choose different times or dates.`);
+          return;
+        }
+      }
     }
 
     setIsSubmitting(true);
@@ -122,8 +179,8 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
           number_of_guests: numberOfGuests,
           event_type: eventType,
           full_name: clientName,
-          email: clientEmail || "internal@oev.com",
-          phone: clientPhone || "0000000000",
+          email: clientEmail,
+          phone: clientPhone,
           lead_source: "internal_admin",
           status: "confirmed",
           lifecycle_status: "confirmed",
@@ -148,28 +205,55 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
 
       if (bookingError) throw bookingError;
 
-      // Step 2: Create the availability block
-      await createBlock.mutateAsync({
-        source: "internal_admin",
-        booking_id: booking.id,
-        block_type: bookingType,
-        start_date: eventDate,
-        end_date: effectiveEndDate,
-        start_time: bookingType === "hourly" ? startTime : null,
-        end_time: bookingType === "hourly" ? endTime : null,
-        notes: `Internal booking: ${eventType} - ${clientName}`,
-      });
+      // Step 2: Create availability block(s)
+      if (bookingType === "hourly" && duration !== "1_day") {
+        // For recurring hourly bookings, create multiple blocks
+        const recurringDates = generateRecurringDates(date, duration);
+        
+        for (const recurringDate of recurringDates) {
+          const recurringDateStr = format(recurringDate, "yyyy-MM-dd");
+          await createBlock.mutateAsync({
+            source: "internal_admin",
+            booking_id: booking.id,
+            block_type: bookingType,
+            start_date: recurringDateStr,
+            end_date: recurringDateStr,
+            start_time: startTime,
+            end_time: endTime,
+            notes: `Internal booking (recurring): ${eventType} - ${clientName}`,
+          });
+        }
+      } else {
+        // For single occurrence or daily bookings
+        await createBlock.mutateAsync({
+          source: "internal_admin",
+          booking_id: booking.id,
+          block_type: bookingType,
+          start_date: eventDate,
+          end_date: effectiveEndDate,
+          start_time: bookingType === "hourly" ? startTime : null,
+          end_time: bookingType === "hourly" ? endTime : null,
+          notes: `Internal booking: ${eventType} - ${clientName}`,
+        });
+      }
 
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["availability-blocks"] });
       queryClient.invalidateQueries({ queryKey: ["booked-dates"] });
 
-      toast.success(
-        effectiveDuration !== "1_day"
-          ? `Internal booking created for ${format(date, "MMM d")} - ${format(new Date(effectiveEndDate), "MMM d, yyyy")}`
-          : `Internal booking created for ${format(date, "MMM d, yyyy")}`
-      );
+      // Success message
+      let successMessage = "";
+      if (bookingType === "hourly" && duration !== "1_day") {
+        const recurringDates = generateRecurringDates(date, duration);
+        successMessage = `Internal recurring booking created for ${recurringDates.length} occurrence(s) every ${format(date, "EEEE")} from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`;
+      } else if (bookingType === "daily" && effectiveDuration !== "1_day") {
+        successMessage = `Internal booking created for ${format(date, "MMM d")} - ${format(new Date(effectiveEndDate), "MMM d, yyyy")}`;
+      } else {
+        successMessage = `Internal booking created for ${format(date, "MMM d, yyyy")}`;
+      }
+      
+      toast.success(successMessage);
       handleClose();
     } catch (error) {
       console.error("Error creating internal booking:", error);
@@ -237,28 +321,31 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
             </Popover>
           </div>
 
-          {/* Duration (only for daily bookings) */}
-          {bookingType === "daily" && (
-            <div className="space-y-2">
-              <Label>Duration</Label>
-              <Select value={duration} onValueChange={(v) => setDuration(v as BlockDuration)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1_day">1 Day</SelectItem>
-                  <SelectItem value="1_week">1 Week</SelectItem>
-                  <SelectItem value="1_month">1 Month</SelectItem>
-                  <SelectItem value="2_months">2 Months</SelectItem>
-                </SelectContent>
-              </Select>
-              {date && duration !== "1_day" && (
-                <p className="text-sm text-muted-foreground">
-                  Blocks from {format(date, "MMM d")} to {format(getEndDate()!, "MMM d, yyyy")}
-                </p>
-              )}
-            </div>
-          )}
+          {/* Duration */}
+          <div className="space-y-2">
+            <Label>Duration</Label>
+            <Select value={duration} onValueChange={(v) => setDuration(v as BlockDuration)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1_day">
+                  {bookingType === "hourly" ? "Single Occurrence" : "1 Day"}
+                </SelectItem>
+                <SelectItem value="1_week">1 Week</SelectItem>
+                <SelectItem value="1_month">1 Month</SelectItem>
+                <SelectItem value="2_months">2 Months</SelectItem>
+              </SelectContent>
+            </Select>
+            {date && duration !== "1_day" && (
+              <p className="text-sm text-muted-foreground">
+                {bookingType === "hourly" 
+                  ? `Repeats every ${format(date, "EEEE")} from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`
+                  : `Blocks from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`
+                }
+              </p>
+            )}
+          </div>
 
           {/* Time Selection (only for hourly) */}
           {bookingType === "hourly" && (
@@ -330,20 +417,20 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Email</Label>
+                <Label>Email *</Label>
                 <Input
                   type="email"
                   value={clientEmail}
                   onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="Optional"
+                  placeholder="client@example.com"
                 />
               </div>
               <div className="space-y-2">
-                <Label>Phone</Label>
+                <Label>Phone *</Label>
                 <Input
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="Optional"
+                  placeholder="(555) 123-4567"
                 />
               </div>
             </div>
