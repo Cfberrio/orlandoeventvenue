@@ -125,7 +125,7 @@ const Pricing = () => {
           </p>
 
           <div className="text-center mt-8">
-            <Button size="lg" onClick={handleBooking}>
+            <Button size="lg" onClick={() => handleBooking()}>
               Book Now
             </Button>
           </div>
