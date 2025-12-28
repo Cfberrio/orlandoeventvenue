@@ -3,35 +3,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Users, Plus, Edit, Filter } from "lucide-react";
 import { useStaffMembers, useCreateStaffMember, useUpdateStaffMember } from "@/hooks/useAdminData";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
-const staffRoles = ["venue_admin", "support", "cleaner", "maintenance", "answering_service"];
+const staffRoles = ["Custodial", "Production", "Assistant"];
 
 export default function Staff() {
   const { toast } = useToast();
