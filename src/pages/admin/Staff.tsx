@@ -210,7 +210,7 @@ export default function Staff() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <p className="text-muted-foreground">Loading staff...</p>
+            <p className="text-muted-foreground">Loading staff..</p>
           ) : staffMembers?.length === 0 ? (
             <p className="text-muted-foreground">No staff members found</p>
           ) : (
@@ -258,7 +258,7 @@ export default function Staff() {
                               <Input value={formName} onChange={(e) => setFormName(e.target.value)} />
                             </div>
                             <div>
-                              <label className="text-sm font-medium">Email</label>
+                              <label className="text-sm font-medium">Email *</label>
                               <Input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} />
                             </div>
                             <div>
