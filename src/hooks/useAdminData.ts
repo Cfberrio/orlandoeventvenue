@@ -169,6 +169,13 @@ export interface StaffAssignment {
   created_at: string;
   updated_at: string;
   staff_member?: StaffMember;
+  booking?: {
+    package: string;
+    package_start_time: string | null;
+    package_end_time: string | null;
+    start_time: string | null;
+    end_time: string | null;
+  };
 }
 
 export interface BookingAttachment {
@@ -374,6 +381,105 @@ export function useIssueAlerts() {
   });
 }
 
+export interface StaffUnassignmentAlert {
+  id: string;
+  booking_id: string;
+  staff_name: string;
+  staff_role: string;
+  unassigned_at: string;
+  created_at: string;
+  booking?: {
+    reservation_number: string | null;
+    full_name: string;
+    event_date: string;
+    lifecycle_status: string;
+  };
+}
+
+export function useStaffUnassignmentAlerts() {
+  return useQuery({
+    queryKey: ["staff-unassignment-alerts"],
+    queryFn: async () => {
+      const { data: events, error } = await supabase
+        .from("booking_events")
+        .select("id, booking_id, metadata, created_at, bookings(reservation_number, full_name, event_date, lifecycle_status)")
+        .eq("event_type", "staff_unassigned")
+        .order("created_at", { ascending: false });
+      
+      if (error) throw error;
+
+      const alerts: StaffUnassignmentAlert[] = [];
+
+      events?.forEach((event: {
+        id: string;
+        booking_id: string;
+        metadata: any;
+        created_at: string;
+        bookings: {
+          reservation_number: string | null;
+          full_name: string;
+          event_date: string;
+          lifecycle_status: string;
+        } | null;
+      }) => {
+        if (event.bookings && event.bookings.lifecycle_status !== 'closed_review_complete' && event.bookings.lifecycle_status !== 'cancelled') {
+          const metadata = event.metadata || {};
+          // Skip if alert is resolved
+          if (metadata.resolved) return;
+          
+          alerts.push({
+            id: event.id,
+            booking_id: event.booking_id,
+            staff_name: metadata.staff_name || 'Unknown Staff',
+            staff_role: metadata.staff_role || 'Unknown Role',
+            unassigned_at: metadata.unassigned_at || event.created_at,
+            created_at: event.created_at,
+            booking: event.bookings,
+          });
+        }
+      });
+
+      return alerts;
+    },
+  });
+}
+
+export function useResolveStaffUnassignmentAlert() {
+  const queryClient = useQueryClient();
+  
+  return useMutation({
+    mutationFn: async (alertId: string) => {
+      // Get the current event
+      const { data: event, error: fetchError } = await supabase
+        .from("booking_events")
+        .select("metadata")
+        .eq("id", alertId)
+        .single();
+      
+      if (fetchError) throw fetchError;
+      
+      // Update the metadata to mark as resolved
+      const updatedMetadata = {
+        ...(event.metadata || {}),
+        resolved: true,
+        resolved_at: new Date().toISOString(),
+      };
+      
+      const { error: updateError } = await supabase
+        .from("booking_events")
+        .update({ metadata: updatedMetadata })
+        .eq("id", alertId);
+      
+      if (updateError) throw updateError;
+      
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-unassignment-alerts"] });
+    },
+  });
+}
+
 // Bookings hooks
 export function useBookings(filters?: {
   dateFrom?: string;
@@ -448,12 +554,17 @@ export function useBookingStaffAssignments(bookingId: string) {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("booking_staff_assignments")
-        .select("*, staff_members(*)")
+        .select(`
+          *,
+          staff_members(*),
+          bookings(package, package_start_time, package_end_time, start_time, end_time, booking_type)
+        `)
         .eq("booking_id", bookingId);
       if (error) throw error;
-      return data.map((d: { staff_members: StaffMember } & StaffAssignment) => ({
+      return data.map((d: any) => ({
         ...d,
         staff_member: d.staff_members,
+        booking: d.bookings,
       })) as StaffAssignment[];
     },
     enabled: !!bookingId,

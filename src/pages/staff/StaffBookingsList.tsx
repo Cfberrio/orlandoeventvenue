@@ -2,10 +2,22 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Calendar, Users, Clock, FileText, ChevronRight } from "lucide-react";
-import { useStaffAssignedBookings } from "@/hooks/useStaffData";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Calendar, Users, Clock, FileText, ChevronRight, UserMinus } from "lucide-react";
+import { useStaffAssignedBookings, useRemoveStaffAssignment } from "@/hooks/useStaffData";
 import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -82,54 +94,132 @@ export default function StaffBookingsList() {
 }
 
 function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
+  const isProduction = booking.assignment_role === "Production";
+  const hasPackage = booking.package && booking.package !== "none";
+  const [showUnassignDialog, setShowUnassignDialog] = useState(false);
+  const [assignmentIdToRemove, setAssignmentIdToRemove] = useState<string | null>(null);
+  const removeAssignment = useRemoveStaffAssignment();
+  const { toast } = useToast();
+  
+  const handleUnassignClick = (assignmentId: string) => {
+    setAssignmentIdToRemove(assignmentId);
+    setShowUnassignDialog(true);
+  };
+  
+  const handleConfirmUnassign = async () => {
+    if (!assignmentIdToRemove) return;
+    
+    try {
+      await removeAssignment.mutateAsync({
+        bookingId: booking.id,
+        assignmentId: assignmentIdToRemove,
+      });
+      
+      toast({
+        title: "Successfully Unassigned",
+        description: "You have been removed from this booking. The administrator has been notified.",
+      });
+      
+      setShowUnassignDialog(false);
+      setAssignmentIdToRemove(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo remover la asignación. Por favor intenta de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
+  
   return (
-    <Card className={isPast ? "opacity-70" : ""}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-3">
-            <div className="flex items-center gap-2 flex-wrap">
-              <Badge variant="outline" className={lifecycleColors[booking.lifecycle_status] || ""}>
-                {booking.lifecycle_status?.replace(/_/g, ' ')}
-              </Badge>
-              <Badge variant="secondary">
-                {booking.assignment_role}
-              </Badge>
-              {booking.reservation_number && (
-                <span className="text-sm font-mono text-muted-foreground">
-                  {booking.reservation_number}
-                </span>
+    <>
+      <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""}`}>
+        <CardContent className="p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge variant="outline" className={lifecycleColors[booking.lifecycle_status] || ""}>
+                  {booking.lifecycle_status?.replace(/_/g, ' ')}
+                </Badge>
+                <Badge variant="secondary">
+                  {booking.assignment_role}
+                </Badge>
+                {booking.reservation_number && (
+                  <span className="text-sm font-mono text-muted-foreground">
+                    {booking.reservation_number}
+                  </span>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>{format(parseISO(booking.event_date), "MMM d, yyyy")}</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Clock className="h-4 w-4" />
+                  {isProduction && hasPackage && booking.package_start_time && booking.package_end_time ? (
+                    <Badge className="bg-purple-600 text-white flex items-center gap-1">
+                      <span>🎬</span>
+                      <span>{booking.package_start_time.slice(0, 5)} - {booking.package_end_time.slice(0, 5)}</span>
+                    </Badge>
+                  ) : (
+                    <span>
+                      {booking.start_time?.slice(0, 5)} - {booking.end_time?.slice(0, 5)}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Users className="h-4 w-4" />
+                  <span>{booking.number_of_guests} guests</span>
+                </div>
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <FileText className="h-4 w-4" />
+                  <span>{booking.event_type}</span>
+                </div>
+              </div>
+              
+              {!isPast && booking.assignment_id && (
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleUnassignClick(booking.assignment_id)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                  >
+                    <UserMinus className="h-4 w-4 mr-2" />
+                    Unassign Me
+                  </Button>
+                </div>
               )}
             </div>
             
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar className="h-4 w-4" />
-                <span>{format(parseISO(booking.event_date), "MMM d, yyyy")}</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span>
-                  {booking.start_time?.slice(0, 5)} - {booking.end_time?.slice(0, 5)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Users className="h-4 w-4" />
-                <span>{booking.number_of_guests} guests</span>
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <FileText className="h-4 w-4" />
-                <span>{booking.event_type}</span>
-              </div>
-            </div>
+            <Button asChild variant="ghost" size="icon">
+              <Link to={`/staff/bookings/${booking.id}`}>
+                <ChevronRight className="h-5 w-5" />
+              </Link>
+            </Button>
           </div>
-          
-          <Button asChild variant="ghost" size="icon">
-            <Link to={`/staff/bookings/${booking.id}`}>
-              <ChevronRight className="h-5 w-5" />
-            </Link>
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+
+      <AlertDialog open={showUnassignDialog} onOpenChange={setShowUnassignDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Unassign from this booking?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action will remove your assignment from this event. The administrator will be notified immediately.
+              Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmUnassign} className="bg-destructive hover:bg-destructive/90">
+              Yes, unassign me
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
   );
 }

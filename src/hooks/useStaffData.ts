@@ -13,9 +13,12 @@ export interface StaffBooking {
   number_of_guests: number;
   full_name: string;
   package: string;
+  package_start_time: string | null;
+  package_end_time: string | null;
   client_notes: string | null;
   lifecycle_status: string;
   assignment_role: string;
+  assignment_id: string;
 }
 
 export interface CleaningReport {
@@ -59,6 +62,7 @@ export function useStaffAssignedBookings() {
       const { data, error } = await supabase
         .from("booking_staff_assignments")
         .select(`
+          id,
           assignment_role,
           booking_id,
           bookings (
@@ -72,6 +76,8 @@ export function useStaffAssignedBookings() {
             number_of_guests,
             full_name,
             package,
+            package_start_time,
+            package_end_time,
             client_notes,
             lifecycle_status
           )
@@ -81,31 +87,53 @@ export function useStaffAssignedBookings() {
       
       if (error) throw error;
       
-      // Transform the data to include assignment role with booking
+      // Transform the data to include assignment role and assignment_id with booking
       return (data || []).map((assignment: any) => ({
         ...assignment.bookings,
         assignment_role: assignment.assignment_role,
+        assignment_id: assignment.id,
       })) as StaffBooking[];
     },
     enabled: !!staffMember?.id,
   });
 }
 
-// Get single booking detail for staff
+// Get single booking detail for staff (with assignment role)
 export function useStaffBookingDetail(bookingId: string) {
+  const { staffMember } = useStaffSession();
+  
   return useQuery({
-    queryKey: ["staff-booking-detail", bookingId],
+    queryKey: ["staff-booking-detail", bookingId, staffMember?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      if (!staffMember?.id) return null;
+      
+      // Get booking data
+      const { data: bookingData, error: bookingError } = await supabase
         .from("bookings")
         .select("*")
         .eq("id", bookingId)
         .maybeSingle();
       
-      if (error) throw error;
-      return data;
+      if (bookingError) throw bookingError;
+      if (!bookingData) return null;
+      
+      // Get assignment role and id for this staff member
+      const { data: assignmentData, error: assignmentError } = await supabase
+        .from("booking_staff_assignments")
+        .select("id, assignment_role")
+        .eq("booking_id", bookingId)
+        .eq("staff_id", staffMember.id)
+        .maybeSingle();
+      
+      if (assignmentError) throw assignmentError;
+      
+      return {
+        ...bookingData,
+        assignment_role: assignmentData?.assignment_role || null,
+        assignment_id: assignmentData?.id || null,
+      };
     },
-    enabled: !!bookingId,
+    enabled: !!bookingId && !!staffMember?.id,
   });
 }
 
@@ -221,6 +249,50 @@ export function useCreateMaintenanceTicket() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["maintenance-tickets"] });
+    },
+  });
+}
+
+// Remove staff assignment (self-unassign)
+export function useRemoveStaffAssignment() {
+  const queryClient = useQueryClient();
+  const { staffMember } = useStaffSession();
+  
+  return useMutation({
+    mutationFn: async ({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
+      // Delete the assignment
+      const { error: deleteError } = await supabase
+        .from("booking_staff_assignments")
+        .delete()
+        .eq("id", assignmentId);
+      
+      if (deleteError) throw deleteError;
+      
+      // Create a booking event to notify admin
+      const { error: eventError } = await supabase
+        .from("booking_events")
+        .insert({
+          booking_id: bookingId,
+          event_type: "staff_unassigned",
+          channel: "system",
+          metadata: {
+            staff_name: staffMember?.full_name,
+            staff_role: staffMember?.role,
+            unassigned_at: new Date().toISOString(),
+            reason: "Staff self-unassigned from booking",
+          },
+        });
+      
+      if (eventError) {
+        console.error("Failed to create booking event:", eventError);
+        // Don't throw here, assignment was deleted successfully
+      }
+      
+      return { success: true };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-booking-detail"] });
     },
   });
 }

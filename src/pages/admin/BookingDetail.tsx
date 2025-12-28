@@ -94,7 +94,7 @@ const paymentStatusColors: Record<string, string> = {
   invoiced: "bg-purple-100 text-purple-800",
 };
 
-const assignmentRoles = ["manager_on_duty", "support", "door", "cleaner", "other"];
+const assignmentRoles = ["Production", "Custodial", "Assistant"];
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
@@ -738,33 +738,52 @@ export default function BookingDetail() {
                       <TableHead>Staff Member</TableHead>
                       <TableHead>Staff Role</TableHead>
                       <TableHead>Assignment</TableHead>
+                      <TableHead>Working Hours</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {assignments?.map((assignment) => (
-                      <TableRow key={assignment.id}>
-                        <TableCell className="font-medium">{assignment.staff_member?.full_name}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{assignment.staff_member?.role}</Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline">{assignment.assignment_role.replace(/_/g, " ")}</Badge>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{assignment.notes || "-"}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleDeleteAssignment(assignment.id)}
-                            className="hover:bg-destructive/10"
-                          >
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {assignments?.map((assignment) => {
+                      const isProduction = assignment.staff_member?.role === "Production";
+                      const hasPackage = assignment.booking?.package && assignment.booking.package !== "none";
+                      const showProductionHours = isProduction && hasPackage && assignment.booking?.package_start_time && assignment.booking?.package_end_time;
+                      
+                      return (
+                        <TableRow key={assignment.id} className={showProductionHours ? "bg-purple-50 dark:bg-purple-950/20" : ""}>
+                          <TableCell className="font-medium">{assignment.staff_member?.full_name}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{assignment.staff_member?.role}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{assignment.assignment_role.replace(/_/g, " ")}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {showProductionHours ? (
+                              <Badge className="bg-purple-600 text-white flex items-center gap-1 w-fit">
+                                <span>🎬</span>
+                                <span>{assignment.booking.package_start_time.slice(0, 5)} - {assignment.booking.package_end_time.slice(0, 5)}</span>
+                              </Badge>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">
+                                {assignment.booking?.start_time?.slice(0, 5)} - {assignment.booking?.end_time?.slice(0, 5)}
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">{assignment.notes || "-"}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteAssignment(assignment.id)}
+                              className="hover:bg-destructive/10"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               )}
