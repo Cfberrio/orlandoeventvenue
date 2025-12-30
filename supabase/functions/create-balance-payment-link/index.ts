@@ -103,6 +103,10 @@ serve(async (req) => {
       throw new Error("Stripe secret key not configured");
     }
 
+    // Log Stripe mode for production validation (without exposing the full key)
+    const stripeMode = stripeSecretKey.startsWith("sk_live") ? "LIVE" : "TEST";
+    console.log(`Stripe mode: ${stripeMode}`);
+
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2023-10-16",
     });

@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.trigger-booking-automation]
 verify_jwt = false
+
+[functions.backfill-balance-scheduling]
+verify_jwt = false
