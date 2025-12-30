@@ -459,8 +459,11 @@ export function useResolveStaffUnassignmentAlert() {
       if (fetchError) throw fetchError;
       
       // Update the metadata to mark as resolved
+      const existingMetadata = typeof event.metadata === 'object' && event.metadata !== null
+        ? event.metadata as Record<string, unknown>
+        : {};
       const updatedMetadata = {
-        ...(event.metadata || {}),
+        ...existingMetadata,
         resolved: true,
         resolved_at: new Date().toISOString(),
       };

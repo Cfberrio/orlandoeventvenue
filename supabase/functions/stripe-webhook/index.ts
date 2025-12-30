@@ -206,6 +206,31 @@ serve(async (req) => {
 
         // Sync to GHL after successful payment update
         await syncToGHL(bookingId);
+
+        // Schedule balance payment jobs immediately after deposit is paid
+        try {
+          console.log("Triggering balance payment scheduling for booking:", bookingId);
+          const scheduleResponse = await fetch(
+            `${supabaseUrl}/functions/v1/schedule-balance-payment`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({ booking_id: bookingId }),
+            }
+          );
+          if (!scheduleResponse.ok) {
+            console.error("Balance scheduling failed:", await scheduleResponse.text());
+          } else {
+            const scheduleResult = await scheduleResponse.json();
+            console.log("Balance scheduling result:", JSON.stringify(scheduleResult));
+          }
+        } catch (scheduleError) {
+          console.error("Error scheduling balance payment:", scheduleError);
+          // Don't fail the webhook - balance can be scheduled later
+        }
       }
     }
 
