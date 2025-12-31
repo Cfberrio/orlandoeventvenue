@@ -68,314 +68,117 @@ function getPackageName(pkg: string): string {
   return names[pkg] || pkg;
 }
 
+function formatBookingType(bookingType: string): string {
+  if (bookingType === "daily") return "Full Day (24 hours)";
+  if (bookingType === "hourly") return "Hourly";
+  return bookingType;
+}
+
 function generateEmailHTML(booking: BookingEmailData): string {
-  const year = new Date().getFullYear();
-  
-  // Build time info row
-  let timeInfo = "";
-  if (booking.booking_type === "hourly") {
-    timeInfo = `
-      <tr>
-        <td style="padding:10px 0;color:#64748b;font-size:14px;">Event Time</td>
-        <td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">
-          ${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}
-        </td>
-      </tr>`;
-  } else {
-    timeInfo = `
-      <tr>
-        <td style="padding:10px 0;color:#64748b;font-size:14px;">Rental Type</td>
-        <td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">
-          Full Day (24 hours)
-        </td>
-      </tr>`;
-  }
+  const firstName = booking.full_name.split(" ")[0];
+  const formattedDate = formatDate(booking.event_date);
+  const formattedBookingType = formatBookingType(booking.booking_type);
 
-  // Build package row if selected
-  let packageRow = "";
-  if (booking.package && booking.package !== "none") {
-    let packageTime = "";
-    if (booking.package_start_time && booking.package_end_time) {
-      packageTime = ` (${formatTime(booking.package_start_time)} - ${formatTime(booking.package_end_time)})`;
-    }
-    packageRow = `
-      <tr>
-        <td style="padding:8px 0;color:#475569;font-size:14px;">
-          ${getPackageName(booking.package)}${packageTime}
-        </td>
-        <td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-          ${formatCurrency(booking.package_cost)}
-        </td>
-      </tr>`;
-  }
-
-  // Build optional services rows
-  let optionalRows = "";
-  if (booking.setup_breakdown) {
-    optionalRows += `
-      <tr>
-        <td style="padding:8px 0;color:#475569;font-size:14px;">
-          Setup &amp; Breakdown Service
-        </td>
-        <td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-          $100.00
-        </td>
-      </tr>`;
-  }
-  if (booking.tablecloths && booking.tablecloth_quantity > 0) {
-    const tableclothCost = (booking.tablecloth_quantity * 5) + 25;
-    optionalRows += `
-      <tr>
-        <td style="padding:8px 0;color:#475569;font-size:14px;">
-          Tablecloths (${booking.tablecloth_quantity}x) + Cleaning
-        </td>
-        <td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-          ${formatCurrency(tableclothCost)}
-        </td>
-      </tr>`;
-  }
-
-  return `<!DOCTYPE html>
+  return `<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Booking Confirmation</title>
-</head>
-<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:Arial,Helvetica,sans-serif;">
-<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;padding:40px 20px;">
-<tr>
-<td align="center">
-<table width="600" cellpadding="0" cellspacing="0" style="background-color:#ffffff;border-radius:12px;overflow:hidden;">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Deposit Received</title>
+  </head>
+  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Verdana,Arial,sans-serif;color:#111827;">
+    <!-- Outer wrapper -->
+    <div style="padding:24px 12px;">
+      <!-- Card -->
+      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px rgba(15,23,42,0.08);overflow:hidden;">
+        
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#111827,#1f2937);padding:24px 32px;color:#ffffff;">
+          <div style="font-size:22px;font-weight:700;margin:0 0 6px 0;">
+            Deposit Received
+          </div>
+          <div style="font-size:13px;line-height:1.5;color:#e5e7eb;">
+            Deposit received — thank you. We've secured it and our team will review your request within ~24 hours.
+          </div>
+          <div style="display:inline-block;margin-top:12px;padding:4px 10px;border-radius:999px;background:#16a34a;color:#dcfce7;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">
+            Reservation #${booking.reservation_number}
+          </div>
+        </div>
 
-<!-- Header -->
-<tr>
-<td style="background-color:#0f172a;padding:32px;text-align:center;">
-<h1 style="color:#ffffff;margin:0;font-size:24px;font-weight:700;">
-Orlando Event Venue
-</h1>
-<p style="color:#94a3b8;margin:8px 0 0 0;font-size:14px;">
-Your Premier Event Space
-</p>
-</td>
-</tr>
+        <!-- Body -->
+        <div style="padding:24px 32px 28px 32px;">
+          <p style="margin:0 0 10px 0;font-size:16px;">
+            Hi <strong>${firstName}</strong>,
+          </p>
+          <p style="margin:0 0 10px 0;font-size:14px;line-height:1.7;color:#374151;">
+            Thank you for choosing <strong>Orlando Event Venue</strong> — we're genuinely excited to host you.
+          </p>
+          <p style="margin:0 0 16px 0;font-size:14px;line-height:1.7;color:#374151;">
+            We've secured your <strong>50% deposit</strong>, and our team will carefully validate the details and confirm everything within
+            <strong>~24 hours</strong>.
+          </p>
 
-<!-- Success Icon -->
-<tr>
-<td style="padding:32px 32px 16px;text-align:center;">
-<div style="width:64px;height:64px;background-color:#dcfce7;border-radius:50%;margin:0 auto;line-height:64px;">
-<span style="color:#16a34a;font-size:32px;">&#10003;</span>
-</div>
-<h2 style="color:#16a34a;margin:16px 0 0 0;font-size:22px;font-weight:700;">
-Booking Confirmed!
-</h2>
-<p style="color:#64748b;margin:8px 0 0 0;font-size:14px;">
-Your deposit has been successfully processed
-</p>
-</td>
-</tr>
+          <!-- Quick reference box -->
+          <div style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:10px;padding:16px 18px;margin:0 0 18px 0;">
+            <div style="font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;">
+              Quick reference (for your records)
+            </div>
+            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+              <tr>
+                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Reservation #:</td>
+                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.reservation_number}</td>
+              </tr>
+              <tr>
+                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Type:</td>
+                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.event_type}</td>
+              </tr>
+              <tr>
+                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Date:</td>
+                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedDate}</td>
+              </tr>
+              <tr>
+                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Booking Type:</td>
+                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedBookingType}</td>
+              </tr>
+            </table>
+          </div>
 
-<!-- Reservation Number -->
-<tr>
-<td style="padding:16px 32px 32px;text-align:center;">
-<p style="color:#64748b;margin:0 0 8px 0;font-size:13px;text-transform:uppercase;letter-spacing:1px;">
-Reservation Number
-</p>
-<div style="background-color:#f8fafc;border:2px dashed #cbd5e1;border-radius:8px;padding:16px;">
-<span style="color:#0f172a;font-size:28px;font-weight:700;letter-spacing:2px;">
-${booking.reservation_number}
-</span>
-</div>
-<p style="color:#94a3b8;margin:12px 0 0 0;font-size:12px;">
-Please save this number for your records
-</p>
-</td>
-</tr>
+          <div style="margin:0 0 10px 0;font-size:14px;font-weight:700;color:#111827;">
+            What happens next (and why):
+          </div>
+          <div style="margin:0 0 18px 0;">
+            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
+              <strong>1) Review &amp; soft confirmation (~24 hours):</strong>
+              We verify timing, capacity, and venue readiness so your confirmation is solid and accurate.
+            </div>
+            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
+              <strong>2) Please don't send invites yet:</strong>
+              This prevents confusion if we need to adjust anything during review.
+            </div>
+            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
+              <strong>3) Remaining balance:</strong>
+              The final 50% is due <strong>15 days before your event</strong> — we'll send a secure payment link and reminders so you don't have to track it.
+            </div>
+          </div>
 
-<!-- Greeting -->
-<tr>
-<td style="padding:0 32px 24px;">
-<p style="color:#1e293b;margin:0;font-size:15px;">
-Dear <strong>${booking.full_name}</strong>,
-</p>
-<p style="color:#64748b;margin:12px 0 0 0;font-size:14px;line-height:1.6;">
-Thank you for choosing Orlando Event Venue! We are excited to host your upcoming event.
-</p>
-</td>
-</tr>
+          <div style="border-top:1px solid #e5e7eb;margin:18px 0;"></div>
 
-<!-- Event Details -->
-<tr>
-<td style="padding:0 32px 24px;">
-<h3 style="color:#0f172a;margin:0 0 16px 0;font-size:16px;font-weight:700;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">
-Event Details
-</h3>
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="padding:10px 0;color:#64748b;font-size:14px;">Event Date</td>
-<td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">
-${formatDate(booking.event_date)}
-</td>
-</tr>
-${timeInfo}
-<tr>
-<td style="padding:10px 0;color:#64748b;font-size:14px;">Event Type</td>
-<td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">
-${booking.event_type}
-</td>
-</tr>
-<tr>
-<td style="padding:10px 0;color:#64748b;font-size:14px;">Number of Guests</td>
-<td style="padding:10px 0;color:#1e293b;font-size:14px;font-weight:600;text-align:right;">
-${booking.number_of_guests}
-</td>
-</tr>
-</table>
-</td>
-</tr>
+          <p style="margin:0 0 10px 0;font-size:14px;line-height:1.7;color:#374151;">
+            If you'd like to update anything (guest count, timing, details), just reply to this email and we'll adjust it with you.
+          </p>
+          <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
+            — <strong>Orlando Event Venue Team</strong>
+          </p>
+        </div>
 
-<!-- Price Breakdown -->
-<tr>
-<td style="padding:0 32px 24px;">
-<h3 style="color:#0f172a;margin:0 0 16px 0;font-size:16px;font-weight:700;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">
-Price Breakdown
-</h3>
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;">
-${booking.booking_type === "daily" ? "Daily Rental (24 hours)" : "Venue Rental"}
-</td>
-<td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-${formatCurrency(booking.base_rental)}
-</td>
-</tr>
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;">
-Cleaning Fee
-</td>
-<td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-${formatCurrency(booking.cleaning_fee)}
-</td>
-</tr>
-${packageRow}
-${optionalRows}
-${booking.taxes_fees > 0 ? `
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;">
-Taxes &amp; Fees
-</td>
-<td style="padding:8px 0;color:#1e293b;font-size:14px;text-align:right;">
-${formatCurrency(booking.taxes_fees)}
-</td>
-</tr>` : ""}
-<tr>
-<td colspan="2" style="padding:12px 0 0 0;border-top:1px solid #e2e8f0;"></td>
-</tr>
-<tr>
-<td style="padding:8px 0;color:#0f172a;font-size:15px;font-weight:700;">
-Total Amount
-</td>
-<td style="padding:8px 0;color:#0f172a;font-size:15px;font-weight:700;text-align:right;">
-${formatCurrency(booking.total_amount)}
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- Payment Summary -->
-<tr>
-<td style="padding:0 32px 24px;">
-<div style="background-color:#f0fdf4;border-radius:8px;padding:16px;">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="padding:6px 0;color:#166534;font-size:14px;font-weight:600;">
-Deposit Paid
-</td>
-<td style="padding:6px 0;color:#166534;font-size:16px;font-weight:700;text-align:right;">
-${formatCurrency(booking.deposit_amount)}
-</td>
-</tr>
-</table>
-</div>
-<div style="background-color:#fef3c7;border-radius:8px;padding:16px;margin-top:12px;">
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="padding:6px 0;color:#92400e;font-size:14px;font-weight:600;">
-Balance Due
-</td>
-<td style="padding:6px 0;color:#92400e;font-size:16px;font-weight:700;text-align:right;">
-${formatCurrency(booking.balance_amount)}
-</td>
-</tr>
-</table>
-<p style="color:#a16207;margin:8px 0 0 0;font-size:12px;">
-Due 15 days before your event date
-</p>
-</div>
-</td>
-</tr>
-
-<!-- Next Steps -->
-<tr>
-<td style="padding:0 32px 32px;">
-<h3 style="color:#0f172a;margin:0 0 16px 0;font-size:16px;font-weight:700;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">
-What Happens Next?
-</h3>
-<table width="100%" cellpadding="0" cellspacing="0">
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;line-height:1.5;">
-1. Our team will review and confirm your booking
-</td>
-</tr>
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;line-height:1.5;">
-2. You will receive a reminder before your event
-</td>
-</tr>
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;line-height:1.5;">
-3. Remaining balance collected 15 days before event
-</td>
-</tr>
-<tr>
-<td style="padding:8px 0;color:#475569;font-size:14px;line-height:1.5;">
-4. Contact us for any questions or special requests
-</td>
-</tr>
-</table>
-</td>
-</tr>
-
-<!-- Contact -->
-<tr>
-<td style="background-color:#f8fafc;padding:24px 32px;text-align:center;">
-<p style="color:#64748b;margin:0 0 4px 0;font-size:13px;">
-Questions? Contact us at
-</p>
-<a href="mailto:info@orlandoeventvenue.com" style="color:#0f172a;font-size:15px;font-weight:600;text-decoration:none;">
-info@orlandoeventvenue.com
-</a>
-</td>
-</tr>
-
-<!-- Footer -->
-<tr>
-<td style="background-color:#0f172a;padding:24px 32px;text-align:center;">
-<p style="color:#94a3b8;margin:0;font-size:12px;">
-${year} Orlando Event Venue. All rights reserved.
-</p>
-<p style="color:#64748b;margin:8px 0 0 0;font-size:11px;">
-This is an automated confirmation email.
-</p>
-</td>
-</tr>
-
-</table>
-</td>
-</tr>
-</table>
-</body>
+        <!-- Footer -->
+        <div style="padding:0 32px 24px 32px;font-size:11px;line-height:1.6;color:#9ca3af;">
+          Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br />
+          This is an automated email — please keep it for your records.
+        </div>
+      </div>
+    </div>
+  </body>
 </html>`;
 }
 
