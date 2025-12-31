@@ -1,9 +1,7 @@
 import { MapPin, Phone } from "lucide-react";
 import oevLogoFull from "@/assets/oev-logo-full.png";
-
 const Footer = () => {
-  return (
-    <footer className="bg-black text-white py-12">
+  return <footer className="bg-black text-white py-12">
       <div className="container mx-auto px-4">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-3 gap-8 mb-8">
@@ -26,7 +24,8 @@ const Footer = () => {
               <h3 className="font-bold mb-4">Contact</h3>
               <div className="flex items-center gap-2 text-sm opacity-90 mb-4">
                 <Phone className="w-4 h-4 flex-shrink-0" />
-                <span>[Your Twilio Number]</span>
+                <span>‪(407) 614-7454‬
+              </span>
               </div>
               <div className="text-sm opacity-90">
                 <p className="font-semibold mb-2">Alcohol Policy</p>
@@ -40,8 +39,6 @@ const Footer = () => {
           </div>
         </div>
       </div>
-    </footer>
-  );
+    </footer>;
 };
-
 export default Footer;
