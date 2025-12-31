@@ -69,11 +69,13 @@ serve(async (req) => {
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
-      const bookingId = session.metadata?.booking_id;
+      const bookingId = session.metadata?.booking_id || session.metadata?.bookingId || session.client_reference_id;
       const paymentType = session.metadata?.payment_type || "deposit";
 
+      console.log("checkout.session.completed:", { bookingId, paymentType, sessionId: session.id });
+
       if (!bookingId) {
-        console.error("No booking_id in session metadata");
+        console.error("No booking_id in session metadata (or client_reference_id)");
         return new Response("No booking_id", { status: 400 });
       }
 
