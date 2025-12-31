@@ -50,6 +50,7 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const booking_id = body.booking_id;
+    const force_reschedule = body.force_reschedule === true;
 
     if (!booking_id) {
       return new Response(JSON.stringify({ error: "booking_id is required" }), {
@@ -60,6 +61,7 @@ serve(async (req) => {
 
     console.log("=== schedule-host-report-reminders ===");
     console.log("Processing booking:", booking_id);
+    console.log("Force reschedule:", force_reschedule);
 
     // Initialize Supabase client
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -166,17 +168,20 @@ serve(async (req) => {
     console.log(`Current time (UTC): ${now.toISOString()}`);
 
     // Calculate the three timestamps for host report email scheduling:
-    // pre_start = event_start - 7 days
-    const t_pre_start_ms = eventStartMs - 7 * 24 * 60 * 60 * 1000;
-    // during_event = event_start - 1 day
-    const t_during_event_ms = eventStartMs - 1 * 24 * 60 * 60 * 1000;
-    // post_event = event_start - 3 hours
-    const t_post_event_ms = eventStartMs - 3 * 60 * 60 * 1000;
+    // pre_start = event_start - 30 days
+    const PRE_START_DAYS = 30;
+    const t_pre_start_ms = eventStartMs - PRE_START_DAYS * 24 * 60 * 60 * 1000;
+    // during_event = event_start - 7 days
+    const DURING_DAYS = 7;
+    const t_during_event_ms = eventStartMs - DURING_DAYS * 24 * 60 * 60 * 1000;
+    // post_event = event_start - 1 hour
+    const POST_HOURS = 1;
+    const t_post_event_ms = eventStartMs - POST_HOURS * 60 * 60 * 1000;
 
     console.log(`Host report scheduled times (UTC):`);
-    console.log(`  pre_start (event-7d): ${new Date(t_pre_start_ms).toISOString()}`);
-    console.log(`  during_event (event-1d): ${new Date(t_during_event_ms).toISOString()}`);
-    console.log(`  post_event (event-3h): ${new Date(t_post_event_ms).toISOString()}`);
+    console.log(`  pre_start (event-${PRE_START_DAYS}d): ${new Date(t_pre_start_ms).toISOString()}`);
+    console.log(`  during_event (event-${DURING_DAYS}d): ${new Date(t_during_event_ms).toISOString()}`);
+    console.log(`  post_event (event-${POST_HOURS}h): ${new Date(t_post_event_ms).toISOString()}`);
 
     // SMART CATCH-UP: Pick ONLY ONE immediate step, create only FUTURE jobs
     // Rule: for short-notice bookings, don't send 2-3 emails at once
@@ -185,12 +190,12 @@ serve(async (req) => {
 
     // Priority order: check from closest to event → furthest
     if (nowMs >= t_post_event_ms) {
-      // We're within 3h of event start (or past it) → set post_event immediately
+      // We're within 1h of event start (or past it) → set post_event immediately
       // NO jobs created - all email times have passed
       immediateStep = "post_event";
-      console.log("CATCH-UP: now >= event-3h → setting post_event immediately, no jobs");
+      console.log("CATCH-UP: now >= event-1h → setting post_event immediately, no jobs");
     } else if (nowMs >= t_during_event_ms) {
-      // We're within 1 day but more than 3h out → set during_event immediately
+      // We're within 7 days but more than 1h out → set during_event immediately
       // Only create post_event job (it's still in the future)
       immediateStep = "during_event";
       if (t_post_event_ms > nowMs) {
@@ -198,15 +203,15 @@ serve(async (req) => {
           job_type: "host_report_post",
           run_at: new Date(t_post_event_ms).toISOString(),
         });
-        console.log("CATCH-UP: now >= event-1d → during_event immediate + scheduling post_event job");
+        console.log("CATCH-UP: now >= event-7d → during_event immediate + scheduling post_event job");
       } else {
-        console.log("CATCH-UP: now >= event-1d → during_event immediate, post_event already passed");
+        console.log("CATCH-UP: now >= event-7d → during_event immediate, post_event already passed");
       }
     } else if (nowMs >= t_pre_start_ms) {
-      // We're within 7 days but more than 1 day out → set pre_start immediately
+      // We're within 30 days but more than 7 days out → set pre_start immediately
       // Only create during_event and post_event if they're still in the future
       immediateStep = "pre_start";
-      console.log("CATCH-UP: now >= event-7d → pre_start immediate");
+      console.log("CATCH-UP: now >= event-30d → pre_start immediate");
       if (t_during_event_ms > nowMs) {
         jobsToCreate.push({
           job_type: "host_report_during",
@@ -222,8 +227,8 @@ serve(async (req) => {
         console.log("  + scheduling post_event job");
       }
     } else {
-      // Event is > 7 days away → no immediate step, schedule all 3 jobs
-      console.log("Event > 7 days away → scheduling all 3 jobs, no immediate step");
+      // Event is > 30 days away → no immediate step, schedule all 3 jobs
+      console.log("Event > 30 days away → scheduling all 3 jobs, no immediate step");
       jobsToCreate.push({
         job_type: "host_report_pre_start",
         run_at: new Date(t_pre_start_ms).toISOString(),
@@ -306,18 +311,45 @@ serve(async (req) => {
       }
     }
 
+    // If force_reschedule, delete/cancel all pending host_report_* jobs first
+    if (force_reschedule) {
+      console.log("force_reschedule=true → cancelling all pending host_report_* jobs");
+      const { data: cancelledJobs, error: cancelErr } = await supabase
+        .from("scheduled_jobs")
+        .update({ 
+          status: "cancelled", 
+          last_error: "force_reschedule",
+          updated_at: new Date().toISOString() 
+        })
+        .eq("booking_id", booking_id)
+        .in("job_type", ["host_report_pre_start", "host_report_during", "host_report_post"])
+        .in("status", ["pending", "failed"])
+        .select();
+
+      if (cancelErr) {
+        console.error("Error cancelling jobs for reschedule:", cancelErr);
+      } else {
+        console.log(`Cancelled ${cancelledJobs?.length || 0} jobs for reschedule`);
+        responseData.jobs_cancelled_for_reschedule = cancelledJobs?.length || 0;
+      }
+    }
+
     // Create scheduled jobs (only if not already exist)
     if (jobsToCreate.length > 0) {
-      // Check for existing pending jobs
-      const { data: existingJobs } = await supabase
-        .from("scheduled_jobs")
-        .select("id, job_type")
-        .eq("booking_id", booking_id)
-        .in("job_type", jobsToCreate.map(j => j.job_type))
-        .eq("status", "pending");
+      // Check for existing pending jobs (skip check if force_reschedule since we just cancelled)
+      let newJobs = jobsToCreate;
+      
+      if (!force_reschedule) {
+        const { data: existingJobs } = await supabase
+          .from("scheduled_jobs")
+          .select("id, job_type")
+          .eq("booking_id", booking_id)
+          .in("job_type", jobsToCreate.map(j => j.job_type))
+          .eq("status", "pending");
 
-      const existingJobTypes = new Set(existingJobs?.map(j => j.job_type) || []);
-      const newJobs = jobsToCreate.filter(j => !existingJobTypes.has(j.job_type));
+        const existingJobTypes = new Set(existingJobs?.map(j => j.job_type) || []);
+        newJobs = jobsToCreate.filter(j => !existingJobTypes.has(j.job_type));
+      }
 
       if (newJobs.length > 0) {
         const jobsToInsert = newJobs.map(j => ({
