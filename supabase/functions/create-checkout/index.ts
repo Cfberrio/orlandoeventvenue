@@ -74,6 +74,7 @@ serve(async (req: Request) => {
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
+      client_reference_id: bookingId, // Fallback for webhook
       payment_method_types: ["card"],
       mode: "payment",
       line_items: [
@@ -93,6 +94,7 @@ serve(async (req: Request) => {
       cancel_url: `${cancelUrl}?cancelled=true&booking_id=${bookingId}`,
       metadata: {
         booking_id: bookingId,
+        bookingId: bookingId, // Redundant for safety
         payment_type: "deposit",
       },
       payment_intent_data: {

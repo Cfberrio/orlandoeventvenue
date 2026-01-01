@@ -65,17 +65,29 @@ serve(async (req) => {
       webhookSecret
     );
 
-    console.log("Received Stripe event:", event.type);
+    // Log event details including livemode for debugging
+    console.log("STRIPE_EVENT:", JSON.stringify({
+      type: event.type,
+      livemode: event.livemode,
+      id: event.id,
+    }));
 
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const bookingId = session.metadata?.booking_id || session.metadata?.bookingId || session.client_reference_id;
       const paymentType = session.metadata?.payment_type || "deposit";
 
-      console.log("checkout.session.completed:", { bookingId, paymentType, sessionId: session.id });
+      console.log("CHECKOUT_SESSION:", JSON.stringify({
+        bookingId,
+        paymentType,
+        sessionId: session.id,
+        customer: session.customer,
+        paymentIntent: session.payment_intent,
+        metadataRaw: session.metadata,
+      }));
 
       if (!bookingId) {
-        console.error("No booking_id in session metadata (or client_reference_id)");
+        console.error("MISSING_BOOKING_ID:", JSON.stringify({ metadata: session.metadata, client_reference_id: session.client_reference_id }));
         return new Response("No booking_id", { status: 400 });
       }
 
