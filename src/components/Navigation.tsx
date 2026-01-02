@@ -63,6 +63,12 @@ const Navigation = () => {
             >
               FAQ
             </button>
+            <button
+              onClick={() => window.location.href = "/contact"}
+              className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-full"
+            >
+              Contact
+            </button>
             <Button onClick={() => scrollToSection("book-now")} className="hover:scale-105 transition-all duration-300">
               Book Now
             </Button>
@@ -110,6 +116,12 @@ const Navigation = () => {
                 className="text-left text-muted hover:text-foreground transition-colors py-2 hover:translate-x-2 transition-all duration-300"
               >
                 FAQ
+              </button>
+              <button
+                onClick={() => window.location.href = "/contact"}
+                className="text-left text-muted hover:text-foreground transition-colors py-2 hover:translate-x-2 transition-all duration-300"
+              >
+                Contact
               </button>
               <Button onClick={() => scrollToSection("book-now")} className="w-full hover:scale-105 transition-all duration-300">
                 Book Now
