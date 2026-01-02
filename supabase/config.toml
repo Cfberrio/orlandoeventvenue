@@ -41,3 +41,9 @@ verify_jwt = false
 
 [functions.get-custodial-staff]
 verify_jwt = false
+
+[functions.send-contact-form]
+verify_jwt = false
+
+[functions.send-staff-assignment]
+verify_jwt = false
