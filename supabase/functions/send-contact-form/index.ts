@@ -37,72 +37,50 @@ function generateEmailHTML(data: ContactFormData): string {
     });
   };
 
+  const phoneSection = data.phone ? `<div class="field"><span class="label">Phone:</span><div class="value"><a href="tel:${data.phone}">${data.phone}</a></div></div>` : "";
+  
+  const consentSection = data.transactionalConsent || data.marketingConsent 
+    ? (data.transactionalConsent ? '<div class="consent">✅ <strong>Transactional messages:</strong> Agreed</div>' : '') +
+      (data.marketingConsent ? '<div class="consent">✅ <strong>Marketing messages:</strong> Agreed</div>' : '')
+    : '<div class="value">No consent provided</div>';
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contact Form Submission</title>
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #0b1220; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; }
-    .field { margin-bottom: 20px; }
-    .label { font-weight: bold; color: #0b1220; display: block; margin-bottom: 5px; }
-    .value { background: white; padding: 12px; border-radius: 6px; border: 1px solid #e5e7eb; }
-    .consent { background: #ecfeff; border-left: 4px solid #0891b2; padding: 12px; margin: 10px 0; border-radius: 4px; }
-    .footer { text-align: center; margin-top: 20px; font-size: 12px; color: #6b7280; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Contact Form Submission</title>
+<style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333}
+.container{max-width:600px;margin:0 auto;padding:20px}
+.header{background:#0b1220;color:white;padding:20px;text-align:center;border-radius:8px 8px 0 0}
+.content{background:#f9fafb;padding:30px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px}
+.field{margin-bottom:20px}
+.label{font-weight:bold;color:#0b1220;display:block;margin-bottom:5px}
+.value{background:white;padding:12px;border-radius:6px;border:1px solid #e5e7eb}
+.consent{background:#ecfeff;border-left:4px solid #0891b2;padding:12px;margin:10px 0;border-radius:4px}
+.footer{text-align:center;margin-top:20px;font-size:12px;color:#6b7280}
+</style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1 style="margin: 0; font-size: 24px;">📬 New Contact Form Submission</h1>
-      <p style="margin: 8px 0 0 0; opacity: 0.9;">Orlando Event Venue</p>
-    </div>
-    
-    <div class="content">
-      <div class="field">
-        <span class="label">From:</span>
-        <div class="value">${data.name}</div>
-      </div>
-      
-      <div class="field">
-        <span class="label">Email:</span>
-        <div class="value"><a href="mailto:${data.email}">${data.email}</a></div>
-      </div>
-      
-      ${data.phone ? `
-      <div class="field">
-        <span class="label">Phone:</span>
-        <div class="value"><a href="tel:${data.phone}">${data.phone}</a></div>
-      </div>
-      ` : ""}
-      
-      <div class="field">
-        <span class="label">Subject:</span>
-        <div class="value">${data.subject}</div>
-      </div>
-      
-      <div class="field">
-        <span class="label">Message:</span>
-        <div class="value" style="white-space: pre-wrap;">${data.message}</div>
-      </div>
-      
-      <div class="field">
-        <span class="label">Consent Preferences:</span>
-        ${data.transactionalConsent ? '<div class="consent">✅ <strong>Transactional messages:</strong> Agreed</div>' : ""}
-        ${data.marketingConsent ? '<div class="consent">✅ <strong>Marketing messages:</strong> Agreed</div>' : ""}
-        ${!data.transactionalConsent && !data.marketingConsent ? '<div class="value">No consent provided</div>' : ""}
-      </div>
-      
-      <div class="footer">
-        <p>Submitted on ${formatDate(data.timestamp)}</p>
-        <p>This message was sent from the contact form at orlandoeventvenue.org</p>
-      </div>
-    </div>
-  </div>
+<div class="container">
+<div class="header">
+<h1 style="margin:0;font-size:24px">📬 New Contact Form Submission</h1>
+<p style="margin:8px 0 0 0;opacity:0.9">Orlando Event Venue</p>
+</div>
+<div class="content">
+<div class="field"><span class="label">From:</span><div class="value">${data.name}</div></div>
+<div class="field"><span class="label">Email:</span><div class="value"><a href="mailto:${data.email}">${data.email}</a></div></div>
+${phoneSection}
+<div class="field"><span class="label">Subject:</span><div class="value">${data.subject}</div></div>
+<div class="field"><span class="label">Message:</span><div class="value" style="white-space:pre-wrap">${data.message}</div></div>
+<div class="field"><span class="label">Consent Preferences:</span>${consentSection}</div>
+<div class="footer">
+<p>Submitted on ${formatDate(data.timestamp)}</p>
+<p>This message was sent from the contact form at orlandoeventvenue.org</p>
+</div>
+</div>
+</div>
 </body>
 </html>`;
 }
