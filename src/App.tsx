@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Book from "./pages/Book";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
+import Contact from "./pages/Contact";
 import SmsTerms from "./pages/SmsTerms";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfUse from "./pages/TermsOfUse";
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/book" element={<Book />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/contact" element={<Contact />} />
               <Route path="/sms-terms" element={<SmsTerms />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-use" element={<TermsOfUse />} />

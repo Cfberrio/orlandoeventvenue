@@ -7,6 +7,7 @@ import Production from "@/components/Production";
 import HowItWorks from "@/components/HowItWorks";
 import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
+import ContactForm from "@/components/ContactForm";
 import Footer from "@/components/Footer";
 
 const Index = () => {
@@ -21,6 +22,7 @@ const Index = () => {
       <HowItWorks />
       <FAQ />
       <FinalCTA />
+      <ContactForm />
       <Footer />
     </div>
   );
