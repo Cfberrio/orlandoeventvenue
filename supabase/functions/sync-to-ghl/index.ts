@@ -39,10 +39,15 @@ interface BookingSnapshot {
     email: string | null;
     phone: string | null;
   };
-  // Staff assignment info for cleaning report reminders
+  // Legacy staff info (first assigned - for backwards compatibility)
   staff_email: string | null;
   staff_name: string | null;
   staff_id: string | null;
+  // Custodial-specific staff info (for cleaning report emails)
+  custodial_email: string | null;
+  custodial_name: string | null;
+  custodial_staff_id: string | null;
+  custodial_count: number;
 }
 
 // Booking row type from database
@@ -106,28 +111,40 @@ async function buildBookingSnapshot(
     .select(`
       staff_id,
       assignment_role,
+      created_at,
       staff_members (
         id,
         full_name,
         email
       )
     `)
-    .eq("booking_id", bookingId);
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: true });
 
   if (staffError) {
     console.error("Error fetching staff assignments:", staffError);
   }
 
-  // Get staff count and first assigned staff's info
+  // Get staff count and first assigned staff's info (for backwards compatibility)
   const staffCount = staffAssignments?.length || 0;
-  // staff_members comes back as a single object (not array) due to the foreign key join
   const firstAssignment = staffAssignments?.[0];
   const staffMember = firstAssignment?.staff_members as unknown as { id: string; full_name: string; email: string } | null;
   const staff_email = staffMember?.email || null;
   const staff_name = staffMember?.full_name || null;
   const staff_id = staffMember?.id || null;
 
+  // Get Custodial-specific staff (for cleaning report emails)
+  // Filter by assignment_role = 'Custodial' and pick the oldest by created_at
+  const custodialAssignments = staffAssignments?.filter(a => a.assignment_role === "Custodial") || [];
+  const custodialCount = custodialAssignments.length;
+  const firstCustodial = custodialAssignments[0]; // Already sorted by created_at ASC
+  const custodialMember = firstCustodial?.staff_members as unknown as { id: string; full_name: string; email: string } | null;
+  const custodial_email = custodialMember?.email || null;
+  const custodial_name = custodialMember?.full_name || null;
+  const custodial_staff_id = custodialMember?.id || null;
+
   console.log(`Staff info for booking ${bookingId}: email=${staff_email}, name=${staff_name}, count=${staffCount}`);
+  console.log(`Custodial info for booking ${bookingId}: email=${custodial_email}, name=${custodial_name}, count=${custodialCount}`);
 
   // Check for completed cleaning reports
   const { data: cleaningReports, error: cleaningError } = await supabase
@@ -223,10 +240,15 @@ async function buildBookingSnapshot(
       email: booking.email,
       phone: booking.phone,
     },
-    // Staff assignment info for cleaning report reminders
+    // Legacy staff info (backwards compatibility)
     staff_email,
     staff_name,
     staff_id,
+    // Custodial-specific staff info (for cleaning report emails)
+    custodial_email,
+    custodial_name,
+    custodial_staff_id,
+    custodial_count: custodialCount,
   };
 }
 

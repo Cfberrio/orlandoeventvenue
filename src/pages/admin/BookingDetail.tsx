@@ -888,9 +888,9 @@ export default function BookingDetail() {
                           <div className="flex items-center justify-between w-full">
                             <span>{staff.full_name} ({staff.role})</span>
                             {staff.email ? (
-                              <Mail className="h-3 w-3 text-green-500 ml-2" title="Has email - notification will be sent" />
+                              <Mail className="h-3 w-3 text-green-500 ml-2" />
                             ) : (
-                              <Mail className="h-3 w-3 text-gray-300 ml-2" title="No email - notification cannot be sent" />
+                              <Mail className="h-3 w-3 text-gray-300 ml-2" />
                             )}
                           </div>
                         </SelectItem>
