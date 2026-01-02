@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -22,6 +23,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   ArrowLeft, 
   User, 
@@ -38,7 +47,8 @@ import {
   Phone,
   Building,
   Clock,
-  CreditCard
+  CreditCard,
+  AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -124,6 +134,66 @@ export default function BookingDetail() {
 
   // Post-event close state
   const [reviewReceived, setReviewReceived] = useState(false);
+
+  // Manual deposit override modal state
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [depositOverrideLoading, setDepositOverrideLoading] = useState(false);
+  const [manualPaymentIntentId, setManualPaymentIntentId] = useState("");
+  const [manualCustomerId, setManualCustomerId] = useState("");
+  const [manualSessionId, setManualSessionId] = useState("");
+
+  // Validation for Stripe IDs
+  const validateStripeId = (value: string, prefix: string) => {
+    if (!value) return true; // Empty is allowed
+    return value.startsWith(prefix);
+  };
+
+  const piValid = validateStripeId(manualPaymentIntentId, "pi_");
+  const cusValid = validateStripeId(manualCustomerId, "cus_");
+  const csValid = validateStripeId(manualSessionId, "cs_");
+  const allValid = piValid && cusValid && csValid;
+
+  const handleManualDepositOverride = async () => {
+    if (!allValid) return;
+
+    setDepositOverrideLoading(true);
+    try {
+      const updates: Record<string, unknown> = {
+        payment_status: "deposit_paid",
+        deposit_paid_at: new Date().toISOString(),
+      };
+
+      if (manualPaymentIntentId) {
+        updates.stripe_payment_intent_id = manualPaymentIntentId;
+      }
+      // Note: stripe_customer_id column doesn't exist in schema, skip it
+
+      const { error } = await supabase
+        .from("bookings")
+        .update(updates)
+        .eq("id", booking.id);
+
+      if (error) throw error;
+
+      toast({ title: "✅ Deposit marked as paid" });
+      setShowDepositModal(false);
+      setManualPaymentIntentId("");
+      setManualCustomerId("");
+      setManualSessionId("");
+      
+      // Refetch booking data
+      window.location.reload();
+    } catch (error) {
+      console.error("Manual deposit override failed:", error);
+      toast({
+        title: "Failed to update payment status",
+        description: String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setDepositOverrideLoading(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -576,12 +646,27 @@ export default function BookingDetail() {
                   </div>
                 </div>
 
-                <div className="pt-3 border-t flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Payment Status</span>
-                  <Badge className={`${paymentStatusColors[booking.payment_status] || ""} flex items-center gap-1`}>
-                    <CreditCard className="h-3 w-3" />
-                    {booking.payment_status.replace(/_/g, " ")}
-                  </Badge>
+                <div className="pt-3 border-t space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">Payment Status</span>
+                    <Badge className={`${paymentStatusColors[booking.payment_status] || ""} flex items-center gap-1`}>
+                      <CreditCard className="h-3 w-3" />
+                      {booking.payment_status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+                  
+                  {/* Manual deposit override button - only if not already paid */}
+                  {booking.payment_status === "pending" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                      onClick={() => setShowDepositModal(true)}
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Manual: Mark Deposit Paid
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -1140,6 +1225,92 @@ export default function BookingDetail() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Manual Deposit Override Modal */}
+      <Dialog open={showDepositModal} onOpenChange={setShowDepositModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-orange-500" />
+              Manual Deposit Override
+            </DialogTitle>
+            <DialogDescription>
+              Use <strong>ONLY</strong> if Stripe payment succeeded but webhook didn't update the booking.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="pi">Stripe Payment Intent ID (optional)</Label>
+              <Input
+                id="pi"
+                placeholder="pi_..."
+                value={manualPaymentIntentId}
+                onChange={(e) => setManualPaymentIntentId(e.target.value)}
+                className={!piValid ? "border-destructive" : ""}
+              />
+              {!piValid && (
+                <p className="text-xs text-destructive">Must start with "pi_"</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cus">Stripe Customer ID (optional)</Label>
+              <Input
+                id="cus"
+                placeholder="cus_..."
+                value={manualCustomerId}
+                onChange={(e) => setManualCustomerId(e.target.value)}
+                className={!cusValid ? "border-destructive" : ""}
+              />
+              {!cusValid && (
+                <p className="text-xs text-destructive">Must start with "cus_"</p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                ⚠️ Recommended for balance auto-charge
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cs">Stripe Session ID (optional, not saved)</Label>
+              <Input
+                id="cs"
+                placeholder="cs_..."
+                value={manualSessionId}
+                onChange={(e) => setManualSessionId(e.target.value)}
+                className={!csValid ? "border-destructive" : ""}
+              />
+              {!csValid && (
+                <p className="text-xs text-destructive">Must start with "cs_"</p>
+              )}
+            </div>
+
+            {(!manualPaymentIntentId || !manualCustomerId) && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
+                <AlertTriangle className="h-4 w-4 inline mr-1" />
+                Without payment intent or customer ID, balance auto-charge may fail.
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDepositModal(false)}
+              disabled={depositOverrideLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleManualDepositOverride}
+              disabled={!allValid || depositOverrideLoading}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {depositOverrideLoading ? "Updating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
