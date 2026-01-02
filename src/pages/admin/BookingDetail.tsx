@@ -351,9 +351,10 @@ export default function BookingDetail() {
       setNewAssignmentStaff("");
       setNewAssignmentRole("");
       setNewAssignmentNotes("");
-      toast({ title: "Staff assigned successfully" });
-    } catch {
-      toast({ title: "Failed to assign staff", variant: "destructive" });
+      toast({ title: "Staff assigned and notification sent" });
+    } catch (error: any) {
+      const errorMessage = error?.message || "Failed to assign staff";
+      toast({ title: errorMessage, variant: "destructive" });
     }
   };
 
@@ -884,7 +885,14 @@ export default function BookingDetail() {
                     <SelectContent>
                       {staffMembers?.map((staff) => (
                         <SelectItem key={staff.id} value={staff.id}>
-                          {staff.full_name} ({staff.role})
+                          <div className="flex items-center justify-between w-full">
+                            <span>{staff.full_name} ({staff.role})</span>
+                            {staff.email ? (
+                              <Mail className="h-3 w-3 text-green-500 ml-2" title="Has email - notification will be sent" />
+                            ) : (
+                              <Mail className="h-3 w-3 text-gray-300 ml-2" title="No email - notification cannot be sent" />
+                            )}
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

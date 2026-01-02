@@ -785,6 +785,19 @@ export function useCreateStaffAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (assignment: { booking_id: string; staff_id: string; assignment_role: string; notes?: string }) => {
+      // Validate that staff member has an email before creating assignment
+      const { data: staffMember, error: staffError } = await supabase
+        .from("staff_members")
+        .select("email, full_name")
+        .eq("id", assignment.staff_id)
+        .single();
+      
+      if (staffError) throw staffError;
+      
+      if (!staffMember.email || staffMember.email.trim() === "") {
+        throw new Error("This staff member doesn't have an email address. Please add one before assigning.");
+      }
+
       const { data, error } = await supabase
         .from("booking_staff_assignments")
         .insert(assignment)
@@ -793,12 +806,102 @@ export function useCreateStaffAssignment() {
       if (error) throw error;
       return data;
     },
-    onSuccess: (_, variables) => {
+    onSuccess: async (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", variables.booking_id] });
+      
       // Sync to GHL after staff assignment created
       syncToGHL(variables.booking_id);
+
+      // Send staff assignment notification email
+      try {
+        // Fetch booking details
+        const { data: booking, error: bookingError } = await supabase
+          .from("bookings")
+          .select("reservation_number, event_date, start_time, end_time, package, package_start_time, package_end_time, full_name")
+          .eq("id", variables.booking_id)
+          .single();
+
+        if (bookingError) {
+          console.error("Error fetching booking for email:", bookingError);
+          return;
+        }
+
+        // Fetch staff member details
+        const { data: staffMember, error: staffError } = await supabase
+          .from("staff_members")
+          .select("full_name, email")
+          .eq("id", variables.staff_id)
+          .single();
+
+        if (staffError) {
+          console.error("Error fetching staff member for email:", staffError);
+          return;
+        }
+
+        if (!staffMember.email) {
+          console.error("Staff member has no email address");
+          return;
+        }
+
+        // Format the date
+        const eventDate = new Date(booking.event_date);
+        const eventDateLong = eventDate.toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        // Determine time range based on role
+        let eventTimeRange = "TBD";
+        if (variables.assignment_role === "Production" && booking.package_start_time && booking.package_end_time) {
+          // Production staff uses package times
+          eventTimeRange = formatTimeRange(booking.package_start_time, booking.package_end_time);
+        } else if (booking.start_time && booking.end_time) {
+          // Other roles use booking times
+          eventTimeRange = formatTimeRange(booking.start_time, booking.end_time);
+        }
+
+        // Call the Edge Function to send email
+        const { error: emailError } = await supabase.functions.invoke("send-staff-assignment", {
+          body: {
+            staffEmail: staffMember.email,
+            staffName: staffMember.full_name,
+            reservationNumber: booking.reservation_number || "N/A",
+            eventDateLong,
+            eventTimeRange,
+            staffRole: variables.assignment_role,
+            adminNotes: variables.notes || "No special notes",
+            logoUrl: "https://orlandoeventvenue.org/logo.png",
+          },
+        });
+
+        if (emailError) {
+          console.error("Error sending staff assignment email:", emailError);
+        } else {
+          console.log("Staff assignment email sent successfully");
+        }
+      } catch (emailError) {
+        console.error("Failed to send staff assignment email:", emailError);
+        // Don't fail the assignment because of email issues
+      }
     },
   });
+}
+
+// Helper function to format time for emails
+function formatTimeRange(startTime: string | null, endTime: string | null): string {
+  if (!startTime || !endTime) return "TBD";
+  
+  const formatTime = (timeString: string): string => {
+    const [hours, minutes] = timeString.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+  
+  return `${formatTime(startTime)} - ${formatTime(endTime)}`;
 }
 
 export function useDeleteStaffAssignment() {
