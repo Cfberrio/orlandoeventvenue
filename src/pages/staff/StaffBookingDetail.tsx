@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus } from "lucide-react";
 import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment } from "@/hooks/useStaffData";
+import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +39,7 @@ const packageLabels: Record<string, string> = {
 export default function StaffBookingDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { staffMember } = useStaffSession();
   const { data: booking, isLoading: bookingLoading } = useStaffBookingDetail(id || "");
   const { data: cleaningReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
@@ -227,36 +229,38 @@ export default function StaffBookingDetail() {
         </Card>
       )}
 
-      {/* Cleaning Report Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <ClipboardCheck className="h-5 w-5" />
-            Cleaning Report
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <p className="text-sm text-muted-foreground">Status</p>
-              <Badge variant={cleaningStatus === 'Completed' ? 'default' : 'secondary'}>
-                {cleaningStatus}
-              </Badge>
+      {/* Cleaning Report Card - Hidden for Production and Assistant roles */}
+      {staffMember?.role !== 'Production' && staffMember?.role !== 'Assistant' && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" />
+              Cleaning Report
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Status</p>
+                <Badge variant={cleaningStatus === 'Completed' ? 'default' : 'secondary'}>
+                  {cleaningStatus}
+                </Badge>
+              </div>
+              <Button asChild>
+                <Link to={`/staff/bookings/${booking.id}/cleaning-report`}>
+                  {cleaningStatus === 'Completed' ? 'View / Edit Report' : 'Fill Cleaning Report'}
+                </Link>
+              </Button>
             </div>
-            <Button asChild>
-              <Link to={`/staff/bookings/${booking.id}/cleaning-report`}>
-                {cleaningStatus === 'Completed' ? 'View / Edit Report' : 'Fill Cleaning Report'}
-              </Link>
-            </Button>
-          </div>
-          
-          {cleaningReport?.completed_at && (
-            <p className="text-sm text-muted-foreground mt-4">
-              Submitted on {format(parseISO(cleaningReport.completed_at), "MMM d, yyyy 'at' h:mm a")}
-            </p>
-          )}
-        </CardContent>
-      </Card>
+            
+            {cleaningReport?.completed_at && (
+              <p className="text-sm text-muted-foreground mt-4">
+                Submitted on {format(parseISO(cleaningReport.completed_at), "MMM d, yyyy 'at' h:mm a")}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <AlertDialog open={showUnassignDialog} onOpenChange={setShowUnassignDialog}>
         <AlertDialogContent>

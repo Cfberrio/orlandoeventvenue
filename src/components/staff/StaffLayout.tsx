@@ -1,19 +1,30 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, Menu, X, LogOut } from "lucide-react";
+import { CalendarDays, Menu, X, LogOut, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStaffSession } from "@/hooks/useStaffSession";
 import { useNavigate } from "react-router-dom";
 
-const navItems = [
+const baseNavItems = [
   { to: "/staff", icon: CalendarDays, label: "My Bookings", end: true },
+  { to: "/staff/inventory", icon: Package, label: "Inventory", roles: ["Custodial"] },
 ];
 
 export default function StaffLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { staffMember, logout } = useStaffSession();
   const navigate = useNavigate();
+
+  // Filter nav items based on staff role
+  const navItems = useMemo(() => {
+    return baseNavItems.filter(item => {
+      // If item has no role restriction, show it to everyone
+      if (!item.roles) return true;
+      // If item has role restriction, check if staff member's role is included
+      return item.roles.includes(staffMember?.role || "");
+    });
+  }, [staffMember?.role]);
 
   const handleSignOut = () => {
     logout();

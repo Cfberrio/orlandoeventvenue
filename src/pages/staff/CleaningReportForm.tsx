@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Upload, X, Plus, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, X, Plus, Trash2, Loader2, ClipboardCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useStaffSession } from "@/hooks/useStaffSession";
@@ -43,6 +43,26 @@ export default function CleaningReportForm() {
   const { staffMember } = useStaffSession();
   const updateReport = useUpdateCleaningReport();
   const createTicket = useCreateMaintenanceTicket();
+  
+  // Block access for Production and Assistant roles
+  if (staffMember?.role === 'Production' || staffMember?.role === 'Assistant') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
+            <p className="text-muted-foreground mb-4">
+              Cleaning reports are not available for your role ({staffMember.role}).
+            </p>
+            <Button asChild>
+              <Link to="/staff">Back to My Bookings</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
   
   // Inventory data from DB
   const { data: inventoryProducts, isLoading: productsLoading } = useInventoryProducts();
