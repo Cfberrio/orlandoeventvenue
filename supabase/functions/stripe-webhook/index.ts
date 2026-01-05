@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
@@ -20,7 +21,6 @@ async function syncToGHL(bookingId: string): Promise<void> {
   }
 
   try {
-    // Call the sync-to-ghl edge function internally
     const response = await fetch(`${supabaseUrl}/functions/v1/sync-to-ghl`, {
       method: "POST",
       headers: {
@@ -37,7 +37,170 @@ async function syncToGHL(bookingId: string): Promise<void> {
     }
   } catch (error) {
     console.error("Error syncing to GHL:", error);
-    // Don't throw - we don't want to fail the webhook because of GHL sync issues
+  }
+}
+
+/**
+ * Send internal payment notification email to admin
+ */
+async function sendInternalPaymentEmail(
+  booking: Record<string, unknown>,
+  paymentType: "deposit" | "balance",
+  amountPaid: number,
+  currency: string,
+  sessionId: string,
+  paymentIntentId: string | null
+): Promise<void> {
+  const gmailUser = Deno.env.get("GMAIL_USER");
+  const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+
+  if (!gmailUser || !gmailPassword) {
+    console.error("Gmail credentials not configured, skipping internal email");
+    return;
+  }
+
+  const reservationNumber = booking.reservation_number || booking.id;
+  const paymentLabel = paymentType === "deposit" ? "Deposit (50%)" : "Balance (Remaining 50%)";
+  const subjectPrefix = paymentType === "deposit" ? "Deposit" : "Balance";
+  
+  const adminUrl = `https://vsvsgesgqjtwutadcshi.lovable.app/admin/bookings/${booking.id}`;
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  const formatTime = (timeString: string | null) => {
+    if (!timeString) return "N/A";
+    const [hours, minutes] = timeString.split(":");
+    const hour = parseInt(hours, 10);
+    const ampm = hour >= 12 ? "PM" : "AM";
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${minutes} ${ampm}`;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+    }).format(amount);
+  };
+
+  const emailHTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>OEV Payment Received</title>
+<style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f3f4f6}
+.container{max-width:640px;margin:20px auto;padding:0 12px}
+.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
+.header{background:linear-gradient(135deg,#059669,#10b981);padding:24px 32px;color:#fff}
+.header h1{margin:0 0 4px 0;font-size:22px}
+.header p{margin:0;opacity:0.9;font-size:14px}
+.badge{display:inline-block;margin-top:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.2);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600}
+.content{padding:24px 32px}
+.amount-box{background:#ecfdf5;border:2px solid #10b981;border-radius:10px;padding:20px;text-align:center;margin:0 0 20px 0}
+.amount-box .label{font-size:13px;color:#065f46;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 6px 0}
+.amount-box .amount{font-size:32px;font-weight:700;color:#059669;margin:0}
+.section{margin:0 0 20px 0}
+.section-title{font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
+.field{display:flex;padding:6px 0;font-size:14px}
+.field .label{width:45%;color:#6b7280}
+.field .value{width:55%;color:#111827;font-weight:500}
+.cta-btn{display:inline-block;background:#059669;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}
+.footer{padding:16px 32px;background:#f9fafb;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb}
+.ids{font-size:11px;color:#9ca3af;margin-top:16px;padding:12px;background:#f9fafb;border-radius:6px;word-break:break-all}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="card">
+<div class="header">
+<h1>💰 Payment Received (${paymentLabel})</h1>
+<p>A ${paymentType} payment has been successfully processed.</p>
+<div class="badge">Reservation #${reservationNumber}</div>
+</div>
+<div class="content">
+<div class="amount-box">
+<div class="label">Amount Paid Now</div>
+<div class="amount">${formatCurrency(amountPaid)} ${currency.toUpperCase()}</div>
+</div>
+
+<div class="section">
+<div class="section-title">Booking Details</div>
+<div class="field"><span class="label">Reservation #:</span><span class="value">${reservationNumber}</span></div>
+<div class="field"><span class="label">Client Name:</span><span class="value">${booking.full_name || "N/A"}</span></div>
+<div class="field"><span class="label">Client Email:</span><span class="value">${booking.email || "N/A"}</span></div>
+<div class="field"><span class="label">Client Phone:</span><span class="value">${booking.phone || "N/A"}</span></div>
+<div class="field"><span class="label">Event Type:</span><span class="value">${booking.event_type || "N/A"}</span></div>
+<div class="field"><span class="label">Event Date:</span><span class="value">${formatDate(booking.event_date as string)}</span></div>
+<div class="field"><span class="label">Event Time:</span><span class="value">${formatTime(booking.start_time as string)} - ${formatTime(booking.end_time as string)}</span></div>
+<div class="field"><span class="label">Booking Type:</span><span class="value">${booking.booking_type === "daily" ? "Full Day (24h)" : "Hourly"}</span></div>
+<div class="field"><span class="label"># of Guests:</span><span class="value">${booking.number_of_guests || "N/A"}</span></div>
+</div>
+
+<div class="section">
+<div class="section-title">Payment Summary</div>
+<div class="field"><span class="label">Payment Type:</span><span class="value" style="text-transform:capitalize">${paymentType}</span></div>
+<div class="field"><span class="label">Current Status:</span><span class="value">${booking.payment_status || "N/A"}</span></div>
+<div class="field"><span class="label">Total Amount:</span><span class="value">${formatCurrency(Number(booking.total_amount) || 0)}</span></div>
+<div class="field"><span class="label">Deposit Amount:</span><span class="value">${formatCurrency(Number(booking.deposit_amount) || 0)}</span></div>
+<div class="field"><span class="label">Balance Amount:</span><span class="value">${formatCurrency(Number(booking.balance_amount) || 0)}</span></div>
+</div>
+
+<div style="text-align:center;margin:24px 0 16px 0">
+<a href="${adminUrl}" class="cta-btn">View Booking in Admin →</a>
+</div>
+
+<div class="ids">
+<strong>Technical IDs:</strong><br>
+Booking ID: ${booking.id}<br>
+Stripe Session ID: ${sessionId}<br>
+Payment Intent ID: ${paymentIntentId || "N/A"}
+</div>
+</div>
+<div class="footer">
+This is an internal notification. Do not forward to customers.<br>
+Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803
+</div>
+</div>
+</div>
+</body>
+</html>`;
+
+  try {
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: {
+          username: gmailUser,
+          password: gmailPassword,
+        },
+      },
+    });
+
+    await client.send({
+      from: gmailUser,
+      to: "orlandoglobalministries@gmail.com",
+      subject: `OEV Payment Received (${subjectPrefix}) — ${reservationNumber}`,
+      content: `Payment received: ${paymentType} - ${formatCurrency(amountPaid)} for booking ${reservationNumber}`,
+      html: emailHTML,
+    });
+
+    await client.close();
+    console.log(`Internal ${paymentType} payment email sent successfully`);
+  } catch (emailError) {
+    console.error("Error sending internal payment email:", emailError);
   }
 }
 
@@ -58,14 +221,12 @@ serve(async (req) => {
   try {
     const body = await req.text();
     
-    // Verify webhook signature
     const event = await stripe.webhooks.constructEventAsync(
       body,
       signature,
       webhookSecret
     );
 
-    // Log event details including livemode for debugging
     console.log("STRIPE_EVENT:", JSON.stringify({
       type: event.type,
       livemode: event.livemode,
@@ -75,14 +236,22 @@ serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const bookingId = session.metadata?.booking_id || session.metadata?.bookingId || session.client_reference_id;
-      const paymentType = session.metadata?.payment_type || "deposit";
+      const paymentType = session.metadata?.payment_type || session.metadata?.paymentType || "deposit";
+
+      // Extract payment details for internal email
+      const amountPaid = ((session.amount_total as number) ?? 0) / 100;
+      const currency = session.currency || "usd";
+      const sessionId = session.id;
+      const paymentIntentId = session.payment_intent as string | null;
 
       console.log("CHECKOUT_SESSION:", JSON.stringify({
         bookingId,
         paymentType,
-        sessionId: session.id,
+        sessionId,
+        amountPaid,
+        currency,
         customer: session.customer,
-        paymentIntent: session.payment_intent,
+        paymentIntent: paymentIntentId,
         metadataRaw: session.metadata,
       }));
 
@@ -93,11 +262,24 @@ serve(async (req) => {
 
       console.log(`Processing ${paymentType} payment for booking:`, bookingId);
 
-      // Create Supabase client with service role key
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
       if (paymentType === "balance") {
-        // Handle balance payment
+        // Check if already processed (idempotency)
+        const { data: existingBooking } = await supabase
+          .from("bookings")
+          .select("balance_paid_at, payment_status")
+          .eq("id", bookingId)
+          .single();
+
+        if (existingBooking?.balance_paid_at) {
+          console.log("Balance payment already processed, skipping duplicate");
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+
         const { data, error } = await supabase
           .from("bookings")
           .update({
@@ -115,7 +297,7 @@ serve(async (req) => {
 
         console.log("Booking fully paid:", data);
 
-        // Cancel any pending balance retry jobs since payment is complete
+        // Cancel any pending balance retry jobs
         const { data: cancelledJobs, error: cancelError } = await supabase
           .from("scheduled_jobs")
           .update({
@@ -140,27 +322,42 @@ serve(async (req) => {
           event_type: "balance_paid",
           channel: "stripe",
           metadata: {
-            session_id: session.id,
-            payment_intent: session.payment_intent,
+            session_id: sessionId,
+            payment_intent: paymentIntentId,
             amount: data.balance_amount,
             cancelled_jobs: cancelledJobs?.map(j => j.job_type) || [],
           },
         });
 
-        // TODO: Send balance payment confirmation email if needed
+        // Send internal email notification
+        await sendInternalPaymentEmail(data, "balance", amountPaid, currency, sessionId, paymentIntentId);
 
-        // Sync to GHL after balance payment
         await syncToGHL(bookingId);
 
       } else {
-        // Handle deposit payment (existing logic)
+        // Handle deposit payment
+        // Check if already processed (idempotency)
+        const { data: existingBooking } = await supabase
+          .from("bookings")
+          .select("deposit_paid_at, payment_status")
+          .eq("id", bookingId)
+          .single();
+
+        if (existingBooking?.deposit_paid_at) {
+          console.log("Deposit payment already processed, skipping duplicate");
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+
         const { data, error } = await supabase
           .from("bookings")
           .update({
             payment_status: "deposit_paid",
             deposit_paid_at: new Date().toISOString(),
-            stripe_session_id: session.id,
-            stripe_payment_intent_id: session.payment_intent,
+            stripe_session_id: sessionId,
+            stripe_payment_intent_id: paymentIntentId,
           })
           .eq("id", bookingId)
           .select()
@@ -173,7 +370,10 @@ serve(async (req) => {
 
         console.log("Booking updated successfully:", data);
 
-        // Send confirmation email
+        // Send internal email notification
+        await sendInternalPaymentEmail(data, "deposit", amountPaid, currency, sessionId, paymentIntentId);
+
+        // Send customer confirmation email
         try {
           const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
             method: "POST",
@@ -211,17 +411,15 @@ serve(async (req) => {
           if (!emailResponse.ok) {
             console.error("Failed to send confirmation email:", await emailResponse.text());
           } else {
-            console.log("Confirmation email sent successfully");
+            console.log("Customer confirmation email sent successfully");
           }
         } catch (emailError) {
           console.error("Error sending confirmation email:", emailError);
-          // Don't fail the webhook because of email issues
         }
 
-        // Sync to GHL after successful payment update
         await syncToGHL(bookingId);
 
-        // Schedule balance payment jobs immediately after deposit is paid
+        // Schedule balance payment jobs
         try {
           console.log("Triggering balance payment scheduling for booking:", bookingId);
           const scheduleResponse = await fetch(
@@ -243,7 +441,6 @@ serve(async (req) => {
           }
         } catch (scheduleError) {
           console.error("Error scheduling balance payment:", scheduleError);
-          // Don't fail the webhook - balance can be scheduled later
         }
       }
     }
