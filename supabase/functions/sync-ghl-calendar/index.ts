@@ -74,85 +74,26 @@ function calculateTimes(booking: BookingData): { startTime: string; endTime: str
 }
 
 /**
- * Create or find a GHL contact for the booking
+ * Get GHL contact ID from booking - don't create, just use what exists
+ * Contact should already be created by the GHL webhook automation
  */
-async function ensureGHLContact(
-  booking: BookingData,
-  ghlToken: string,
-  locationId: string
-): Promise<string> {
-  // If we already have a contact ID, return it
+function getContactId(booking: BookingData): string | null {
+  // Use existing contact ID if available (set by GHL webhook automation)
   if (booking.ghl_contact_id) {
+    console.log(`Using existing GHL contact: ${booking.ghl_contact_id}`);
     return booking.ghl_contact_id;
   }
-
-  // For internal bookings without email, create placeholder
-  let email = booking.email;
-  let name = booking.full_name;
   
-  if (!email || booking.lead_source === "internal_admin") {
-    const reservationNum = booking.reservation_number || booking.id.slice(0, 8);
-    email = `internal+${reservationNum}@orlandoeventvenue.org`;
-    name = name || "OEV Internal Booking";
-  }
-
-  // Search for existing contact by email
-  const searchUrl = `https://services.leadconnectorhq.com/contacts/search/duplicate?locationId=${locationId}&email=${encodeURIComponent(email)}`;
-  
-  const searchResp = await fetch(searchUrl, {
-    method: "GET",
-    headers: {
-      "Authorization": `Bearer ${ghlToken}`,
-      "Version": GHL_API_VERSION,
-      "Content-Type": "application/json",
-    },
-  });
-
-  if (searchResp.ok) {
-    const searchData = await searchResp.json();
-    if (searchData.contact?.id) {
-      console.log(`Found existing GHL contact: ${searchData.contact.id}`);
-      return searchData.contact.id;
-    }
-  }
-
-  // Create new contact
-  const createUrl = "https://services.leadconnectorhq.com/contacts/";
-  const contactPayload = {
-    locationId,
-    email,
-    name,
-    phone: booking.phone || undefined,
-    tags: ["oev-booking"],
-    customFields: [],
-  };
-
-  const createResp = await fetch(createUrl, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${ghlToken}`,
-      "Version": GHL_API_VERSION,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(contactPayload),
-  });
-
-  if (!createResp.ok) {
-    const errText = await createResp.text();
-    console.error("Failed to create GHL contact:", errText);
-    throw new Error(`Failed to create GHL contact: ${createResp.status}`);
-  }
-
-  const createData = await createResp.json();
-  console.log(`Created new GHL contact: ${createData.contact?.id}`);
-  return createData.contact?.id;
+  // No contact ID available - appointment will be created without contact
+  console.log("No GHL contact ID available for booking, will create appointment without contact");
+  return null;
 }
 
 /**
  * Create appointment in GHL Calendar
  */
 async function createAppointment(
-  contactId: string,
+  contactId: string | null,
   calendarId: string,
   assignedUserId: string,
   booking: BookingData,
@@ -164,9 +105,8 @@ async function createAppointment(
   
   const title = `${booking.event_type} - ${booking.full_name} (${booking.reservation_number || "N/A"})`;
   
-  const payload = {
+  const payload: Record<string, unknown> = {
     calendarId,
-    contactId,
     startTime,
     endTime,
     title,
@@ -177,6 +117,11 @@ async function createAppointment(
     ignoreDateRange: false,
     notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
   };
+  
+  // Only include contactId if we have one
+  if (contactId) {
+    payload.contactId = contactId;
+  }
 
   console.log("Creating GHL appointment:", JSON.stringify(payload));
 
@@ -206,7 +151,7 @@ async function createAppointment(
  */
 async function updateAppointment(
   appointmentId: string,
-  contactId: string,
+  contactId: string | null,
   calendarId: string,
   assignedUserId: string,
   booking: BookingData,
@@ -221,7 +166,6 @@ async function updateAppointment(
   
   const payload: Record<string, unknown> = {
     calendarId,
-    contactId,
     startTime,
     endTime,
     title,
@@ -231,6 +175,11 @@ async function updateAppointment(
     toNotify: false,
     notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
   };
+  
+  // Only include contactId if we have one
+  if (contactId) {
+    payload.contactId = contactId;
+  }
 
   console.log("Updating GHL appointment:", appointmentId, JSON.stringify(payload));
 
@@ -374,17 +323,8 @@ serve(async (req) => {
       }
     }
 
-    // Ensure we have a GHL contact
-    let contactId = bookingData.ghl_contact_id;
-    if (!contactId) {
-      contactId = await ensureGHLContact(bookingData, ghlToken, locationId);
-      
-      // Save contact ID to booking
-      await supabase
-        .from("bookings")
-        .update({ ghl_contact_id: contactId })
-        .eq("id", booking_id);
-    }
+    // Get contact ID if available (set by GHL webhook automation)
+    const contactId = getContactId(bookingData);
 
     let appointmentId = bookingData.ghl_appointment_id;
     let eventType: string;
