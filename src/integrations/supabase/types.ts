@@ -493,6 +493,12 @@ export type Database = {
           event_type: string
           event_type_other: string | null
           full_name: string
+          ghl_appointment_end_at: string | null
+          ghl_appointment_id: string | null
+          ghl_appointment_start_at: string | null
+          ghl_assigned_user_id: string | null
+          ghl_calendar_id: string | null
+          ghl_contact_id: string | null
           host_report_step: string | null
           id: string
           initials: string
@@ -548,6 +554,12 @@ export type Database = {
           event_type: string
           event_type_other?: string | null
           full_name: string
+          ghl_appointment_end_at?: string | null
+          ghl_appointment_id?: string | null
+          ghl_appointment_start_at?: string | null
+          ghl_assigned_user_id?: string | null
+          ghl_calendar_id?: string | null
+          ghl_contact_id?: string | null
           host_report_step?: string | null
           id?: string
           initials: string
@@ -603,6 +615,12 @@ export type Database = {
           event_type?: string
           event_type_other?: string | null
           full_name?: string
+          ghl_appointment_end_at?: string | null
+          ghl_appointment_id?: string | null
+          ghl_appointment_start_at?: string | null
+          ghl_assigned_user_id?: string | null
+          ghl_calendar_id?: string | null
+          ghl_contact_id?: string | null
           host_report_step?: string | null
           id?: string
           initials?: string
