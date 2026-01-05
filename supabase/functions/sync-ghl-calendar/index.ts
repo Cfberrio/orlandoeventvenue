@@ -95,6 +95,7 @@ function getContactId(booking: BookingData): string | null {
 async function createAppointment(
   contactId: string | null,
   calendarId: string,
+  locationId: string,
   assignedUserId: string,
   booking: BookingData,
   startTime: string,
@@ -107,6 +108,7 @@ async function createAppointment(
   
   const payload: Record<string, unknown> = {
     calendarId,
+    locationId,
     startTime,
     endTime,
     title,
@@ -153,6 +155,7 @@ async function updateAppointment(
   appointmentId: string,
   contactId: string | null,
   calendarId: string,
+  locationId: string,
   assignedUserId: string,
   booking: BookingData,
   startTime: string,
@@ -166,6 +169,7 @@ async function updateAppointment(
   
   const payload: Record<string, unknown> = {
     calendarId,
+    locationId,
     startTime,
     endTime,
     title,
@@ -335,6 +339,7 @@ serve(async (req) => {
         appointmentId,
         contactId,
         calendarId,
+        locationId,
         assignedUserId,
         bookingData,
         times?.startTime || "",
@@ -349,6 +354,7 @@ serve(async (req) => {
         appointmentId,
         contactId,
         calendarId,
+        locationId,
         assignedUserId,
         bookingData,
         times.startTime,
@@ -362,6 +368,7 @@ serve(async (req) => {
       const result = await createAppointment(
         contactId,
         calendarId,
+        locationId,
         assignedUserId,
         bookingData,
         times.startTime,
