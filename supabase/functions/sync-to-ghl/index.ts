@@ -299,11 +299,29 @@ serve(async (req) => {
       throw new Error(`Failed to check booking: ${checkError.message}`);
     }
 
-    // Skip GHL sync for internal admin bookings
+    // Skip GHL webhook sync for internal admin bookings (but still sync calendar!)
     if (bookingCheck?.lead_source === "internal_admin") {
-      console.log("Skipping GHL sync for internal_admin booking:", booking_id);
+      console.log("Skipping GHL webhook sync for internal_admin booking:", booking_id);
+      
+      // Still sync to calendar for internal bookings
+      try {
+        console.log("Triggering GHL calendar sync for internal booking:", booking_id);
+        const calendarResp = await fetch(`${supabaseUrl}/functions/v1/sync-ghl-calendar`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ booking_id }),
+        });
+        const calendarResult = await calendarResp.json();
+        console.log("GHL calendar sync result for internal:", calendarResult);
+      } catch (calendarErr) {
+        console.error("Error syncing calendar for internal booking:", calendarErr);
+      }
+      
       return new Response(
-        JSON.stringify({ ok: true, skipped: true, reason: "internal_admin booking" }),
+        JSON.stringify({ ok: true, skipped: true, reason: "internal_admin booking", calendar_synced: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -335,6 +353,31 @@ serve(async (req) => {
     }
 
     console.log("Successfully sent snapshot to GHL for booking:", booking_id);
+
+    // Also sync to GHL Calendar (fire-and-forget, don't block main sync)
+    try {
+      console.log("Triggering GHL calendar sync for booking:", booking_id);
+      fetch(`${supabaseUrl}/functions/v1/sync-ghl-calendar`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+        body: JSON.stringify({ booking_id }),
+      }).then(async (resp) => {
+        if (resp.ok) {
+          const result = await resp.json();
+          console.log("GHL calendar sync result:", result);
+        } else {
+          console.error("GHL calendar sync failed:", resp.status);
+        }
+      }).catch((err) => {
+        console.error("GHL calendar sync error:", err);
+      });
+    } catch (calendarErr) {
+      console.error("Error triggering calendar sync:", calendarErr);
+    }
+
     return new Response(
       JSON.stringify({ ok: true, booking_id }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
