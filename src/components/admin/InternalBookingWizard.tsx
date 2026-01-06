@@ -237,6 +237,18 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
         });
       }
 
+      // Step 3: Sync to GHL Calendar (automatic)
+      try {
+        console.log("Syncing internal booking to GHL calendar:", booking.id);
+        await supabase.functions.invoke("sync-ghl-calendar", {
+          body: { booking_id: booking.id, skip_if_unchanged: false },
+        });
+        console.log("GHL calendar sync triggered for internal booking");
+      } catch (syncError) {
+        console.error("Error syncing to GHL calendar:", syncError);
+        // Don't fail the booking creation if sync fails
+      }
+
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["availability-blocks"] });

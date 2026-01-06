@@ -11,12 +11,12 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 /**
- * Helper to sync booking to GHL after payment events.
+ * Helper to sync booking to GHL contact/opportunity.
  */
 async function syncToGHL(bookingId: string): Promise<void> {
   const ghlWebhookUrl = Deno.env.get("GHL_BOOKING_WEBHOOK_URL");
   if (!ghlWebhookUrl) {
-    console.log("GHL_BOOKING_WEBHOOK_URL not configured, skipping sync");
+    console.log("GHL_BOOKING_WEBHOOK_URL not configured, skipping contact sync");
     return;
   }
 
@@ -31,12 +31,37 @@ async function syncToGHL(bookingId: string): Promise<void> {
     });
 
     if (!response.ok) {
-      console.error("Failed to sync to GHL:", await response.text());
+      console.error("Failed to sync to GHL contact:", await response.text());
     } else {
-      console.log("Successfully synced booking to GHL:", bookingId);
+      console.log("Successfully synced booking to GHL contact:", bookingId);
     }
   } catch (error) {
-    console.error("Error syncing to GHL:", error);
+    console.error("Error syncing to GHL contact:", error);
+  }
+}
+
+/**
+ * Helper to sync booking to GHL Calendar.
+ */
+async function syncToGHLCalendar(bookingId: string): Promise<void> {
+  try {
+    const response = await fetch(`${supabaseUrl}/functions/v1/sync-ghl-calendar`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+      },
+      body: JSON.stringify({ booking_id: bookingId, skip_if_unchanged: false }),
+    });
+
+    if (!response.ok) {
+      console.error("Failed to sync to GHL calendar:", await response.text());
+    } else {
+      const result = await response.json();
+      console.log("Successfully synced booking to GHL calendar:", bookingId, result);
+    }
+  } catch (error) {
+    console.error("Error syncing to GHL calendar:", error);
   }
 }
 
@@ -333,6 +358,7 @@ serve(async (req) => {
         await sendInternalPaymentEmail(data, "balance", amountPaid, currency, sessionId, paymentIntentId);
 
         await syncToGHL(bookingId);
+        await syncToGHLCalendar(bookingId);
 
       } else {
         // Handle deposit payment
@@ -418,6 +444,7 @@ serve(async (req) => {
         }
 
         await syncToGHL(bookingId);
+        await syncToGHLCalendar(bookingId);
 
         // Schedule balance payment jobs
         try {
