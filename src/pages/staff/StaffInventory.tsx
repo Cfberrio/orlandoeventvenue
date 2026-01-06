@@ -9,8 +9,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { 
   ChevronDown, ChevronRight, Package, AlertTriangle, XCircle, CheckCircle, 
-  Loader2, Plus, Settings, MapPin, Trash2, ShieldX
+  Loader2, Plus, Settings, MapPin, Trash2, ShieldX, Minus, Check
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { useStaffSession } from "@/hooks/useStaffSession";
@@ -53,6 +54,8 @@ const statusConfig = {
 export default function StaffInventory() {
   const { staffMember } = useStaffSession();
   const [locationFilter, setLocationFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "out" | "low" | "stocked">("all");
+  const [viewMode, setViewMode] = useState<"detailed" | "simple">("simple"); // Default to simple for staff
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [productsDialogOpen, setProductsDialogOpen] = useState(false);
   const [locationsDialogOpen, setLocationsDialogOpen] = useState(false);
@@ -61,6 +64,8 @@ export default function StaffInventory() {
   const [preselectedLocationId, setPreselectedLocationId] = useState<string | undefined>();
   const [deleteStockConfirmOpen, setDeleteStockConfirmOpen] = useState(false);
   const [stockToDelete, setStockToDelete] = useState<InventoryStockWithDetails | null>(null);
+  const [savingStockId, setSavingStockId] = useState<string | null>(null);
+  const [savedStockId, setSavedStockId] = useState<string | null>(null);
 
   const { data: locations, isLoading: locationsLoading } = useInventoryLocations();
   const { data: products, isLoading: productsLoading } = useInventoryProducts();
@@ -100,19 +105,44 @@ export default function StaffInventory() {
 
   const getStockForLocation = (locationId: string) => {
     if (!stock) return [];
-    return stock.filter((s) => s.location_id === locationId);
+    let filtered = stock.filter((s) => s.location_id === locationId);
+    
+    // Apply status filter
+    if (statusFilter !== "all") {
+      filtered = filtered.filter((s) => s.status === statusFilter);
+    }
+    
+    return filtered;
   };
 
   const handleUpdateLevel = async (stockItem: InventoryStockWithDetails, newLevel: number) => {
+    if (newLevel < 0) return;
+    
+    setSavingStockId(stockItem.id);
     try {
       const minLevel = stockItem.min_level ?? stockItem.product.default_min_level;
       await updateStock.mutateAsync({
         id: stockItem.id,
         data: { current_level: newLevel, min_level: minLevel },
       });
-      toast({ title: "Stock updated" });
+      
+      // Show saved checkmark
+      setSavedStockId(stockItem.id);
+      setTimeout(() => setSavedStockId(null), 2000);
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
+    } finally {
+      setSavingStockId(null);
+    }
+  };
+
+  const handleQuickIncrement = (stockItem: InventoryStockWithDetails) => {
+    handleUpdateLevel(stockItem, stockItem.current_level + 1);
+  };
+
+  const handleQuickDecrement = (stockItem: InventoryStockWithDetails) => {
+    if (stockItem.current_level > 0) {
+      handleUpdateLevel(stockItem, stockItem.current_level - 1);
     }
   };
 
@@ -216,86 +246,140 @@ export default function StaffInventory() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Product</TableHead>
-                        <TableHead>Unit</TableHead>
-                        <TableHead className="w-24">Min Level</TableHead>
-                        <TableHead className="w-24">Current</TableHead>
+                        {viewMode === "detailed" && <TableHead>Unit</TableHead>}
+                        {viewMode === "detailed" && <TableHead className="w-24">Min Level</TableHead>}
+                        <TableHead className="w-48">Current Level</TableHead>
                         <TableHead>Status</TableHead>
-                        <TableHead>Shelf Label</TableHead>
-                        <TableHead>Notes</TableHead>
-                        <TableHead className="w-12"></TableHead>
+                        {viewMode === "detailed" && <TableHead>Shelf Label</TableHead>}
+                        {viewMode === "detailed" && <TableHead>Notes</TableHead>}
+                        {viewMode === "detailed" && <TableHead className="w-12"></TableHead>}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {locationStock.map((item) => {
                         const config = statusConfig[item.status];
                         const StatusIcon = config.icon;
+                        const isSaving = savingStockId === item.id;
+                        const isSaved = savedStockId === item.id;
+                        
+                        // Row background classes based on status
+                        const rowClasses = cn(
+                          "transition-colors",
+                          item.status === "out" && "bg-red-50 border-l-4 border-l-red-500 dark:bg-red-950/20",
+                          item.status === "low" && "bg-yellow-50 border-l-4 border-l-yellow-500 dark:bg-yellow-950/20",
+                        );
+                        
                         return (
-                          <TableRow key={item.id}>
-                            <TableCell className="font-medium">{item.product.name}</TableCell>
-                            <TableCell>{item.product.unit}</TableCell>
+                          <TableRow key={item.id} className={rowClasses}>
+                            <TableCell className="font-medium">
+                              {item.product.name}
+                            </TableCell>
+                            {viewMode === "detailed" && (
+                              <TableCell className="text-muted-foreground">{item.product.unit}</TableCell>
+                            )}
+                            {viewMode === "detailed" && (
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  className="w-20 h-8"
+                                  defaultValue={item.min_level ?? item.product.default_min_level}
+                                  onBlur={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) {
+                                      updateStock.mutate({
+                                        id: item.id,
+                                        data: { min_level: val, current_level: item.current_level },
+                                      });
+                                    }
+                                  }}
+                                />
+                              </TableCell>
+                            )}
                             <TableCell>
-                              <Input
-                                type="number"
-                                min={0}
-                                className="w-20 h-8"
-                                defaultValue={item.min_level ?? item.product.default_min_level}
-                                onBlur={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  if (!isNaN(val)) {
-                                    updateStock.mutate({
-                                      id: item.id,
-                                      data: { min_level: val, current_level: item.current_level },
-                                    });
-                                  }
-                                }}
-                              />
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={() => handleQuickDecrement(item)}
+                                  disabled={isSaving || item.current_level === 0}
+                                >
+                                  <Minus className="h-4 w-4" />
+                                </Button>
+                                <Input
+                                  type="number"
+                                  min={0}
+                                  className="w-16 h-8 text-center font-semibold"
+                                  value={item.current_level}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value);
+                                    if (!isNaN(val)) {
+                                      handleUpdateLevel(item, val);
+                                    }
+                                  }}
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="outline"
+                                  className="h-8 w-8 shrink-0"
+                                  onClick={() => handleQuickIncrement(item)}
+                                  disabled={isSaving}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </Button>
+                                {isSaving && (
+                                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                                )}
+                                {isSaved && (
+                                  <Check className="h-4 w-4 text-green-600 animate-in fade-in" />
+                                )}
+                              </div>
                             </TableCell>
                             <TableCell>
-                              <Input
-                                type="number"
-                                min={0}
-                                className="w-20 h-8"
-                                defaultValue={item.current_level}
-                                onBlur={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  if (!isNaN(val)) {
-                                    handleUpdateLevel(item, val);
-                                  }
-                                }}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={config.color}>
-                                <StatusIcon className="h-3 w-3 mr-1" />
-                                {item.status}
+                              <Badge 
+                                className={cn(
+                                  config.color,
+                                  "text-sm px-3 py-1",
+                                  item.status === "out" && "animate-pulse"
+                                )}
+                              >
+                                <StatusIcon className="h-4 w-4 mr-1" />
+                                {item.status === "out" ? "OUT OF STOCK" : item.status === "low" ? "LOW STOCK" : "STOCKED"}
                               </Badge>
                             </TableCell>
-                            <TableCell>
-                              <Input
-                                className="w-32 h-8"
-                                placeholder="e.g. Rack 2"
-                                defaultValue={item.shelf_label || ""}
-                                onBlur={(e) => handleUpdateShelfLabel(item, e.target.value)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Input
-                                className="w-40 h-8"
-                                placeholder="Notes..."
-                                defaultValue={item.notes || ""}
-                                onBlur={(e) => handleUpdateNotes(item, e.target.value)}
-                              />
-                            </TableCell>
-                            <TableCell>
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                className="h-8 w-8 text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteStockClick(item)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </TableCell>
+                            {viewMode === "detailed" && (
+                              <TableCell>
+                                <Input
+                                  className="w-32 h-8"
+                                  placeholder="e.g. Rack 2"
+                                  defaultValue={item.shelf_label || ""}
+                                  onBlur={(e) => handleUpdateShelfLabel(item, e.target.value)}
+                                />
+                              </TableCell>
+                            )}
+                            {viewMode === "detailed" && (
+                              <TableCell>
+                                <Input
+                                  className="w-40 h-8"
+                                  placeholder="Notes..."
+                                  defaultValue={item.notes || ""}
+                                  onBlur={(e) => handleUpdateNotes(item, e.target.value)}
+                                />
+                              </TableCell>
+                            )}
+                            {viewMode === "detailed" && (
+                              <TableCell>
+                                <Button 
+                                  size="icon" 
+                                  variant="ghost" 
+                                  className="h-8 w-8 text-destructive hover:text-destructive"
+                                  onClick={() => handleDeleteStockClick(item)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            )}
                           </TableRow>
                         );
                       })}
@@ -360,11 +444,11 @@ export default function StaffInventory() {
       </div>
 
       {/* Filters and KPIs */}
-      <div className="flex flex-col lg:flex-row gap-4">
-        {/* Location Filter */}
-        <Card className="flex-1">
+      <div className="flex flex-col gap-4">
+        {/* Location Filter and View Toggle */}
+        <Card>
           <CardContent className="pt-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium">Location:</span>
                 <Select value={locationFilter} onValueChange={setLocationFilter}>
@@ -381,30 +465,80 @@ export default function StaffInventory() {
                   </SelectContent>
                 </Select>
               </div>
+              
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">View:</span>
+                <Select value={viewMode} onValueChange={(v: "detailed" | "simple") => setViewMode(v)}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="simple">Simple View</SelectItem>
+                    <SelectItem value="detailed">Detailed View</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
               {kpis?.lastUpdate && (
                 <div className="text-sm text-muted-foreground">
-                  <span className="font-medium">Last full count:</span>{" "}
-                  {format(new Date(kpis.lastUpdate), "MMM d, yyyy h:mm a")}
+                  <span className="font-medium">Last update:</span>{" "}
+                  {format(new Date(kpis.lastUpdate), "MMM d, h:mm a")}
                 </div>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* KPI Chips */}
+        {/* Status Filter Chips */}
         <div className="flex gap-2 flex-wrap">
-          <Card className="px-4 py-3 flex items-center gap-2">
-            <CheckCircle className="h-4 w-4 text-green-600" />
-            <span className="text-sm font-medium">{kpis?.stocked || 0} Stocked</span>
-          </Card>
-          <Card className="px-4 py-3 flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <span className="text-sm font-medium">{kpis?.low || 0} Low</span>
-          </Card>
-          <Card className="px-4 py-3 flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-red-600" />
-            <span className="text-sm font-medium">{kpis?.out || 0} Out</span>
-          </Card>
+          <Button
+            variant={statusFilter === "all" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("all")}
+            className="h-10"
+          >
+            All Items ({(kpis?.stocked || 0) + (kpis?.low || 0) + (kpis?.out || 0)})
+          </Button>
+          <Button
+            variant={statusFilter === "out" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("out")}
+            className={cn(
+              "h-10",
+              statusFilter === "out" 
+                ? "bg-red-600 hover:bg-red-700" 
+                : "border-red-200 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400"
+            )}
+          >
+            <XCircle className="h-4 w-4 mr-1" />
+            Out of Stock ({kpis?.out || 0})
+          </Button>
+          <Button
+            variant={statusFilter === "low" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("low")}
+            className={cn(
+              "h-10",
+              statusFilter === "low" 
+                ? "bg-yellow-600 hover:bg-yellow-700" 
+                : "border-yellow-200 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-800 dark:text-yellow-400"
+            )}
+          >
+            <AlertTriangle className="h-4 w-4 mr-1" />
+            Low Stock ({kpis?.low || 0})
+          </Button>
+          <Button
+            variant={statusFilter === "stocked" ? "default" : "outline"}
+            size="sm"
+            onClick={() => setStatusFilter("stocked")}
+            className={cn(
+              "h-10",
+              statusFilter === "stocked" && "bg-green-600 hover:bg-green-700"
+            )}
+          >
+            <CheckCircle className="h-4 w-4 mr-1" />
+            Stocked ({kpis?.stocked || 0})
+          </Button>
         </div>
       </div>
 

@@ -94,7 +94,17 @@ export function useInventoryStock(locationSlug?: string) {
 
       const { data, error } = await query.order("updated_at", { ascending: false });
       if (error) throw error;
-      return data as InventoryStockWithDetails[];
+      
+      // Smart sorting: Out first, then Low, then Stocked
+      // Within each status, sort alphabetically by product name
+      const sortedData = (data as InventoryStockWithDetails[]).sort((a, b) => {
+        const statusOrder = { out: 0, low: 1, stocked: 2 };
+        const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+        if (statusDiff !== 0) return statusDiff;
+        return a.product.name.localeCompare(b.product.name);
+      });
+      
+      return sortedData;
     },
   });
 }
@@ -160,8 +170,50 @@ export function useUpdateInventoryStock() {
         .update({ ...data, status })
         .eq("id", id);
       if (error) throw error;
+      
+      return { id, data: { ...data, status } };
     },
-    onSuccess: () => {
+    onMutate: async ({ id, data }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ["inventory-stock"] });
+      
+      // Snapshot previous value
+      const previousStock = queryClient.getQueriesData({ queryKey: ["inventory-stock"] });
+      
+      // Optimistically update
+      queryClient.setQueriesData({ queryKey: ["inventory-stock"] }, (old: any) => {
+        if (!old) return old;
+        return old.map((item: InventoryStockWithDetails) => {
+          if (item.id === id) {
+            // Calculate status for optimistic update
+            let status = item.status;
+            if (data.current_level !== undefined) {
+              const minLevel = data.min_level ?? item.min_level ?? item.product.default_min_level;
+              if (data.current_level === 0) {
+                status = "out";
+              } else if (data.current_level < minLevel) {
+                status = "low";
+              } else {
+                status = "stocked";
+              }
+            }
+            return { ...item, ...data, status };
+          }
+          return item;
+        });
+      });
+      
+      return { previousStock };
+    },
+    onError: (err, variables, context) => {
+      // Rollback on error
+      if (context?.previousStock) {
+        context.previousStock.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data);
+        });
+      }
+    },
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ["inventory-stock"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-kpis"] });
     },
