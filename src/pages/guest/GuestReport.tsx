@@ -301,7 +301,7 @@ const GuestReport = () => {
               <div>
                 <p className="text-muted-foreground">Event Date / Fecha</p>
                 <p className="font-semibold">
-                  {booking?.event_date ? format(new Date(booking.event_date), 'MMM d, yyyy') : '-'}
+                  {booking?.event_date ? format(new Date(booking.event_date + 'T00:00:00'), 'MMM d, yyyy') : '-'}
                 </p>
               </div>
             </div>

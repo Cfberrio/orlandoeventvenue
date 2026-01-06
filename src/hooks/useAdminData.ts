@@ -844,7 +844,7 @@ export function useCreateStaffAssignment() {
         }
 
         // Format the date
-        const eventDate = new Date(booking.event_date);
+        const eventDate = new Date(booking.event_date + 'T00:00:00');
         const eventDateLong = eventDate.toLocaleDateString("en-US", {
           weekday: "long",
           year: "numeric",

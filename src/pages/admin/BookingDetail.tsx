@@ -435,7 +435,7 @@ export default function BookingDetail() {
           </div>
           <p className="text-muted-foreground flex items-center gap-2">
             <Calendar className="h-4 w-4" />
-            {format(new Date(booking.event_date), "EEEE, MMMM d, yyyy")}
+            {format(new Date(booking.event_date + 'T00:00:00'), "EEEE, MMMM d, yyyy")}
             <span className="mx-1">•</span>
             {booking.event_type}
           </p>
@@ -532,7 +532,7 @@ export default function BookingDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p>
-                    <p className="font-medium">{format(new Date(booking.event_date), "MMM d, yyyy")}</p>
+                    <p className="font-medium">{format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
