@@ -366,10 +366,39 @@ async function createAppointment(
 ): Promise<{ appointmentId: string }> {
   const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
   
-  const title = `${booking.event_type} - ${booking.full_name} (${booking.reservation_number || "N/A"})`;
+  // Clean, formatted title
+  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
+  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...additionalUserIds.filter(id => id !== assignedUserId)];
+  
+  // Build formatted notes for better readability
+  const notesLines = [
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📋 RESERVATION: ${booking.reservation_number || "N/A"}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `👤 Guest: ${booking.full_name}`,
+    `📧 Email: ${booking.email || "N/A"}`,
+    `📱 Phone: ${booking.phone || "N/A"}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📅 EVENT DETAILS`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `🎊 Type: ${eventTypeDisplay}`,
+    `👥 Guests: ${booking.number_of_guests}`,
+    `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🏢 VENUE`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `Orlando Event Venue`,
+    `3847 E Colonial Dr`,
+    `Orlando, FL 32803`,
+  ];
   
   const payload: Record<string, unknown> = {
     calendarId,
@@ -383,7 +412,7 @@ async function createAppointment(
     toNotify: true, // Enable notifications so staff get calendar invites
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
+    notes: notesLines.join('\n'),
   };
   
   // Add additional staff as users if GHL supports it
@@ -438,10 +467,39 @@ async function updateAppointment(
 ): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
-  const title = `${booking.event_type} - ${booking.full_name} (${booking.reservation_number || "N/A"})`;
+  // Clean, formatted title
+  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
+  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...additionalUserIds.filter(id => id !== assignedUserId)];
+  
+  // Build formatted notes for better readability
+  const notesLines = [
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📋 RESERVATION: ${booking.reservation_number || "N/A"}`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `👤 Guest: ${booking.full_name}`,
+    `📧 Email: ${booking.email || "N/A"}`,
+    `📱 Phone: ${booking.phone || "N/A"}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `📅 EVENT DETAILS`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `🎊 Type: ${eventTypeDisplay}`,
+    `👥 Guests: ${booking.number_of_guests}`,
+    `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
+    ``,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `🏢 VENUE`,
+    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `Orlando Event Venue`,
+    `3847 E Colonial Dr`,
+    `Orlando, FL 32803`,
+  ];
   
   const payload: Record<string, unknown> = {
     calendarId,
@@ -455,7 +513,7 @@ async function updateAppointment(
     toNotify: true, // Enable notifications
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
+    notes: notesLines.join('\n'),
   };
   
   // Add additional staff as users
