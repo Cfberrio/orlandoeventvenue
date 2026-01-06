@@ -273,16 +273,28 @@ async function ensureContact(
   return contactId;
 }
 
+interface StaffInfo {
+  ghlUserId: string | null;
+  name: string;
+  email: string;
+  role: string;
+}
+
+interface StaffSyncResult {
+  ghlUserIds: string[];
+  staffInfo: StaffInfo[];
+}
+
 /**
- * Get staff email for GHL user lookup
+ * Get staff info and GHL user IDs for calendar sync
  */
-async function getStaffGHLUserIds(
+async function getStaffForCalendarSync(
   bookingId: string,
   locationId: string,
   ghlToken: string,
   // deno-lint-ignore no-explicit-any
   supabase: any
-): Promise<string[]> {
+): Promise<StaffSyncResult> {
   // Fetch staff assignments with email
   const { data: assignments, error } = await supabase
     .from("booking_staff_assignments")
@@ -295,85 +307,76 @@ async function getStaffGHLUserIds(
 
   if (error || !assignments || assignments.length === 0) {
     console.log("No staff assignments found for booking");
-    return [];
+    return { ghlUserIds: [], staffInfo: [] };
   }
 
   console.log(`Found ${assignments.length} staff assignments:`, JSON.stringify(assignments));
 
-  // For each staff member with email, try to find their GHL user ID
-  const ghlUserIds: string[] = [];
-  
-  for (const assignment of assignments as StaffAssignment[]) {
-    const staffEmail = assignment.staff_members?.email;
-    if (!staffEmail) {
-      console.log(`Staff ${assignment.staff_id} has no email, skipping`);
-      continue;
-    }
+  // Get all GHL users once (not per staff member)
+  let ghlUsers: { id: string; email?: string }[] = [];
+  try {
+    const userListUrl = `https://services.leadconnectorhq.com/users/?locationId=${locationId}`;
+    const resp = await fetch(userListUrl, {
+      method: "GET",
+      headers: {
+        "Authorization": `Bearer ${ghlToken}`,
+        "Version": GHL_API_VERSION,
+        "Accept": "application/json",
+      },
+    });
 
-    // Search for GHL team member by email using GET /users endpoint
-    try {
-      const userListUrl = `https://services.leadconnectorhq.com/users/?locationId=${locationId}`;
-      const resp = await fetch(userListUrl, {
-        method: "GET",
-        headers: {
-          "Authorization": `Bearer ${ghlToken}`,
-          "Version": GHL_API_VERSION,
-          "Accept": "application/json",
-        },
-      });
-
-      if (resp.ok) {
-        const data = await resp.json();
-        const users = data.users || [];
-        console.log(`GHL returned ${users.length} users for location`);
-        
-        const matchedUser = users.find((u: { email?: string }) => 
-          u.email?.toLowerCase() === staffEmail.toLowerCase()
-        );
-        
-        if (matchedUser) {
-          console.log(`Found GHL user for staff ${staffEmail}: ${matchedUser.id}`);
-          ghlUserIds.push(matchedUser.id);
-        } else {
-          console.log(`No GHL user found for staff email: ${staffEmail}. Available emails:`, 
-            users.map((u: { email?: string }) => u.email).join(", "));
-        }
-      } else {
-        const errText = await resp.text();
-        console.log(`GHL users list failed for ${staffEmail}:`, resp.status, errText);
-      }
-    } catch (err) {
-      console.error(`Error listing GHL users for ${staffEmail}:`, err);
+    if (resp.ok) {
+      const data = await resp.json();
+      ghlUsers = data.users || [];
+      console.log(`GHL returned ${ghlUsers.length} users for location`);
+    } else {
+      const errText = await resp.text();
+      console.log(`GHL users list failed:`, resp.status, errText);
     }
+  } catch (err) {
+    console.error(`Error listing GHL users:`, err);
   }
 
-  return ghlUserIds;
+  const ghlUserIds: string[] = [];
+  const staffInfo: StaffInfo[] = [];
+  
+  for (const assignment of assignments as StaffAssignment[]) {
+    const staffEmail = assignment.staff_members?.email || "";
+    const staffName = assignment.staff_members?.full_name || "Unknown";
+    const staffRole = assignment.assignment_role || "Staff";
+
+    // Try to find GHL user for this staff member
+    let ghlUserId: string | null = null;
+    if (staffEmail) {
+      const matchedUser = ghlUsers.find((u) => 
+        u.email?.toLowerCase() === staffEmail.toLowerCase()
+      );
+      if (matchedUser) {
+        console.log(`Found GHL user for staff ${staffEmail}: ${matchedUser.id}`);
+        ghlUserId = matchedUser.id;
+        ghlUserIds.push(matchedUser.id);
+      } else {
+        console.log(`No GHL user found for staff email: ${staffEmail}`);
+      }
+    }
+
+    staffInfo.push({
+      ghlUserId,
+      name: staffName,
+      email: staffEmail,
+      role: staffRole,
+    });
+  }
+
+  return { ghlUserIds, staffInfo };
 }
 
 /**
- * Create appointment in GHL Calendar
+ * Build formatted notes for calendar event
  */
-async function createAppointment(
-  contactId: string | null,
-  calendarId: string,
-  locationId: string,
-  assignedUserId: string,
-  booking: BookingData,
-  startTime: string,
-  endTime: string,
-  ghlToken: string,
-  additionalUserIds: string[] = []
-): Promise<{ appointmentId: string }> {
-  const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
-  
-  // Clean, formatted title
+function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
   const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
   
-  // Combine primary assigned user with additional staff users
-  const allUserIds = [assignedUserId, ...additionalUserIds.filter(id => id !== assignedUserId)];
-  
-  // Build formatted notes for better readability
   const notesLines = [
     `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
     `📋 RESERVATION: ${booking.reservation_number || "N/A"}`,
@@ -390,15 +393,61 @@ async function createAppointment(
     `🎊 Type: ${eventTypeDisplay}`,
     `👥 Guests: ${booking.number_of_guests}`,
     `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🏢 VENUE`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
-    `Orlando Event Venue`,
-    `3847 E Colonial Dr`,
-    `Orlando, FL 32803`,
   ];
+
+  // Add staff section if there are staff assigned
+  if (staffInfo.length > 0) {
+    notesLines.push(``);
+    notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    notesLines.push(`👷 ASSIGNED STAFF`);
+    notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    notesLines.push(``);
+    
+    for (const staff of staffInfo) {
+      const syncStatus = staff.ghlUserId ? "✅" : "⚠️";
+      notesLines.push(`${syncStatus} ${staff.name}`);
+      notesLines.push(`   📧 ${staff.email || "No email"}`);
+      notesLines.push(`   🏷️ Role: ${staff.role}`);
+      notesLines.push(``);
+    }
+  }
+
+  notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  notesLines.push(`🏢 VENUE`);
+  notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  notesLines.push(``);
+  notesLines.push(`Orlando Event Venue`);
+  notesLines.push(`3847 E Colonial Dr`);
+  notesLines.push(`Orlando, FL 32803`);
+
+  return notesLines.join('\n');
+}
+
+/**
+ * Create appointment in GHL Calendar
+ */
+async function createAppointment(
+  contactId: string | null,
+  calendarId: string,
+  locationId: string,
+  assignedUserId: string,
+  booking: BookingData,
+  startTime: string,
+  endTime: string,
+  ghlToken: string,
+  staffResult: StaffSyncResult
+): Promise<{ appointmentId: string }> {
+  const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
+  
+  // Clean, formatted title
+  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
+  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
+  
+  // Combine primary assigned user with additional staff users
+  const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
+  
+  // Build notes with staff info included
+  const notes = buildEventNotes(booking, staffResult.staffInfo);
   
   const payload: Record<string, unknown> = {
     calendarId,
@@ -412,7 +461,7 @@ async function createAppointment(
     toNotify: true, // Enable notifications so staff get calendar invites
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes: notesLines.join('\n'),
+    notes,
   };
   
   // Add additional staff as users if GHL supports it
@@ -463,7 +512,7 @@ async function updateAppointment(
   endTime: string,
   ghlToken: string,
   cancelled: boolean = false,
-  additionalUserIds: string[] = []
+  staffResult: StaffSyncResult
 ): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
@@ -472,34 +521,10 @@ async function updateAppointment(
   const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
   
   // Combine primary assigned user with additional staff users
-  const allUserIds = [assignedUserId, ...additionalUserIds.filter(id => id !== assignedUserId)];
+  const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
   
-  // Build formatted notes for better readability
-  const notesLines = [
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📋 RESERVATION: ${booking.reservation_number || "N/A"}`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
-    `👤 Guest: ${booking.full_name}`,
-    `📧 Email: ${booking.email || "N/A"}`,
-    `📱 Phone: ${booking.phone || "N/A"}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📅 EVENT DETAILS`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
-    `🎊 Type: ${eventTypeDisplay}`,
-    `👥 Guests: ${booking.number_of_guests}`,
-    `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
-    ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `🏢 VENUE`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    ``,
-    `Orlando Event Venue`,
-    `3847 E Colonial Dr`,
-    `Orlando, FL 32803`,
-  ];
+  // Build notes with staff info included
+  const notes = buildEventNotes(booking, staffResult.staffInfo);
   
   const payload: Record<string, unknown> = {
     calendarId,
@@ -513,12 +538,13 @@ async function updateAppointment(
     toNotify: true, // Enable notifications
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes: notesLines.join('\n'),
+    notes,
   };
   
   // Add additional staff as users
   if (allUserIds.length > 1) {
     payload.users = allUserIds;
+    console.log(`Adding ${allUserIds.length} users to appointment:`, allUserIds);
   }
   
   // Only include contactId if we have one
@@ -655,18 +681,18 @@ serve(async (req) => {
 
     console.log(`Calculated times for booking ${bookingData.reservation_number}: start=${times?.startTime}, end=${times?.endTime}`);
 
-    // Get staff GHL user IDs for calendar invites
-    const staffGHLUserIds = await getStaffGHLUserIds(booking_id, locationId, ghlToken, supabase);
-    console.log(`Staff GHL user IDs: ${JSON.stringify(staffGHLUserIds)}`);
+    // Get staff info and GHL user IDs for calendar sync
+    const staffResult = await getStaffForCalendarSync(booking_id, locationId, ghlToken, supabase);
+    console.log(`Staff sync result: ${staffResult.ghlUserIds.length} GHL users, ${staffResult.staffInfo.length} staff total`);
 
     // Check if update is needed (optimization) - but force update if staff changed
     if (skip_if_unchanged && bookingData.ghl_appointment_id && times) {
       const existingStart = bookingData.ghl_appointment_start_at;
       const existingEnd = bookingData.ghl_appointment_end_at;
       
-      // Compare with timezone-aware times
-      if (existingStart === times.startTime && existingEnd === times.endTime && !isCancelled && staffGHLUserIds.length === 0) {
-        console.log("Appointment times unchanged and no new staff, skipping update");
+      // Compare with timezone-aware times - always update if there's staff to show
+      if (existingStart === times.startTime && existingEnd === times.endTime && !isCancelled && staffResult.staffInfo.length === 0) {
+        console.log("Appointment times unchanged and no staff, skipping update");
         return new Response(
           JSON.stringify({ ok: true, skipped: true, reason: "Times unchanged" }),
           { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -693,7 +719,7 @@ serve(async (req) => {
         times?.endTime || "",
         ghlToken,
         true, // cancelled
-        staffGHLUserIds
+        staffResult
       );
       eventType = "ghl_appointment_cancelled";
     } else if (appointmentId && times) {
@@ -709,7 +735,7 @@ serve(async (req) => {
         times.endTime,
         ghlToken,
         false,
-        staffGHLUserIds
+        staffResult
       );
       eventType = "ghl_appointment_updated";
     } else if (times && !isCancelled) {
@@ -723,7 +749,7 @@ serve(async (req) => {
         times.startTime,
         times.endTime,
         ghlToken,
-        staffGHLUserIds
+        staffResult
       );
       appointmentId = result.appointmentId;
       eventType = "ghl_appointment_created";
@@ -759,7 +785,8 @@ serve(async (req) => {
         contact_id: contactId,
         start_time: times?.startTime,
         end_time: times?.endTime,
-        staff_user_ids: staffGHLUserIds,
+        staff_user_ids: staffResult.ghlUserIds,
+        staff_info: staffResult.staffInfo,
       },
     });
 
@@ -772,7 +799,7 @@ serve(async (req) => {
         appointment_id: appointmentId,
         event_type: eventType,
         calendar_id: calendarId,
-        staff_synced: staffGHLUserIds.length,
+        staff_synced: staffResult.staffInfo.length,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
