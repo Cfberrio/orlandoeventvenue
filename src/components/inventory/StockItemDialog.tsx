@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   useCreateInventoryStock,
   useInventoryProducts,
@@ -36,6 +38,7 @@ export function StockItemDialog({ open, onOpenChange, preselectedLocationId }: S
   const [minLevel, setMinLevel] = useState(1);
   const [shelfLabel, setShelfLabel] = useState("");
   const [notes, setNotes] = useState("");
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const { toast } = useToast();
 
   const { data: products } = useInventoryProducts();
@@ -50,6 +53,7 @@ export function StockItemDialog({ open, onOpenChange, preselectedLocationId }: S
       setMinLevel(1);
       setShelfLabel("");
       setNotes("");
+      setShowAdvanced(false);
     }
   }, [open, preselectedLocationId]);
 
@@ -86,10 +90,16 @@ export function StockItemDialog({ open, onOpenChange, preselectedLocationId }: S
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add Stock Item</DialogTitle>
+          <DialogDescription>
+            Add a product to track in your inventory. Only the essentials are required.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Essential Fields */}
           <div className="space-y-2">
-            <Label htmlFor="product">Product</Label>
+            <Label htmlFor="product">
+              Product <span className="text-red-500">*</span>
+            </Label>
             <Select value={productId} onValueChange={setProductId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a product" />
@@ -103,8 +113,11 @@ export function StockItemDialog({ open, onOpenChange, preselectedLocationId }: S
               </SelectContent>
             </Select>
           </div>
+          
           <div className="space-y-2">
-            <Label htmlFor="location">Location</Label>
+            <Label htmlFor="location">
+              Location <span className="text-red-500">*</span>
+            </Label>
             <Select value={locationId} onValueChange={setLocationId}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a location" />
@@ -118,52 +131,89 @@ export function StockItemDialog({ open, onOpenChange, preselectedLocationId }: S
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="current-level">Current Level</Label>
-              <Input
-                id="current-level"
-                type="number"
-                min={0}
-                value={currentLevel}
-                onChange={(e) => setCurrentLevel(parseInt(e.target.value) || 0)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="min-level">Min Level</Label>
-              <Input
-                id="min-level"
-                type="number"
-                min={0}
-                value={minLevel}
-                onChange={(e) => setMinLevel(parseInt(e.target.value) || 0)}
-              />
-            </div>
-          </div>
+          
           <div className="space-y-2">
-            <Label htmlFor="shelf-label">Shelf Label (optional)</Label>
+            <Label htmlFor="current-level">
+              How many do you have right now? <span className="text-red-500">*</span>
+            </Label>
             <Input
-              id="shelf-label"
-              value={shelfLabel}
-              onChange={(e) => setShelfLabel(e.target.value)}
-              placeholder="e.g., Rack 2"
+              id="current-level"
+              type="number"
+              min={0}
+              value={currentLevel}
+              onChange={(e) => setCurrentLevel(parseInt(e.target.value) || 0)}
+              placeholder="Enter current quantity"
+              className="text-lg"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="notes">Notes (optional)</Label>
-            <Input
-              id="notes"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Additional notes..."
-            />
-          </div>
-          <DialogFooter>
+
+          {/* Advanced Options Toggle */}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="w-full"
+          >
+            {showAdvanced ? (
+              <>
+                <ChevronUp className="h-4 w-4 mr-2" />
+                Hide optional settings
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-4 w-4 mr-2" />
+                Show optional settings
+              </>
+            )}
+          </Button>
+
+          {/* Optional Fields - Collapsible */}
+          {showAdvanced && (
+            <div className="space-y-4 pt-2 border-t">
+              <div className="space-y-2">
+                <Label htmlFor="min-level">Minimum Level (alert threshold)</Label>
+                <Input
+                  id="min-level"
+                  type="number"
+                  min={0}
+                  value={minLevel}
+                  onChange={(e) => setMinLevel(parseInt(e.target.value) || 0)}
+                  placeholder="Default: 1"
+                />
+                <p className="text-xs text-muted-foreground">
+                  You'll be alerted when stock falls below this number
+                </p>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="shelf-label">Shelf/Storage Label</Label>
+                <Input
+                  id="shelf-label"
+                  value={shelfLabel}
+                  onChange={(e) => setShelfLabel(e.target.value)}
+                  placeholder="e.g., Rack 2, Top Shelf"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="notes">Notes</Label>
+                <Input
+                  id="notes"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Any additional notes..."
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button type="submit" disabled={createStock.isPending}>
-              {createStock.isPending ? "Adding..." : "Add Stock Item"}
+              {createStock.isPending ? "Adding..." : "Add Item"}
             </Button>
           </DialogFooter>
         </form>
