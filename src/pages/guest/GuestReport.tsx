@@ -8,7 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Upload, CheckCircle2, AlertCircle, Camera, X, Star } from 'lucide-react';
+import { Loader2, Upload, CheckCircle2, AlertCircle, Camera, X, ExternalLink } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface MediaFile {
@@ -44,10 +44,6 @@ const GuestReport = () => {
 
   // Issue report
   const [issueDescription, setIssueDescription] = useState('');
-
-  // Review
-  const [reviewRating, setReviewRating] = useState(0);
-  const [reviewComment, setReviewComment] = useState('');
 
   // File input refs
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
@@ -119,11 +115,6 @@ const GuestReport = () => {
       return false;
     }
 
-    // Check review rating is provided
-    if (reviewRating === 0) {
-      return false;
-    }
-
     return true;
   };
 
@@ -149,7 +140,7 @@ const GuestReport = () => {
         has_issue: hasIssue,
       },
       mediaFiles.map((f) => ({ fieldId: f.fieldId, file: f.file })),
-      { rating: reviewRating, comment: reviewComment }
+      { rating: 0, comment: '' } // No longer collecting review in form
     );
 
     if (success) {
@@ -507,60 +498,41 @@ const GuestReport = () => {
             </CardContent>
           </Card>
 
-          {/* Review Section */}
-          <Card>
+          {/* Google Review Section */}
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800">
             <CardHeader>
-              <CardTitle className="text-lg">Leave a Review / Deja una Reseña <span className="text-destructive">*</span></CardTitle>
+              <CardTitle className="text-lg">Leave a Review / Deja una Reseña</CardTitle>
               <p className="text-sm text-muted-foreground">
                 How was your experience? / ¿Cómo fue tu experiencia?
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label>Rating / Calificación <span className="text-destructive">*</span></Label>
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      onClick={() => setReviewRating(star)}
-                      className="p-1 hover:scale-110 transition-transform"
-                    >
-                      <Star
-                        className={`h-8 w-8 ${
-                          star <= reviewRating
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-muted-foreground/30'
-                        }`}
-                      />
-                    </button>
-                  ))}
-                </div>
-                {reviewRating > 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    {reviewRating === 5 && 'Excellent! / ¡Excelente!'}
-                    {reviewRating === 4 && 'Very Good / Muy Bueno'}
-                    {reviewRating === 3 && 'Good / Bueno'}
-                    {reviewRating === 2 && 'Fair / Regular'}
-                    {reviewRating === 1 && 'Poor / Malo'}
-                  </p>
-                ) : (
-                  <p className="text-xs text-destructive">Please select a rating / Por favor selecciona una calificación</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="review_comment">
-                  Comments / Comentarios
-                </Label>
-                <Textarea
-                  id="review_comment"
-                  value={reviewComment}
-                  onChange={(e) => setReviewComment(e.target.value)}
-                  placeholder="Share your experience with us... / Comparte tu experiencia con nosotros..."
-                  rows={3}
-                />
-              </div>
+              <p className="text-sm">
+                We'd love to hear about your experience! Click the button below to leave us a Google review.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                ¡Nos encantaría conocer tu experiencia! Haz clic en el botón de abajo para dejarnos una reseña en Google.
+              </p>
+              
+              <a
+                href="https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTIwOS4wIKXMDSoASAFQAw%3D%3D"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <Button 
+                  type="button" 
+                  size="lg" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <ExternalLink className="mr-2 h-5 w-5" />
+                  Leave Google Review / Dejar Reseña en Google
+                </Button>
+              </a>
+              
+              <p className="text-xs text-center text-muted-foreground">
+                Opens in a new window / Se abre en una nueva ventana
+              </p>
             </CardContent>
           </Card>
 
