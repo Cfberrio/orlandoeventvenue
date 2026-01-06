@@ -74,19 +74,105 @@ function calculateTimes(booking: BookingData): { startTime: string; endTime: str
 }
 
 /**
- * Get GHL contact ID from booking - don't create, just use what exists
- * Contact should already be created by the GHL webhook automation
+ * Create a contact in GHL
  */
-function getContactId(booking: BookingData): string | null {
+async function createGHLContact(
+  locationId: string,
+  email: string,
+  name: string,
+  phone: string | null,
+  ghlToken: string
+): Promise<string> {
+  const url = "https://services.leadconnectorhq.com/contacts";
+  
+  const payload: Record<string, unknown> = {
+    locationId,
+    email,
+    name,
+    source: "Lovable Booking System",
+  };
+  
+  if (phone) {
+    payload.phone = phone;
+  }
+
+  console.log("Creating GHL contact:", JSON.stringify(payload));
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${ghlToken}`,
+      "Version": GHL_API_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    console.error("GHL create contact failed:", resp.status, errText);
+    throw new Error(`Failed to create contact: ${resp.status} - ${errText}`);
+  }
+
+  const data = await resp.json();
+  const contactId = data.contact?.id || data.id;
+  console.log("GHL contact created:", contactId);
+  return contactId;
+}
+
+/**
+ * Ensure we have a GHL contact for the booking
+ * - If ghl_contact_id exists, use it
+ * - Otherwise, create a new contact in GHL
+ * - For internal bookings without email, use placeholder email
+ */
+async function ensureContact(
+  booking: BookingData,
+  locationId: string,
+  ghlToken: string,
+  // deno-lint-ignore no-explicit-any
+  supabase: any
+): Promise<string> {
   // Use existing contact ID if available (set by GHL webhook automation)
   if (booking.ghl_contact_id) {
     console.log(`Using existing GHL contact: ${booking.ghl_contact_id}`);
     return booking.ghl_contact_id;
   }
   
-  // No contact ID available - appointment will be created without contact
-  console.log("No GHL contact ID available for booking, will create appointment without contact");
-  return null;
+  // Determine email and name for contact creation
+  let email: string;
+  let name: string;
+  
+  if (booking.email && booking.email.trim() !== "") {
+    // Normal booking with email
+    email = booking.email;
+    name = booking.full_name || "Guest";
+  } else {
+    // Internal booking without email - use placeholder
+    const reservationNum = booking.reservation_number || booking.id.substring(0, 8);
+    email = `internal+${reservationNum}@orlandoeventvenue.org`;
+    name = booking.full_name || "OEV Internal Booking";
+    console.log(`Internal booking without email, using placeholder: ${email}`);
+  }
+  
+  // Create contact in GHL
+  const contactId = await createGHLContact(
+    locationId,
+    email,
+    name,
+    booking.phone || null,
+    ghlToken
+  );
+  
+  // Save contact ID to booking for future use
+  await supabase
+    .from("bookings")
+    .update({ ghl_contact_id: contactId })
+    .eq("id", booking.id);
+  
+  console.log(`Saved GHL contact ${contactId} to booking ${booking.id}`);
+  
+  return contactId;
 }
 
 /**
@@ -327,8 +413,8 @@ serve(async (req) => {
       }
     }
 
-    // Get contact ID if available (set by GHL webhook automation)
-    const contactId = getContactId(bookingData);
+    // Ensure we have a contact (create if needed)
+    const contactId = await ensureContact(bookingData, locationId, ghlToken, supabase);
 
     let appointmentId = bookingData.ghl_appointment_id;
     let eventType: string;
