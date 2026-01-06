@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { BookingFormData } from "@/pages/Book";
 import { format } from "date-fns";
-import { Edit } from "lucide-react";
+import { Edit, Tag, Check, X } from "lucide-react";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -14,6 +15,64 @@ interface SummaryStepProps {
 }
 
 const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStepProps) => {
+  const [discountCode, setDiscountCode] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    percentage: number;
+    amount: number;
+  } | null>(null);
+  const [discountError, setDiscountError] = useState("");
+
+  // Available discount codes (only for hourly bookings)
+  const discountCodes: Record<string, number> = {
+    "CHRIS": 20,
+  };
+
+  const applyDiscountCode = () => {
+    const code = discountCode.trim().toUpperCase();
+    
+    if (!code) {
+      setDiscountError("Please enter a discount code");
+      return;
+    }
+
+    if (data.bookingType !== "hourly") {
+      setDiscountError("Discount codes only apply to hourly bookings");
+      return;
+    }
+
+    const percentage = discountCodes[code];
+    
+    if (!percentage) {
+      setDiscountError("Invalid discount code");
+      return;
+    }
+
+    // Calculate discount amount based on base rental
+    let baseRental = 0;
+    if (data.startTime && data.endTime) {
+      const start = new Date(`2000-01-01T${data.startTime}`);
+      const end = new Date(`2000-01-01T${data.endTime}`);
+      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      baseRental = 140 * hours;
+    }
+
+    const discountAmount = Math.round((baseRental * percentage) / 100);
+
+    setAppliedDiscount({
+      code,
+      percentage,
+      amount: discountAmount,
+    });
+    setDiscountError("");
+  };
+
+  const removeDiscount = () => {
+    setAppliedDiscount(null);
+    setDiscountCode("");
+    setDiscountError("");
+  };
+
   useEffect(() => {
     // Calculate pricing
     const calculatePricing = () => {
@@ -53,7 +112,10 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         optionalServices += data.tableclothQuantity * 5 + 25;
       }
 
-      const total = baseRental + cleaningFee + packageCost + optionalServices;
+      // Apply discount only to hourly bookings
+      const discount = data.bookingType === "hourly" && appliedDiscount ? appliedDiscount.amount : 0;
+
+      const total = baseRental + cleaningFee + packageCost + optionalServices - discount;
       const deposit = Math.round(total * 0.5);
       const balance = total - deposit;
 
@@ -63,6 +125,8 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           cleaningFee,
           packageCost,
           optionalServices,
+          discount,
+          discountCode: appliedDiscount?.code,
           total,
           deposit,
           balance,
@@ -71,7 +135,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
     };
 
     calculatePricing();
-  }, [data, updateData]);
+  }, [data, updateData, appliedDiscount]);
 
   const packageNames: Record<string, string> = {
     none: "No Package",
@@ -183,6 +247,65 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
       <Separator className="my-6" />
 
+      {/* Discount Code Section - Only for Hourly Bookings */}
+      {data.bookingType === "hourly" && (
+        <div className="bg-accent/20 rounded-lg p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <Tag className="h-4 w-4 text-primary" />
+            <h3 className="font-semibold">Have a Discount Code?</h3>
+          </div>
+          
+          {!appliedDiscount ? (
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                placeholder="Enter discount code"
+                value={discountCode}
+                onChange={(e) => {
+                  setDiscountCode(e.target.value.toUpperCase());
+                  setDiscountError("");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    applyDiscountCode();
+                  }
+                }}
+                className="flex-1"
+              />
+              <Button 
+                type="button" 
+                onClick={applyDiscountCode}
+                variant="outline"
+              >
+                Apply
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-md p-3">
+              <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                <Check className="h-4 w-4" />
+                <span className="font-medium">
+                  {appliedDiscount.code} applied ({appliedDiscount.percentage}% off)
+                </span>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={removeDiscount}
+                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          
+          {discountError && (
+            <p className="text-sm text-red-600 dark:text-red-400">{discountError}</p>
+          )}
+        </div>
+      )}
+
       {/* Pricing Breakdown */}
       {data.pricing && (
         <div className="bg-accent/30 rounded-lg p-6 space-y-3">
@@ -207,6 +330,12 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <div className="flex justify-between">
                 <span>Optional Services</span>
                 <span>${data.pricing.optionalServices.toFixed(2)}</span>
+              </div>
+            )}
+            {data.pricing.discount && data.pricing.discount > 0 && (
+              <div className="flex justify-between text-green-600 dark:text-green-400">
+                <span>Discount ({data.pricing.discountCode})</span>
+                <span>-${data.pricing.discount.toFixed(2)}</span>
               </div>
             )}
           </div>

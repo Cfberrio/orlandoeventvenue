@@ -37,6 +37,8 @@ export interface BookingFormData {
     cleaningFee: number;
     packageCost: number;
     optionalServices: number;
+    discount?: number;
+    discountCode?: string;
     total: number;
     deposit: number;
     balance: number;

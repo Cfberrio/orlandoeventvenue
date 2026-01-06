@@ -626,6 +626,14 @@ export default function BookingDetail() {
                       <span>${Number(booking.optional_services).toLocaleString()}</span>
                     </div>
                   )}
+                  {booking.discount_amount && Number(booking.discount_amount) > 0 && (
+                    <div className="flex justify-between text-green-600 dark:text-green-400">
+                      <span className="text-muted-foreground">
+                        Discount {booking.discount_code ? `(${booking.discount_code})` : ''}
+                      </span>
+                      <span>-${Number(booking.discount_amount).toLocaleString()}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Taxes & Fees</span>
                     <span>${Number(booking.taxes_fees).toLocaleString()}</span>
