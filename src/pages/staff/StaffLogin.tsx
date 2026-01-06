@@ -26,14 +26,24 @@ export default function StaffLogin() {
 
     setLoading(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+      
       // Check if email exists in staff_members and is active
       const { data: staffMember, error } = await supabase
         .from("staff_members")
         .select("id, full_name, email, role, is_active")
-        .eq("email", email.trim().toLowerCase())
+        .eq("email", normalizedEmail)
         .maybeSingle();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Staff lookup error:", error);
+        toast({ 
+          title: "Connection Error", 
+          description: "Could not connect to the server. Please check your internet connection and try again.",
+          variant: "destructive" 
+        });
+        return;
+      }
 
       if (!staffMember) {
         toast({ 
@@ -54,13 +64,25 @@ export default function StaffLogin() {
       }
 
       // Store staff session in localStorage
-      localStorage.setItem("staff_session", JSON.stringify({
+      const sessionData = {
         id: staffMember.id,
         full_name: staffMember.full_name,
         email: staffMember.email,
         role: staffMember.role,
         logged_in_at: new Date().toISOString(),
-      }));
+      };
+      
+      try {
+        localStorage.setItem("staff_session", JSON.stringify(sessionData));
+      } catch (storageError) {
+        console.error("Storage error:", storageError);
+        toast({ 
+          title: "Storage Error", 
+          description: "Could not save session. Please ensure private browsing is disabled and try again.",
+          variant: "destructive" 
+        });
+        return;
+      }
 
       // Refresh the session context to pick up the new session
       await refreshSession();
@@ -71,7 +93,7 @@ export default function StaffLogin() {
       console.error("Login error:", error);
       toast({ 
         title: "Login failed", 
-        description: "An error occurred. Please try again.",
+        description: "An unexpected error occurred. Please try again.",
         variant: "destructive" 
       });
     } finally {
