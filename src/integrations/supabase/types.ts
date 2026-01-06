@@ -487,6 +487,8 @@ export type Database = {
           created_at: string
           deposit_amount: number
           deposit_paid_at: string | null
+          discount_amount: number | null
+          discount_code: string | null
           email: string
           end_time: string | null
           event_date: string
@@ -548,6 +550,8 @@ export type Database = {
           created_at?: string
           deposit_amount: number
           deposit_paid_at?: string | null
+          discount_amount?: number | null
+          discount_code?: string | null
           email: string
           end_time?: string | null
           event_date: string
@@ -609,6 +613,8 @@ export type Database = {
           created_at?: string
           deposit_amount?: number
           deposit_paid_at?: string | null
+          discount_amount?: number | null
+          discount_code?: string | null
           email?: string
           end_time?: string | null
           event_date?: string
