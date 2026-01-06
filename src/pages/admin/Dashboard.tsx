@@ -176,7 +176,7 @@ export default function AdminDashboard() {
                         {alert.booking?.reservation_number || 'N/A'} - {alert.booking?.full_name}
                       </p>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Event: {alert.booking?.event_date ? format(new Date(alert.booking.event_date), "MMM d, yyyy") : 'N/A'}
+                        Event: {alert.booking?.event_date ? format(new Date(alert.booking.event_date + 'T00:00:00'), "MMM d, yyyy") : 'N/A'}
                       </p>
                       <div className="p-3 bg-muted rounded-md">
                         <p className="text-sm font-medium text-foreground mb-1">Staff Member:</p>
@@ -234,7 +234,7 @@ export default function AdminDashboard() {
                         {alert.booking?.reservation_number || 'N/A'} - {alert.booking?.full_name}
                       </p>
                       <p className="text-sm text-muted-foreground mb-2">
-                        Event: {alert.booking?.event_date ? format(new Date(alert.booking.event_date), "MMM d, yyyy") : 'N/A'}
+                        Event: {alert.booking?.event_date ? format(new Date(alert.booking.event_date + 'T00:00:00'), "MMM d, yyyy") : 'N/A'}
                         {alert.reported_by && ` • Reported by: ${alert.reported_by}`}
                       </p>
                       <div className="p-3 bg-muted rounded-md">
@@ -276,7 +276,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="font-medium text-foreground">{booking.full_name}</p>
                         <p className="text-sm text-muted-foreground">
-                          {format(new Date(booking.event_date), "MMM d, yyyy")}
+                          {format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}
                           {booking.start_time && ` at ${booking.start_time.slice(0, 5)}`}
                         </p>
                         <p className="text-sm text-muted-foreground">{booking.event_type}</p>
@@ -352,7 +352,7 @@ export default function AdminDashboard() {
                     <div>
                       <p className="font-medium">{booking.full_name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(booking.event_date), "MMM d, yyyy")} - {booking.event_type}
+                        {format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")} - {booking.event_type}
                       </p>
                     </div>
                     <Badge variant="outline" className="border-chart-1 text-chart-1">Not Ready</Badge>

@@ -234,7 +234,7 @@ export default function Cleaning() {
                         {booking?.full_name || "Unknown"}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        {booking?.event_date ? format(new Date(booking.event_date), "MMM d, yyyy") : "-"}
+                        {booking?.event_date ? format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy") : "-"}
                       </p>
                     </div>
                     <Badge className={status.color}>
@@ -321,7 +321,7 @@ export default function Cleaning() {
                     <p className="text-xs text-muted-foreground uppercase">Event Date</p>
                     <p className="font-medium">
                       {(selectedReport.bookings as Booking)?.event_date
-                        ? format(new Date((selectedReport.bookings as Booking).event_date), "PPP")
+                        ? format(new Date((selectedReport.bookings as Booking).event_date + 'T00:00:00'), "PPP")
                         : "-"}
                     </p>
                   </div>

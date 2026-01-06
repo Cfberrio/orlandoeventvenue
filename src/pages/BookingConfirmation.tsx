@@ -138,7 +138,7 @@ const BookingConfirmation = () => {
 
   // Payment successful
   if (booking) {
-    const eventDate = new Date(booking.event_date);
+    const eventDate = new Date(booking.event_date + 'T00:00:00');
     const balanceDueDate = addDays(eventDate, -15);
     const isDepositPaid = booking.payment_status === "deposit_paid";
 

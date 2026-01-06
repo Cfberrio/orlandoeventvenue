@@ -253,7 +253,7 @@ export default function BookingsList() {
                     return (
                       <TableRow key={booking.id} className="group">
                         <TableCell>
-                          <div className="font-medium">{format(new Date(booking.event_date), "MMM d, yyyy")}</div>
+                          <div className="font-medium">{format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}</div>
                           <div className="text-xs text-muted-foreground">
                             {booking.start_time?.slice(0, 5) || "All day"}
                           </div>
