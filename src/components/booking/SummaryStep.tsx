@@ -25,7 +25,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
   // Available discount codes (only for hourly bookings)
   const discountCodes: Record<string, number> = {
-    "CHRIS": 20,
+    "CHRIS": 40,
   };
 
   const applyDiscountCode = () => {
