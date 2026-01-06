@@ -199,25 +199,7 @@ const ContactForm = () => {
                 />
                 <div className="flex-1">
                   <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive transactional messages related to my account, orders, or services I have requested from OrlandoEventVenue. These messages may include appointment reminders, order confirmations, and account notifications among others. Message frequency may vary. Message & Data rates may apply. Reply HELP for help or STOP to opt-out. For more information access the{" "}
-                    <a
-                      href="/privacy-policy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      Privacy Policy
-                    </a>
-                    {" "}and{" "}
-                    <a
-                      href="/sms-terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      SMS Terms
-                    </a>
-                    .
+                    By checking this box, I consent to receive SMS messages from Orlando Event Venue  related to my booking, including payment confirmations, booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
@@ -233,25 +215,7 @@ const ContactForm = () => {
                 />
                 <div className="flex-1">
                   <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive marketing and promotional messages, including special offers, discounts, new product updates among others. Message frequency may vary. Message & Data rates may apply. Reply HELP for help or STOP to opt-out. For more information access the{" "}
-                    <a
-                      href="/privacy-policy"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      Privacy Policy
-                    </a>
-                    {" "}and{" "}
-                    <a
-                      href="/sms-terms"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-primary underline hover:text-primary/80"
-                    >
-                      SMS Terms
-                    </a>
-                    .
+                    By checking this box, I consent to receive marketing SMS messages from Orlando Event Venue , including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
@@ -294,6 +258,29 @@ const ContactForm = () => {
                   Something went wrong. Please try again later.
                 </p>
               )}
+
+              {/* Legal Links */}
+              <div className="text-center text-sm text-muted-foreground">
+                For more information, please review our{" "}
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80 font-medium"
+                >
+                  Privacy Policy
+                </a>
+                {" "}and{" "}
+                <a
+                  href="/terms-of-use"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80 font-medium"
+                >
+                  Terms of Use
+                </a>
+                .
+              </div>
             </div>
           </form>
         </div>

@@ -2,7 +2,7 @@ import { useEffect } from "react";
 
 const TermsOfUse = () => {
   useEffect(() => {
-    window.location.href = "/documents/privacy-policy.pdf";
+    window.location.href = "/documents/terms-of-use.pdf";
   }, []);
 
   return (

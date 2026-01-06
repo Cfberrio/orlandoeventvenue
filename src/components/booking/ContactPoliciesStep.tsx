@@ -251,12 +251,12 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
                   <FormLabel className="text-sm font-normal cursor-pointer">
                     I agree to receive text messages from Orlando Event Venue related to my booking, including confirmations, reminders, and important updates. Message and data rates may apply. Reply STOP to opt out, HELP for help. See our{" "}
                     <a
-                      href="/sms-terms"
+                      href="/terms-of-use"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-primary underline hover:text-primary/80"
                     >
-                      SMS Terms
+                      Terms of Use
                     </a>
                     {" "}and{" "}
                     <a

@@ -35,7 +35,7 @@ const Footer = () => {
           </div>
 
           <div className="border-t border-white/20 pt-8 text-center text-sm opacity-75">
-            <p>© {new Date().getFullYear()} Orlando Event Venue. All rights reserved.</p>
+            <p>Copyright © 2026 Orlando Event Venue. All rights reserved.</p>
           </div>
         </div>
       </div>
