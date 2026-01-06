@@ -310,26 +310,23 @@ async function getStaffGHLUserIds(
       continue;
     }
 
-    // Search for GHL team member by email
+    // Search for GHL team member by email using GET /users endpoint
     try {
-      const userSearchUrl = `https://services.leadconnectorhq.com/users/search`;
-      const resp = await fetch(userSearchUrl, {
-        method: "POST",
+      const userListUrl = `https://services.leadconnectorhq.com/users/?locationId=${locationId}`;
+      const resp = await fetch(userListUrl, {
+        method: "GET",
         headers: {
           "Authorization": `Bearer ${ghlToken}`,
           "Version": GHL_API_VERSION,
-          "Content-Type": "application/json",
+          "Accept": "application/json",
         },
-        body: JSON.stringify({
-          locationId,
-          query: staffEmail,
-          limit: 10,
-        }),
       });
 
       if (resp.ok) {
         const data = await resp.json();
         const users = data.users || [];
+        console.log(`GHL returned ${users.length} users for location`);
+        
         const matchedUser = users.find((u: { email?: string }) => 
           u.email?.toLowerCase() === staffEmail.toLowerCase()
         );
@@ -338,13 +335,15 @@ async function getStaffGHLUserIds(
           console.log(`Found GHL user for staff ${staffEmail}: ${matchedUser.id}`);
           ghlUserIds.push(matchedUser.id);
         } else {
-          console.log(`No GHL user found for staff email: ${staffEmail}`);
+          console.log(`No GHL user found for staff email: ${staffEmail}. Available emails:`, 
+            users.map((u: { email?: string }) => u.email).join(", "));
         }
       } else {
-        console.log(`GHL user search failed for ${staffEmail}:`, resp.status);
+        const errText = await resp.text();
+        console.log(`GHL users list failed for ${staffEmail}:`, resp.status, errText);
       }
     } catch (err) {
-      console.error(`Error searching GHL user for ${staffEmail}:`, err);
+      console.error(`Error listing GHL users for ${staffEmail}:`, err);
     }
   }
 
