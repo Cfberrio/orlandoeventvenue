@@ -74,7 +74,54 @@ function calculateTimes(booking: BookingData): { startTime: string; endTime: str
 }
 
 /**
- * Create a contact in GHL
+ * Search for existing contact in GHL by email
+ */
+async function findGHLContactByEmail(
+  locationId: string,
+  email: string,
+  ghlToken: string
+): Promise<string | null> {
+  const url = `https://services.leadconnectorhq.com/contacts/search`;
+  
+  console.log(`Searching for GHL contact with email: ${email}`);
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${ghlToken}`,
+      "Version": GHL_API_VERSION,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      locationId,
+      query: email,
+      limit: 1,
+    }),
+  });
+
+  if (!resp.ok) {
+    console.log("GHL contact search failed, will try to create:", resp.status);
+    return null;
+  }
+
+  const data = await resp.json();
+  const contacts = data.contacts || [];
+  
+  // Find exact email match
+  const match = contacts.find((c: { email?: string }) => 
+    c.email?.toLowerCase() === email.toLowerCase()
+  );
+  
+  if (match) {
+    console.log(`Found existing GHL contact: ${match.id}`);
+    return match.id;
+  }
+  
+  return null;
+}
+
+/**
+ * Create a contact in GHL (or return existing if duplicate detected)
  */
 async function createGHLContact(
   locationId: string,
@@ -110,6 +157,18 @@ async function createGHLContact(
 
   if (!resp.ok) {
     const errText = await resp.text();
+    
+    // Check if it's a duplicate contact error - extract the contactId from the error
+    try {
+      const errData = JSON.parse(errText);
+      if (errData.meta?.contactId) {
+        console.log(`Contact already exists in GHL, using existing: ${errData.meta.contactId}`);
+        return errData.meta.contactId;
+      }
+    } catch {
+      // Not JSON or no contactId in error
+    }
+    
     console.error("GHL create contact failed:", resp.status, errText);
     throw new Error(`Failed to create contact: ${resp.status} - ${errText}`);
   }
@@ -202,7 +261,8 @@ async function createAppointment(
     assignedUserId,
     address: VENUE_ADDRESS,
     toNotify: false,
-    ignoreDateRange: false,
+    ignoreDateRange: true, // Bypass minimum scheduling notice and date range
+    ignoreFreeSlotValidation: true, // Bypass slot availability validation - bookings are already validated by our system
     notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
   };
   
@@ -263,6 +323,8 @@ async function updateAppointment(
     assignedUserId,
     address: VENUE_ADDRESS,
     toNotify: false,
+    ignoreDateRange: true, // Bypass minimum scheduling notice and date range
+    ignoreFreeSlotValidation: true, // Bypass slot availability validation - bookings are already validated by our system
     notes: `Booking ID: ${booking.id}\nReservation: ${booking.reservation_number || "N/A"}\nGuests: ${booking.number_of_guests}\nType: ${booking.booking_type}`,
   };
   
