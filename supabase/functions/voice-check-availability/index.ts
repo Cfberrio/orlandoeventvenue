@@ -336,12 +336,20 @@ function getHourlyRange(date: string, startHHmm: string, endHHmm: string, timeZo
 
 // ============= GHL API CALLS =============
 
-// Parse event time (could be ISO string or epoch millis)
+// Parse event time (could be ISO string, epoch seconds, or epoch millis)
 function parseEventTimeToMs(val: unknown): number | null {
-  if (typeof val === "number") return val;
+  if (typeof val === "number") {
+    // If < 1e12 (10 digits) → seconds, convert to ms
+    // If >= 1e12 (13 digits) → already ms
+    // 1e12 = 1,000,000,000,000 ms = Sept 9, 2001
+    return val < 1e12 ? val * 1000 : val;
+  }
   if (typeof val === "string") {
-    // If it's all digits, treat as epoch ms
-    if (/^\d+$/.test(val)) return parseInt(val, 10);
+    // If it's all digits, treat as epoch (seconds or ms)
+    if (/^\d+$/.test(val)) {
+      const num = parseInt(val, 10);
+      return num < 1e12 ? num * 1000 : num;
+    }
     // Otherwise parse as ISO
     const ms = Date.parse(val);
     return isNaN(ms) ? null : ms;
@@ -540,6 +548,40 @@ function runSelfTests(): { passed: boolean; results: Array<{ test: string; passe
     assert("filter_conflicts_mock", pass, { found: conflicts.map(e => e.id), expected: ["1"] });
   }
 
+  // Test 8: parseEventTimeToMs - seconds to ms (string)
+  {
+    const result = parseEventTimeToMs("1730000000");
+    const expected = 1730000000000;
+    const pass = result === expected;
+    assert("parse_seconds_to_ms_string", pass, `parseEventTimeToMs("1730000000") => ${result}, expected ${expected}`);
+  }
+
+  // Test 9: parseEventTimeToMs - seconds to ms (number)
+  {
+    const result = parseEventTimeToMs(1730000000);
+    const expected = 1730000000000;
+    const pass = result === expected;
+    assert("parse_seconds_to_ms_number", pass, `parseEventTimeToMs(1730000000) => ${result}, expected ${expected}`);
+  }
+
+  // Test 10: parseEventTimeToMs - already ms (unchanged)
+  {
+    const result = parseEventTimeToMs(1730000000000);
+    const expected = 1730000000000;
+    const pass = result === expected;
+    assert("parse_ms_unchanged", pass, `parseEventTimeToMs(1730000000000) => ${result}, expected ${expected}`);
+  }
+
+  // Test 11: Real overlap scenario (18:00-22:00 event vs 18:00-22:00 window)
+  {
+    const eventStart = 1730664000000; // Nov 3, 2024 18:00 ET
+    const eventEnd = 1730678400000;   // Nov 3, 2024 22:00 ET
+    const windowStart = 1730664000000;
+    const windowEnd = 1730678400000;
+    const pass = hasOverlap(eventStart, eventEnd, windowStart, windowEnd);
+    assert("overlap_exact_match", pass, "18:00-22:00 event vs 18:00-22:00 window should detect conflict");
+  }
+
   return { passed: results.every(r => r.passed), results };
 }
 
@@ -680,18 +722,55 @@ serve(async (req) => {
   const allEvents: GHLEvent[] = [...eventsResult.events, ...blockedResult.events];
   console.log(`[EVENTS] events_count=${eventsResult.events.length} blocked_count=${blockedResult.events.length} total=${allEvents.length}`);
 
+  // Defensive logs (no secrets)
+  console.log(`[DEBUG] window_start_ms=${startMs} window_end_ms=${endMs}`);
+  console.log(`[DEBUG] events_count=${eventsResult.events.length} blocked_count=${blockedResult.events.length}`);
+
+  // Log 2 sample events with original and normalized times
+  if (allEvents.length > 0) {
+    const samples = allEvents.slice(0, 2).map(ev => ({
+      id: ev.id,
+      startTime_original: ev.startTime,
+      endTime_original: ev.endTime,
+      startTime_ms: parseEventTimeToMs(ev.startTime),
+      endTime_ms: parseEventTimeToMs(ev.endTime),
+    }));
+    console.log(`[DEBUG] sample_events=`, JSON.stringify(samples));
+  }
+
+  // ANTI-FALSE-POSITIVE: If calendar returned zero events, cannot verify availability
+  if (eventsResult.events.length === 0 && blockedResult.events.length === 0) {
+    console.warn("[ANTI-FALSE-POSITIVE] Calendar returned zero events - cannot verify availability");
+    return buildOkFalseResponse({
+      error: "unverified_empty_calendar",
+      missing_fields: [],
+      receivedBodyShape: { ...receivedBodyShape, warning: "Calendar returned no events - availability unverified" },
+      receivedKeys,
+      normalized,
+      mapping: mapping as AnyRecord,
+      debug: { 
+        events_count: 0, 
+        blocked_count: 0,
+        window_start_ms: startMs,
+        window_end_ms: endMs 
+      },
+    });
+  }
+
   // Find conflicts
   const conflicts = filterConflictingEvents(allEvents, startMs, endMs);
   console.log(`[CONFLICTS] found=${conflicts.length}`);
 
   const available = conflicts.length === 0;
 
-  // Build sample events for debug
+  // Build sample events for debug (include original + converted timestamps)
   const sampleEvents = conflicts.slice(0, 2).map(ev => ({
     id: ev.id ?? null,
     title: ev.title ?? null,
-    startTime: ev.startTime ?? null,
-    endTime: ev.endTime ?? null,
+    startTime_original: ev.startTime ?? null,
+    endTime_original: ev.endTime ?? null,
+    startTime_ms: parseEventTimeToMs(ev.startTime),
+    endTime_ms: parseEventTimeToMs(ev.endTime),
   }));
 
   const response = {

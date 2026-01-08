@@ -71,6 +71,44 @@ function testOccupiedLogic() {
   return pass1 && pass2;
 }
 
+// ==================== TEST 3: parseEventTimeToMs ====================
+
+function parseEventTimeToMs(val: unknown): number | null {
+  if (typeof val === "number") {
+    return val < 1e12 ? val * 1000 : val;
+  }
+  if (typeof val === "string") {
+    if (/^\d+$/.test(val)) {
+      const num = parseInt(val, 10);
+      return num < 1e12 ? num * 1000 : num;
+    }
+    const ms = Date.parse(val);
+    return isNaN(ms) ? null : ms;
+  }
+  return null;
+}
+
+function testParseEventTime() {
+  console.log('\n=== TEST 3: parseEventTimeToMs (seconds vs ms) ===');
+  
+  const tests = [
+    { input: 1730000000, expected: 1730000000000, label: "number seconds" },
+    { input: "1730000000", expected: 1730000000000, label: "string seconds" },
+    { input: 1730000000000, expected: 1730000000000, label: "number ms" },
+    { input: "2024-10-27T12:00:00Z", expected: Date.parse("2024-10-27T12:00:00Z"), label: "ISO string" },
+  ];
+  
+  let allPass = true;
+  for (const t of tests) {
+    const result = parseEventTimeToMs(t.input);
+    const pass = result === t.expected;
+    if (!pass) allPass = false;
+    console.log(`${t.label}: ${pass ? 'PASS ✅' : 'FAIL ❌'} (got ${result}, expected ${t.expected})`);
+  }
+  
+  return allPass;
+}
+
 // ==================== RUN TESTS ====================
 
 console.log('========================================');
@@ -79,13 +117,15 @@ console.log('========================================');
 
 const test1Pass = testDailyRangeConversion();
 const test2Pass = testOccupiedLogic();
+const test3Pass = testParseEventTime();
 
 console.log('\n========================================');
 console.log('SUMMARY');
 console.log('========================================');
 console.log(`Test 1 (Daily Range): ${test1Pass ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`Test 2 (Occupied Logic): ${test2Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Overall: ${test1Pass && test2Pass ? 'ALL PASS ✅' : 'SOME FAILED ❌'}`);
+console.log(`Test 3 (Parse Event Time): ${test3Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Overall: ${test1Pass && test2Pass && test3Pass ? 'ALL PASS ✅' : 'SOME FAILED ❌'}`);
 
 // ==================== cURL EXAMPLES ====================
 
