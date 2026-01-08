@@ -40,6 +40,8 @@ export interface Booking {
   total_amount: number;
   deposit_amount: number;
   balance_amount: number;
+  discount_amount: number | null;
+  discount_code: string | null;
   payment_status: string;
   full_name: string;
   email: string;
