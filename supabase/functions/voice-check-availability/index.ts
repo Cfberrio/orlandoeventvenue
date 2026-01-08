@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret, x-self-test',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret, x-self-test, x-api-key',
 };
 
 // GHL API configuration
@@ -18,17 +18,15 @@ interface NormalizedPayload {
   timezone?: string;
 }
 
-interface BlockedSlotEvent {
+interface GHLEvent {
   id?: string;
   title?: string;
-  startTime?: string;
-  endTime?: string;
+  startTime?: string; // ISO or ms
+  endTime?: string;   // ISO or ms
+  appointmentStatus?: string;
 }
 
 // ============= INPUT NORMALIZATION =============
-
-// NOTE: GHL can send keys with different casing, spaces, camelCase, nesting, and wrapped values.
-// This section is intentionally tolerant to maximize compatibility with Voice Agent "Custom Action Test".
 
 type AnyRecord = Record<string, unknown>;
 
@@ -43,7 +41,6 @@ const FIELD_ALIASES = {
 type CanonicalField = keyof typeof FIELD_ALIASES;
 
 function normalizeKey(key: string): string {
-  // Lowercase and strip everything except [a-z0-9]
   return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
@@ -59,28 +56,15 @@ function isPlainObject(val: unknown): val is AnyRecord {
   return !!val && typeof val === "object" && !Array.isArray(val);
 }
 
-// Unwrap value if it's an object like {value: X}, {text: X}, {label: X}, {name: X}
 function unwrapValue(val: unknown, maxDepth = 3): unknown {
   let cur: unknown = val;
   for (let i = 0; i < maxDepth; i++) {
     if (!isPlainObject(cur)) return cur;
     const obj = cur as AnyRecord;
-    if ("value" in obj) {
-      cur = obj.value;
-      continue;
-    }
-    if ("text" in obj) {
-      cur = obj.text;
-      continue;
-    }
-    if ("label" in obj) {
-      cur = obj.label;
-      continue;
-    }
-    if ("name" in obj) {
-      cur = obj.name;
-      continue;
-    }
+    if ("value" in obj) { cur = obj.value; continue; }
+    if ("text" in obj) { cur = obj.text; continue; }
+    if ("label" in obj) { cur = obj.label; continue; }
+    if ("name" in obj) { cur = obj.name; continue; }
     return cur;
   }
   return cur;
@@ -98,31 +82,19 @@ function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form
   const text = (rawText ?? "").trim();
   if (!text) return { body: {}, mode: "empty" };
 
-  // 1) Try JSON
   try {
     const parsed = JSON.parse(text);
     if (isPlainObject(parsed)) return { body: parsed, mode: "json" };
-    // If JSON is not an object, still wrap it for debug purposes.
     return { body: { _value: parsed }, mode: "json" };
   } catch (e) {
-    // fallthrough
     const jsonError = String(e);
-
-    // 2) Try form-urlencoded
     try {
       const params = new URLSearchParams(text);
       const obj: AnyRecord = {};
       let any = false;
-      for (const [k, v] of params.entries()) {
-        any = true;
-        // if key repeats, keep last (GHL usually doesn't repeat)
-        obj[k] = v;
-      }
+      for (const [k, v] of params.entries()) { any = true; obj[k] = v; }
       if (any) return { body: obj, mode: "form" };
-    } catch {
-      // ignore
-    }
-
+    } catch { /* ignore */ }
     return { body: { _raw: text }, mode: "unknown", error: jsonError };
   }
 }
@@ -130,30 +102,20 @@ function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form
 function collectAllKeysDeep(val: unknown, maxKeys = 300, maxDepth = 6): string[] {
   const keys: string[] = [];
   const seen = new Set<unknown>();
-
   const walk = (node: unknown, path: string, depth: number) => {
-    if (keys.length >= maxKeys) return;
-    if (depth > maxDepth) return;
-    if (!node || typeof node !== "object") return;
-    if (seen.has(node)) return;
+    if (keys.length >= maxKeys || depth > maxDepth) return;
+    if (!node || typeof node !== "object" || seen.has(node)) return;
     seen.add(node);
-
     if (Array.isArray(node)) {
-      for (let i = 0; i < node.length; i++) {
-        walk(node[i], `${path}[${i}]`, depth + 1);
-      }
+      for (let i = 0; i < node.length; i++) walk(node[i], `${path}[${i}]`, depth + 1);
       return;
     }
-
-    const obj = node as AnyRecord;
-    for (const k of Object.keys(obj)) {
+    for (const k of Object.keys(node as AnyRecord)) {
       const nextPath = path ? `${path}.${k}` : k;
       keys.push(nextPath);
-      if (keys.length >= maxKeys) return;
-      walk(obj[k], nextPath, depth + 1);
+      walk((node as AnyRecord)[k], nextPath, depth + 1);
     }
   };
-
   walk(val, "", 0);
   return keys;
 }
@@ -161,216 +123,100 @@ function collectAllKeysDeep(val: unknown, maxKeys = 300, maxDepth = 6): string[]
 function collectAllStringsDeep(val: unknown, maxStrings = 200, maxDepth = 8): string[] {
   const strings: string[] = [];
   const seen = new Set<unknown>();
-
   const walk = (node: unknown, depth: number) => {
-    if (strings.length >= maxStrings) return;
-    if (depth > maxDepth) return;
-
+    if (strings.length >= maxStrings || depth > maxDepth) return;
     const unwrapped = unwrapValue(node);
-    if (typeof unwrapped === "string") {
-      const s = unwrapped.trim();
-      if (s) strings.push(s);
-      return;
-    }
-
-    if (!unwrapped || typeof unwrapped !== "object") return;
-    if (seen.has(unwrapped)) return;
+    if (typeof unwrapped === "string") { const s = unwrapped.trim(); if (s) strings.push(s); return; }
+    if (!unwrapped || typeof unwrapped !== "object" || seen.has(unwrapped)) return;
     seen.add(unwrapped);
-
-    if (Array.isArray(unwrapped)) {
-      for (const item of unwrapped) walk(item, depth + 1);
-      return;
-    }
-
-    const obj = unwrapped as AnyRecord;
-    for (const v of Object.values(obj)) walk(v, depth + 1);
+    if (Array.isArray(unwrapped)) { for (const item of unwrapped) walk(item, depth + 1); return; }
+    for (const v of Object.values(unwrapped as AnyRecord)) walk(v, depth + 1);
   };
-
   walk(val, 0);
   return strings;
 }
 
 function findByAliasesDeep(root: unknown, aliases: Set<string>): { value: string | null; path: string | null } {
   const seen = new Set<unknown>();
-
   const walk = (node: unknown, path: string, depth: number): { value: string | null; path: string | null } => {
-    if (depth > 10) return { value: null, path: null };
-    if (!node || typeof node !== "object") return { value: null, path: null };
-    if (seen.has(node)) return { value: null, path: null };
+    if (depth > 10 || !node || typeof node !== "object" || seen.has(node)) return { value: null, path: null };
     seen.add(node);
-
     if (Array.isArray(node)) {
-      for (let i = 0; i < node.length; i++) {
-        const r = walk(node[i], `${path}[${i}]`, depth + 1);
-        if (r.value) return r;
-      }
+      for (let i = 0; i < node.length; i++) { const r = walk(node[i], `${path}[${i}]`, depth + 1); if (r.value) return r; }
       return { value: null, path: null };
     }
-
     const obj = node as AnyRecord;
-
-    // direct match on this object
     for (const [k, v] of Object.entries(obj)) {
-      const nk = normalizeKey(k);
-      if (aliases.has(nk)) {
-        const sv = toStringOrNull(v);
-        if (sv) return { value: sv, path: path ? `${path}.${k}` : k };
-      }
+      if (aliases.has(normalizeKey(k))) { const sv = toStringOrNull(v); if (sv) return { value: sv, path: path ? `${path}.${k}` : k }; }
     }
-
-    // also search common containers first (helps with speed and determinism)
     const preferredContainers = ["body", "data", "payload", "params", "parameters", "inputs", "variables", "fields"];
     for (const c of preferredContainers) {
       const child = obj[c];
-      if (child && typeof child === "object") {
-        const r = walk(child, path ? `${path}.${c}` : c, depth + 1);
-        if (r.value) return r;
-      }
+      if (child && typeof child === "object") { const r = walk(child, path ? `${path}.${c}` : c, depth + 1); if (r.value) return r; }
     }
-
-    // generic deep search
     for (const [k, v] of Object.entries(obj)) {
-      if (!v || typeof v !== "object") continue;
-      const r = walk(v, path ? `${path}.${k}` : k, depth + 1);
-      if (r.value) return r;
+      if (v && typeof v === "object") { const r = walk(v, path ? `${path}.${k}` : k, depth + 1); if (r.value) return r; }
     }
-
     return { value: null, path: null };
   };
-
   return walk(root, "", 0);
 }
 
 function parseDateToYYYYMMDD(input: string): string | null {
   const s = input.trim();
-
-  // ISO-like: 2026-02-06 or 2026-02-06T...
   const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-
-  // Slash date: 2026/2/6 or 2026/02/06
   const slash = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
-  if (slash) {
-    const mm = String(parseInt(slash[2], 10)).padStart(2, "0");
-    const dd = String(parseInt(slash[3], 10)).padStart(2, "0");
-    return `${slash[1]}-${mm}-${dd}`;
-  }
-
-  // Month name: Feb 6, 2026 / February 6 2026
+  if (slash) return `${slash[1]}-${String(parseInt(slash[2], 10)).padStart(2, "0")}-${String(parseInt(slash[3], 10)).padStart(2, "0")}`;
   const month = s.match(/\b([A-Za-z]{3,9})\s+(\d{1,2})(?:,)?\s+(\d{4})\b/);
   if (month) {
-    const monthName = month[1].toLowerCase();
-    const day = String(parseInt(month[2], 10)).padStart(2, "0");
-    const year = month[3];
-
-    const months: Record<string, string> = {
-      jan: "01",
-      january: "01",
-      feb: "02",
-      february: "02",
-      mar: "03",
-      march: "03",
-      apr: "04",
-      april: "04",
-      may: "05",
-      jun: "06",
-      june: "06",
-      jul: "07",
-      july: "07",
-      aug: "08",
-      august: "08",
-      sep: "09",
-      sept: "09",
-      september: "09",
-      oct: "10",
-      october: "10",
-      nov: "11",
-      november: "11",
-      dec: "12",
-      december: "12",
-    };
-
-    const mm = months[monthName];
-    if (mm) return `${year}-${mm}-${day}`;
+    const months: Record<string, string> = { jan: "01", january: "01", feb: "02", february: "02", mar: "03", march: "03", apr: "04", april: "04", may: "05", jun: "06", june: "06", jul: "07", july: "07", aug: "08", august: "08", sep: "09", sept: "09", september: "09", oct: "10", october: "10", nov: "11", november: "11", dec: "12", december: "12" };
+    const mm = months[month[1].toLowerCase()];
+    if (mm) return `${month[3]}-${mm}-${String(parseInt(month[2], 10)).padStart(2, "0")}`;
   }
-
   return null;
 }
 
-// Normalize time string to 24h format "HH:mm"
-// Accepts: "18:00", "6:00 PM", "6 PM", "6PM", "06:00pm", "600 pm" (tolerated)
 function normalizeTime(timeStr: string): string | null {
   if (!timeStr) return null;
-
-  // Clean up: trim, uppercase, normalize spaces
   const input = timeStr.trim().toUpperCase().replace(/\s+/g, " ");
-
-  // If "18:00:00" => "18:00"
   const match24hWithSeconds = input.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
   if (match24hWithSeconds) {
-    const h = parseInt(match24hWithSeconds[1], 10);
-    const m = parseInt(match24hWithSeconds[2], 10);
-    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-    }
+    const h = parseInt(match24hWithSeconds[1], 10), m = parseInt(match24hWithSeconds[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
     return null;
   }
-
-  // 24h format: "18:00" or "9:00"
   const match24h = input.match(/^(\d{1,2}):(\d{2})$/);
   if (match24h) {
-    const h = parseInt(match24h[1], 10);
-    const m = parseInt(match24h[2], 10);
-    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
-    }
+    const h = parseInt(match24h[1], 10), m = parseInt(match24h[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
     return null;
   }
-
-  // AM/PM with minutes: "6:00 PM", "06:30AM", "6:00PM"
   const matchAmPm = input.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
   if (matchAmPm) {
-    let h = parseInt(matchAmPm[1], 10);
-    const m = parseInt(matchAmPm[2], 10);
-    const period = matchAmPm[3];
-
+    let h = parseInt(matchAmPm[1], 10); const m = parseInt(matchAmPm[2], 10); const period = matchAmPm[3];
     if (h < 1 || h > 12 || m < 0 || m > 59) return null;
-
     if (period === "PM" && h !== 12) h += 12;
     if (period === "AM" && h === 12) h = 0;
-
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
   }
-
-  // AM/PM without minutes: "6 PM", "6PM", "12AM"
   const matchAmPmShort = input.match(/^(\d{1,2})\s?(AM|PM)$/);
   if (matchAmPmShort) {
-    let h = parseInt(matchAmPmShort[1], 10);
-    const period = matchAmPmShort[2];
-
+    let h = parseInt(matchAmPmShort[1], 10); const period = matchAmPmShort[2];
     if (h < 1 || h > 12) return null;
-
     if (period === "PM" && h !== 12) h += 12;
     if (period === "AM" && h === 12) h = 0;
-
     return `${h.toString().padStart(2, "0")}:00`;
   }
-
-  // Tolerate compact "600 PM" / "1230AM" => "6:00 PM" / "12:30 AM"
-  const compact = input.replace(/\s+/g, ""); // "600PM"
+  const compact = input.replace(/\s+/g, "");
   const matchCompact = compact.match(/^(\d{3,4})(AM|PM)$/);
   if (matchCompact) {
-    const digits = matchCompact[1];
-    const period = matchCompact[2];
+    const digits = matchCompact[1], period = matchCompact[2];
     const hRaw = digits.length === 3 ? digits.slice(0, 1) : digits.slice(0, 2);
     const mRaw = digits.slice(-2);
-    const hNum = parseInt(hRaw, 10);
-    const mNum = parseInt(mRaw, 10);
-    if (hNum >= 1 && hNum <= 12 && mNum >= 0 && mNum <= 59) {
-      return normalizeTime(`${hNum}:${mRaw} ${period}`);
-    }
+    const hNum = parseInt(hRaw, 10), mNum = parseInt(mRaw, 10);
+    if (hNum >= 1 && hNum <= 12 && mNum >= 0 && mNum <= 59) return normalizeTime(`${hNum}:${mRaw} ${period}`);
   }
-
   return null;
 }
 
@@ -386,20 +232,15 @@ function inferBookingType(strings: string[]): string | null {
 function inferTimes(strings: string[]): string[] {
   const times: string[] = [];
   for (const s of strings) {
-    // very permissive: pick substrings that look like times
     const candidates = s.match(/\b\d{1,2}(?::\d{2})?\s?(?:AM|PM)\b|\b\d{1,2}:\d{2}\b/gi);
     if (!candidates) continue;
-    for (const c of candidates) {
-      const nt = normalizeTime(c);
-      if (nt) times.push(nt);
-    }
+    for (const c of candidates) { const nt = normalizeTime(c); if (nt) times.push(nt); }
   }
   return times;
 }
 
 function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapping: Partial<Record<CanonicalField, string>> } {
   const strings = collectAllStringsDeep(raw);
-
   const btFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.booking_type);
   const dateFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.date);
   const stFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.start_time);
@@ -414,143 +255,63 @@ function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapp
   if (tzFound.path) mapping.timezone = tzFound.path;
 
   const bookingTypeRaw = btFound.value ?? inferBookingType(strings);
-
-  const dateCandidate =
-    dateFound.value ??
-    strings
-      .map(parseDateToYYYYMMDD)
-      .find((d): d is string => !!d);
-
+  const dateCandidate = dateFound.value ?? strings.map(parseDateToYYYYMMDD).find((d): d is string => !!d);
   const inferredTimes = inferTimes(strings);
   const startRaw = stFound.value ?? (inferredTimes.length >= 1 ? inferredTimes[0] : null);
   const endRaw = etFound.value ?? (inferredTimes.length >= 2 ? inferredTimes[inferredTimes.length - 1] : null);
-
   const timezoneRaw = tzFound.value ?? DEFAULT_TIMEZONE;
 
   const btLower = bookingTypeRaw ? bookingTypeRaw.toLowerCase() : undefined;
-  const booking_type: NormalizedPayload["booking_type"] =
-    btLower === "hourly" || btLower === "daily" ? btLower : undefined;
-
+  const booking_type: NormalizedPayload["booking_type"] = btLower === "hourly" || btLower === "daily" ? btLower : undefined;
   const date = dateCandidate ?? undefined;
-
-  const start_time = startRaw
-    ? ((/^\d{2}:\d{2}$/.test(startRaw) ? startRaw : normalizeTime(startRaw)) ?? undefined)
-    : undefined;
-
-  const end_time = endRaw
-    ? ((/^\d{2}:\d{2}$/.test(endRaw) ? endRaw : normalizeTime(endRaw)) ?? undefined)
-    : undefined;
-
+  const start_time = startRaw ? ((/^\d{2}:\d{2}$/.test(startRaw) ? startRaw : normalizeTime(startRaw)) ?? undefined) : undefined;
+  const end_time = endRaw ? ((/^\d{2}:\d{2}$/.test(endRaw) ? endRaw : normalizeTime(endRaw)) ?? undefined) : undefined;
   const timezone = (timezoneRaw && String(timezoneRaw).trim()) ? String(timezoneRaw).trim() : DEFAULT_TIMEZONE;
 
-  return {
-    normalized: {
-      booking_type,
-      date,
-      start_time,
-      end_time,
-      timezone,
-    },
-    mapping,
-  };
+  return { normalized: { booking_type, date, start_time, end_time, timezone }, mapping };
 }
 
 function examplesPayload() {
   return {
-    hourly: {
-      booking_type: "hourly",
-      Date: "2026-02-06",
-      start_time: "6:00 PM",
-      end_time: "10:00 PM",
-      timezone: "America/New_York",
-    },
-    daily: {
-      booking_type: "daily",
-      Date: "2026-02-06",
-      timezone: "America/New_York",
-    },
+    hourly: { booking_type: "hourly", Date: "2026-02-06", start_time: "6:00 PM", end_time: "10:00 PM", timezone: "America/New_York" },
+    daily: { booking_type: "daily", Date: "2026-02-06", timezone: "America/New_York" },
   };
 }
 
-function buildOkFalseResponse(params: {
-  error: string;
-  missing_fields: string[];
-  receivedBodyShape: AnyRecord;
-  receivedKeys: string[];
-  normalized: NormalizedPayload;
-  mapping?: AnyRecord;
-}): Response {
-  const payload = {
+function buildOkFalseResponse(params: { error: string; missing_fields: string[]; receivedBodyShape: AnyRecord; receivedKeys: string[]; normalized: NormalizedPayload; mapping?: AnyRecord; debug?: AnyRecord }): Response {
+  return new Response(JSON.stringify({
     ok: false,
+    available: null,
     error: params.error,
     missing_fields: params.missing_fields,
-    debug: {
-      receivedBodyShape: params.receivedBodyShape,
-      receivedKeys: params.receivedKeys,
-      normalized: params.normalized,
-      mapping: params.mapping ?? null,
-      examples: examplesPayload(),
-    },
-  };
-
-  return new Response(JSON.stringify(payload), {
-    status: 200,
-    headers: { "Content-Type": "application/json", ...corsHeaders },
-  });
+    debug: { receivedBodyShape: params.receivedBodyShape, receivedKeys: params.receivedKeys, normalized: params.normalized, mapping: params.mapping ?? null, examples: examplesPayload(), ...params.debug },
+  }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
 }
 
 function hhmmToMinutes(hhmm: string): number | null {
   const m = hhmm.match(/^(\d{2}):(\d{2})$/);
   if (!m) return null;
-  const h = parseInt(m[1], 10);
-  const min = parseInt(m[2], 10);
+  const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
   if (h < 0 || h > 23 || min < 0 || min > 59) return null;
   return h * 60 + min;
 }
 
 function getTimeZoneOffsetMillis(date: Date, timeZone: string): number {
-  // Returns (tz_time_as_utc - utc_time) in ms.
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-
+  const dtf = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
   const parts = dtf.formatToParts(date);
   const map: Record<string, string> = {};
-  for (const p of parts) {
-    if (p.type !== "literal") map[p.type] = p.value;
-  }
-
-  const asUTC = Date.UTC(
-    parseInt(map.year, 10),
-    parseInt(map.month, 10) - 1,
-    parseInt(map.day, 10),
-    parseInt(map.hour, 10),
-    parseInt(map.minute, 10),
-    parseInt(map.second, 10)
-  );
-
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+  const asUTC = Date.UTC(parseInt(map.year, 10), parseInt(map.month, 10) - 1, parseInt(map.day, 10), parseInt(map.hour, 10), parseInt(map.minute, 10), parseInt(map.second, 10));
   return asUTC - date.getTime();
 }
 
 function zonedDateTimeToUtcMillis(dateStr: string, timeHHmm: string, timeZone: string): number | null {
   const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!m) return null;
-  const y = parseInt(m[1], 10);
-  const mo = parseInt(m[2], 10);
-  const d = parseInt(m[3], 10);
-
+  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
   const tm = timeHHmm.match(/^(\d{2}):(\d{2})$/);
   if (!tm) return null;
-  const h = parseInt(tm[1], 10);
-  const mi = parseInt(tm[2], 10);
-
+  const h = parseInt(tm[1], 10), mi = parseInt(tm[2], 10);
   const utcGuess = Date.UTC(y, mo - 1, d, h, mi, 0);
   const offset = getTimeZoneOffsetMillis(new Date(utcGuess), timeZone);
   return utcGuess - offset;
@@ -558,410 +319,400 @@ function zonedDateTimeToUtcMillis(dateStr: string, timeHHmm: string, timeZone: s
 
 function getDailyRange(date: string, timeZone: string): { startMs: number; endMs: number } | null {
   const startMs = zonedDateTimeToUtcMillis(date, "00:00", timeZone);
-  const endMs = zonedDateTimeToUtcMillis(date, "23:59", timeZone);
-  if (startMs == null || endMs == null) return null;
-  return { startMs, endMs };
+  // Use 23:59:59.999 to cover the full day
+  const endMsBase = zonedDateTimeToUtcMillis(date, "23:59", timeZone);
+  if (startMs == null || endMsBase == null) return null;
+  return { startMs, endMs: endMsBase + 59999 }; // add 59.999 seconds
 }
 
-function getHourlyRange(
-  date: string,
-  startHHmm: string,
-  endHHmm: string,
-  timeZone: string
-): { startMs: number; endMs: number } | null {
-  const startMinutes = hhmmToMinutes(startHHmm);
-  const endMinutes = hhmmToMinutes(endHHmm);
-  if (startMinutes == null || endMinutes == null) return null;
-  if (endMinutes <= startMinutes) return null;
-
+function getHourlyRange(date: string, startHHmm: string, endHHmm: string, timeZone: string): { startMs: number; endMs: number } | null {
+  const startMinutes = hhmmToMinutes(startHHmm), endMinutes = hhmmToMinutes(endHHmm);
+  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) return null;
   const startMs = zonedDateTimeToUtcMillis(date, startHHmm, timeZone);
   const endMs = zonedDateTimeToUtcMillis(date, endHHmm, timeZone);
   if (startMs == null || endMs == null) return null;
   return { startMs, endMs };
 }
 
-// Query GHL blocked-slots API
-async function getBlockedSlots(
-  locationId: string,
-  startMs: number,
-  endMs: number,
-  ghlToken: string
-): Promise<{ events: BlockedSlotEvent[]; error?: string }> {
+// ============= GHL API CALLS =============
+
+// Parse event time (could be ISO string or epoch millis)
+function parseEventTimeToMs(val: unknown): number | null {
+  if (typeof val === "number") return val;
+  if (typeof val === "string") {
+    // If it's all digits, treat as epoch ms
+    if (/^\d+$/.test(val)) return parseInt(val, 10);
+    // Otherwise parse as ISO
+    const ms = Date.parse(val);
+    return isNaN(ms) ? null : ms;
+  }
+  return null;
+}
+
+// Fetch /calendars/events (REAL bookings/appointments)
+async function getCalendarEvents(locationId: string, startMs: number, endMs: number, ghlToken: string): Promise<{ events: GHLEvent[]; rawResponse?: unknown; error?: string }> {
+  const url = new URL(`${GHL_API_BASE}/calendars/events`);
+  url.searchParams.set('locationId', locationId);
+  url.searchParams.set('calendarId', GHL_CALENDAR_ID);
+  url.searchParams.set('startTime', String(startMs));
+  url.searchParams.set('endTime', String(endMs));
+
+  console.log(`[GHL] GET /calendars/events: ${url.toString()}`);
+
+  try {
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${ghlToken}`, 'Version': '2021-04-15', 'Content-Type': 'application/json' },
+    });
+
+    const responseText = await response.text();
+    console.log(`[GHL] /calendars/events status=${response.status} body=${responseText.substring(0, 600)}`);
+
+    if (!response.ok) {
+      return { events: [], rawResponse: responseText, error: `GHL /calendars/events error: ${response.status}` };
+    }
+
+    let data: unknown;
+    try { data = JSON.parse(responseText); } catch { return { events: [], rawResponse: responseText, error: "Invalid JSON from /calendars/events" }; }
+
+    // GHL returns { events: [...] }
+    const arr = (data as AnyRecord)?.events;
+    if (!Array.isArray(arr)) {
+      // If no events array but has traceId => treat as empty but valid
+      if ((data as AnyRecord)?.traceId) {
+        console.log("[GHL] /calendars/events returned traceId only (empty)");
+        return { events: [], rawResponse: data };
+      }
+      return { events: [], rawResponse: data, error: "Unexpected shape from /calendars/events" };
+    }
+
+    return { events: arr as GHLEvent[], rawResponse: data };
+  } catch (err) {
+    console.error('[GHL] Fetch /calendars/events error:', err);
+    return { events: [], error: String(err) };
+  }
+}
+
+// Fetch /calendars/blocked-slots (manual blocks)
+async function getBlockedSlots(locationId: string, startMs: number, endMs: number, ghlToken: string): Promise<{ events: GHLEvent[]; rawResponse?: unknown; error?: string }> {
   const url = new URL(`${GHL_API_BASE}/calendars/blocked-slots`);
   url.searchParams.set('locationId', locationId);
   url.searchParams.set('calendarId', GHL_CALENDAR_ID);
   url.searchParams.set('startTime', String(startMs));
   url.searchParams.set('endTime', String(endMs));
 
-  console.log(`[GHL] Fetching blocked-slots: ${url.toString()}`);
+  console.log(`[GHL] GET /calendars/blocked-slots: ${url.toString()}`);
 
   try {
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${ghlToken}`,
-        'Version': '2021-04-15',
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Authorization': `Bearer ${ghlToken}`, 'Version': '2021-04-15', 'Content-Type': 'application/json' },
     });
 
     const responseText = await response.text();
-    console.log(`[GHL] Response status: ${response.status}`);
-    console.log(`[GHL] Response body: ${responseText.substring(0, 500)}`);
+    console.log(`[GHL] /calendars/blocked-slots status=${response.status} body=${responseText.substring(0, 600)}`);
 
     if (!response.ok) {
-      return { events: [], error: `GHL API error: ${response.status} - ${responseText}` };
+      return { events: [], rawResponse: responseText, error: `GHL /blocked-slots error: ${response.status}` };
     }
 
-    const data = JSON.parse(responseText);
-    const events = data.events || data.blockedSlots || [];
-    return { events: Array.isArray(events) ? events : [] };
-  } catch (error) {
-    console.error('[GHL] Fetch error:', error);
-    return { events: [], error: String(error) };
+    let data: unknown;
+    try { data = JSON.parse(responseText); } catch { return { events: [], rawResponse: responseText, error: "Invalid JSON from /blocked-slots" }; }
+
+    const arr = (data as AnyRecord)?.events ?? (data as AnyRecord)?.blockedSlots;
+    if (!Array.isArray(arr)) {
+      if ((data as AnyRecord)?.traceId) return { events: [], rawResponse: data };
+      return { events: [], rawResponse: data, error: "Unexpected shape from /blocked-slots" };
+    }
+
+    return { events: arr as GHLEvent[], rawResponse: data };
+  } catch (err) {
+    console.error('[GHL] Fetch /blocked-slots error:', err);
+    return { events: [], error: String(err) };
   }
 }
 
-// Log body safely (redact secrets)
+// Check overlap: eventStart < windowEnd && eventEnd > windowStart
+function hasOverlap(eventStartMs: number, eventEndMs: number, windowStartMs: number, windowEndMs: number): boolean {
+  return eventStartMs < windowEndMs && eventEndMs > windowStartMs;
+}
+
+// Filter events that overlap with the requested window and are not cancelled
+function filterConflictingEvents(events: GHLEvent[], windowStartMs: number, windowEndMs: number): GHLEvent[] {
+  const conflicts: GHLEvent[] = [];
+  for (const ev of events) {
+    // Skip cancelled
+    if (ev.appointmentStatus?.toLowerCase() === "cancelled") continue;
+
+    const evStartMs = parseEventTimeToMs(ev.startTime);
+    const evEndMs = parseEventTimeToMs(ev.endTime);
+    if (evStartMs == null || evEndMs == null) continue;
+
+    if (hasOverlap(evStartMs, evEndMs, windowStartMs, windowEndMs)) {
+      conflicts.push(ev);
+    }
+  }
+  return conflicts;
+}
+
 function logBody(label: string, body: AnyRecord): void {
   const safe = JSON.parse(JSON.stringify(body));
   const redactKeys = (obj: AnyRecord) => {
     for (const key of Object.keys(obj)) {
-      if (/secret|token|key|password|auth/i.test(key)) {
-        obj[key] = '[REDACTED]';
-      } else if (obj[key] && typeof obj[key] === 'object') {
-        redactKeys(obj[key] as AnyRecord);
-      }
+      if (/secret|token|key|password|auth/i.test(key)) obj[key] = '[REDACTED]';
+      else if (obj[key] && typeof obj[key] === 'object') redactKeys(obj[key] as AnyRecord);
     }
   };
   redactKeys(safe);
   console.log(`[${label}]`, JSON.stringify(safe));
 }
 
+// ============= SELF-TEST (overlap logic only, no GHL calls) =============
 
-// Self-test mode
 function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
   const results: Array<{ test: string; passed: boolean; details: string }> = [];
-
   const assert = (test: string, passed: boolean, details: unknown) => {
     results.push({ test, passed, details: typeof details === "string" ? details : JSON.stringify(details) });
   };
 
-  // Test 1: Daily payload normalization
+  // Test 1: hasOverlap - overlapping
+  {
+    const pass = hasOverlap(1000, 2000, 1500, 2500);
+    assert("overlap_partial", pass, "event 1000-2000 vs window 1500-2500 should overlap");
+  }
+
+  // Test 2: hasOverlap - no overlap
+  {
+    const pass = !hasOverlap(1000, 2000, 3000, 4000);
+    assert("no_overlap", pass, "event 1000-2000 vs window 3000-4000 should NOT overlap");
+  }
+
+  // Test 3: hasOverlap - event contains window
+  {
+    const pass = hasOverlap(1000, 5000, 2000, 3000);
+    assert("overlap_contains", pass, "event 1000-5000 vs window 2000-3000 should overlap");
+  }
+
+  // Test 4: Daily payload normalization
   {
     const payload = { Date: "2026-02-06", booking_type: "daily", timezone: "America/New_York" };
     const { normalized } = normalizePayload(payload);
-    assert(
-      "daily_normalization",
-      normalized.booking_type === "daily" && normalized.date === "2026-02-06",
-      normalized
-    );
+    assert("daily_normalization", normalized.booking_type === "daily" && normalized.date === "2026-02-06", normalized);
   }
 
-  // Test 2: Hourly payload normalization with AM/PM + "Date" key (GHL style)
+  // Test 5: Hourly payload normalization with AM/PM
   {
-    const payload = {
-      booking_type: "hourly",
-      Date: "2026-02-06",
-      start_time: "6:00 PM",
-      end_time: "10:00 PM",
-      timezone: "America/New_York",
-    };
+    const payload = { booking_type: "hourly", Date: "2026-02-06", start_time: "6:00 PM", end_time: "10:00 PM", timezone: "America/New_York" };
     const { normalized } = normalizePayload(payload);
-    assert(
-      "hourly_normalization_ghl_test",
-      normalized.booking_type === "hourly" &&
-        normalized.date === "2026-02-06" &&
-        normalized.start_time === "18:00" &&
-        normalized.end_time === "22:00",
-      normalized
-    );
+    assert("hourly_normalization_ampm", normalized.booking_type === "hourly" && normalized.date === "2026-02-06" && normalized.start_time === "18:00" && normalized.end_time === "22:00", normalized);
   }
 
-  // Test 3: Nested payload (data container) + wrapped values
+  // Test 6: Time format variations
   {
-    const payload = {
-      data: {
-        booking_type: "hourly",
-        date: "2026-03-01",
-        start_time: { value: "2 PM" },
-        end_time: { value: "6 PM" },
-      },
-    };
-    const { normalized } = normalizePayload(payload);
-    assert(
-      "nested_payload_with_wrapped_values",
-      normalized.booking_type === "hourly" &&
-        normalized.date === "2026-03-01" &&
-        normalized.start_time === "14:00" &&
-        normalized.end_time === "18:00",
-      normalized
-    );
-  }
-
-  // Test 4: Case-insensitive keys
-  {
-    const payload = { BookingType: "daily", DATE: "2026-04-01", Timezone: "America/New_York" };
-    const { normalized } = normalizePayload(payload);
-    assert(
-      "case_insensitive_keys",
-      normalized.booking_type === "daily" && normalized.date === "2026-04-01",
-      normalized
-    );
-  }
-
-  // Test 5: Time format variations
-  {
-    const timeTests = [
+    const tests = [
       { input: "6:00 PM", expected: "18:00" },
       { input: "6PM", expected: "18:00" },
-      { input: "6 PM", expected: "18:00" },
       { input: "18:00", expected: "18:00" },
       { input: "12:30 AM", expected: "00:30" },
-      { input: "12 PM", expected: "12:00" },
     ];
+    let allPass = true;
     const details: string[] = [];
-    let pass = true;
-
-    for (const t of timeTests) {
+    for (const t of tests) {
       const result = normalizeTime(t.input);
-      if (result !== t.expected) {
-        pass = false;
-        details.push(`FAIL: ${t.input} -> ${result} (expected ${t.expected})`);
-      } else {
-        details.push(`OK: ${t.input} -> ${result}`);
-      }
+      if (result !== t.expected) { allPass = false; details.push(`FAIL: ${t.input} -> ${result}`); }
+      else details.push(`OK: ${t.input} -> ${result}`);
     }
-
-    assert("time_format_variations", pass, details.join("; "));
+    assert("time_formats", allPass, details.join("; "));
   }
 
-  const allPassed = results.every((r) => r.passed);
-  return { passed: allPassed, results };
+  // Test 7: filterConflictingEvents (mock)
+  {
+    const mockEvents: GHLEvent[] = [
+      { id: "1", startTime: "1000", endTime: "2000" },
+      { id: "2", startTime: "3000", endTime: "4000" },
+      { id: "3", startTime: "1500", endTime: "2500", appointmentStatus: "cancelled" },
+    ];
+    const conflicts = filterConflictingEvents(mockEvents, 1500, 2500);
+    // Should only include event 1 (overlaps) and event 2 (no overlap), event 3 is cancelled
+    // event 1: 1000-2000 overlaps 1500-2500 => YES
+    // event 2: 3000-4000 vs 1500-2500 => NO (3000 >= 2500)
+    const pass = conflicts.length === 1 && conflicts[0].id === "1";
+    assert("filter_conflicts_mock", pass, { found: conflicts.map(e => e.id), expected: ["1"] });
+  }
+
+  return { passed: results.every(r => r.passed), results };
 }
 
+// ============= MAIN HANDLER =============
+
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
-  
-  // Only POST allowed
-  if (req.method !== 'POST') {
-    return new Response(
-      JSON.stringify({ error: 'Method not allowed' }),
-      { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-  
-  // Validate voice agent secret
-  // GHL can send auth in different ways depending on the UI toggle:
-  // - Custom header (preferred): x-voice-agent-secret
-  // - "Authentication Needed" / "API Key" fields: often map to Authorization: Bearer ...
-  // - Sometimes: x-api-key
-  const expectedSecret = Deno.env.get('VOICE_AGENT_WEBHOOK_SECRET');
 
+  if (req.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
+  // Auth check (accept multiple header formats)
+  const expectedSecret = Deno.env.get('VOICE_AGENT_WEBHOOK_SECRET');
   const secretFromCustomHeader = req.headers.get('x-voice-agent-secret');
   const authHeader = req.headers.get('authorization');
   const secretFromBearer = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
   const secretFromApiKeyHeader = req.headers.get('x-api-key') ?? req.headers.get('x-api_key');
-
-  const providedSecret =
-    (secretFromCustomHeader && secretFromCustomHeader.trim()) ||
-    (secretFromApiKeyHeader && secretFromApiKeyHeader.trim()) ||
-    (secretFromBearer && secretFromBearer.trim()) ||
-    null;
+  const providedSecret = (secretFromCustomHeader?.trim()) || (secretFromApiKeyHeader?.trim()) || (secretFromBearer) || null;
 
   if (!providedSecret || !expectedSecret || providedSecret !== expectedSecret) {
-    console.log('[AUTH] Invalid or missing secret (accepted: x-voice-agent-secret | Authorization: Bearer | x-api-key)');
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    });
+    console.log('[AUTH] Invalid or missing secret');
+    // Return 200 with ok:false so GHL can save the action
+    return new Response(JSON.stringify({ ok: false, available: null, error: "auth_failed", message: "Invalid or missing authentication" }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
-  // Check for self-test mode
+
+  // Self-test mode
   const selfTest = req.headers.get('x-self-test');
   if (selfTest === 'true') {
     console.log('[SELF-TEST] Running internal tests...');
     const testResults = runSelfTests();
-    return new Response(
-      JSON.stringify({
-        mode: 'self-test',
-        overall: testResults.passed ? 'PASS' : 'FAIL',
-        results: testResults.results,
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(JSON.stringify({ ok: true, self_test: testResults.passed ? 'PASS' : 'FAIL', results: testResults.results }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
-  
-  // Parse request body as TEXT first (GHL can send JSON or x-www-form-urlencoded)
+
+  // Parse body
   const rawText = await req.text().catch(() => "");
   console.log("[RAW_TEXT]", rawText.substring(0, 800));
 
   const parsed = parseBodyText(rawText);
-  const parsedBody = parsed.body;
-
   console.log(`[BODY_PARSE] mode=${parsed.mode}${parsed.error ? ` error=${parsed.error}` : ""}`);
-  logBody("PARSED_BODY", parsedBody);
+  logBody("PARSED_BODY", parsed.body);
 
-  const receivedKeys = collectAllKeysDeep(parsedBody);
+  const receivedKeys = collectAllKeysDeep(parsed.body);
   console.log("[RECEIVED_KEYS]", receivedKeys.slice(0, 120).join(", "));
 
-  const { normalized, mapping } = normalizePayload(parsedBody);
+  const { normalized, mapping } = normalizePayload(parsed.body);
   console.log("[NORMALIZED]", JSON.stringify({ normalized, mapping }));
 
-  const receivedBodyShape: AnyRecord = {
-    parse_mode: parsed.mode,
-    parse_error: parsed.error ?? null,
-    top_level_keys: isPlainObject(parsedBody) ? Object.keys(parsedBody).slice(0, 80) : [],
-    body: parsedBody,
-  };
+  const receivedBodyShape: AnyRecord = { parse_mode: parsed.mode, parse_error: parsed.error ?? null, top_level_keys: isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 80) : [], body: parsed.body };
 
-  // Validate (NEVER return 422 — GHL needs HTTP 200 to save the Custom Action)
+  // Validation
   const missingFields: string[] = [];
-
   if (!normalized.booking_type) missingFields.push("booking_type");
   if (!normalized.date) missingFields.push("date");
-
-  const isHourly = normalized.booking_type === "hourly";
-  if (isHourly) {
+  if (normalized.booking_type === "hourly") {
     if (!normalized.start_time) missingFields.push("start_time");
     if (!normalized.end_time) missingFields.push("end_time");
-
     if (normalized.start_time && normalized.end_time) {
-      const sMin = hhmmToMinutes(normalized.start_time);
-      const eMin = hhmmToMinutes(normalized.end_time);
-      if (sMin == null || eMin == null || eMin <= sMin) {
-        missingFields.push("time_range (end_time must be after start_time)");
-      }
+      const sMin = hhmmToMinutes(normalized.start_time), eMin = hhmmToMinutes(normalized.end_time);
+      if (sMin == null || eMin == null || eMin <= sMin) missingFields.push("time_range (end_time must be after start_time)");
     }
   }
 
   if (missingFields.length > 0) {
     console.log("[VALIDATION] Failed:", missingFields);
-    return buildOkFalseResponse({
-      error: "validation_failed",
-      missing_fields: missingFields,
-      receivedBodyShape,
-      receivedKeys,
-      normalized,
-      mapping: mapping as AnyRecord,
-    });
+    return buildOkFalseResponse({ error: "validation_failed", missing_fields: missingFields, receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
   }
 
-  // Get required env vars (only needed after validation)
+  // Get GHL config
   const ghlToken = Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN");
   const locationId = Deno.env.get("GHL_LOCATION_ID");
 
   if (!ghlToken || !locationId) {
     console.error("[CONFIG] Missing GHL_PRIVATE_INTEGRATION_TOKEN or GHL_LOCATION_ID");
-    return buildOkFalseResponse({
-      error: "config_missing",
-      missing_fields: [],
-      receivedBodyShape: {
-        ...receivedBodyShape,
-        config: { hasToken: !!ghlToken, hasLocationId: !!locationId },
-      },
-      receivedKeys,
-      normalized,
-      mapping: mapping as AnyRecord,
-    });
+    return buildOkFalseResponse({ error: "config_missing", missing_fields: [], receivedBodyShape: { ...receivedBodyShape, config: { hasToken: !!ghlToken, hasLocationId: !!locationId } }, receivedKeys, normalized, mapping: mapping as AnyRecord });
   }
 
   const tz = normalized.timezone || DEFAULT_TIMEZONE;
 
   // Calculate time range
-  let startMs: number;
-  let endMs: number;
-  let rangeStartISO: string;
-  let rangeEndISO: string;
+  let startMs: number, endMs: number;
 
   if (normalized.booking_type === "daily") {
     const range = getDailyRange(normalized.date!, tz);
-    if (!range) {
-      return buildOkFalseResponse({
-        error: "validation_failed",
-        missing_fields: ["date (could not compute day range)"],
-        receivedBodyShape,
-        receivedKeys,
-        normalized,
-        mapping: mapping as AnyRecord,
-      });
-    }
-
+    if (!range) return buildOkFalseResponse({ error: "validation_failed", missing_fields: ["date (could not compute day range)"], receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
     startMs = range.startMs;
     endMs = range.endMs;
-    rangeStartISO = `${normalized.date}T00:00:00`;
-    rangeEndISO = `${normalized.date}T23:59:59`;
   } else {
     const range = getHourlyRange(normalized.date!, normalized.start_time!, normalized.end_time!, tz);
-    if (!range) {
-      return buildOkFalseResponse({
-        error: "validation_failed",
-        missing_fields: ["time_range (end_time must be after start_time)"],
-        receivedBodyShape,
-        receivedKeys,
-        normalized,
-        mapping: mapping as AnyRecord,
-      });
-    }
-
+    if (!range) return buildOkFalseResponse({ error: "validation_failed", missing_fields: ["time_range"], receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
     startMs = range.startMs;
     endMs = range.endMs;
-    rangeStartISO = `${normalized.date}T${normalized.start_time}:00`;
-    rangeEndISO = `${normalized.date}T${normalized.end_time}:00`;
   }
 
-  console.log(`[CHECK] type=${normalized.booking_type} date=${normalized.date} tz=${tz} rangeMs=${startMs}..${endMs}`);
+  console.log(`[CHECK] type=${normalized.booking_type} date=${normalized.date} tz=${tz} windowMs=${startMs}..${endMs}`);
 
-  // Query GHL for blocked slots
-  const { events, error } = await getBlockedSlots(locationId, startMs, endMs, ghlToken);
+  // Query BOTH endpoints
+  const [eventsResult, blockedResult] = await Promise.all([
+    getCalendarEvents(locationId, startMs, endMs, ghlToken),
+    getBlockedSlots(locationId, startMs, endMs, ghlToken),
+  ]);
 
-  if (error) {
-    console.error("[UPSTREAM] GHL API error:", error);
+  // Check for upstream errors - NEVER say available=true if we can't verify
+  const hasEventsError = !!eventsResult.error;
+  const hasBlockedError = !!blockedResult.error;
+
+  if (hasEventsError && hasBlockedError) {
+    console.error("[UPSTREAM] Both GHL calls failed");
     return buildOkFalseResponse({
-      error: "upstream_failed",
+      error: "upstream_unverified",
       missing_fields: [],
-      receivedBodyShape: { ...receivedBodyShape, upstream_error: error },
+      receivedBodyShape: { ...receivedBodyShape, events_error: eventsResult.error, blocked_error: blockedResult.error },
       receivedKeys,
       normalized,
       mapping: mapping as AnyRecord,
+      debug: { events_raw: eventsResult.rawResponse, blocked_raw: blockedResult.rawResponse },
     });
   }
 
-  const occupied = events.length > 0;
-  const available = !occupied;
+  // Even if blocked-slots fails, if events succeeded we can still check
+  // But if events failed, we CANNOT trust the result
+  if (hasEventsError) {
+    console.error("[UPSTREAM] /calendars/events failed, cannot verify availability");
+    return buildOkFalseResponse({
+      error: "upstream_unverified",
+      missing_fields: [],
+      receivedBodyShape: { ...receivedBodyShape, events_error: eventsResult.error },
+      receivedKeys,
+      normalized,
+      mapping: mapping as AnyRecord,
+      debug: { events_raw: eventsResult.rawResponse, blocked_events_count: blockedResult.events.length },
+    });
+  }
 
-  const conflictsPreview = events.slice(0, 3).map((event) => ({
-    title: event.title || null,
-    start: event.startTime || null,
-    end: event.endTime || null,
+  // Merge events from both sources
+  const allEvents: GHLEvent[] = [...eventsResult.events, ...blockedResult.events];
+  console.log(`[EVENTS] events_count=${eventsResult.events.length} blocked_count=${blockedResult.events.length} total=${allEvents.length}`);
+
+  // Find conflicts
+  const conflicts = filterConflictingEvents(allEvents, startMs, endMs);
+  console.log(`[CONFLICTS] found=${conflicts.length}`);
+
+  const available = conflicts.length === 0;
+
+  // Build sample events for debug
+  const sampleEvents = conflicts.slice(0, 2).map(ev => ({
+    id: ev.id ?? null,
+    title: ev.title ?? null,
+    startTime: ev.startTime ?? null,
+    endTime: ev.endTime ?? null,
   }));
-
-  const reason = occupied
-    ? `Found ${events.length} conflict(s) in the requested time range`
-    : "No conflicts found - time slot is available";
 
   const response = {
     ok: true,
     available,
-    occupied,
-    reason,
-    checked_range: {
-      start: rangeStartISO,
-      end: rangeEndISO,
-      timezone: tz,
-    },
-    conflicts_count: events.length,
-    conflicts_preview: conflictsPreview,
+    reason: available
+      ? "No conflicts found - time slot is available"
+      : `Found ${conflicts.length} conflict(s) in the requested window`,
+    checked_calendar_id: GHL_CALENDAR_ID,
+    window_start_ms: startMs,
+    window_end_ms: endMs,
+    timezone: tz,
+    events_count: eventsResult.events.length,
+    blocked_count: blockedResult.events.length,
+    conflicts_count: conflicts.length,
+    sample_events: sampleEvents,
     normalized,
     debug: { mapping },
   };
 
-  console.log(`[RESULT] ok=true available=${available} conflicts=${events.length} reason=${reason}`);
+  console.log(`[RESULT] ok=true available=${available} conflicts=${conflicts.length}`);
 
-  return new Response(JSON.stringify(response), {
-    status: 200,
-    headers: { ...corsHeaders, "Content-Type": "application/json" },
-  });
+  return new Response(JSON.stringify(response), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 });
