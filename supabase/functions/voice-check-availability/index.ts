@@ -11,11 +11,11 @@ const GHL_CALENDAR_ID = 'tCUlP3Dalpf0fnhAPG52';
 const DEFAULT_TIMEZONE = 'America/New_York';
 
 interface NormalizedPayload {
-  booking_type: string | null;
-  date: string | null;
-  start_time: string | null;
-  end_time: string | null;
-  timezone: string;
+  booking_type?: "hourly" | "daily";
+  date?: string; // "YYYY-MM-DD"
+  start_time?: string; // "HH:mm" (24h)
+  end_time?: string; // "HH:mm" (24h)
+  timezone?: string;
 }
 
 interface BlockedSlotEvent {
@@ -414,7 +414,12 @@ function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapp
   if (tzFound.path) mapping.timezone = tzFound.path;
 
   const bookingTypeRaw = btFound.value ?? inferBookingType(strings);
-  const dateRaw = dateFound.value ?? strings.map(parseDateToYYYYMMDD).find(Boolean) ?? null;
+
+  const dateCandidate =
+    dateFound.value ??
+    strings
+      .map(parseDateToYYYYMMDD)
+      .find((d): d is string => !!d);
 
   const inferredTimes = inferTimes(strings);
   const startRaw = stFound.value ?? (inferredTimes.length >= 1 ? inferredTimes[0] : null);
@@ -422,12 +427,21 @@ function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapp
 
   const timezoneRaw = tzFound.value ?? DEFAULT_TIMEZONE;
 
-  const booking_type = bookingTypeRaw ? bookingTypeRaw.toLowerCase() : null;
-  const date = dateRaw ? parseDateToYYYYMMDD(dateRaw) : null;
+  const btLower = bookingTypeRaw ? bookingTypeRaw.toLowerCase() : undefined;
+  const booking_type: NormalizedPayload["booking_type"] =
+    btLower === "hourly" || btLower === "daily" ? btLower : undefined;
 
-  // Important: stFound/etFound might already be inferredTimes (already normalized "HH:mm")
-  const start_time = startRaw ? (startRaw.includes(":") && startRaw.length === 5 ? startRaw : normalizeTime(startRaw)) : null;
-  const end_time = endRaw ? (endRaw.includes(":") && endRaw.length === 5 ? endRaw : normalizeTime(endRaw)) : null;
+  const date = dateCandidate ?? undefined;
+
+  const start_time = startRaw
+    ? ((/^\d{2}:\d{2}$/.test(startRaw) ? startRaw : normalizeTime(startRaw)) ?? undefined)
+    : undefined;
+
+  const end_time = endRaw
+    ? ((/^\d{2}:\d{2}$/.test(endRaw) ? endRaw : normalizeTime(endRaw)) ?? undefined)
+    : undefined;
+
+  const timezone = (timezoneRaw && String(timezoneRaw).trim()) ? String(timezoneRaw).trim() : DEFAULT_TIMEZONE;
 
   return {
     normalized: {
@@ -435,7 +449,7 @@ function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapp
       date,
       start_time,
       end_time,
-      timezone: timezoneRaw || DEFAULT_TIMEZONE,
+      timezone,
     },
     mapping,
   };
@@ -483,6 +497,87 @@ function buildOkFalseResponse(params: {
     status: 200,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
+}
+
+function hhmmToMinutes(hhmm: string): number | null {
+  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+  return h * 60 + min;
+}
+
+function getTimeZoneOffsetMillis(date: Date, timeZone: string): number {
+  // Returns (tz_time_as_utc - utc_time) in ms.
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== "literal") map[p.type] = p.value;
+  }
+
+  const asUTC = Date.UTC(
+    parseInt(map.year, 10),
+    parseInt(map.month, 10) - 1,
+    parseInt(map.day, 10),
+    parseInt(map.hour, 10),
+    parseInt(map.minute, 10),
+    parseInt(map.second, 10)
+  );
+
+  return asUTC - date.getTime();
+}
+
+function zonedDateTimeToUtcMillis(dateStr: string, timeHHmm: string, timeZone: string): number | null {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = parseInt(m[1], 10);
+  const mo = parseInt(m[2], 10);
+  const d = parseInt(m[3], 10);
+
+  const tm = timeHHmm.match(/^(\d{2}):(\d{2})$/);
+  if (!tm) return null;
+  const h = parseInt(tm[1], 10);
+  const mi = parseInt(tm[2], 10);
+
+  const utcGuess = Date.UTC(y, mo - 1, d, h, mi, 0);
+  const offset = getTimeZoneOffsetMillis(new Date(utcGuess), timeZone);
+  return utcGuess - offset;
+}
+
+function getDailyRange(date: string, timeZone: string): { startMs: number; endMs: number } | null {
+  const startMs = zonedDateTimeToUtcMillis(date, "00:00", timeZone);
+  const endMs = zonedDateTimeToUtcMillis(date, "23:59", timeZone);
+  if (startMs == null || endMs == null) return null;
+  return { startMs, endMs };
+}
+
+function getHourlyRange(
+  date: string,
+  startHHmm: string,
+  endHHmm: string,
+  timeZone: string
+): { startMs: number; endMs: number } | null {
+  const startMinutes = hhmmToMinutes(startHHmm);
+  const endMinutes = hhmmToMinutes(endHHmm);
+  if (startMinutes == null || endMinutes == null) return null;
+  if (endMinutes <= startMinutes) return null;
+
+  const startMs = zonedDateTimeToUtcMillis(date, startHHmm, timeZone);
+  const endMs = zonedDateTimeToUtcMillis(date, endHHmm, timeZone);
+  if (startMs == null || endMs == null) return null;
+  return { startMs, endMs };
 }
 
 // Query GHL blocked-slots API
@@ -547,93 +642,101 @@ function logBody(label: string, body: AnyRecord): void {
 // Self-test mode
 function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
   const results: Array<{ test: string; passed: boolean; details: string }> = [];
-  
+
+  const assert = (test: string, passed: boolean, details: unknown) => {
+    results.push({ test, passed, details: typeof details === "string" ? details : JSON.stringify(details) });
+  };
+
   // Test 1: Daily payload normalization
-  const dailyPayload = { Date: '2026-02-06', booking_type: 'daily', timezone: 'America/New_York' };
-  const dailyNorm = normalizePayload(dailyPayload);
-  const dailyPass = dailyNorm.booking_type === 'daily' && dailyNorm.date === '2026-02-06';
-  results.push({
-    test: 'daily_normalization',
-    passed: dailyPass,
-    details: JSON.stringify(dailyNorm),
-  });
-  
-  // Test 2: Hourly payload normalization with AM/PM
-  const hourlyPayload = { 
-    booking_type: 'hourly', 
-    Date: '2026-02-06', 
-    start_time: '6:00 PM', 
-    end_time: '10:00 PM',
-    timezone: 'America/New_York'
-  };
-  const hourlyNorm = normalizePayload(hourlyPayload);
-  const hourlyPass = hourlyNorm.booking_type === 'hourly' 
-    && hourlyNorm.date === '2026-02-06'
-    && hourlyNorm.start_time === '18:00'
-    && hourlyNorm.end_time === '22:00';
-  results.push({
-    test: 'hourly_normalization_ampm',
-    passed: hourlyPass,
-    details: JSON.stringify(hourlyNorm),
-  });
-  
-  // Test 3: Nested payload (data container)
-  const nestedPayload = { 
-    data: { 
-      booking_type: 'hourly', 
-      date: '2026-03-01', 
-      start_time: { value: '2 PM' }, 
-      end_time: { value: '6 PM' } 
-    } 
-  };
-  const nestedNorm = normalizePayload(nestedPayload);
-  const nestedPass = nestedNorm.booking_type === 'hourly' 
-    && nestedNorm.date === '2026-03-01'
-    && nestedNorm.start_time === '14:00'
-    && nestedNorm.end_time === '18:00';
-  results.push({
-    test: 'nested_payload_with_wrapped_values',
-    passed: nestedPass,
-    details: JSON.stringify(nestedNorm),
-  });
-  
-  // Test 4: Case-insensitive keys
-  const casePayload = { BookingType: 'daily', DATE: '2026-04-01', Timezone: 'America/New_York' };
-  const caseNorm = normalizePayload(casePayload);
-  const casePass = caseNorm.booking_type === 'daily' && caseNorm.date === '2026-04-01';
-  results.push({
-    test: 'case_insensitive_keys',
-    passed: casePass,
-    details: JSON.stringify(caseNorm),
-  });
-  
-  // Test 5: Time format variations
-  const timeTests = [
-    { input: '6:00 PM', expected: '18:00' },
-    { input: '6PM', expected: '18:00' },
-    { input: '6 PM', expected: '18:00' },
-    { input: '18:00', expected: '18:00' },
-    { input: '12:30 AM', expected: '00:30' },
-    { input: '12 PM', expected: '12:00' },
-  ];
-  let timePass = true;
-  const timeDetails: string[] = [];
-  for (const t of timeTests) {
-    const result = normalizeTime(t.input);
-    if (result !== t.expected) {
-      timePass = false;
-      timeDetails.push(`FAIL: ${t.input} -> ${result} (expected ${t.expected})`);
-    } else {
-      timeDetails.push(`OK: ${t.input} -> ${result}`);
-    }
+  {
+    const payload = { Date: "2026-02-06", booking_type: "daily", timezone: "America/New_York" };
+    const { normalized } = normalizePayload(payload);
+    assert(
+      "daily_normalization",
+      normalized.booking_type === "daily" && normalized.date === "2026-02-06",
+      normalized
+    );
   }
-  results.push({
-    test: 'time_format_variations',
-    passed: timePass,
-    details: timeDetails.join('; '),
-  });
-  
-  const allPassed = results.every(r => r.passed);
+
+  // Test 2: Hourly payload normalization with AM/PM + "Date" key (GHL style)
+  {
+    const payload = {
+      booking_type: "hourly",
+      Date: "2026-02-06",
+      start_time: "6:00 PM",
+      end_time: "10:00 PM",
+      timezone: "America/New_York",
+    };
+    const { normalized } = normalizePayload(payload);
+    assert(
+      "hourly_normalization_ghl_test",
+      normalized.booking_type === "hourly" &&
+        normalized.date === "2026-02-06" &&
+        normalized.start_time === "18:00" &&
+        normalized.end_time === "22:00",
+      normalized
+    );
+  }
+
+  // Test 3: Nested payload (data container) + wrapped values
+  {
+    const payload = {
+      data: {
+        booking_type: "hourly",
+        date: "2026-03-01",
+        start_time: { value: "2 PM" },
+        end_time: { value: "6 PM" },
+      },
+    };
+    const { normalized } = normalizePayload(payload);
+    assert(
+      "nested_payload_with_wrapped_values",
+      normalized.booking_type === "hourly" &&
+        normalized.date === "2026-03-01" &&
+        normalized.start_time === "14:00" &&
+        normalized.end_time === "18:00",
+      normalized
+    );
+  }
+
+  // Test 4: Case-insensitive keys
+  {
+    const payload = { BookingType: "daily", DATE: "2026-04-01", Timezone: "America/New_York" };
+    const { normalized } = normalizePayload(payload);
+    assert(
+      "case_insensitive_keys",
+      normalized.booking_type === "daily" && normalized.date === "2026-04-01",
+      normalized
+    );
+  }
+
+  // Test 5: Time format variations
+  {
+    const timeTests = [
+      { input: "6:00 PM", expected: "18:00" },
+      { input: "6PM", expected: "18:00" },
+      { input: "6 PM", expected: "18:00" },
+      { input: "18:00", expected: "18:00" },
+      { input: "12:30 AM", expected: "00:30" },
+      { input: "12 PM", expected: "12:00" },
+    ];
+    const details: string[] = [];
+    let pass = true;
+
+    for (const t of timeTests) {
+      const result = normalizeTime(t.input);
+      if (result !== t.expected) {
+        pass = false;
+        details.push(`FAIL: ${t.input} -> ${result} (expected ${t.expected})`);
+      } else {
+        details.push(`OK: ${t.input} -> ${result}`);
+      }
+    }
+
+    assert("time_format_variations", pass, details.join("; "));
+  }
+
+  const allPassed = results.every((r) => r.passed);
   return { passed: allPassed, results };
 }
 
@@ -678,154 +781,174 @@ serve(async (req) => {
     );
   }
   
-  // Get required env vars
-  const ghlToken = Deno.env.get('GHL_PRIVATE_INTEGRATION_TOKEN');
-  const locationId = Deno.env.get('GHL_LOCATION_ID');
-  
-  if (!ghlToken || !locationId) {
-    console.error('[CONFIG] Missing GHL_PRIVATE_INTEGRATION_TOKEN or GHL_LOCATION_ID');
-    return new Response(
-      JSON.stringify({ error: 'Server configuration error' }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-  
-  // Parse request body
-  let rawBody: Record<string, unknown>;
-  try {
-    rawBody = await req.json();
-  } catch {
-    return new Response(
-      JSON.stringify({ error: 'Invalid JSON body' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-  
-  // Log received body
-  logBody('RAW_BODY', rawBody);
-  
-  // Collect all received keys for debugging
-  const receivedKeys = collectAllKeys(rawBody);
-  console.log('[KEYS] Received:', receivedKeys.join(', '));
-  
-  // Normalize payload
-  const normalized = normalizePayload(rawBody);
-  console.log('[NORMALIZED]', JSON.stringify(normalized));
-  
-  // Get raw times for error reporting
-  const rawStartTime = findInAllContainers(rawBody, START_TIME_KEYS);
-  const rawEndTime = findInAllContainers(rawBody, END_TIME_KEYS);
-  
-  // Validate
+  // Parse request body as TEXT first (GHL can send JSON or x-www-form-urlencoded)
+  const rawText = await req.text().catch(() => "");
+  console.log("[RAW_TEXT]", rawText.substring(0, 800));
+
+  const parsed = parseBodyText(rawText);
+  const parsedBody = parsed.body;
+
+  console.log(`[BODY_PARSE] mode=${parsed.mode}${parsed.error ? ` error=${parsed.error}` : ""}`);
+  logBody("PARSED_BODY", parsedBody);
+
+  const receivedKeys = collectAllKeysDeep(parsedBody);
+  console.log("[RECEIVED_KEYS]", receivedKeys.slice(0, 120).join(", "));
+
+  const { normalized, mapping } = normalizePayload(parsedBody);
+  console.log("[NORMALIZED]", JSON.stringify({ normalized, mapping }));
+
+  const receivedBodyShape: AnyRecord = {
+    parse_mode: parsed.mode,
+    parse_error: parsed.error ?? null,
+    top_level_keys: isPlainObject(parsedBody) ? Object.keys(parsedBody).slice(0, 80) : [],
+    body: parsedBody,
+  };
+
+  // Validate (NEVER return 422 — GHL needs HTTP 200 to save the Custom Action)
   const missingFields: string[] = [];
-  
-  if (!normalized.booking_type || !['hourly', 'daily'].includes(normalized.booking_type)) {
-    missingFields.push('booking_type (must be "hourly" or "daily")');
-  }
-  
-  if (!normalized.date || !/^\d{4}-\d{2}-\d{2}$/.test(normalized.date)) {
-    missingFields.push('date (YYYY-MM-DD format)');
-  }
-  
-  const isHourly = normalized.booking_type === 'hourly';
-  
+
+  if (!normalized.booking_type) missingFields.push("booking_type");
+  if (!normalized.date) missingFields.push("date");
+
+  const isHourly = normalized.booking_type === "hourly";
   if (isHourly) {
-    if (!rawStartTime) {
-      missingFields.push('start_time (required for hourly)');
-    } else if (!normalized.start_time) {
-      missingFields.push(`start_time (could not parse "${rawStartTime}" - use "18:00" or "6:00 PM")`);
-    }
-    
-    if (!rawEndTime) {
-      missingFields.push('end_time (required for hourly)');
-    } else if (!normalized.end_time) {
-      missingFields.push(`end_time (could not parse "${rawEndTime}" - use "22:00" or "10:00 PM")`);
+    if (!normalized.start_time) missingFields.push("start_time");
+    if (!normalized.end_time) missingFields.push("end_time");
+
+    if (normalized.start_time && normalized.end_time) {
+      const sMin = hhmmToMinutes(normalized.start_time);
+      const eMin = hhmmToMinutes(normalized.end_time);
+      if (sMin == null || eMin == null || eMin <= sMin) {
+        missingFields.push("time_range (end_time must be after start_time)");
+      }
     }
   }
-  
+
   if (missingFields.length > 0) {
-    console.log('[VALIDATION] Failed:', missingFields);
-    return validation422(missingFields, receivedKeys, normalized, rawStartTime, rawEndTime);
+    console.log("[VALIDATION] Failed:", missingFields);
+    return buildOkFalseResponse({
+      error: "validation_failed",
+      missing_fields: missingFields,
+      receivedBodyShape,
+      receivedKeys,
+      normalized,
+      mapping: mapping as AnyRecord,
+    });
   }
-  
+
+  // Get required env vars (only needed after validation)
+  const ghlToken = Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN");
+  const locationId = Deno.env.get("GHL_LOCATION_ID");
+
+  if (!ghlToken || !locationId) {
+    console.error("[CONFIG] Missing GHL_PRIVATE_INTEGRATION_TOKEN or GHL_LOCATION_ID");
+    return buildOkFalseResponse({
+      error: "config_missing",
+      missing_fields: [],
+      receivedBodyShape: {
+        ...receivedBodyShape,
+        config: { hasToken: !!ghlToken, hasLocationId: !!locationId },
+      },
+      receivedKeys,
+      normalized,
+      mapping: mapping as AnyRecord,
+    });
+  }
+
+  const tz = normalized.timezone || DEFAULT_TIMEZONE;
+
   // Calculate time range
   let startMs: number;
   let endMs: number;
   let rangeStartISO: string;
   let rangeEndISO: string;
-  
-  if (normalized.booking_type === 'daily') {
-    const range = getDailyRange(normalized.date!);
+
+  if (normalized.booking_type === "daily") {
+    const range = getDailyRange(normalized.date!, tz);
+    if (!range) {
+      return buildOkFalseResponse({
+        error: "validation_failed",
+        missing_fields: ["date (could not compute day range)"],
+        receivedBodyShape,
+        receivedKeys,
+        normalized,
+        mapping: mapping as AnyRecord,
+      });
+    }
+
     startMs = range.startMs;
     endMs = range.endMs;
     rangeStartISO = `${normalized.date}T00:00:00`;
     rangeEndISO = `${normalized.date}T23:59:59`;
   } else {
-    const range = getHourlyRange(normalized.date!, normalized.start_time!, normalized.end_time!);
+    const range = getHourlyRange(normalized.date!, normalized.start_time!, normalized.end_time!, tz);
     if (!range) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'invalid_time_range',
-          message: 'end_time must be after start_time',
-          normalized,
-        }),
-        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      return buildOkFalseResponse({
+        error: "validation_failed",
+        missing_fields: ["time_range (end_time must be after start_time)"],
+        receivedBodyShape,
+        receivedKeys,
+        normalized,
+        mapping: mapping as AnyRecord,
+      });
     }
-    
+
     startMs = range.startMs;
     endMs = range.endMs;
     rangeStartISO = `${normalized.date}T${normalized.start_time}:00`;
     rangeEndISO = `${normalized.date}T${normalized.end_time}:00`;
   }
-  
-  console.log(`[CHECK] ${normalized.booking_type} for ${normalized.date}, range: ${startMs} - ${endMs}`);
-  
+
+  console.log(`[CHECK] type=${normalized.booking_type} date=${normalized.date} tz=${tz} rangeMs=${startMs}..${endMs}`);
+
   // Query GHL for blocked slots
   const { events, error } = await getBlockedSlots(locationId, startMs, endMs, ghlToken);
-  
+
   if (error) {
-    console.error('[GHL] API error:', error);
-    return new Response(
-      JSON.stringify({
-        error: 'calendar_check_failed',
-        details: error,
-      }),
-      { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.error("[UPSTREAM] GHL API error:", error);
+    return buildOkFalseResponse({
+      error: "upstream_failed",
+      missing_fields: [],
+      receivedBodyShape: { ...receivedBodyShape, upstream_error: error },
+      receivedKeys,
+      normalized,
+      mapping: mapping as AnyRecord,
+    });
   }
-  
-  // Build response
+
   const occupied = events.length > 0;
   const available = !occupied;
+
   const conflictsPreview = events.slice(0, 3).map((event) => ({
     title: event.title || null,
     start: event.startTime || null,
     end: event.endTime || null,
   }));
-  
-  const reason = occupied 
+
+  const reason = occupied
     ? `Found ${events.length} conflict(s) in the requested time range`
-    : 'No conflicts found - time slot is available';
-  
+    : "No conflicts found - time slot is available";
+
   const response = {
+    ok: true,
     available,
     occupied,
     reason,
     checked_range: {
       start: rangeStartISO,
       end: rangeEndISO,
-      timezone: normalized.timezone,
+      timezone: tz,
     },
     conflicts_count: events.length,
     conflicts_preview: conflictsPreview,
     normalized,
+    debug: { mapping },
   };
-  
-  console.log(`[RESULT] available=${available}, conflicts=${events.length}`);
-  
-  return new Response(
-    JSON.stringify(response),
-    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-  );
+
+  console.log(`[RESULT] ok=true available=${available} conflicts=${events.length} reason=${reason}`);
+
+  return new Response(JSON.stringify(response), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
 });
