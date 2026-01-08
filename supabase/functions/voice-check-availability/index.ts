@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret, x-self-test',
 };
 
 // GHL API configuration
@@ -10,12 +10,12 @@ const GHL_API_BASE = 'https://services.leadconnectorhq.com';
 const GHL_CALENDAR_ID = 'tCUlP3Dalpf0fnhAPG52';
 const DEFAULT_TIMEZONE = 'America/New_York';
 
-interface RequestBody {
-  booking_type?: string;
-  date?: string;
-  start_time?: string;
-  end_time?: string;
-  timezone?: string;
+interface NormalizedPayload {
+  booking_type: string | null;
+  date: string | null;
+  start_time: string | null;
+  end_time: string | null;
+  timezone: string;
 }
 
 interface BlockedSlotEvent {
@@ -25,27 +25,86 @@ interface BlockedSlotEvent {
   endTime?: string;
 }
 
-interface CheckResponse {
-  occupied: boolean;
-  checked_range: {
-    start: string;
-    end: string;
-    timezone: string;
-  };
-  conflicts_count: number;
-  conflicts_preview: Array<{
-    title: string | null;
-    start: string | null;
-    end: string | null;
-  }>;
+// ============= KEY NORMALIZATION MAPS =============
+const BOOKING_TYPE_KEYS = ['booking_type', 'bookingtype', 'booking type', 'type'];
+const DATE_KEYS = ['date', 'event_date', 'eventdate', 'event date'];
+const START_TIME_KEYS = ['start_time', 'starttime', 'start time', 'start'];
+const END_TIME_KEYS = ['end_time', 'endtime', 'end time', 'end'];
+const TIMEZONE_KEYS = ['timezone', 'tz', 'time_zone', 'timzone'];
+
+// ============= UTILITY FUNCTIONS =============
+
+// Unwrap value if it's an object like {value: X}, {text: X}, {label: X}
+function unwrapValue(val: unknown): unknown {
+  if (val && typeof val === 'object' && !Array.isArray(val)) {
+    const obj = val as Record<string, unknown>;
+    if ('value' in obj) return obj.value;
+    if ('text' in obj) return obj.text;
+    if ('label' in obj) return obj.label;
+  }
+  return val;
+}
+
+// Find a value from an object using multiple possible keys (case-insensitive)
+function findValue(obj: Record<string, unknown>, possibleKeys: string[]): string | null {
+  if (!obj || typeof obj !== 'object') return null;
+  
+  const lowerKeys = possibleKeys.map(k => k.toLowerCase().replace(/[_\s]/g, ''));
+  
+  for (const [key, rawVal] of Object.entries(obj)) {
+    const normalizedKey = key.toLowerCase().replace(/[_\s]/g, '');
+    if (lowerKeys.includes(normalizedKey)) {
+      const val = unwrapValue(rawVal);
+      if (typeof val === 'string') return val.trim();
+      if (typeof val === 'number') return String(val);
+    }
+  }
+  return null;
+}
+
+// Search for values in root and nested containers
+function findInAllContainers(rawBody: Record<string, unknown>, possibleKeys: string[]): string | null {
+  // Try root first
+  const rootVal = findValue(rawBody, possibleKeys);
+  if (rootVal) return rootVal;
+  
+  // Try nested containers
+  const containers = ['data', 'payload', 'params', 'parameters', 'inputs', 'body', 'fields'];
+  for (const containerKey of containers) {
+    const container = rawBody[containerKey];
+    if (container && typeof container === 'object' && !Array.isArray(container)) {
+      const val = findValue(container as Record<string, unknown>, possibleKeys);
+      if (val) return val;
+    }
+  }
+  
+  return null;
+}
+
+// Collect all keys from root and nested containers (for debugging)
+function collectAllKeys(rawBody: Record<string, unknown>): string[] {
+  const keys: string[] = [...Object.keys(rawBody)];
+  
+  const containers = ['data', 'payload', 'params', 'parameters', 'inputs', 'body', 'fields'];
+  for (const containerKey of containers) {
+    const container = rawBody[containerKey];
+    if (container && typeof container === 'object' && !Array.isArray(container)) {
+      for (const k of Object.keys(container as Record<string, unknown>)) {
+        keys.push(`${containerKey}.${k}`);
+      }
+    }
+  }
+  
+  return keys;
 }
 
 // Normalize time string to 24h format "HH:MM"
-// Accepts: "18:00", "6:00 PM", "6 PM", "06:00 pm", etc.
+// Accepts: "18:00", "6:00 PM", "6 PM", "6PM", "06:00pm", etc.
 function normalizeTime(timeStr: string): string | null {
   if (!timeStr) return null;
   
-  const input = timeStr.trim().toUpperCase();
+  // Clean up: trim, uppercase, remove extra spaces
+  const input = timeStr.trim().toUpperCase().replace(/\s+/g, ' ');
   
   // Try 24h format first: "18:00" or "9:00"
   const match24h = input.match(/^(\d{1,2}):(\d{2})$/);
@@ -58,8 +117,8 @@ function normalizeTime(timeStr: string): string | null {
     return null;
   }
   
-  // Try AM/PM with minutes: "6:00 PM", "06:30 AM"
-  const matchAmPm = input.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  // Try AM/PM with minutes: "6:00 PM", "06:30AM", "6:00PM"
+  const matchAmPm = input.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
   if (matchAmPm) {
     let h = parseInt(matchAmPm[1], 10);
     const m = parseInt(matchAmPm[2], 10);
@@ -73,8 +132,8 @@ function normalizeTime(timeStr: string): string | null {
     return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
   }
   
-  // Try AM/PM without minutes: "6 PM", "12 AM"
-  const matchAmPmShort = input.match(/^(\d{1,2})\s*(AM|PM)$/);
+  // Try AM/PM without minutes: "6 PM", "6PM", "12AM"
+  const matchAmPmShort = input.match(/^(\d{1,2})\s?(AM|PM)$/);
   if (matchAmPmShort) {
     let h = parseInt(matchAmPmShort[1], 10);
     const period = matchAmPmShort[2];
@@ -156,7 +215,7 @@ async function getBlockedSlots(
     
     const responseText = await response.text();
     console.log(`[GHL] Response status: ${response.status}`);
-    console.log(`[GHL] Response body: ${responseText}`);
+    console.log(`[GHL] Response body: ${responseText.substring(0, 500)}`);
     
     if (!response.ok) {
       return { events: [], error: `GHL API error: ${response.status} - ${responseText}` };
@@ -172,40 +231,69 @@ async function getBlockedSlots(
 }
 
 // Log body safely (redact secrets)
-function logBody(body: Record<string, unknown>): void {
-  const safe = { ...body };
-  // Redact any field that might contain a secret
-  for (const key of Object.keys(safe)) {
-    if (/secret|token|key|password/i.test(key)) {
-      safe[key] = '[REDACTED]';
+function logBody(label: string, body: Record<string, unknown>): void {
+  const safe = JSON.parse(JSON.stringify(body));
+  const redactKeys = (obj: Record<string, unknown>) => {
+    for (const key of Object.keys(obj)) {
+      if (/secret|token|key|password|auth/i.test(key)) {
+        obj[key] = '[REDACTED]';
+      } else if (obj[key] && typeof obj[key] === 'object') {
+        redactKeys(obj[key] as Record<string, unknown>);
+      }
     }
-  }
-  console.log('[BODY] Received:', JSON.stringify(safe));
+  };
+  redactKeys(safe);
+  console.log(`[${label}]`, JSON.stringify(safe));
 }
 
-// Build 422 error response
-function validation422(missingFields: string[], receivedKeys: string[]): Response {
+// Normalize payload from any GHL format
+function normalizePayload(rawBody: Record<string, unknown>): NormalizedPayload {
+  const bookingType = findInAllContainers(rawBody, BOOKING_TYPE_KEYS);
+  const date = findInAllContainers(rawBody, DATE_KEYS);
+  const startTime = findInAllContainers(rawBody, START_TIME_KEYS);
+  const endTime = findInAllContainers(rawBody, END_TIME_KEYS);
+  const timezone = findInAllContainers(rawBody, TIMEZONE_KEYS);
+  
+  return {
+    booking_type: bookingType ? bookingType.toLowerCase() : null,
+    date: date,
+    start_time: startTime ? normalizeTime(startTime) : null,
+    end_time: endTime ? normalizeTime(endTime) : null,
+    timezone: timezone || DEFAULT_TIMEZONE,
+  };
+}
+
+// Build 422 validation error response
+function validation422(
+  missingFields: string[], 
+  receivedKeys: string[], 
+  normalizedPayload: NormalizedPayload,
+  rawStartTime?: string | null,
+  rawEndTime?: string | null
+): Response {
   return new Response(
     JSON.stringify({
-      error: 'invalid_payload',
+      error: 'validation_failed',
       missing_fields: missingFields,
       received_keys: receivedKeys,
+      normalized_payload: normalizedPayload,
+      raw_times: { start_time: rawStartTime, end_time: rawEndTime },
       examples: {
         daily: {
           booking_type: 'daily',
-          date: '2025-02-15',
+          date: '2026-02-15',
           timezone: 'America/New_York',
         },
         hourly: {
           booking_type: 'hourly',
-          date: '2025-02-15',
+          date: '2026-02-15',
           start_time: '18:00',
           end_time: '22:00',
           timezone: 'America/New_York',
         },
         hourly_ampm: {
           booking_type: 'hourly',
-          date: '2025-02-15',
+          date: '2026-02-15',
           start_time: '6:00 PM',
           end_time: '10:00 PM',
           timezone: 'America/New_York',
@@ -214,6 +302,99 @@ function validation422(missingFields: string[], receivedKeys: string[]): Respons
     }),
     { status: 422, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
   );
+}
+
+// Self-test mode
+function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
+  const results: Array<{ test: string; passed: boolean; details: string }> = [];
+  
+  // Test 1: Daily payload normalization
+  const dailyPayload = { Date: '2026-02-06', booking_type: 'daily', timezone: 'America/New_York' };
+  const dailyNorm = normalizePayload(dailyPayload);
+  const dailyPass = dailyNorm.booking_type === 'daily' && dailyNorm.date === '2026-02-06';
+  results.push({
+    test: 'daily_normalization',
+    passed: dailyPass,
+    details: JSON.stringify(dailyNorm),
+  });
+  
+  // Test 2: Hourly payload normalization with AM/PM
+  const hourlyPayload = { 
+    booking_type: 'hourly', 
+    Date: '2026-02-06', 
+    start_time: '6:00 PM', 
+    end_time: '10:00 PM',
+    timezone: 'America/New_York'
+  };
+  const hourlyNorm = normalizePayload(hourlyPayload);
+  const hourlyPass = hourlyNorm.booking_type === 'hourly' 
+    && hourlyNorm.date === '2026-02-06'
+    && hourlyNorm.start_time === '18:00'
+    && hourlyNorm.end_time === '22:00';
+  results.push({
+    test: 'hourly_normalization_ampm',
+    passed: hourlyPass,
+    details: JSON.stringify(hourlyNorm),
+  });
+  
+  // Test 3: Nested payload (data container)
+  const nestedPayload = { 
+    data: { 
+      booking_type: 'hourly', 
+      date: '2026-03-01', 
+      start_time: { value: '2 PM' }, 
+      end_time: { value: '6 PM' } 
+    } 
+  };
+  const nestedNorm = normalizePayload(nestedPayload);
+  const nestedPass = nestedNorm.booking_type === 'hourly' 
+    && nestedNorm.date === '2026-03-01'
+    && nestedNorm.start_time === '14:00'
+    && nestedNorm.end_time === '18:00';
+  results.push({
+    test: 'nested_payload_with_wrapped_values',
+    passed: nestedPass,
+    details: JSON.stringify(nestedNorm),
+  });
+  
+  // Test 4: Case-insensitive keys
+  const casePayload = { BookingType: 'daily', DATE: '2026-04-01', Timezone: 'America/New_York' };
+  const caseNorm = normalizePayload(casePayload);
+  const casePass = caseNorm.booking_type === 'daily' && caseNorm.date === '2026-04-01';
+  results.push({
+    test: 'case_insensitive_keys',
+    passed: casePass,
+    details: JSON.stringify(caseNorm),
+  });
+  
+  // Test 5: Time format variations
+  const timeTests = [
+    { input: '6:00 PM', expected: '18:00' },
+    { input: '6PM', expected: '18:00' },
+    { input: '6 PM', expected: '18:00' },
+    { input: '18:00', expected: '18:00' },
+    { input: '12:30 AM', expected: '00:30' },
+    { input: '12 PM', expected: '12:00' },
+  ];
+  let timePass = true;
+  const timeDetails: string[] = [];
+  for (const t of timeTests) {
+    const result = normalizeTime(t.input);
+    if (result !== t.expected) {
+      timePass = false;
+      timeDetails.push(`FAIL: ${t.input} -> ${result} (expected ${t.expected})`);
+    } else {
+      timeDetails.push(`OK: ${t.input} -> ${result}`);
+    }
+  }
+  results.push({
+    test: 'time_format_variations',
+    passed: timePass,
+    details: timeDetails.join('; '),
+  });
+  
+  const allPassed = results.every(r => r.passed);
+  return { passed: allPassed, results };
 }
 
 serve(async (req) => {
@@ -242,6 +423,21 @@ serve(async (req) => {
     );
   }
   
+  // Check for self-test mode
+  const selfTest = req.headers.get('x-self-test');
+  if (selfTest === 'true') {
+    console.log('[SELF-TEST] Running internal tests...');
+    const testResults = runSelfTests();
+    return new Response(
+      JSON.stringify({
+        mode: 'self-test',
+        overall: testResults.passed ? 'PASS' : 'FAIL',
+        results: testResults.results,
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+  
   // Get required env vars
   const ghlToken = Deno.env.get('GHL_PRIVATE_INTEGRATION_TOKEN');
   const locationId = Deno.env.get('GHL_LOCATION_ID');
@@ -266,62 +462,51 @@ serve(async (req) => {
   }
   
   // Log received body
-  logBody(rawBody);
+  logBody('RAW_BODY', rawBody);
   
-  const body: RequestBody = {
-    booking_type: typeof rawBody.booking_type === 'string' ? rawBody.booking_type.trim().toLowerCase() : undefined,
-    date: typeof rawBody.date === 'string' ? rawBody.date.trim() : undefined,
-    start_time: typeof rawBody.start_time === 'string' ? rawBody.start_time.trim() : undefined,
-    end_time: typeof rawBody.end_time === 'string' ? rawBody.end_time.trim() : undefined,
-    timezone: typeof rawBody.timezone === 'string' ? rawBody.timezone.trim() : undefined,
-  };
+  // Collect all received keys for debugging
+  const receivedKeys = collectAllKeys(rawBody);
+  console.log('[KEYS] Received:', receivedKeys.join(', '));
   
-  const receivedKeys = Object.keys(rawBody);
+  // Normalize payload
+  const normalized = normalizePayload(rawBody);
+  console.log('[NORMALIZED]', JSON.stringify(normalized));
   
-  // Validate booking_type
+  // Get raw times for error reporting
+  const rawStartTime = findInAllContainers(rawBody, START_TIME_KEYS);
+  const rawEndTime = findInAllContainers(rawBody, END_TIME_KEYS);
+  
+  // Validate
   const missingFields: string[] = [];
   
-  if (!body.booking_type || !['hourly', 'daily'].includes(body.booking_type)) {
+  if (!normalized.booking_type || !['hourly', 'daily'].includes(normalized.booking_type)) {
     missingFields.push('booking_type (must be "hourly" or "daily")');
   }
   
-  // Validate date
-  if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+  if (!normalized.date || !/^\d{4}-\d{2}-\d{2}$/.test(normalized.date)) {
     missingFields.push('date (YYYY-MM-DD format)');
   }
   
-  // For hourly, validate times
-  const isHourly = body.booking_type === 'hourly';
-  let normalizedStart: string | null = null;
-  let normalizedEnd: string | null = null;
+  const isHourly = normalized.booking_type === 'hourly';
   
   if (isHourly) {
-    if (!body.start_time) {
+    if (!rawStartTime) {
       missingFields.push('start_time (required for hourly)');
-    } else {
-      normalizedStart = normalizeTime(body.start_time);
-      if (!normalizedStart) {
-        missingFields.push('start_time (invalid format, use "18:00" or "6:00 PM")');
-      }
+    } else if (!normalized.start_time) {
+      missingFields.push(`start_time (could not parse "${rawStartTime}" - use "18:00" or "6:00 PM")`);
     }
     
-    if (!body.end_time) {
+    if (!rawEndTime) {
       missingFields.push('end_time (required for hourly)');
-    } else {
-      normalizedEnd = normalizeTime(body.end_time);
-      if (!normalizedEnd) {
-        missingFields.push('end_time (invalid format, use "22:00" or "10:00 PM")');
-      }
+    } else if (!normalized.end_time) {
+      missingFields.push(`end_time (could not parse "${rawEndTime}" - use "22:00" or "10:00 PM")`);
     }
   }
   
-  // Return 422 if any validation failed
   if (missingFields.length > 0) {
     console.log('[VALIDATION] Failed:', missingFields);
-    return validation422(missingFields, receivedKeys);
+    return validation422(missingFields, receivedKeys, normalized, rawStartTime, rawEndTime);
   }
-  
-  const timezone = body.timezone || DEFAULT_TIMEZONE;
   
   // Calculate time range
   let startMs: number;
@@ -329,21 +514,20 @@ serve(async (req) => {
   let rangeStartISO: string;
   let rangeEndISO: string;
   
-  if (body.booking_type === 'daily') {
-    const range = getDailyRange(body.date!);
+  if (normalized.booking_type === 'daily') {
+    const range = getDailyRange(normalized.date!);
     startMs = range.startMs;
     endMs = range.endMs;
-    rangeStartISO = `${body.date}T00:00:00`;
-    rangeEndISO = `${body.date}T23:59:59`;
+    rangeStartISO = `${normalized.date}T00:00:00`;
+    rangeEndISO = `${normalized.date}T23:59:59`;
   } else {
-    // Hourly
-    const range = getHourlyRange(body.date!, normalizedStart!, normalizedEnd!);
+    const range = getHourlyRange(normalized.date!, normalized.start_time!, normalized.end_time!);
     if (!range) {
       return new Response(
         JSON.stringify({ 
           error: 'invalid_time_range',
           message: 'end_time must be after start_time',
-          received: { start_time: normalizedStart, end_time: normalizedEnd },
+          normalized,
         }),
         { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -351,11 +535,11 @@ serve(async (req) => {
     
     startMs = range.startMs;
     endMs = range.endMs;
-    rangeStartISO = `${body.date}T${normalizedStart}:00`;
-    rangeEndISO = `${body.date}T${normalizedEnd}:00`;
+    rangeStartISO = `${normalized.date}T${normalized.start_time}:00`;
+    rangeEndISO = `${normalized.date}T${normalized.end_time}:00`;
   }
   
-  console.log(`[CHECK] Checking ${body.booking_type} availability for ${body.date}, range: ${startMs} - ${endMs}`);
+  console.log(`[CHECK] ${normalized.booking_type} for ${normalized.date}, range: ${startMs} - ${endMs}`);
   
   // Query GHL for blocked slots
   const { events, error } = await getBlockedSlots(locationId, startMs, endMs, ghlToken);
@@ -373,24 +557,32 @@ serve(async (req) => {
   
   // Build response
   const occupied = events.length > 0;
+  const available = !occupied;
   const conflictsPreview = events.slice(0, 3).map((event) => ({
     title: event.title || null,
     start: event.startTime || null,
     end: event.endTime || null,
   }));
   
-  const response: CheckResponse = {
+  const reason = occupied 
+    ? `Found ${events.length} conflict(s) in the requested time range`
+    : 'No conflicts found - time slot is available';
+  
+  const response = {
+    available,
     occupied,
+    reason,
     checked_range: {
       start: rangeStartISO,
       end: rangeEndISO,
-      timezone,
+      timezone: normalized.timezone,
     },
     conflicts_count: events.length,
     conflicts_preview: conflictsPreview,
+    normalized,
   };
   
-  console.log(`[CHECK] Result: occupied=${occupied}, conflicts=${events.length}`);
+  console.log(`[RESULT] available=${available}, conflicts=${events.length}`);
   
   return new Response(
     JSON.stringify(response),
