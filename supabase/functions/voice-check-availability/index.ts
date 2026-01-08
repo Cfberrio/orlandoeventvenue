@@ -11,10 +11,10 @@ const GHL_CALENDAR_ID = 'tCUlP3Dalpf0fnhAPG52';
 const DEFAULT_TIMEZONE = 'America/New_York';
 
 interface RequestBody {
-  booking_type: 'hourly' | 'daily';
-  date: string; // YYYY-MM-DD
-  start_time?: string; // HH:MM
-  end_time?: string; // HH:MM
+  booking_type?: string;
+  date?: string;
+  start_time?: string;
+  end_time?: string;
   timezone?: string;
 }
 
@@ -40,34 +40,79 @@ interface CheckResponse {
   }>;
 }
 
+// Normalize time string to 24h format "HH:MM"
+// Accepts: "18:00", "6:00 PM", "6 PM", "06:00 pm", etc.
+function normalizeTime(timeStr: string): string | null {
+  if (!timeStr) return null;
+  
+  const input = timeStr.trim().toUpperCase();
+  
+  // Try 24h format first: "18:00" or "9:00"
+  const match24h = input.match(/^(\d{1,2}):(\d{2})$/);
+  if (match24h) {
+    const h = parseInt(match24h[1], 10);
+    const m = parseInt(match24h[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    }
+    return null;
+  }
+  
+  // Try AM/PM with minutes: "6:00 PM", "06:30 AM"
+  const matchAmPm = input.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+  if (matchAmPm) {
+    let h = parseInt(matchAmPm[1], 10);
+    const m = parseInt(matchAmPm[2], 10);
+    const period = matchAmPm[3];
+    
+    if (h < 1 || h > 12 || m < 0 || m > 59) return null;
+    
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  }
+  
+  // Try AM/PM without minutes: "6 PM", "12 AM"
+  const matchAmPmShort = input.match(/^(\d{1,2})\s*(AM|PM)$/);
+  if (matchAmPmShort) {
+    let h = parseInt(matchAmPmShort[1], 10);
+    const period = matchAmPmShort[2];
+    
+    if (h < 1 || h > 12) return null;
+    
+    if (period === 'PM' && h !== 12) h += 12;
+    if (period === 'AM' && h === 12) h = 0;
+    
+    return `${h.toString().padStart(2, '0')}:00`;
+  }
+  
+  return null;
+}
+
 // Convert date + time to epoch milliseconds in Eastern timezone
-function toEpochMillis(dateStr: string, timeStr: string, timezone: string): number {
-  // Create ISO string with timezone offset
-  // Eastern is typically -05:00 (EST) or -04:00 (EDT)
-  // We'll use a simple approach: parse as local date and adjust
+function toEpochMillis(dateStr: string, timeStr: string): number {
   const [year, month, day] = dateStr.split('-').map(Number);
   const [hours, minutes] = timeStr.split(':').map(Number);
   
-  // Create date in UTC, then we'll use the timezone for the API
-  // GHL expects epoch millis, so we construct the date assuming Eastern time
-  // EST = UTC-5, EDT = UTC-4. For simplicity, we'll calculate based on the date
+  // Create date in UTC, then adjust for Eastern
   const date = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
   
-  // Adjust for Eastern Time (approximate: -5 hours for EST)
-  // This is a simplification; for production, use a proper timezone library
-  const easternOffset = 5 * 60 * 60 * 1000; // 5 hours in ms
+  // Eastern Time offset (EST = UTC-5, EDT = UTC-4)
+  // For simplicity, assume EST (-5h)
+  const easternOffset = 5 * 60 * 60 * 1000;
   return date.getTime() + easternOffset;
 }
 
 // Get daily range (00:00:00 to 23:59:59.999)
-function getDailyRange(dateStr: string, timezone: string): { startMs: number; endMs: number } {
-  const startMs = toEpochMillis(dateStr, '00:00', timezone);
-  const endMs = toEpochMillis(dateStr, '23:59', timezone) + (59 * 1000) + 999; // Add 59s 999ms
+function getDailyRange(dateStr: string): { startMs: number; endMs: number } {
+  const startMs = toEpochMillis(dateStr, '00:00');
+  const endMs = toEpochMillis(dateStr, '23:59') + (59 * 1000) + 999;
   return { startMs, endMs };
 }
 
 // Get hourly range
-function getHourlyRange(dateStr: string, startTime: string, endTime: string, timezone: string): { startMs: number; endMs: number } | null {
+function getHourlyRange(dateStr: string, startTime: string, endTime: string): { startMs: number; endMs: number } | null {
   const [startH, startM] = startTime.split(':').map(Number);
   const [endH, endM] = endTime.split(':').map(Number);
   
@@ -79,8 +124,8 @@ function getHourlyRange(dateStr: string, startTime: string, endTime: string, tim
   }
   
   return {
-    startMs: toEpochMillis(dateStr, startTime, timezone),
-    endMs: toEpochMillis(dateStr, endTime, timezone),
+    startMs: toEpochMillis(dateStr, startTime),
+    endMs: toEpochMillis(dateStr, endTime),
   };
 }
 
@@ -118,14 +163,57 @@ async function getBlockedSlots(
     }
     
     const data = JSON.parse(responseText);
-    
-    // GHL returns { events: [...] } for blocked-slots
     const events = data.events || data.blockedSlots || [];
     return { events: Array.isArray(events) ? events : [] };
   } catch (error) {
     console.error('[GHL] Fetch error:', error);
     return { events: [], error: String(error) };
   }
+}
+
+// Log body safely (redact secrets)
+function logBody(body: Record<string, unknown>): void {
+  const safe = { ...body };
+  // Redact any field that might contain a secret
+  for (const key of Object.keys(safe)) {
+    if (/secret|token|key|password/i.test(key)) {
+      safe[key] = '[REDACTED]';
+    }
+  }
+  console.log('[BODY] Received:', JSON.stringify(safe));
+}
+
+// Build 422 error response
+function validation422(missingFields: string[], receivedKeys: string[]): Response {
+  return new Response(
+    JSON.stringify({
+      error: 'invalid_payload',
+      missing_fields: missingFields,
+      received_keys: receivedKeys,
+      examples: {
+        daily: {
+          booking_type: 'daily',
+          date: '2025-02-15',
+          timezone: 'America/New_York',
+        },
+        hourly: {
+          booking_type: 'hourly',
+          date: '2025-02-15',
+          start_time: '18:00',
+          end_time: '22:00',
+          timezone: 'America/New_York',
+        },
+        hourly_ampm: {
+          booking_type: 'hourly',
+          date: '2025-02-15',
+          start_time: '6:00 PM',
+          end_time: '10:00 PM',
+          timezone: 'America/New_York',
+        },
+      },
+    }),
+    { status: 422, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
+  );
 }
 
 serve(async (req) => {
@@ -167,9 +255,9 @@ serve(async (req) => {
   }
   
   // Parse request body
-  let body: RequestBody;
+  let rawBody: Record<string, unknown>;
   try {
-    body = await req.json();
+    rawBody = await req.json();
   } catch {
     return new Response(
       JSON.stringify({ error: 'Invalid JSON body' }),
@@ -177,27 +265,60 @@ serve(async (req) => {
     );
   }
   
-  // Validate required fields
-  if (!body.booking_type || !body.date) {
-    return new Response(
-      JSON.stringify({ error: 'Missing required fields: booking_type, date' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  // Log received body
+  logBody(rawBody);
+  
+  const body: RequestBody = {
+    booking_type: typeof rawBody.booking_type === 'string' ? rawBody.booking_type.trim().toLowerCase() : undefined,
+    date: typeof rawBody.date === 'string' ? rawBody.date.trim() : undefined,
+    start_time: typeof rawBody.start_time === 'string' ? rawBody.start_time.trim() : undefined,
+    end_time: typeof rawBody.end_time === 'string' ? rawBody.end_time.trim() : undefined,
+    timezone: typeof rawBody.timezone === 'string' ? rawBody.timezone.trim() : undefined,
+  };
+  
+  const receivedKeys = Object.keys(rawBody);
+  
+  // Validate booking_type
+  const missingFields: string[] = [];
+  
+  if (!body.booking_type || !['hourly', 'daily'].includes(body.booking_type)) {
+    missingFields.push('booking_type (must be "hourly" or "daily")');
   }
   
-  if (!['hourly', 'daily'].includes(body.booking_type)) {
-    return new Response(
-      JSON.stringify({ error: 'booking_type must be "hourly" or "daily"' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  // Validate date
+  if (!body.date || !/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
+    missingFields.push('date (YYYY-MM-DD format)');
   }
   
-  // Validate date format
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(body.date)) {
-    return new Response(
-      JSON.stringify({ error: 'date must be in YYYY-MM-DD format' }),
-      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+  // For hourly, validate times
+  const isHourly = body.booking_type === 'hourly';
+  let normalizedStart: string | null = null;
+  let normalizedEnd: string | null = null;
+  
+  if (isHourly) {
+    if (!body.start_time) {
+      missingFields.push('start_time (required for hourly)');
+    } else {
+      normalizedStart = normalizeTime(body.start_time);
+      if (!normalizedStart) {
+        missingFields.push('start_time (invalid format, use "18:00" or "6:00 PM")');
+      }
+    }
+    
+    if (!body.end_time) {
+      missingFields.push('end_time (required for hourly)');
+    } else {
+      normalizedEnd = normalizeTime(body.end_time);
+      if (!normalizedEnd) {
+        missingFields.push('end_time (invalid format, use "22:00" or "10:00 PM")');
+      }
+    }
+  }
+  
+  // Return 422 if any validation failed
+  if (missingFields.length > 0) {
+    console.log('[VALIDATION] Failed:', missingFields);
+    return validation422(missingFields, receivedKeys);
   }
   
   const timezone = body.timezone || DEFAULT_TIMEZONE;
@@ -209,41 +330,29 @@ serve(async (req) => {
   let rangeEndISO: string;
   
   if (body.booking_type === 'daily') {
-    const range = getDailyRange(body.date, timezone);
+    const range = getDailyRange(body.date!);
     startMs = range.startMs;
     endMs = range.endMs;
     rangeStartISO = `${body.date}T00:00:00`;
     rangeEndISO = `${body.date}T23:59:59`;
   } else {
-    // Hourly: require start_time and end_time
-    if (!body.start_time || !body.end_time) {
-      return new Response(
-        JSON.stringify({ error: 'Hourly booking requires start_time and end_time' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    // Validate time format
-    const timeRegex = /^\d{2}:\d{2}$/;
-    if (!timeRegex.test(body.start_time) || !timeRegex.test(body.end_time)) {
-      return new Response(
-        JSON.stringify({ error: 'start_time and end_time must be in HH:MM format' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-    
-    const range = getHourlyRange(body.date, body.start_time, body.end_time, timezone);
+    // Hourly
+    const range = getHourlyRange(body.date!, normalizedStart!, normalizedEnd!);
     if (!range) {
       return new Response(
-        JSON.stringify({ error: 'end_time must be after start_time' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'invalid_time_range',
+          message: 'end_time must be after start_time',
+          received: { start_time: normalizedStart, end_time: normalizedEnd },
+        }),
+        { status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
     startMs = range.startMs;
     endMs = range.endMs;
-    rangeStartISO = `${body.date}T${body.start_time}:00`;
-    rangeEndISO = `${body.date}T${body.end_time}:00`;
+    rangeStartISO = `${body.date}T${normalizedStart}:00`;
+    rangeEndISO = `${body.date}T${normalizedEnd}:00`;
   }
   
   console.log(`[CHECK] Checking ${body.booking_type} availability for ${body.date}, range: ${startMs} - ${endMs}`);
@@ -253,10 +362,9 @@ serve(async (req) => {
   
   if (error) {
     console.error('[GHL] API error:', error);
-    // Return a response indicating we couldn't check, but don't fail completely
     return new Response(
       JSON.stringify({
-        error: 'Could not verify availability with calendar',
+        error: 'calendar_check_failed',
         details: error,
       }),
       { status: 502, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
