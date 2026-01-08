@@ -25,167 +25,464 @@ interface BlockedSlotEvent {
   endTime?: string;
 }
 
-// ============= KEY NORMALIZATION MAPS =============
-const BOOKING_TYPE_KEYS = ['booking_type', 'bookingtype', 'booking type', 'type'];
-const DATE_KEYS = ['date', 'event_date', 'eventdate', 'event date'];
-const START_TIME_KEYS = ['start_time', 'starttime', 'start time', 'start'];
-const END_TIME_KEYS = ['end_time', 'endtime', 'end time', 'end'];
-const TIMEZONE_KEYS = ['timezone', 'tz', 'time_zone', 'timzone'];
+// ============= INPUT NORMALIZATION =============
 
-// ============= UTILITY FUNCTIONS =============
+// NOTE: GHL can send keys with different casing, spaces, camelCase, nesting, and wrapped values.
+// This section is intentionally tolerant to maximize compatibility with Voice Agent "Custom Action Test".
 
-// Unwrap value if it's an object like {value: X}, {text: X}, {label: X}
-function unwrapValue(val: unknown): unknown {
-  if (val && typeof val === 'object' && !Array.isArray(val)) {
-    const obj = val as Record<string, unknown>;
-    if ('value' in obj) return obj.value;
-    if ('text' in obj) return obj.text;
-    if ('label' in obj) return obj.label;
-  }
-  return val;
+type AnyRecord = Record<string, unknown>;
+
+const FIELD_ALIASES = {
+  booking_type: ["booking_type", "bookingType", "Booking Type", "type", "booking"],
+  date: ["date", "Date", "event_date", "eventDate", "day"],
+  start_time: ["start_time", "startTime", "Start Time", "from", "start"],
+  end_time: ["end_time", "endTime", "End Time", "to", "end"],
+  timezone: ["timezone", "Timezone", "tz"],
+} as const;
+
+type CanonicalField = keyof typeof FIELD_ALIASES;
+
+function normalizeKey(key: string): string {
+  // Lowercase and strip everything except [a-z0-9]
+  return key.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Find a value from an object using multiple possible keys (case-insensitive)
-function findValue(obj: Record<string, unknown>, possibleKeys: string[]): string | null {
-  if (!obj || typeof obj !== 'object') return null;
-  
-  const lowerKeys = possibleKeys.map(k => k.toLowerCase().replace(/[_\s]/g, ''));
-  
-  for (const [key, rawVal] of Object.entries(obj)) {
-    const normalizedKey = key.toLowerCase().replace(/[_\s]/g, '');
-    if (lowerKeys.includes(normalizedKey)) {
-      const val = unwrapValue(rawVal);
-      if (typeof val === 'string') return val.trim();
-      if (typeof val === 'number') return String(val);
+const FIELD_ALIAS_SETS: Record<CanonicalField, Set<string>> = {
+  booking_type: new Set(FIELD_ALIASES.booking_type.map(normalizeKey)),
+  date: new Set(FIELD_ALIASES.date.map(normalizeKey)),
+  start_time: new Set(FIELD_ALIASES.start_time.map(normalizeKey)),
+  end_time: new Set(FIELD_ALIASES.end_time.map(normalizeKey)),
+  timezone: new Set(FIELD_ALIASES.timezone.map(normalizeKey)),
+};
+
+function isPlainObject(val: unknown): val is AnyRecord {
+  return !!val && typeof val === "object" && !Array.isArray(val);
+}
+
+// Unwrap value if it's an object like {value: X}, {text: X}, {label: X}, {name: X}
+function unwrapValue(val: unknown, maxDepth = 3): unknown {
+  let cur: unknown = val;
+  for (let i = 0; i < maxDepth; i++) {
+    if (!isPlainObject(cur)) return cur;
+    const obj = cur as AnyRecord;
+    if ("value" in obj) {
+      cur = obj.value;
+      continue;
     }
+    if ("text" in obj) {
+      cur = obj.text;
+      continue;
+    }
+    if ("label" in obj) {
+      cur = obj.label;
+      continue;
+    }
+    if ("name" in obj) {
+      cur = obj.name;
+      continue;
+    }
+    return cur;
   }
+  return cur;
+}
+
+function toStringOrNull(val: unknown): string | null {
+  const unwrapped = unwrapValue(val);
+  if (typeof unwrapped === "string") return unwrapped.trim();
+  if (typeof unwrapped === "number") return String(unwrapped);
+  if (typeof unwrapped === "boolean") return unwrapped ? "true" : "false";
   return null;
 }
 
-// Search for values in root and nested containers
-function findInAllContainers(rawBody: Record<string, unknown>, possibleKeys: string[]): string | null {
-  // Try root first
-  const rootVal = findValue(rawBody, possibleKeys);
-  if (rootVal) return rootVal;
-  
-  // Try nested containers
-  const containers = ['data', 'payload', 'params', 'parameters', 'inputs', 'body', 'fields'];
-  for (const containerKey of containers) {
-    const container = rawBody[containerKey];
-    if (container && typeof container === 'object' && !Array.isArray(container)) {
-      const val = findValue(container as Record<string, unknown>, possibleKeys);
-      if (val) return val;
-    }
-  }
-  
-  return null;
-}
+function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown"; error?: string } {
+  const text = (rawText ?? "").trim();
+  if (!text) return { body: {}, mode: "empty" };
 
-// Collect all keys from root and nested containers (for debugging)
-function collectAllKeys(rawBody: Record<string, unknown>): string[] {
-  const keys: string[] = [...Object.keys(rawBody)];
-  
-  const containers = ['data', 'payload', 'params', 'parameters', 'inputs', 'body', 'fields'];
-  for (const containerKey of containers) {
-    const container = rawBody[containerKey];
-    if (container && typeof container === 'object' && !Array.isArray(container)) {
-      for (const k of Object.keys(container as Record<string, unknown>)) {
-        keys.push(`${containerKey}.${k}`);
+  // 1) Try JSON
+  try {
+    const parsed = JSON.parse(text);
+    if (isPlainObject(parsed)) return { body: parsed, mode: "json" };
+    // If JSON is not an object, still wrap it for debug purposes.
+    return { body: { _value: parsed }, mode: "json" };
+  } catch (e) {
+    // fallthrough
+    const jsonError = String(e);
+
+    // 2) Try form-urlencoded
+    try {
+      const params = new URLSearchParams(text);
+      const obj: AnyRecord = {};
+      let any = false;
+      for (const [k, v] of params.entries()) {
+        any = true;
+        // if key repeats, keep last (GHL usually doesn't repeat)
+        obj[k] = v;
       }
+      if (any) return { body: obj, mode: "form" };
+    } catch {
+      // ignore
     }
+
+    return { body: { _raw: text }, mode: "unknown", error: jsonError };
   }
-  
+}
+
+function collectAllKeysDeep(val: unknown, maxKeys = 300, maxDepth = 6): string[] {
+  const keys: string[] = [];
+  const seen = new Set<unknown>();
+
+  const walk = (node: unknown, path: string, depth: number) => {
+    if (keys.length >= maxKeys) return;
+    if (depth > maxDepth) return;
+    if (!node || typeof node !== "object") return;
+    if (seen.has(node)) return;
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        walk(node[i], `${path}[${i}]`, depth + 1);
+      }
+      return;
+    }
+
+    const obj = node as AnyRecord;
+    for (const k of Object.keys(obj)) {
+      const nextPath = path ? `${path}.${k}` : k;
+      keys.push(nextPath);
+      if (keys.length >= maxKeys) return;
+      walk(obj[k], nextPath, depth + 1);
+    }
+  };
+
+  walk(val, "", 0);
   return keys;
 }
 
-// Normalize time string to 24h format "HH:MM"
-// Accepts: "18:00", "6:00 PM", "6 PM", "6PM", "06:00pm", etc.
+function collectAllStringsDeep(val: unknown, maxStrings = 200, maxDepth = 8): string[] {
+  const strings: string[] = [];
+  const seen = new Set<unknown>();
+
+  const walk = (node: unknown, depth: number) => {
+    if (strings.length >= maxStrings) return;
+    if (depth > maxDepth) return;
+
+    const unwrapped = unwrapValue(node);
+    if (typeof unwrapped === "string") {
+      const s = unwrapped.trim();
+      if (s) strings.push(s);
+      return;
+    }
+
+    if (!unwrapped || typeof unwrapped !== "object") return;
+    if (seen.has(unwrapped)) return;
+    seen.add(unwrapped);
+
+    if (Array.isArray(unwrapped)) {
+      for (const item of unwrapped) walk(item, depth + 1);
+      return;
+    }
+
+    const obj = unwrapped as AnyRecord;
+    for (const v of Object.values(obj)) walk(v, depth + 1);
+  };
+
+  walk(val, 0);
+  return strings;
+}
+
+function findByAliasesDeep(root: unknown, aliases: Set<string>): { value: string | null; path: string | null } {
+  const seen = new Set<unknown>();
+
+  const walk = (node: unknown, path: string, depth: number): { value: string | null; path: string | null } => {
+    if (depth > 10) return { value: null, path: null };
+    if (!node || typeof node !== "object") return { value: null, path: null };
+    if (seen.has(node)) return { value: null, path: null };
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      for (let i = 0; i < node.length; i++) {
+        const r = walk(node[i], `${path}[${i}]`, depth + 1);
+        if (r.value) return r;
+      }
+      return { value: null, path: null };
+    }
+
+    const obj = node as AnyRecord;
+
+    // direct match on this object
+    for (const [k, v] of Object.entries(obj)) {
+      const nk = normalizeKey(k);
+      if (aliases.has(nk)) {
+        const sv = toStringOrNull(v);
+        if (sv) return { value: sv, path: path ? `${path}.${k}` : k };
+      }
+    }
+
+    // also search common containers first (helps with speed and determinism)
+    const preferredContainers = ["body", "data", "payload", "params", "parameters", "inputs", "variables", "fields"];
+    for (const c of preferredContainers) {
+      const child = obj[c];
+      if (child && typeof child === "object") {
+        const r = walk(child, path ? `${path}.${c}` : c, depth + 1);
+        if (r.value) return r;
+      }
+    }
+
+    // generic deep search
+    for (const [k, v] of Object.entries(obj)) {
+      if (!v || typeof v !== "object") continue;
+      const r = walk(v, path ? `${path}.${k}` : k, depth + 1);
+      if (r.value) return r;
+    }
+
+    return { value: null, path: null };
+  };
+
+  return walk(root, "", 0);
+}
+
+function parseDateToYYYYMMDD(input: string): string | null {
+  const s = input.trim();
+
+  // ISO-like: 2026-02-06 or 2026-02-06T...
+  const iso = s.match(/(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+
+  // Slash date: 2026/2/6 or 2026/02/06
+  const slash = s.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})/);
+  if (slash) {
+    const mm = String(parseInt(slash[2], 10)).padStart(2, "0");
+    const dd = String(parseInt(slash[3], 10)).padStart(2, "0");
+    return `${slash[1]}-${mm}-${dd}`;
+  }
+
+  // Month name: Feb 6, 2026 / February 6 2026
+  const month = s.match(/\b([A-Za-z]{3,9})\s+(\d{1,2})(?:,)?\s+(\d{4})\b/);
+  if (month) {
+    const monthName = month[1].toLowerCase();
+    const day = String(parseInt(month[2], 10)).padStart(2, "0");
+    const year = month[3];
+
+    const months: Record<string, string> = {
+      jan: "01",
+      january: "01",
+      feb: "02",
+      february: "02",
+      mar: "03",
+      march: "03",
+      apr: "04",
+      april: "04",
+      may: "05",
+      jun: "06",
+      june: "06",
+      jul: "07",
+      july: "07",
+      aug: "08",
+      august: "08",
+      sep: "09",
+      sept: "09",
+      september: "09",
+      oct: "10",
+      october: "10",
+      nov: "11",
+      november: "11",
+      dec: "12",
+      december: "12",
+    };
+
+    const mm = months[monthName];
+    if (mm) return `${year}-${mm}-${day}`;
+  }
+
+  return null;
+}
+
+// Normalize time string to 24h format "HH:mm"
+// Accepts: "18:00", "6:00 PM", "6 PM", "6PM", "06:00pm", "600 pm" (tolerated)
 function normalizeTime(timeStr: string): string | null {
   if (!timeStr) return null;
-  
-  // Clean up: trim, uppercase, remove extra spaces
-  const input = timeStr.trim().toUpperCase().replace(/\s+/g, ' ');
-  
-  // Try 24h format first: "18:00" or "9:00"
+
+  // Clean up: trim, uppercase, normalize spaces
+  const input = timeStr.trim().toUpperCase().replace(/\s+/g, " ");
+
+  // If "18:00:00" => "18:00"
+  const match24hWithSeconds = input.match(/^(\d{1,2}):(\d{2}):(\d{2})$/);
+  if (match24hWithSeconds) {
+    const h = parseInt(match24hWithSeconds[1], 10);
+    const m = parseInt(match24hWithSeconds[2], 10);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+    }
+    return null;
+  }
+
+  // 24h format: "18:00" or "9:00"
   const match24h = input.match(/^(\d{1,2}):(\d{2})$/);
   if (match24h) {
     const h = parseInt(match24h[1], 10);
     const m = parseInt(match24h[2], 10);
     if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
-      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+      return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
     }
     return null;
   }
-  
-  // Try AM/PM with minutes: "6:00 PM", "06:30AM", "6:00PM"
+
+  // AM/PM with minutes: "6:00 PM", "06:30AM", "6:00PM"
   const matchAmPm = input.match(/^(\d{1,2}):(\d{2})\s?(AM|PM)$/);
   if (matchAmPm) {
     let h = parseInt(matchAmPm[1], 10);
     const m = parseInt(matchAmPm[2], 10);
     const period = matchAmPm[3];
-    
+
     if (h < 1 || h > 12 || m < 0 || m > 59) return null;
-    
-    if (period === 'PM' && h !== 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    
-    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
   }
-  
-  // Try AM/PM without minutes: "6 PM", "6PM", "12AM"
+
+  // AM/PM without minutes: "6 PM", "6PM", "12AM"
   const matchAmPmShort = input.match(/^(\d{1,2})\s?(AM|PM)$/);
   if (matchAmPmShort) {
     let h = parseInt(matchAmPmShort[1], 10);
     const period = matchAmPmShort[2];
-    
+
     if (h < 1 || h > 12) return null;
-    
-    if (period === 'PM' && h !== 12) h += 12;
-    if (period === 'AM' && h === 12) h = 0;
-    
-    return `${h.toString().padStart(2, '0')}:00`;
+
+    if (period === "PM" && h !== 12) h += 12;
+    if (period === "AM" && h === 12) h = 0;
+
+    return `${h.toString().padStart(2, "0")}:00`;
   }
-  
+
+  // Tolerate compact "600 PM" / "1230AM" => "6:00 PM" / "12:30 AM"
+  const compact = input.replace(/\s+/g, ""); // "600PM"
+  const matchCompact = compact.match(/^(\d{3,4})(AM|PM)$/);
+  if (matchCompact) {
+    const digits = matchCompact[1];
+    const period = matchCompact[2];
+    const hRaw = digits.length === 3 ? digits.slice(0, 1) : digits.slice(0, 2);
+    const mRaw = digits.slice(-2);
+    const hNum = parseInt(hRaw, 10);
+    const mNum = parseInt(mRaw, 10);
+    if (hNum >= 1 && hNum <= 12 && mNum >= 0 && mNum <= 59) {
+      return normalizeTime(`${hNum}:${mRaw} ${period}`);
+    }
+  }
+
   return null;
 }
 
-// Convert date + time to epoch milliseconds in Eastern timezone
-function toEpochMillis(dateStr: string, timeStr: string): number {
-  const [year, month, day] = dateStr.split('-').map(Number);
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  
-  // Create date in UTC, then adjust for Eastern
-  const date = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
-  
-  // Eastern Time offset (EST = UTC-5, EDT = UTC-4)
-  // For simplicity, assume EST (-5h)
-  const easternOffset = 5 * 60 * 60 * 1000;
-  return date.getTime() + easternOffset;
-}
-
-// Get daily range (00:00:00 to 23:59:59.999)
-function getDailyRange(dateStr: string): { startMs: number; endMs: number } {
-  const startMs = toEpochMillis(dateStr, '00:00');
-  const endMs = toEpochMillis(dateStr, '23:59') + (59 * 1000) + 999;
-  return { startMs, endMs };
-}
-
-// Get hourly range
-function getHourlyRange(dateStr: string, startTime: string, endTime: string): { startMs: number; endMs: number } | null {
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
-  
-  if (endMinutes <= startMinutes) {
-    return null; // Invalid range
+function inferBookingType(strings: string[]): string | null {
+  for (const s of strings) {
+    const low = s.toLowerCase();
+    if (low.includes("hourly")) return "hourly";
+    if (low.includes("daily")) return "daily";
   }
-  
+  return null;
+}
+
+function inferTimes(strings: string[]): string[] {
+  const times: string[] = [];
+  for (const s of strings) {
+    // very permissive: pick substrings that look like times
+    const candidates = s.match(/\b\d{1,2}(?::\d{2})?\s?(?:AM|PM)\b|\b\d{1,2}:\d{2}\b/gi);
+    if (!candidates) continue;
+    for (const c of candidates) {
+      const nt = normalizeTime(c);
+      if (nt) times.push(nt);
+    }
+  }
+  return times;
+}
+
+function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapping: Partial<Record<CanonicalField, string>> } {
+  const strings = collectAllStringsDeep(raw);
+
+  const btFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.booking_type);
+  const dateFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.date);
+  const stFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.start_time);
+  const etFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.end_time);
+  const tzFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.timezone);
+
+  const mapping: Partial<Record<CanonicalField, string>> = {};
+  if (btFound.path) mapping.booking_type = btFound.path;
+  if (dateFound.path) mapping.date = dateFound.path;
+  if (stFound.path) mapping.start_time = stFound.path;
+  if (etFound.path) mapping.end_time = etFound.path;
+  if (tzFound.path) mapping.timezone = tzFound.path;
+
+  const bookingTypeRaw = btFound.value ?? inferBookingType(strings);
+  const dateRaw = dateFound.value ?? strings.map(parseDateToYYYYMMDD).find(Boolean) ?? null;
+
+  const inferredTimes = inferTimes(strings);
+  const startRaw = stFound.value ?? (inferredTimes.length >= 1 ? inferredTimes[0] : null);
+  const endRaw = etFound.value ?? (inferredTimes.length >= 2 ? inferredTimes[inferredTimes.length - 1] : null);
+
+  const timezoneRaw = tzFound.value ?? DEFAULT_TIMEZONE;
+
+  const booking_type = bookingTypeRaw ? bookingTypeRaw.toLowerCase() : null;
+  const date = dateRaw ? parseDateToYYYYMMDD(dateRaw) : null;
+
+  // Important: stFound/etFound might already be inferredTimes (already normalized "HH:mm")
+  const start_time = startRaw ? (startRaw.includes(":") && startRaw.length === 5 ? startRaw : normalizeTime(startRaw)) : null;
+  const end_time = endRaw ? (endRaw.includes(":") && endRaw.length === 5 ? endRaw : normalizeTime(endRaw)) : null;
+
   return {
-    startMs: toEpochMillis(dateStr, startTime),
-    endMs: toEpochMillis(dateStr, endTime),
+    normalized: {
+      booking_type,
+      date,
+      start_time,
+      end_time,
+      timezone: timezoneRaw || DEFAULT_TIMEZONE,
+    },
+    mapping,
   };
+}
+
+function examplesPayload() {
+  return {
+    hourly: {
+      booking_type: "hourly",
+      Date: "2026-02-06",
+      start_time: "6:00 PM",
+      end_time: "10:00 PM",
+      timezone: "America/New_York",
+    },
+    daily: {
+      booking_type: "daily",
+      Date: "2026-02-06",
+      timezone: "America/New_York",
+    },
+  };
+}
+
+function buildOkFalseResponse(params: {
+  error: string;
+  missing_fields: string[];
+  receivedBodyShape: AnyRecord;
+  receivedKeys: string[];
+  normalized: NormalizedPayload;
+  mapping?: AnyRecord;
+}): Response {
+  const payload = {
+    ok: false,
+    error: params.error,
+    missing_fields: params.missing_fields,
+    debug: {
+      receivedBodyShape: params.receivedBodyShape,
+      receivedKeys: params.receivedKeys,
+      normalized: params.normalized,
+      mapping: params.mapping ?? null,
+      examples: examplesPayload(),
+    },
+  };
+
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { "Content-Type": "application/json", ...corsHeaders },
+  });
 }
 
 // Query GHL blocked-slots API
@@ -200,9 +497,9 @@ async function getBlockedSlots(
   url.searchParams.set('calendarId', GHL_CALENDAR_ID);
   url.searchParams.set('startTime', String(startMs));
   url.searchParams.set('endTime', String(endMs));
-  
+
   console.log(`[GHL] Fetching blocked-slots: ${url.toString()}`);
-  
+
   try {
     const response = await fetch(url.toString(), {
       method: 'GET',
@@ -212,15 +509,15 @@ async function getBlockedSlots(
         'Content-Type': 'application/json',
       },
     });
-    
+
     const responseText = await response.text();
     console.log(`[GHL] Response status: ${response.status}`);
     console.log(`[GHL] Response body: ${responseText.substring(0, 500)}`);
-    
+
     if (!response.ok) {
       return { events: [], error: `GHL API error: ${response.status} - ${responseText}` };
     }
-    
+
     const data = JSON.parse(responseText);
     const events = data.events || data.blockedSlots || [];
     return { events: Array.isArray(events) ? events : [] };
@@ -231,14 +528,14 @@ async function getBlockedSlots(
 }
 
 // Log body safely (redact secrets)
-function logBody(label: string, body: Record<string, unknown>): void {
+function logBody(label: string, body: AnyRecord): void {
   const safe = JSON.parse(JSON.stringify(body));
-  const redactKeys = (obj: Record<string, unknown>) => {
+  const redactKeys = (obj: AnyRecord) => {
     for (const key of Object.keys(obj)) {
       if (/secret|token|key|password|auth/i.test(key)) {
         obj[key] = '[REDACTED]';
       } else if (obj[key] && typeof obj[key] === 'object') {
-        redactKeys(obj[key] as Record<string, unknown>);
+        redactKeys(obj[key] as AnyRecord);
       }
     }
   };
@@ -246,63 +543,6 @@ function logBody(label: string, body: Record<string, unknown>): void {
   console.log(`[${label}]`, JSON.stringify(safe));
 }
 
-// Normalize payload from any GHL format
-function normalizePayload(rawBody: Record<string, unknown>): NormalizedPayload {
-  const bookingType = findInAllContainers(rawBody, BOOKING_TYPE_KEYS);
-  const date = findInAllContainers(rawBody, DATE_KEYS);
-  const startTime = findInAllContainers(rawBody, START_TIME_KEYS);
-  const endTime = findInAllContainers(rawBody, END_TIME_KEYS);
-  const timezone = findInAllContainers(rawBody, TIMEZONE_KEYS);
-  
-  return {
-    booking_type: bookingType ? bookingType.toLowerCase() : null,
-    date: date,
-    start_time: startTime ? normalizeTime(startTime) : null,
-    end_time: endTime ? normalizeTime(endTime) : null,
-    timezone: timezone || DEFAULT_TIMEZONE,
-  };
-}
-
-// Build 422 validation error response
-function validation422(
-  missingFields: string[], 
-  receivedKeys: string[], 
-  normalizedPayload: NormalizedPayload,
-  rawStartTime?: string | null,
-  rawEndTime?: string | null
-): Response {
-  return new Response(
-    JSON.stringify({
-      error: 'validation_failed',
-      missing_fields: missingFields,
-      received_keys: receivedKeys,
-      normalized_payload: normalizedPayload,
-      raw_times: { start_time: rawStartTime, end_time: rawEndTime },
-      examples: {
-        daily: {
-          booking_type: 'daily',
-          date: '2026-02-15',
-          timezone: 'America/New_York',
-        },
-        hourly: {
-          booking_type: 'hourly',
-          date: '2026-02-15',
-          start_time: '18:00',
-          end_time: '22:00',
-          timezone: 'America/New_York',
-        },
-        hourly_ampm: {
-          booking_type: 'hourly',
-          date: '2026-02-15',
-          start_time: '6:00 PM',
-          end_time: '10:00 PM',
-          timezone: 'America/New_York',
-        },
-      },
-    }),
-    { status: 422, headers: { 'Content-Type': 'application/json', ...corsHeaders } }
-  );
-}
 
 // Self-test mode
 function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
