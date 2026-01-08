@@ -755,17 +755,30 @@ serve(async (req) => {
   }
   
   // Validate voice agent secret
-  const voiceSecret = req.headers.get('x-voice-agent-secret');
+  // GHL can send auth in different ways depending on the UI toggle:
+  // - Custom header (preferred): x-voice-agent-secret
+  // - "Authentication Needed" / "API Key" fields: often map to Authorization: Bearer ...
+  // - Sometimes: x-api-key
   const expectedSecret = Deno.env.get('VOICE_AGENT_WEBHOOK_SECRET');
-  
-  if (!voiceSecret || voiceSecret !== expectedSecret) {
-    console.log('[AUTH] Invalid or missing x-voice-agent-secret');
-    return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+
+  const secretFromCustomHeader = req.headers.get('x-voice-agent-secret');
+  const authHeader = req.headers.get('authorization');
+  const secretFromBearer = authHeader?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
+  const secretFromApiKeyHeader = req.headers.get('x-api-key') ?? req.headers.get('x-api_key');
+
+  const providedSecret =
+    (secretFromCustomHeader && secretFromCustomHeader.trim()) ||
+    (secretFromApiKeyHeader && secretFromApiKeyHeader.trim()) ||
+    (secretFromBearer && secretFromBearer.trim()) ||
+    null;
+
+  if (!providedSecret || !expectedSecret || providedSecret !== expectedSecret) {
+    console.log('[AUTH] Invalid or missing secret (accepted: x-voice-agent-secret | Authorization: Bearer | x-api-key)');
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    });
   }
-  
   // Check for self-test mode
   const selfTest = req.headers.get('x-self-test');
   if (selfTest === 'true') {
