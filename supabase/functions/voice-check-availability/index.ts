@@ -475,7 +475,7 @@ function logBody(label: string, body: AnyRecord): void {
   console.log(`[${label}]`, JSON.stringify(safe));
 }
 
-// ============= PAYLOAD VALIDATION (GHL Voice Agent) =============
+// ============= PAYLOAD VALIDATION HELPERS =============
 
 // GHL Voice Agent sometimes calls custom actions with empty payload — handle missing payload safely.
 function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
@@ -495,7 +495,6 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
   return false;
 }
 
-// Extract payload from query params (fallback when body is empty)
 function extractFromQueryParams(url: string): AnyRecord {
   const urlObj = new URL(url);
   const params = urlObj.searchParams;
@@ -672,18 +671,18 @@ function runSelfTests(): { passed: boolean; results: Array<{ test: string; passe
     assert("overlap_exact_match", pass, "18:00-22:00 event vs 18:00-22:00 window should detect conflict");
   }
 
-  // Test 12: Missing payload detection (empty mode)
+  // Test 12: Missing payload detection
   {
     const emptyParsed = { body: {}, mode: "empty" };
     const pass = isPayloadEmpty(emptyParsed);
     assert("missing_payload_detection_empty", pass, "Empty mode should be detected as missing payload");
   }
 
-  // Test 13: Missing payload detection (json mode with no useful keys)
+  // Test 13: Missing payload detection (JSON with no useful keys)
   {
-    const emptyJsonParsed = { body: { _raw: "test" }, mode: "json" };
+    const emptyJsonParsed = { body: { _raw: "something" }, mode: "json" };
     const pass = isPayloadEmpty(emptyJsonParsed);
-    assert("missing_payload_detection_json_empty", pass, "JSON mode with only internal keys should be detected as missing payload");
+    assert("missing_payload_detection_json_no_keys", pass, "JSON mode with only internal keys should be detected as missing payload");
   }
 
   // Test 14: Query params extraction
@@ -696,10 +695,10 @@ function runSelfTests(): { passed: boolean; results: Array<{ test: string; passe
 
   // Test 15: Query params extraction with aliases
   {
-    const testUrl = "https://example.com?bookingType=daily&Date=2026-02-06&tz=America%2FNew_York";
+    const testUrl = "https://example.com?bookingType=daily&Date=2026-03-15&tz=America/New_York";
     const extracted = extractFromQueryParams(testUrl);
-    const pass = extracted.booking_type === "daily" && extracted.date === "2026-02-06" && extracted.timezone === "America/New_York";
-    assert("query_params_aliases", pass, { extracted, expected: { booking_type: "daily", date: "2026-02-06", timezone: "America/New_York" } });
+    const pass = extracted.booking_type === "daily" && extracted.date === "2026-03-15" && extracted.timezone === "America/New_York";
+    assert("query_params_aliases", pass, { extracted, expected: { booking_type: "daily", date: "2026-03-15", timezone: "America/New_York" } });
   }
 
   return { passed: results.every(r => r.passed), results };
@@ -755,9 +754,8 @@ serve(async (req) => {
   console.log(`[BODY_PARSE] mode=${parsed.mode}${parsed.error ? ` error=${parsed.error}` : ""}`);
   logBody("PARSED_BODY", parsed.body);
 
-  // NEW: Detect empty payload and fallback to query params
+  // NEW: Fallback to query params if body is empty
   const isEmpty = isPayloadEmpty(parsed);
-  
   if (isEmpty) {
     const queryParams = extractFromQueryParams(req.url);
     
@@ -768,7 +766,7 @@ serve(async (req) => {
       parsed.mode = "query";
     } else {
       // Truly empty - cannot proceed
-      console.log("[EMPTY_PAYLOAD] No body and no query params with required fields");
+      console.log("[MISSING_PAYLOAD] No body and no query params with required fields");
       return buildMissingPayloadResponse(req, rawText, parsed, queryParams);
     }
   }

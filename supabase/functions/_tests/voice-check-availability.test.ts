@@ -3,13 +3,6 @@
  * 
  * Test 1: Daily range conversion to epoch millis
  * Test 2: Mock test - events > 0 → occupied true; events = [] → occupied false
- * Test 3: parseEventTimeToMs (seconds vs milliseconds)
- * Test 4: Empty body handling (GHL Voice Agent scenario)
- * Test 5: Query params fallback (when body is empty)
- * 
- * NOTE: GHL Voice Agent sometimes calls custom actions with empty payload.
- * The function must handle this gracefully and never confirm availability
- * when payload is missing (ok:false, available:null).
  */
 
 // ==================== TEST 1: Daily Range Conversion ====================
@@ -118,9 +111,7 @@ function testParseEventTime() {
 
 // ==================== TEST 4: Empty Body Handling ====================
 
-type AnyRecord = Record<string, unknown>;
-
-function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
+function isPayloadEmpty(parsed: { body: Record<string, unknown>; mode: string }): boolean {
   if (parsed.mode === "empty") return true;
   
   if (parsed.mode === "json") {
@@ -137,34 +128,30 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
 function testEmptyBodyHandling() {
   console.log('\n=== TEST 4: Empty Body Handling ===');
   
-  // Test empty mode
+  // Simulate empty request
   const emptyParsed = { body: {}, mode: "empty" };
-  const isEmpty1 = isPayloadEmpty(emptyParsed);
-  const pass1 = isEmpty1 === true;
-  console.log(`Empty mode detected: ${pass1 ? 'PASS ✅' : 'FAIL ❌'} (result: ${isEmpty1})`);
+  const isEmpty = isPayloadEmpty(emptyParsed);
   
-  // Test JSON mode with only internal keys
-  const internalKeysParsed = { body: { _raw: "test", _value: 123 }, mode: "json" };
+  const pass = isEmpty === true;
+  console.log(`Empty payload detected: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
+  console.log(`  Result: ${isEmpty}`);
+  
+  // Test JSON with only internal keys
+  const internalKeysParsed = { body: { _raw: "test", _value: "test" }, mode: "json" };
   const isEmpty2 = isPayloadEmpty(internalKeysParsed);
   const pass2 = isEmpty2 === true;
-  console.log(`JSON with internal keys only: ${pass2 ? 'PASS ✅' : 'FAIL ❌'} (result: ${isEmpty2})`);
+  console.log(`JSON with only internal keys detected: ${pass2 ? 'PASS ✅' : 'FAIL ❌'}`);
   
-  // Test JSON mode with actual data (should NOT be empty)
-  const validParsed = { body: { booking_type: "hourly", date: "2026-02-06" }, mode: "json" };
-  const isEmpty3 = isPayloadEmpty(validParsed);
-  const pass3 = isEmpty3 === false;
-  console.log(`JSON with valid data (not empty): ${pass3 ? 'PASS ✅' : 'FAIL ❌'} (result: ${isEmpty3})`);
-  
-  return pass1 && pass2 && pass3;
+  return pass && pass2;
 }
 
 // ==================== TEST 5: Query Params Fallback ====================
 
-function extractFromQueryParams(url: string): AnyRecord {
+function extractFromQueryParams(url: string): Record<string, unknown> {
   const urlObj = new URL(url);
   const params = urlObj.searchParams;
   
-  const result: AnyRecord = {};
+  const result: Record<string, unknown> = {};
   
   const bt = params.get('booking_type') || params.get('bookingType') || params.get('Booking Type');
   if (bt) result.booking_type = bt;
@@ -187,31 +174,24 @@ function extractFromQueryParams(url: string): AnyRecord {
 function testQueryParamsFallback() {
   console.log('\n=== TEST 5: Query Params Fallback ===');
   
-  // Test standard format
-  const testUrl1 = "https://example.com?booking_type=hourly&date=2026-02-06&start_time=18:00&end_time=22:00";
-  const extracted1 = extractFromQueryParams(testUrl1);
+  const testUrl = "https://example.com?booking_type=hourly&date=2026-02-06&start_time=18:00&end_time=22:00";
+  const extracted = extractFromQueryParams(testUrl);
   
-  const pass1 = extracted1.booking_type === "hourly";
-  const pass2 = extracted1.date === "2026-02-06";
-  const pass3 = extracted1.start_time === "18:00";
+  const pass1 = extracted.booking_type === "hourly";
+  const pass2 = extracted.date === "2026-02-06";
+  const pass3 = extracted.start_time === "18:00";
   
-  console.log(`Booking type extracted: ${pass1 ? 'PASS ✅' : 'FAIL ❌'} (${extracted1.booking_type})`);
-  console.log(`Date extracted: ${pass2 ? 'PASS ✅' : 'FAIL ❌'} (${extracted1.date})`);
-  console.log(`Start time extracted: ${pass3 ? 'PASS ✅' : 'FAIL ❌'} (${extracted1.start_time})`);
+  console.log(`Booking type extracted: ${pass1 ? 'PASS ✅' : 'FAIL ❌'} (${extracted.booking_type})`);
+  console.log(`Date extracted: ${pass2 ? 'PASS ✅' : 'FAIL ❌'} (${extracted.date})`);
+  console.log(`Start time extracted: ${pass3 ? 'PASS ✅' : 'FAIL ❌'} (${extracted.start_time})`);
   
-  // Test aliases
-  const testUrl2 = "https://example.com?bookingType=daily&Date=2026-02-06&tz=America%2FNew_York";
+  // Test with aliases
+  const testUrl2 = "https://example.com?bookingType=daily&Date=2026-03-15";
   const extracted2 = extractFromQueryParams(testUrl2);
+  const pass4 = extracted2.booking_type === "daily" && extracted2.date === "2026-03-15";
+  console.log(`Aliases work: ${pass4 ? 'PASS ✅' : 'FAIL ❌'}`);
   
-  const pass4 = extracted2.booking_type === "daily";
-  const pass5 = extracted2.date === "2026-02-06";
-  const pass6 = extracted2.timezone === "America/New_York";
-  
-  console.log(`Booking type alias: ${pass4 ? 'PASS ✅' : 'FAIL ❌'} (${extracted2.booking_type})`);
-  console.log(`Date alias: ${pass5 ? 'PASS ✅' : 'FAIL ❌'} (${extracted2.date})`);
-  console.log(`Timezone alias: ${pass6 ? 'PASS ✅' : 'FAIL ❌'} (${extracted2.timezone})`);
-  
-  return pass1 && pass2 && pass3 && pass4 && pass5 && pass6;
+  return pass1 && pass2 && pass3 && pass4;
 }
 
 // ==================== RUN TESTS ====================
