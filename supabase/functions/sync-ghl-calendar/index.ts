@@ -40,52 +40,71 @@ interface StaffAssignment {
 }
 
 /**
- * Determine if we're in DST for America/New_York
- * DST: second Sunday of March to first Sunday of November
+ * Get timezone offset in milliseconds using Intl.DateTimeFormat
+ * This correctly handles DST transitions for any timezone
  */
-function isDST(date: Date): boolean {
-  const year = date.getFullYear();
-  
-  // Second Sunday of March
-  const marchFirst = new Date(year, 2, 1);
-  const marchFirstDay = marchFirst.getDay();
-  const secondSundayMarch = 8 + (7 - marchFirstDay) % 7;
-  const dstStart = new Date(year, 2, secondSundayMarch, 2, 0, 0);
-  
-  // First Sunday of November  
-  const novFirst = new Date(year, 10, 1);
-  const novFirstDay = novFirst.getDay();
-  const firstSundayNov = 1 + (7 - novFirstDay) % 7;
-  const dstEnd = new Date(year, 10, firstSundayNov, 2, 0, 0);
-  
-  return date >= dstStart && date < dstEnd;
+function getTimeZoneOffsetMillis(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+  const asUTC = Date.UTC(
+    parseInt(map.year, 10),
+    parseInt(map.month, 10) - 1,
+    parseInt(map.day, 10),
+    parseInt(map.hour, 10),
+    parseInt(map.minute, 10),
+    parseInt(map.second, 10)
+  );
+  return asUTC - date.getTime();
 }
 
 /**
- * Convert event_date + time string to ISO timestamp with proper ET offset
- * GHL requires ISO 8601 format with timezone offset
+ * Convert zoned date/time to UTC milliseconds
  */
-function toEasternISO(eventDate: string, timeStr: string): string {
-  // Parse time (format: "HH:MM" or "HH:MM:SS")
-  const [hours, minutes] = timeStr.split(":").map(Number);
+function zonedDateTimeToUtcMillis(
+  dateStr: string,
+  timeHHmm: string,
+  timeZone: string
+): number | null {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
   
-  // Create date object to check DST
-  const [year, month, day] = eventDate.split("-").map(Number);
-  const dateObj = new Date(year, month - 1, day, hours, minutes);
+  const tm = timeHHmm.match(/^(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!tm) return null;
+  const h = parseInt(tm[1], 10), mi = parseInt(tm[2], 10), s = parseInt(tm[3] || "0", 10);
   
-  // Determine offset: -04:00 for EDT (DST), -05:00 for EST (standard)
-  const offset = isDST(dateObj) ? "-04:00" : "-05:00";
-  
-  // Format as ISO 8601 with timezone offset
-  const dateTimeStr = `${eventDate}T${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:00${offset}`;
-  
-  console.log(`Time conversion: ${eventDate} ${timeStr} -> ${dateTimeStr} (DST: ${isDST(dateObj)})`);
-  
-  return dateTimeStr;
+  const utcGuess = Date.UTC(y, mo - 1, d, h, mi, s);
+  const offset = getTimeZoneOffsetMillis(new Date(utcGuess), timeZone);
+  return utcGuess - offset;
+}
+
+/**
+ * Convert zoned date/time to UTC ISO string (ends with "Z")
+ */
+function zonedDateTimeToUtcISOString(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string
+): string | null {
+  const ms = zonedDateTimeToUtcMillis(dateStr, timeStr, timeZone);
+  if (ms === null) return null;
+  return new Date(ms).toISOString(); // Ends with "Z"
 }
 
 /**
  * Calculate start/end times based on booking type
+ * Returns UTC ISO strings (ending with "Z")
  */
 function calculateTimes(booking: BookingData): { startTime: string; endTime: string } | null {
   if (!booking.event_date) return null;
@@ -93,23 +112,35 @@ function calculateTimes(booking: BookingData): { startTime: string; endTime: str
   let startTimeStr: string;
   let endTimeStr: string;
 
-  if (booking.booking_type === "hourly" && booking.start_time && booking.end_time) {
+  if (booking.booking_type === "hourly") {
+    if (!booking.start_time || !booking.end_time) {
+      console.log("Hourly booking missing times, cannot calculate");
+      return null; // Don't create appointment without times
+    }
     startTimeStr = booking.start_time;
     endTimeStr = booking.end_time;
   } else if (booking.booking_type === "daily") {
-    // Daily bookings: 10 AM to 10 PM ET
-    startTimeStr = "10:00:00";
-    endTimeStr = "22:00:00";
+    // Daily: block entire day (00:00:00 - 23:59:59)
+    startTimeStr = "00:00:00";
+    endTimeStr = "23:59:59";
   } else {
-    // Fallback: use provided times or defaults
-    startTimeStr = booking.start_time || "10:00:00";
-    endTimeStr = booking.end_time || "22:00:00";
+    // Unknown booking type: block entire day as fallback
+    console.log(`Unknown booking_type: ${booking.booking_type}, using daily fallback`);
+    startTimeStr = "00:00:00";
+    endTimeStr = "23:59:59";
   }
 
-  return {
-    startTime: toEasternISO(booking.event_date, startTimeStr),
-    endTime: toEasternISO(booking.event_date, endTimeStr),
-  };
+  const startISO = zonedDateTimeToUtcISOString(booking.event_date, startTimeStr, TIMEZONE);
+  const endISO = zonedDateTimeToUtcISOString(booking.event_date, endTimeStr, TIMEZONE);
+  
+  if (!startISO || !endISO) {
+    console.log("Failed to convert times to UTC ISO");
+    return null;
+  }
+
+  console.log(`Time conversion: ${booking.event_date} ${startTimeStr}-${endTimeStr} ET -> ${startISO} - ${endISO} UTC`);
+
+  return { startTime: startISO, endTime: endISO };
 }
 
 /**
@@ -618,18 +649,78 @@ async function deleteAppointment(appointmentId: string, ghlToken: string): Promi
   }
 }
 
+/**
+ * Extract booking_id from various payload formats
+ * Supports: { booking_id }, { record: { id } }, { new: { id } }, { data: { record: { id } } }
+ */
+function extractBookingId(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const obj = body as Record<string, unknown>;
+  
+  // Format: { booking_id: "..." }
+  if (typeof obj.booking_id === "string") return obj.booking_id;
+  
+  // Format: { record: { id: "..." } }
+  if (obj.record && typeof obj.record === "object") {
+    const rec = obj.record as Record<string, unknown>;
+    if (typeof rec.id === "string") return rec.id;
+  }
+  
+  // Format: { new: { id: "..." } } (trigger format)
+  if (obj.new && typeof obj.new === "object") {
+    const newRec = obj.new as Record<string, unknown>;
+    if (typeof newRec.id === "string") return newRec.id;
+  }
+  
+  // Format: { data: { record: { id: "..." } } }
+  if (obj.data && typeof obj.data === "object") {
+    const data = obj.data as Record<string, unknown>;
+    if (data.record && typeof data.record === "object") {
+      const rec = data.record as Record<string, unknown>;
+      if (typeof rec.id === "string") return rec.id;
+    }
+  }
+  
+  return null;
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // Security check (optional)
+  const expectedSecret = Deno.env.get("BOOKING_SYNC_WEBHOOK_SECRET");
+  if (expectedSecret) {
+    const providedSecret = req.headers.get("x-sync-secret");
+    if (!providedSecret || providedSecret !== expectedSecret) {
+      console.log("[AUTH] Invalid or missing sync secret");
+      return new Response(
+        JSON.stringify({ 
+          ok: false, 
+          error: "auth_failed",
+          message: "Invalid or missing x-sync-secret header"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }
+
   try {
-    const { booking_id, skip_if_unchanged = true } = await req.json();
+    const rawBody = await req.json().catch(() => ({}));
+    const booking_id = extractBookingId(rawBody);
+    const skip_if_unchanged = rawBody.skip_if_unchanged ?? true;
 
     if (!booking_id) {
+      const receivedKeys = Object.keys(rawBody);
       return new Response(
-        JSON.stringify({ ok: false, error: "booking_id is required" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ 
+          ok: false, 
+          error: "booking_id_missing",
+          receivedKeys,
+          expected: "{ booking_id } or { record: { id } } or { new: { id } }"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
