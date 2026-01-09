@@ -294,8 +294,8 @@ function testComplexReschedule() {
   ];
   
   // Change to daily (complex change)
-  const oldType = "hourly";
-  const newType = "daily";
+  const oldType: string = "hourly";
+  const newType: string = "daily";
   
   // Logic: If booking_type changes, jobs need recreation
   const needsRecreation = oldType !== newType;

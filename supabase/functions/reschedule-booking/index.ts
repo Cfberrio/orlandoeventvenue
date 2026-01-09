@@ -234,11 +234,12 @@ serve(async (req) => {
     );
   } catch (error) {
     console.error("Unexpected error:", error);
+    const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return new Response(
       JSON.stringify({
         ok: false,
         error: "unexpected_error",
-        message: error.message || "An unexpected error occurred",
+        message: errorMessage,
       }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
