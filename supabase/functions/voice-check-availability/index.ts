@@ -78,7 +78,7 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown"; error?: string } {
+function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown" | "query"; error?: string } {
   const text = (rawText ?? "").trim();
   if (!text) return { body: {}, mode: "empty" };
 
@@ -475,6 +475,96 @@ function logBody(label: string, body: AnyRecord): void {
   console.log(`[${label}]`, JSON.stringify(safe));
 }
 
+// ============= PAYLOAD VALIDATION (GHL Voice Agent) =============
+
+// GHL Voice Agent sometimes calls custom actions with empty payload — handle missing payload safely.
+function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
+  // Empty mode
+  if (parsed.mode === "empty") return true;
+  
+  // JSON mode but no useful keys
+  if (parsed.mode === "json") {
+    const topKeys = Object.keys(parsed.body);
+    if (topKeys.length === 0) return true;
+    
+    // Only has internal keys like _raw or _value
+    const usefulKeys = topKeys.filter(k => !k.startsWith('_'));
+    if (usefulKeys.length === 0) return true;
+  }
+  
+  return false;
+}
+
+// Extract payload from query params (fallback when body is empty)
+function extractFromQueryParams(url: string): AnyRecord {
+  const urlObj = new URL(url);
+  const params = urlObj.searchParams;
+  
+  const result: AnyRecord = {};
+  
+  // booking_type aliases
+  const bt = params.get('booking_type') || params.get('bookingType') || params.get('Booking Type');
+  if (bt) result.booking_type = bt;
+  
+  // date aliases
+  const date = params.get('date') || params.get('Date');
+  if (date) result.date = date;
+  
+  // start_time aliases
+  const st = params.get('start_time') || params.get('startTime') || params.get('Start Time');
+  if (st) result.start_time = st;
+  
+  // end_time aliases
+  const et = params.get('end_time') || params.get('endTime') || params.get('End Time');
+  if (et) result.end_time = et;
+  
+  // timezone aliases
+  const tz = params.get('timezone') || params.get('tz') || params.get('Timezone');
+  if (tz) result.timezone = tz;
+  
+  return result;
+}
+
+// Never confirm availability when ok:false.
+function buildMissingPayloadResponse(
+  req: Request,
+  rawText: string,
+  parsed: { body: AnyRecord; mode: string; error?: string },
+  queryParams: AnyRecord
+): Response {
+  const contentType = req.headers.get('content-type');
+  const contentLength = req.headers.get('content-length');
+  
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      available: null,
+      error: "missing_payload",
+      message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
+      debug: {
+        received: {
+          has_raw_text: rawText.length > 0,
+          raw_text_len: rawText.length,
+          parse_mode: parsed.mode,
+          top_level_keys: Object.keys(parsed.body),
+          query_param_keys: Object.keys(queryParams),
+          content_type: contentType,
+          content_length: contentLength
+        },
+        hint: [
+          "Ensure Custom Action variables are mapped and the agent only calls the action AFTER collecting booking_type and date.",
+          "If GHL sends variables via body, verify Content-Type application/json.",
+          "If GHL sends variables via query params, fallback will work automatically."
+        ]
+      }
+    }),
+    { 
+      status: 200, 
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    }
+  );
+}
+
 // ============= SELF-TEST (overlap logic only, no GHL calls) =============
 
 function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
@@ -582,6 +672,36 @@ function runSelfTests(): { passed: boolean; results: Array<{ test: string; passe
     assert("overlap_exact_match", pass, "18:00-22:00 event vs 18:00-22:00 window should detect conflict");
   }
 
+  // Test 12: Missing payload detection (empty mode)
+  {
+    const emptyParsed = { body: {}, mode: "empty" };
+    const pass = isPayloadEmpty(emptyParsed);
+    assert("missing_payload_detection_empty", pass, "Empty mode should be detected as missing payload");
+  }
+
+  // Test 13: Missing payload detection (json mode with no useful keys)
+  {
+    const emptyJsonParsed = { body: { _raw: "test" }, mode: "json" };
+    const pass = isPayloadEmpty(emptyJsonParsed);
+    assert("missing_payload_detection_json_empty", pass, "JSON mode with only internal keys should be detected as missing payload");
+  }
+
+  // Test 14: Query params extraction
+  {
+    const testUrl = "https://example.com?booking_type=hourly&date=2026-02-06&start_time=18:00&end_time=22:00&timezone=America/New_York";
+    const extracted = extractFromQueryParams(testUrl);
+    const pass = extracted.booking_type === "hourly" && extracted.date === "2026-02-06" && extracted.start_time === "18:00";
+    assert("query_params_fallback", pass, { extracted, expected: { booking_type: "hourly", date: "2026-02-06", start_time: "18:00" } });
+  }
+
+  // Test 15: Query params extraction with aliases
+  {
+    const testUrl = "https://example.com?bookingType=daily&Date=2026-02-06&tz=America%2FNew_York";
+    const extracted = extractFromQueryParams(testUrl);
+    const pass = extracted.booking_type === "daily" && extracted.date === "2026-02-06" && extracted.timezone === "America/New_York";
+    assert("query_params_aliases", pass, { extracted, expected: { booking_type: "daily", date: "2026-02-06", timezone: "America/New_York" } });
+  }
+
   return { passed: results.every(r => r.passed), results };
 }
 
@@ -592,8 +712,17 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  // NEW: Handle non-POST methods with 200 (not 405) to avoid GHL marking as failed
   if (req.method !== 'POST') {
-    return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    return new Response(
+      JSON.stringify({ 
+        ok: false, 
+        available: null,
+        error: "method_not_allowed",
+        message: "Only POST requests are supported"
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   // Auth check (accept multiple header formats)
@@ -625,6 +754,24 @@ serve(async (req) => {
   const parsed = parseBodyText(rawText);
   console.log(`[BODY_PARSE] mode=${parsed.mode}${parsed.error ? ` error=${parsed.error}` : ""}`);
   logBody("PARSED_BODY", parsed.body);
+
+  // NEW: Detect empty payload and fallback to query params
+  const isEmpty = isPayloadEmpty(parsed);
+  
+  if (isEmpty) {
+    const queryParams = extractFromQueryParams(req.url);
+    
+    if (queryParams.booking_type && queryParams.date) {
+      // Use query params as body
+      console.log("[FALLBACK] Using query params as payload");
+      parsed.body = queryParams;
+      parsed.mode = "query";
+    } else {
+      // Truly empty - cannot proceed
+      console.log("[EMPTY_PAYLOAD] No body and no query params with required fields");
+      return buildMissingPayloadResponse(req, rawText, parsed, queryParams);
+    }
+  }
 
   const receivedKeys = collectAllKeysDeep(parsed.body);
   console.log("[RECEIVED_KEYS]", receivedKeys.slice(0, 120).join(", "));
