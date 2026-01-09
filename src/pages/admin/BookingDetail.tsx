@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -31,10 +32,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { 
   ArrowLeft, 
   User, 
-  Calendar, 
+  Calendar as CalendarIcon, 
   Users, 
   DollarSign,
   CheckCircle,
@@ -51,7 +53,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
+import { format, parseISO, isBefore } from "date-fns";
 import {
   useBooking,
   useBookingStaffAssignments,
@@ -126,6 +128,17 @@ export default function BookingDetail() {
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
   const [newAssignmentRole, setNewAssignmentRole] = useState("");
   const [newAssignmentNotes, setNewAssignmentNotes] = useState("");
+
+  // Reschedule state
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleData, setRescheduleData] = useState({
+    date: booking.event_date,
+    booking_type: booking.booking_type,
+    start_time: booking.start_time || "",
+    end_time: booking.end_time || "",
+    reason: "",
+  });
+  const [rescheduleLoading, setRescheduleLoading] = useState(false);
 
   // Confirmation checklist states
   const [scheduleAvailability, setScheduleAvailability] = useState(false);
@@ -413,6 +426,81 @@ export default function BookingDetail() {
     }
   };
 
+  const handleReschedule = async () => {
+    setRescheduleLoading(true);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reschedule-booking`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            booking_id: booking.id,
+            event_date: rescheduleData.date,
+            booking_type: rescheduleData.booking_type,
+            start_time:
+              rescheduleData.booking_type === "hourly"
+                ? rescheduleData.start_time
+                : null,
+            end_time:
+              rescheduleData.booking_type === "hourly"
+                ? rescheduleData.end_time
+                : null,
+            reason: rescheduleData.reason,
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (!result.ok) {
+        if (result.error === "conflict") {
+          toast({
+            title: "Cannot reschedule",
+            description: `${result.message || "That date/time is already booked"}${
+              result.conflict_booking?.reservation_number
+                ? ` (Conflicting booking: ${result.conflict_booking.reservation_number})`
+                : ""
+            }`,
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: "Reschedule failed",
+            description: result.message || result.error,
+            variant: "destructive",
+          });
+        }
+        return;
+      }
+
+      toast({
+        title: "Booking rescheduled successfully!",
+        description: result.jobs_recreated
+          ? "All reminders and notifications have been updated."
+          : "Date updated and reminders adjusted.",
+      });
+
+      setRescheduleOpen(false);
+      window.location.reload(); // Refetch booking data
+    } catch (error) {
+      console.error("Reschedule error:", error);
+      toast({
+        title: "Failed to reschedule booking",
+        description: String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setRescheduleLoading(false);
+    }
+  };
+
   const hostReport = hostReports?.[0];
 
   return (
@@ -434,7 +522,7 @@ export default function BookingDetail() {
             )}
           </div>
           <p className="text-muted-foreground flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
+            <CalendarIcon className="h-4 w-4" />
             {format(new Date(booking.event_date + 'T00:00:00'), "EEEE, MMMM d, yyyy")}
             <span className="mx-1">•</span>
             {booking.event_type}
@@ -446,18 +534,31 @@ export default function BookingDetail() {
           <Badge className={`text-sm px-3 py-1 ${lifecycleColors[booking.lifecycle_status] || ""}`}>
             {lifecycleLabels[booking.lifecycle_status] || booking.lifecycle_status}
           </Badge>
-          <Select value={booking.lifecycle_status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-48">
-              <SelectValue placeholder="Change status" />
-            </SelectTrigger>
-            <SelectContent>
-              {lifecycleStatuses.map((status) => (
-                <SelectItem key={status} value={status}>
-                  {lifecycleLabels[status] || status.replace(/_/g, " ")}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRescheduleOpen(true)}
+              disabled={
+                booking.status === "cancelled" || booking.status === "completed"
+              }
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              Reschedule
+            </Button>
+            <Select value={booking.lifecycle_status} onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="Change status" />
+              </SelectTrigger>
+              <SelectContent>
+                {lifecycleStatuses.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {lifecycleLabels[status] || status.replace(/_/g, " ")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -524,7 +625,7 @@ export default function BookingDetail() {
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Calendar className="h-5 w-5 text-purple-500" />
+                  <CalendarIcon className="h-5 w-5 text-purple-500" />
                   Event Details
                 </CardTitle>
               </CardHeader>
@@ -1323,6 +1424,141 @@ export default function BookingDetail() {
               className="bg-orange-600 hover:bg-orange-700"
             >
               {depositOverrideLoading ? "Updating..." : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Booking Dialog */}
+      <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Reschedule Booking</DialogTitle>
+            <DialogDescription>
+              Change the date and time for this booking. All reminders and notifications will be updated automatically.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-sm font-medium">Current Date</Label>
+              <div className="text-sm text-muted-foreground mt-1">
+                {format(parseISO(booking.event_date + "T00:00:00"), "PPP")}
+                {booking.booking_type === "hourly" && booking.start_time && (
+                  <span> • {booking.start_time} - {booking.end_time}</span>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium mb-2 block">New Date</Label>
+              <CalendarComponent
+                mode="single"
+                selected={parseISO(rescheduleData.date + "T00:00:00")}
+                onSelect={(date) =>
+                  date &&
+                  setRescheduleData((prev) => ({
+                    ...prev,
+                    date: format(date, "yyyy-MM-dd"),
+                  }))
+                }
+                disabled={(date) => isBefore(date, new Date())}
+                className="rounded-md border"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="booking-type" className="text-sm font-medium">
+                Booking Type
+              </Label>
+              <Select
+                value={rescheduleData.booking_type}
+                onValueChange={(value: "hourly" | "daily") =>
+                  setRescheduleData((prev) => ({
+                    ...prev,
+                    booking_type: value,
+                  }))
+                }
+              >
+                <SelectTrigger id="booking-type" className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hourly">Hourly</SelectItem>
+                  <SelectItem value="daily">Daily (Full Day)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {rescheduleData.booking_type === "hourly" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="start-time" className="text-sm font-medium">
+                    Start Time
+                  </Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    value={rescheduleData.start_time}
+                    onChange={(e) =>
+                      setRescheduleData((prev) => ({
+                        ...prev,
+                        start_time: e.target.value,
+                      }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="end-time" className="text-sm font-medium">
+                    End Time
+                  </Label>
+                  <Input
+                    id="end-time"
+                    type="time"
+                    value={rescheduleData.end_time}
+                    onChange={(e) =>
+                      setRescheduleData((prev) => ({
+                        ...prev,
+                        end_time: e.target.value,
+                      }))
+                    }
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="reason" className="text-sm font-medium">
+                Reason (optional)
+              </Label>
+              <Textarea
+                id="reason"
+                placeholder="Why is this booking being rescheduled?"
+                value={rescheduleData.reason}
+                onChange={(e) =>
+                  setRescheduleData((prev) => ({
+                    ...prev,
+                    reason: e.target.value,
+                  }))
+                }
+                rows={3}
+                className="mt-1"
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setRescheduleOpen(false)}
+              disabled={rescheduleLoading}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleReschedule} disabled={rescheduleLoading}>
+              {rescheduleLoading ? "Rescheduling..." : "Confirm Reschedule"}
             </Button>
           </DialogFooter>
         </DialogContent>
