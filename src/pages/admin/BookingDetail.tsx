@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -132,13 +132,14 @@ export default function BookingDetail() {
   // Reschedule state
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleData, setRescheduleData] = useState({
-    date: booking.event_date,
-    booking_type: booking.booking_type,
-    start_time: booking.start_time || "",
-    end_time: booking.end_time || "",
+    date: "",
+    booking_type: "hourly" as "hourly" | "daily",
+    start_time: "",
+    end_time: "",
     reason: "",
   });
   const [rescheduleLoading, setRescheduleLoading] = useState(false);
+  const [rescheduleInitialized, setRescheduleInitialized] = useState(false);
 
   // Confirmation checklist states
   const [scheduleAvailability, setScheduleAvailability] = useState(false);
@@ -207,6 +208,20 @@ export default function BookingDetail() {
       setDepositOverrideLoading(false);
     }
   };
+
+  // Initialize reschedule data when booking loads
+  useEffect(() => {
+    if (booking && !rescheduleInitialized) {
+      setRescheduleData({
+        date: booking.event_date,
+        booking_type: booking.booking_type,
+        start_time: booking.start_time || "",
+        end_time: booking.end_time || "",
+        reason: "",
+      });
+      setRescheduleInitialized(true);
+    }
+  }, [booking, rescheduleInitialized]);
 
   if (isLoading) {
     return (
