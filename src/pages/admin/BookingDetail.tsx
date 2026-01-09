@@ -133,7 +133,7 @@ export default function BookingDetail() {
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleData, setRescheduleData] = useState({
     date: "",
-    booking_type: "hourly" as "hourly" | "daily",
+    // booking_type removed - never changes
     start_time: "",
     end_time: "",
     reason: "",
@@ -214,7 +214,7 @@ export default function BookingDetail() {
     if (booking && !rescheduleInitialized) {
       setRescheduleData({
         date: booking.event_date,
-        booking_type: booking.booking_type,
+        // booking_type removed - never changes
         start_time: booking.start_time || "",
         end_time: booking.end_time || "",
         reason: "",
@@ -458,15 +458,9 @@ export default function BookingDetail() {
           body: JSON.stringify({
             booking_id: booking.id,
             event_date: rescheduleData.date,
-            booking_type: rescheduleData.booking_type,
-            start_time:
-              rescheduleData.booking_type === "hourly"
-                ? rescheduleData.start_time
-                : null,
-            end_time:
-              rescheduleData.booking_type === "hourly"
-                ? rescheduleData.end_time
-                : null,
+            // booking_type removed - never changes
+            start_time: rescheduleData.start_time || null,
+            end_time: rescheduleData.end_time || null,
             reason: rescheduleData.reason,
           }),
         }
@@ -497,9 +491,7 @@ export default function BookingDetail() {
 
       toast({
         title: "Booking rescheduled successfully!",
-        description: result.jobs_recreated
-          ? "All reminders and notifications have been updated."
-          : "Date updated and reminders adjusted.",
+        description: "Date updated and all reminders have been adjusted.",
       });
 
       setRescheduleOpen(false);
@@ -1446,7 +1438,7 @@ export default function BookingDetail() {
 
       {/* Reschedule Booking Dialog */}
       <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Reschedule Booking</DialogTitle>
             <DialogDescription>
@@ -1454,22 +1446,41 @@ export default function BookingDetail() {
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Read-only booking type badge */}
             <div>
-              <Label className="text-sm font-medium">Current Date</Label>
-              <div className="text-sm text-muted-foreground mt-1">
-                {format(parseISO(booking.event_date + "T00:00:00"), "PPP")}
+              <Label className="text-sm font-medium mb-2 block">Booking Type</Label>
+              <Badge 
+                variant="outline" 
+                className={booking.booking_type === 'daily' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-green-50 text-green-700 border-green-200'}
+              >
+                {booking.booking_type === 'daily' ? '📅 Full Day Rental' : '⏰ Hourly Rental'}
+              </Badge>
+              <p className="text-xs text-muted-foreground mt-1">
+                Booking type cannot be changed
+              </p>
+            </div>
+
+            {/* Current booking info */}
+            <div className="bg-muted/50 p-4 rounded-lg">
+              <Label className="text-sm font-medium">Current Booking</Label>
+              <div className="text-sm text-muted-foreground mt-2 space-y-1">
+                <div>{format(parseISO(booking.event_date + "T00:00:00"), "PPP")}</div>
                 {booking.booking_type === "hourly" && booking.start_time && (
-                  <span> • {booking.start_time} - {booking.end_time}</span>
+                  <div>Time: {booking.start_time} - {booking.end_time}</div>
+                )}
+                {booking.booking_type === "daily" && booking.start_time && booking.end_time && (
+                  <div className="text-xs">Event window: {booking.start_time} - {booking.end_time}</div>
                 )}
               </div>
             </div>
 
+            {/* New date picker */}
             <div>
-              <Label className="text-sm font-medium mb-2 block">New Date</Label>
+              <Label className="text-sm font-medium mb-2 block">New Date *</Label>
               <CalendarComponent
                 mode="single"
-                selected={parseISO(rescheduleData.date + "T00:00:00")}
+                selected={rescheduleData.date ? parseISO(rescheduleData.date + "T00:00:00") : undefined}
                 onSelect={(date) =>
                   date &&
                   setRescheduleData((prev) => ({
@@ -1482,34 +1493,12 @@ export default function BookingDetail() {
               />
             </div>
 
-            <div>
-              <Label htmlFor="booking-type" className="text-sm font-medium">
-                Booking Type
-              </Label>
-              <Select
-                value={rescheduleData.booking_type}
-                onValueChange={(value: "hourly" | "daily") =>
-                  setRescheduleData((prev) => ({
-                    ...prev,
-                    booking_type: value,
-                  }))
-                }
-              >
-                <SelectTrigger id="booking-type" className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hourly">Hourly</SelectItem>
-                  <SelectItem value="daily">Daily (Full Day)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {rescheduleData.booking_type === "hourly" && (
+            {/* Time inputs - different for hourly vs daily */}
+            {booking.booking_type === "hourly" && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="start-time" className="text-sm font-medium">
-                    Start Time
+                    Start Time *
                   </Label>
                   <Input
                     id="start-time"
@@ -1522,11 +1511,12 @@ export default function BookingDetail() {
                       }))
                     }
                     className="mt-1"
+                    required
                   />
                 </div>
                 <div>
                   <Label htmlFor="end-time" className="text-sm font-medium">
-                    End Time
+                    End Time *
                   </Label>
                   <Input
                     id="end-time"
@@ -1539,18 +1529,66 @@ export default function BookingDetail() {
                       }))
                     }
                     className="mt-1"
+                    required
                   />
                 </div>
               </div>
             )}
 
+            {booking.booking_type === "daily" && (
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-sm font-medium">Event Window (Optional)</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Daily bookings reserve the entire day. This time window is only for planning and staff notes.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start-time-daily" className="text-sm font-medium">
+                      Event Start Time
+                    </Label>
+                    <Input
+                      id="start-time-daily"
+                      type="time"
+                      value={rescheduleData.start_time}
+                      onChange={(e) =>
+                        setRescheduleData((prev) => ({
+                          ...prev,
+                          start_time: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="end-time-daily" className="text-sm font-medium">
+                      Event End Time
+                    </Label>
+                    <Input
+                      id="end-time-daily"
+                      type="time"
+                      value={rescheduleData.end_time}
+                      onChange={(e) =>
+                        setRescheduleData((prev) => ({
+                          ...prev,
+                          end_time: e.target.value,
+                        }))
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Reason */}
             <div>
               <Label htmlFor="reason" className="text-sm font-medium">
-                Reason (optional)
+                Reason for Reschedule (Optional)
               </Label>
               <Textarea
                 id="reason"
-                placeholder="Why is this booking being rescheduled?"
                 value={rescheduleData.reason}
                 onChange={(e) =>
                   setRescheduleData((prev) => ({
@@ -1558,13 +1596,27 @@ export default function BookingDetail() {
                     reason: e.target.value,
                   }))
                 }
-                rows={3}
+                placeholder="e.g., Client requested date change"
                 className="mt-1"
+                rows={2}
               />
             </div>
+
+            {/* Validation errors inline */}
+            {booking.booking_type === "daily" && 
+             rescheduleData.start_time && 
+             rescheduleData.end_time && 
+             rescheduleData.end_time <= rescheduleData.start_time && (
+              <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
+                <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                <p className="text-sm text-destructive">
+                  Event end time must be after start time
+                </p>
+              </div>
+            )}
           </div>
 
-          <DialogFooter className="gap-2">
+          <DialogFooter className="mt-6">
             <Button
               variant="outline"
               onClick={() => setRescheduleOpen(false)}
@@ -1572,8 +1624,16 @@ export default function BookingDetail() {
             >
               Cancel
             </Button>
-            <Button onClick={handleReschedule} disabled={rescheduleLoading}>
-              {rescheduleLoading ? "Rescheduling..." : "Confirm Reschedule"}
+            <Button
+              onClick={handleReschedule}
+              disabled={
+                rescheduleLoading ||
+                !rescheduleData.date ||
+                (booking.booking_type === "hourly" && (!rescheduleData.start_time || !rescheduleData.end_time)) ||
+                (booking.booking_type === "daily" && rescheduleData.start_time && rescheduleData.end_time && rescheduleData.end_time <= rescheduleData.start_time)
+              }
+            >
+              {rescheduleLoading ? "Rescheduling..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

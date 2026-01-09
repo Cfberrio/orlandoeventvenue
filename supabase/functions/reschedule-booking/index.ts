@@ -86,7 +86,7 @@ serve(async (req) => {
       event_date,
       start_time,
       end_time,
-      booking_type,
+      // booking_type removed - booking type never changes
       reason,
     } = body;
 
@@ -109,7 +109,6 @@ serve(async (req) => {
     console.log("=== reschedule-booking ===");
     console.log("Booking ID:", booking_id);
     console.log("New date:", event_date);
-    console.log("Booking type:", booking_type || "(keep existing)");
     console.log("Actor:", user.id);
 
     // Call RPC function
@@ -120,7 +119,7 @@ serve(async (req) => {
         p_new_date: event_date,
         p_new_start_time: start_time || null,
         p_new_end_time: end_time || null,
-        p_new_booking_type: booking_type || null,
+        // p_new_booking_type removed - booking type never changes
         p_reason: reason || null,
         p_actor_id: user.id,
       }
@@ -151,73 +150,10 @@ serve(async (req) => {
 
     console.log("Booking rescheduled successfully");
     console.log("Jobs updated:", rpcResult.jobs_updated);
-    console.log("Jobs cancelled:", rpcResult.jobs_cancelled);
-    console.log("Needs recreation:", rpcResult.needs_job_recreation);
+    console.log("Date shift days:", rpcResult.date_shift_days);
 
-    // If jobs need recreation, call scheduling functions
-    if (rpcResult.needs_job_recreation) {
-      console.log("Recreating jobs for booking:", booking_id);
-
-      const functionsUrl = `${supabaseUrl}/functions/v1`;
-
-      // Call schedule-host-report-reminders with force_reschedule
-      try {
-        console.log("Calling schedule-host-report-reminders...");
-        const hostReportResponse = await fetch(
-          `${functionsUrl}/schedule-host-report-reminders`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${supabaseServiceKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-              booking_id,
-              force_reschedule: true,
-            }),
-          }
-        );
-
-        if (!hostReportResponse.ok) {
-          console.error(
-            "Error scheduling host reports:",
-            await hostReportResponse.text()
-          );
-        } else {
-          console.log("Host reports scheduled successfully");
-        }
-      } catch (err) {
-        console.error("Exception scheduling host reports:", err);
-      }
-
-      // Call schedule-balance-payment
-      try {
-        console.log("Calling schedule-balance-payment...");
-        const balanceResponse = await fetch(
-          `${functionsUrl}/schedule-balance-payment`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${supabaseServiceKey}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ booking_id }),
-          }
-        );
-
-        if (!balanceResponse.ok) {
-          console.error(
-            "Error scheduling balance payment:",
-            await balanceResponse.text()
-          );
-        } else {
-          console.log("Balance payment scheduled successfully");
-        }
-      } catch (err) {
-        console.error("Exception scheduling balance payment:", err);
-      }
-    }
-
+    // Job recreation no longer needed since booking_type never changes
+    // Jobs are always shifted by date difference in the RPC function
     // GHL sync will happen automatically via trigger (no action needed here)
     console.log("GHL sync will be triggered automatically by database trigger");
 
@@ -225,7 +161,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         ...rpcResult,
-        jobs_recreated: rpcResult.needs_job_recreation,
+        // jobs_recreated removed - no longer needed since booking_type never changes
       }),
       {
         status: 200,

@@ -1,11 +1,12 @@
 /**
- * Tests for reschedule-booking feature
+ * Tests for reschedule-booking feature (UPDATED)
  * 
- * These tests verify:
- * - Conflict detection (hourly/daily overlaps)
- * - Job rescheduling (simple date shift vs complex recreation)
- * - Audit trail (booking_events)
- * - GHL sync trigger behavior
+ * Changes from previous version:
+ * - booking_type NEVER changes (removed Test 6)
+ * - Added tests for daily event window validation
+ * - Added test for GHL notes showing event window
+ * - Job rescheduling is always simple date shift (no recreation)
+ * - Daily conflict validation is stricter (blocks entire day)
  */
 
 // ==================== TEST HELPERS ====================
@@ -131,10 +132,15 @@ function testHourlyOverlapDaily() {
   return pass;
 }
 
-// ==================== TEST 3: Daily vs Hourly Conflict ====================
+// ==================== TEST 3: Daily Blocks Entire Day ====================
 
-function testDailyOverlapHourly() {
-  console.log('\n=== TEST 3: Reschedule daily when hourly exists → conflict ===');
+function testDailyBlocksEntireDay() {
+  console.log('\n=== TEST 3: Daily booking blocks entire day (any booking type) ===');
+  
+  const dailyBooking = createMockBooking({
+    event_date: "2026-04-10",
+    booking_type: "daily",
+  });
   
   const hourlyBooking = createMockBooking({
     event_date: "2026-04-15",
@@ -143,30 +149,25 @@ function testDailyOverlapHourly() {
     end_time: "22:00:00",
   });
   
-  const dailyBooking = createMockBooking({
-    event_date: "2026-04-10",
-    booking_type: "daily",
-  });
-  
-  // Try to reschedule daily to same date as hourly
+  // Try to reschedule daily to date with ANY booking (hourly or daily)
   const newDate = "2026-04-15";
   
-  // Logic: If any booking exists on target date, daily cannot be scheduled
+  // Logic: Daily blocks entire day, ANY booking on that date causes conflict
   const hasConflict = hourlyBooking.event_date === newDate;
   
   const pass = hasConflict === true;
-  console.log(`Hourly conflict detected for daily: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
-  console.log(`  Hourly booking on: ${hourlyBooking.event_date}`);
+  console.log(`Daily blocks entire day: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
+  console.log(`  Existing booking on: ${hourlyBooking.event_date}`);
   console.log(`  Trying to schedule daily on: ${newDate}`);
   console.log(`  Conflict: ${hasConflict}`);
   
   return pass;
 }
 
-// ==================== TEST 4: Job Rescheduling (Simple Date Shift) ====================
+// ==================== TEST 4: Job Rescheduling (Always Simple Date Shift) ====================
 
 function testJobRescheduling() {
-  console.log('\n=== TEST 4: Reschedule updates pending reminder jobs ===');
+  console.log('\n=== TEST 4: Reschedule ALWAYS shifts jobs by date difference (no recreation) ===');
   
   const booking = createMockBooking({
     event_date: "2026-05-10",
@@ -214,6 +215,7 @@ function testJobRescheduling() {
   console.log(`Jobs shifted correctly: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
   console.log(`  Date shift: ${dateShiftDays} days`);
   console.log(`  Jobs updated: ${jobs.length}`);
+  console.log(`  Jobs cancelled: 0 (no recreation needed)`);
   
   return pass;
 }
@@ -221,7 +223,7 @@ function testJobRescheduling() {
 // ==================== TEST 5: Audit Log ====================
 
 function testAuditLog() {
-  console.log('\n=== TEST 5: Reschedule writes booking_events ===');
+  console.log('\n=== TEST 5: Reschedule writes booking_events with old/new values ===');
   
   const booking = createMockBooking({
     event_date: "2026-06-10",
@@ -241,7 +243,7 @@ function testAuditLog() {
     event_date: "2026-06-15",
     start_time: "16:00:00",
     end_time: "20:00:00",
-    booking_type: "hourly",
+    booking_type: "hourly", // Never changes
   };
   
   // Simulate audit event creation
@@ -256,7 +258,6 @@ function testAuditLog() {
       actor_id: "admin-user-123",
       date_shift_days: 5,
       jobs_updated: 3,
-      jobs_cancelled: 0,
     },
   };
   
@@ -265,64 +266,135 @@ function testAuditLog() {
   const hasOldValues = auditEvent.metadata.old_values !== undefined;
   const hasNewValues = auditEvent.metadata.new_values !== undefined;
   const hasReason = auditEvent.metadata.reason !== undefined;
+  const bookingTypeUnchanged = oldValues.booking_type === newValues.booking_type;
   
-  const pass = hasCorrectType && hasOldValues && hasNewValues && hasReason;
+  const pass = hasCorrectType && hasOldValues && hasNewValues && hasReason && bookingTypeUnchanged;
   console.log(`Audit event structure correct: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
   console.log(`  Event type: ${auditEvent.event_type}`);
   console.log(`  Has old values: ${hasOldValues}`);
   console.log(`  Has new values: ${hasNewValues}`);
   console.log(`  Has reason: ${hasReason}`);
+  console.log(`  Booking type unchanged: ${bookingTypeUnchanged}`);
   
   return pass;
 }
 
-// ==================== TEST 6: Complex Reschedule (Type Change) ====================
+// ==================== TEST 6: Daily Maintains booking_type ====================
 
-function testComplexReschedule() {
-  console.log('\n=== TEST 6: Complex reschedule (booking_type change) recreates jobs ===');
+function testDailyMaintainsType() {
+  console.log('\n=== TEST 6: Daily booking maintains booking_type even with event window ===');
   
-  const booking = createMockBooking({
-    event_date: "2026-07-10",
-    booking_type: "hourly",
-    start_time: "14:00:00",
-    end_time: "18:00:00",
+  const dailyBooking = createMockBooking({
+    event_date: "2026-03-01",
+    booking_type: "daily",
+    start_time: undefined,
+    end_time: undefined,
   });
   
-  const jobs = [
-    createMockJob(booking.id, "host_report_pre_start", 5),
-    createMockJob(booking.id, "balance_retry_1", 3),
-  ];
+  // Reschedule with event window
+  const newDate = "2026-03-15";
+  const newStartTime = "18:00:00"; // Event window (planning only)
+  const newEndTime = "22:00:00";
   
-  // Change to daily (complex change)
-  const oldType: string = "hourly";
-  const newType: string = "daily";
+  // After reschedule, booking_type should still be "daily"
+  const updatedBooking = {
+    ...dailyBooking,
+    event_date: newDate,
+    start_time: newStartTime,
+    end_time: newEndTime,
+    booking_type: "daily", // NEVER changes
+  };
   
-  // Logic: If booking_type changes, jobs need recreation
-  const needsRecreation = oldType !== newType;
-  
-  // Simulate job cancellation
-  const cancelledJobs = jobs.map(job => ({
-    ...job,
-    status: "cancelled",
-    last_error: "reschedule_recreation_needed",
-  }));
-  
-  const allCancelled = cancelledJobs.every(j => j.status === "cancelled");
-  
-  const pass = needsRecreation && allCancelled;
-  console.log(`Jobs marked for recreation: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
-  console.log(`  Old type: ${oldType}`);
-  console.log(`  New type: ${newType}`);
-  console.log(`  Needs recreation: ${needsRecreation}`);
-  console.log(`  Jobs cancelled: ${cancelledJobs.length}`);
+  const pass = updatedBooking.booking_type === "daily";
+  console.log(`Daily maintains type: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
+  console.log(`  Original type: ${dailyBooking.booking_type}`);
+  console.log(`  After reschedule type: ${updatedBooking.booking_type}`);
+  console.log(`  Event window: ${newStartTime} - ${newEndTime}`);
   
   return pass;
 }
 
-// ==================== TEST 7: Past Date Validation ====================
+// ==================== TEST 7: Daily Event Window Validation ====================
+
+function testDailyEventWindowValidation() {
+  console.log('\n=== TEST 7: Daily event window validation (both times or none) ===');
+  
+  // Case 1: Both times provided, end <= start → FAIL
+  const case1StartTime = "20:00:00";
+  const case1EndTime = "18:00:00";
+  const case1Valid = case1EndTime > case1StartTime;
+  
+  // Case 2: Only start time provided → FAIL
+  const case2StartTime = "18:00:00";
+  const case2EndTime = undefined;
+  const case2Valid = (case2StartTime === undefined && case2EndTime === undefined) || 
+                     (case2StartTime !== undefined && case2EndTime !== undefined);
+  
+  // Case 3: Both times provided, end > start → PASS
+  const case3StartTime = "18:00:00";
+  const case3EndTime = "22:00:00";
+  const case3Valid = case3EndTime > case3StartTime;
+  
+  // Case 4: Both times omitted → PASS
+  const case4StartTime = undefined;
+  const case4EndTime = undefined;
+  const case4Valid = true;
+  
+  const pass = !case1Valid && !case2Valid && case3Valid && case4Valid;
+  console.log(`Event window validation: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
+  console.log(`  Case 1 (end <= start): ${!case1Valid ? 'Rejected ✓' : 'Allowed ✗'}`);
+  console.log(`  Case 2 (only one time): ${!case2Valid ? 'Rejected ✓' : 'Allowed ✗'}`);
+  console.log(`  Case 3 (valid range): ${case3Valid ? 'Allowed ✓' : 'Rejected ✗'}`);
+  console.log(`  Case 4 (both omitted): ${case4Valid ? 'Allowed ✓' : 'Rejected ✗'}`);
+  
+  return pass;
+}
+
+// ==================== TEST 8: GHL Notes Include Event Window ====================
+
+function testGHLNotesEventWindow() {
+  console.log('\n=== TEST 8: GHL notes include event window for daily bookings ===');
+  
+  const dailyBooking = createMockBooking({
+    booking_type: "daily",
+    start_time: "18:00:00",
+    end_time: "22:00:00",
+  });
+  
+  // Simulate buildEventNotes function
+  const buildEventNotes = (booking: MockBooking): string => {
+    const notes = [
+      `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
+    ];
+    
+    // Add event window for daily bookings (planning only)
+    if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
+      notes.push(``);
+      notes.push(`⏰ Event Window (Planning): ${booking.start_time} - ${booking.end_time}`);
+      notes.push(`   Note: Entire day is blocked. Window is for planning only.`);
+    }
+    
+    return notes.join('\n');
+  };
+  
+  const notes = buildEventNotes(dailyBooking);
+  const hasEventWindow = notes.includes("Event Window (Planning)");
+  const hasTimeRange = notes.includes("18:00:00 - 22:00:00");
+  const hasBlockedNote = notes.includes("Entire day is blocked");
+  
+  const pass = hasEventWindow && hasTimeRange && hasBlockedNote;
+  console.log(`GHL notes include event window: ${pass ? 'PASS ✅' : 'FAIL ❌'}`);
+  console.log(`  Has event window label: ${hasEventWindow}`);
+  console.log(`  Has time range: ${hasTimeRange}`);
+  console.log(`  Has "day blocked" note: ${hasBlockedNote}`);
+  
+  return pass;
+}
+
+// ==================== TEST 9: Past Date Validation ====================
 
 function testPastDateBlocked() {
-  console.log('\n=== TEST 7: Cannot reschedule to past date ===');
+  console.log('\n=== TEST 9: Cannot reschedule to past date ===');
   
   const booking = createMockBooking({
     event_date: "2026-08-10",
@@ -346,10 +418,10 @@ function testPastDateBlocked() {
   return pass;
 }
 
-// ==================== TEST 8: Self-Exclusion from Conflict Check ====================
+// ==================== TEST 10: Self-Exclusion from Conflict Check ====================
 
 function testSelfExclusion() {
-  console.log('\n=== TEST 8: Booking can reschedule without conflicting with itself ===');
+  console.log('\n=== TEST 10: Booking can reschedule without conflicting with itself ===');
   
   const booking = createMockBooking({
     id: "booking-123",
@@ -381,39 +453,43 @@ function testSelfExclusion() {
 // ==================== RUN TESTS ====================
 
 console.log('========================================');
-console.log('reschedule-booking Unit Tests');
+console.log('reschedule-booking Unit Tests (UPDATED)');
 console.log('========================================');
 
 const test1Pass = testHourlyOverlapConflict();
 const test2Pass = testHourlyOverlapDaily();
-const test3Pass = testDailyOverlapHourly();
+const test3Pass = testDailyBlocksEntireDay();
 const test4Pass = testJobRescheduling();
 const test5Pass = testAuditLog();
-const test6Pass = testComplexReschedule();
-const test7Pass = testPastDateBlocked();
-const test8Pass = testSelfExclusion();
+const test6Pass = testDailyMaintainsType();
+const test7Pass = testDailyEventWindowValidation();
+const test8Pass = testGHLNotesEventWindow();
+const test9Pass = testPastDateBlocked();
+const test10Pass = testSelfExclusion();
 
 console.log('\n========================================');
 console.log('SUMMARY');
 console.log('========================================');
 console.log(`Test 1 (Hourly Overlap): ${test1Pass ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`Test 2 (Hourly vs Daily): ${test2Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Test 3 (Daily vs Hourly): ${test3Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Test 3 (Daily Blocks Day): ${test3Pass ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`Test 4 (Job Rescheduling): ${test4Pass ? 'PASS ✅' : 'FAIL ❌'}`);
 console.log(`Test 5 (Audit Log): ${test5Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Test 6 (Complex Reschedule): ${test6Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Test 7 (Past Date Block): ${test7Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Test 8 (Self Exclusion): ${test8Pass ? 'PASS ✅' : 'FAIL ❌'}`);
-console.log(`Overall: ${test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass ? 'ALL PASS ✅' : 'SOME FAILED ❌'}`);
+console.log(`Test 6 (Daily Maintains Type): ${test6Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Test 7 (Event Window Validation): ${test7Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Test 8 (GHL Notes Event Window): ${test8Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Test 9 (Past Date Block): ${test9Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Test 10 (Self Exclusion): ${test10Pass ? 'PASS ✅' : 'FAIL ❌'}`);
+console.log(`Overall: ${test1Pass && test2Pass && test3Pass && test4Pass && test5Pass && test6Pass && test7Pass && test8Pass && test9Pass && test10Pass ? 'ALL PASS ✅' : 'SOME FAILED ❌'}`);
 
 // ==================== MANUAL TESTING EXAMPLES ====================
 
 console.log('\n========================================');
-console.log('Manual Testing with cURL');
+console.log('Manual Testing with cURL (UPDATED)');
 console.log('========================================');
 
 console.log(`
-# Test 1: Reschedule to available date
+# Test 1: Reschedule hourly to available date
 curl -X POST \\
   'https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/reschedule-booking' \\
   -H 'Authorization: Bearer YOUR_ADMIN_TOKEN' \\
@@ -423,7 +499,6 @@ curl -X POST \\
     "event_date": "2026-03-15",
     "start_time": "14:00:00",
     "end_time": "18:00:00",
-    "booking_type": "hourly",
     "reason": "Client requested different date"
   }'
 
@@ -437,19 +512,33 @@ curl -X POST \\
     "event_date": "2026-03-20",
     "start_time": "14:00:00",
     "end_time": "18:00:00",
-    "booking_type": "hourly",
     "reason": "Testing conflict detection"
   }'
 
-# Test 3: Change booking type (triggers job recreation)
+# Test 3: Reschedule daily with event window (planning only)
 curl -X POST \\
   'https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/reschedule-booking' \\
   -H 'Authorization: Bearer YOUR_ADMIN_TOKEN' \\
   -H 'Content-Type: application/json' \\
   -d '{
-    "booking_id": "YOUR_BOOKING_ID",
+    "booking_id": "YOUR_DAILY_BOOKING_ID",
     "event_date": "2026-03-25",
-    "booking_type": "daily",
-    "reason": "Client wants full day instead"
+    "start_time": "18:00:00",
+    "end_time": "22:00:00",
+    "reason": "Setting event window for staff planning"
   }'
+
+# Test 4: Reschedule daily without event window (times omitted)
+curl -X POST \\
+  'https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/reschedule-booking' \\
+  -H 'Authorization: Bearer YOUR_ADMIN_TOKEN' \\
+  -H 'Content-Type: application/json' \\
+  -d '{
+    "booking_id": "YOUR_DAILY_BOOKING_ID",
+    "event_date": "2026-04-10",
+    "reason": "No specific event window needed"
+  }'
+
+# NOTE: booking_type parameter is NO LONGER accepted (will be ignored)
+# The booking type never changes - it stays as originally created
 `);

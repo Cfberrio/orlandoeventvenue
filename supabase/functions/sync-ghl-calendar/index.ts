@@ -426,6 +426,13 @@ function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
     `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
   ];
 
+  // Add event window for daily bookings (planning only)
+  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
+    notesLines.push(``);
+    notesLines.push(`⏰ Event Window (Planning): ${booking.start_time} - ${booking.end_time}`);
+    notesLines.push(`   Note: Entire day is blocked. Window is for planning only.`);
+  }
+
   // Add staff section if there are staff assigned
   if (staffInfo.length > 0) {
     notesLines.push(``);
@@ -470,9 +477,23 @@ async function createAppointment(
 ): Promise<{ appointmentId: string }> {
   const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
   
-  // Clean, formatted title
+  // Build title with event window for daily bookings
   const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
+  let title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
+  
+  // If daily with event window, add it to title
+  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
+    const formatTime = (time: string) => {
+      const [h, m] = time.split(':');
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    };
+    const startFormatted = formatTime(booking.start_time);
+    const endFormatted = formatTime(booking.end_time);
+    title += ` (Daily — Event ${startFormatted}–${endFormatted})`;
+  }
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
@@ -547,9 +568,23 @@ async function updateAppointment(
 ): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
-  // Clean, formatted title
+  // Build title with event window for daily bookings
   const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  const title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
+  let title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
+  
+  // If daily with event window, add it to title
+  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
+    const formatTime = (time: string) => {
+      const [h, m] = time.split(':');
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour % 12 || 12;
+      return `${hour12}:${m} ${ampm}`;
+    };
+    const startFormatted = formatTime(booking.start_time);
+    const endFormatted = formatTime(booking.end_time);
+    title += ` (Daily — Event ${startFormatted}–${endFormatted})`;
+  }
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
