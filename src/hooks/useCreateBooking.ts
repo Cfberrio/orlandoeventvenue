@@ -171,11 +171,12 @@ export const useCreateBooking = () => {
       const reservationNumber = generateReservationNumber();
 
       // Map form data to database columns
+      // Daily bookings default to 01:00 - 23:00 range
       const bookingData = {
         booking_type: bookingType,
         event_date: eventDateStr,
-        start_time: formData.bookingType === "hourly" ? formData.startTime : null,
-        end_time: formData.bookingType === "hourly" ? formData.endTime : null,
+        start_time: formData.bookingType === "hourly" ? formData.startTime : "01:00",
+        end_time: formData.bookingType === "hourly" ? formData.endTime : "23:00",
         number_of_guests: formData.numberOfGuests || 1,
         event_type: formData.eventType,
         event_type_other: formData.eventType === "other" ? formData.eventTypeOther : null,
