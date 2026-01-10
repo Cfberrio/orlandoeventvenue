@@ -1,8 +1,8 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret, x-self-test, x-api-key',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-voice-agent-secret, x-self-test, x-api-key, x-ghl-payload, x-params, x-variables',
 };
 
 // GHL API configuration
@@ -21,9 +21,24 @@ interface NormalizedPayload {
 interface GHLEvent {
   id?: string;
   title?: string;
-  startTime?: string; // ISO or ms
-  endTime?: string;   // ISO or ms
+  startTime?: string | number;
+  endTime?: string | number;
+  start_time?: string | number;
+  end_time?: string | number;
+  start?: string | number;
+  end?: string | number;
+  startDate?: string;
+  endDate?: string;
   appointmentStatus?: string;
+  status?: string;
+  event?: {
+    startTime?: string | number;
+    endTime?: string | number;
+  };
+  appointment?: {
+    startTime?: string | number;
+    endTime?: string | number;
+  };
 }
 
 // ============= INPUT NORMALIZATION =============
@@ -65,6 +80,8 @@ function unwrapValue(val: unknown, maxDepth = 3): unknown {
     if ("text" in obj) { cur = obj.text; continue; }
     if ("label" in obj) { cur = obj.label; continue; }
     if ("name" in obj) { cur = obj.name; continue; }
+    if ("time" in obj) { cur = obj.time; continue; }
+    if ("date" in obj) { cur = obj.date; continue; }
     return cur;
   }
   return cur;
@@ -78,7 +95,7 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown" | "query"; error?: string } {
+function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown"; error?: string } {
   const text = (rawText ?? "").trim();
   if (!text) return { body: {}, mode: "empty" };
 
@@ -220,25 +237,6 @@ function normalizeTime(timeStr: string): string | null {
   return null;
 }
 
-function inferBookingType(strings: string[]): string | null {
-  for (const s of strings) {
-    const low = s.toLowerCase();
-    if (low.includes("hourly")) return "hourly";
-    if (low.includes("daily")) return "daily";
-  }
-  return null;
-}
-
-function inferTimes(strings: string[]): string[] {
-  const times: string[] = [];
-  for (const s of strings) {
-    const candidates = s.match(/\b\d{1,2}(?::\d{2})?\s?(?:AM|PM)\b|\b\d{1,2}:\d{2}\b/gi);
-    if (!candidates) continue;
-    for (const c of candidates) { const nt = normalizeTime(c); if (nt) times.push(nt); }
-  }
-  return times;
-}
-
 function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapping: Partial<Record<CanonicalField, string>> } {
   const strings = collectAllStringsDeep(raw);
   const btFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.booking_type);
@@ -248,291 +246,119 @@ function normalizePayload(raw: AnyRecord): { normalized: NormalizedPayload; mapp
   const tzFound = findByAliasesDeep(raw, FIELD_ALIAS_SETS.timezone);
 
   const mapping: Partial<Record<CanonicalField, string>> = {};
-  if (btFound.path) mapping.booking_type = btFound.path;
-  if (dateFound.path) mapping.date = dateFound.path;
-  if (stFound.path) mapping.start_time = stFound.path;
-  if (etFound.path) mapping.end_time = etFound.path;
-  if (tzFound.path) mapping.timezone = tzFound.path;
+  const normalized: NormalizedPayload = {};
 
-  const bookingTypeRaw = btFound.value ?? inferBookingType(strings);
-  const dateCandidate = dateFound.value ?? strings.map(parseDateToYYYYMMDD).find((d): d is string => !!d);
-  const inferredTimes = inferTimes(strings);
-  const startRaw = stFound.value ?? (inferredTimes.length >= 1 ? inferredTimes[0] : null);
-  const endRaw = etFound.value ?? (inferredTimes.length >= 2 ? inferredTimes[inferredTimes.length - 1] : null);
-  const timezoneRaw = tzFound.value ?? DEFAULT_TIMEZONE;
-
-  const btLower = bookingTypeRaw ? bookingTypeRaw.toLowerCase() : undefined;
-  const booking_type: NormalizedPayload["booking_type"] = btLower === "hourly" || btLower === "daily" ? btLower : undefined;
-  const date = dateCandidate ?? undefined;
-  const start_time = startRaw ? ((/^\d{2}:\d{2}$/.test(startRaw) ? startRaw : normalizeTime(startRaw)) ?? undefined) : undefined;
-  const end_time = endRaw ? ((/^\d{2}:\d{2}$/.test(endRaw) ? endRaw : normalizeTime(endRaw)) ?? undefined) : undefined;
-  const timezone = (timezoneRaw && String(timezoneRaw).trim()) ? String(timezoneRaw).trim() : DEFAULT_TIMEZONE;
-
-  return { normalized: { booking_type, date, start_time, end_time, timezone }, mapping };
-}
-
-function examplesPayload() {
-  return {
-    hourly: { booking_type: "hourly", Date: "2026-02-06", start_time: "6:00 PM", end_time: "10:00 PM", timezone: "America/New_York" },
-    daily: { booking_type: "daily", Date: "2026-02-06", timezone: "America/New_York" },
-  };
-}
-
-function buildOkFalseResponse(params: { error: string; missing_fields: string[]; receivedBodyShape: AnyRecord; receivedKeys: string[]; normalized: NormalizedPayload; mapping?: AnyRecord; debug?: AnyRecord }): Response {
-  return new Response(JSON.stringify({
-    ok: false,
-    available: null,
-    error: params.error,
-    missing_fields: params.missing_fields,
-    debug: { receivedBodyShape: params.receivedBodyShape, receivedKeys: params.receivedKeys, normalized: params.normalized, mapping: params.mapping ?? null, examples: examplesPayload(), ...params.debug },
-  }), { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } });
-}
-
-function hhmmToMinutes(hhmm: string): number | null {
-  const m = hhmm.match(/^(\d{2}):(\d{2})$/);
-  if (!m) return null;
-  const h = parseInt(m[1], 10), min = parseInt(m[2], 10);
-  if (h < 0 || h > 23 || min < 0 || min > 59) return null;
-  return h * 60 + min;
-}
-
-function getTimeZoneOffsetMillis(date: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
-  const parts = dtf.formatToParts(date);
-  const map: Record<string, string> = {};
-  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
-  const asUTC = Date.UTC(parseInt(map.year, 10), parseInt(map.month, 10) - 1, parseInt(map.day, 10), parseInt(map.hour, 10), parseInt(map.minute, 10), parseInt(map.second, 10));
-  return asUTC - date.getTime();
-}
-
-function zonedDateTimeToUtcMillis(dateStr: string, timeHHmm: string, timeZone: string): number | null {
-  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!m) return null;
-  const y = parseInt(m[1], 10), mo = parseInt(m[2], 10), d = parseInt(m[3], 10);
-  const tm = timeHHmm.match(/^(\d{2}):(\d{2})$/);
-  if (!tm) return null;
-  const h = parseInt(tm[1], 10), mi = parseInt(tm[2], 10);
-  const utcGuess = Date.UTC(y, mo - 1, d, h, mi, 0);
-  const offset = getTimeZoneOffsetMillis(new Date(utcGuess), timeZone);
-  return utcGuess - offset;
-}
-
-function getDailyRange(date: string, timeZone: string): { startMs: number; endMs: number } | null {
-  const startMs = zonedDateTimeToUtcMillis(date, "00:00", timeZone);
-  // Use 23:59:59.999 to cover the full day
-  const endMsBase = zonedDateTimeToUtcMillis(date, "23:59", timeZone);
-  if (startMs == null || endMsBase == null) return null;
-  return { startMs, endMs: endMsBase + 59999 }; // add 59.999 seconds
-}
-
-function getHourlyRange(date: string, startHHmm: string, endHHmm: string, timeZone: string): { startMs: number; endMs: number } | null {
-  const startMinutes = hhmmToMinutes(startHHmm), endMinutes = hhmmToMinutes(endHHmm);
-  if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) return null;
-  const startMs = zonedDateTimeToUtcMillis(date, startHHmm, timeZone);
-  const endMs = zonedDateTimeToUtcMillis(date, endHHmm, timeZone);
-  if (startMs == null || endMs == null) return null;
-  return { startMs, endMs };
-}
-
-// ============= GHL API CALLS =============
-
-// Parse event time (could be ISO string, epoch seconds, or epoch millis)
-function parseEventTimeToMs(val: unknown): number | null {
-  if (typeof val === "number") {
-    // If < 1e12 (10 digits) → seconds, convert to ms
-    // If >= 1e12 (13 digits) → already ms
-    // 1e12 = 1,000,000,000,000 ms = Sept 9, 2001
-    return val < 1e12 ? val * 1000 : val;
+  if (btFound.value) {
+    mapping.booking_type = btFound.path ?? "?";
+    const btLow = btFound.value.toLowerCase();
+    if (btLow.includes("hourly")) normalized.booking_type = "hourly";
+    else if (btLow.includes("daily")) normalized.booking_type = "daily";
   }
-  if (typeof val === "string") {
-    // If it's all digits, treat as epoch (seconds or ms)
-    if (/^\d+$/.test(val)) {
-      const num = parseInt(val, 10);
-      return num < 1e12 ? num * 1000 : num;
-    }
-    // Otherwise parse as ISO
-    const ms = Date.parse(val);
-    return isNaN(ms) ? null : ms;
+
+  if (dateFound.value) {
+    mapping.date = dateFound.path ?? "?";
+    const dd = parseDateToYYYYMMDD(dateFound.value);
+    if (dd) normalized.date = dd;
   }
-  return null;
-}
 
-// Fetch /calendars/events (REAL bookings/appointments)
-async function getCalendarEvents(locationId: string, startMs: number, endMs: number, ghlToken: string): Promise<{ events: GHLEvent[]; rawResponse?: unknown; error?: string }> {
-  const url = new URL(`${GHL_API_BASE}/calendars/events`);
-  url.searchParams.set('locationId', locationId);
-  url.searchParams.set('calendarId', GHL_CALENDAR_ID);
-  url.searchParams.set('startTime', String(startMs));
-  url.searchParams.set('endTime', String(endMs));
-
-  console.log(`[GHL] GET /calendars/events: ${url.toString()}`);
-
-  try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${ghlToken}`, 'Version': '2021-04-15', 'Content-Type': 'application/json' },
-    });
-
-    const responseText = await response.text();
-    console.log(`[GHL] /calendars/events status=${response.status} body=${responseText.substring(0, 600)}`);
-
-    if (!response.ok) {
-      return { events: [], rawResponse: responseText, error: `GHL /calendars/events error: ${response.status}` };
-    }
-
-    let data: unknown;
-    try { data = JSON.parse(responseText); } catch { return { events: [], rawResponse: responseText, error: "Invalid JSON from /calendars/events" }; }
-
-    // GHL returns { events: [...] }
-    const arr = (data as AnyRecord)?.events;
-    if (!Array.isArray(arr)) {
-      // If no events array but has traceId => treat as empty but valid
-      if ((data as AnyRecord)?.traceId) {
-        console.log("[GHL] /calendars/events returned traceId only (empty)");
-        return { events: [], rawResponse: data };
-      }
-      return { events: [], rawResponse: data, error: "Unexpected shape from /calendars/events" };
-    }
-
-    return { events: arr as GHLEvent[], rawResponse: data };
-  } catch (err) {
-    console.error('[GHL] Fetch /calendars/events error:', err);
-    return { events: [], error: String(err) };
+  if (stFound.value) {
+    mapping.start_time = stFound.path ?? "?";
+    const nt = normalizeTime(stFound.value);
+    if (nt) normalized.start_time = nt;
   }
-}
 
-// Fetch /calendars/blocked-slots (manual blocks)
-async function getBlockedSlots(locationId: string, startMs: number, endMs: number, ghlToken: string): Promise<{ events: GHLEvent[]; rawResponse?: unknown; error?: string }> {
-  const url = new URL(`${GHL_API_BASE}/calendars/blocked-slots`);
-  url.searchParams.set('locationId', locationId);
-  url.searchParams.set('calendarId', GHL_CALENDAR_ID);
-  url.searchParams.set('startTime', String(startMs));
-  url.searchParams.set('endTime', String(endMs));
-
-  console.log(`[GHL] GET /calendars/blocked-slots: ${url.toString()}`);
-
-  try {
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: { 'Authorization': `Bearer ${ghlToken}`, 'Version': '2021-04-15', 'Content-Type': 'application/json' },
-    });
-
-    const responseText = await response.text();
-    console.log(`[GHL] /calendars/blocked-slots status=${response.status} body=${responseText.substring(0, 600)}`);
-
-    if (!response.ok) {
-      return { events: [], rawResponse: responseText, error: `GHL /blocked-slots error: ${response.status}` };
-    }
-
-    let data: unknown;
-    try { data = JSON.parse(responseText); } catch { return { events: [], rawResponse: responseText, error: "Invalid JSON from /blocked-slots" }; }
-
-    const arr = (data as AnyRecord)?.events ?? (data as AnyRecord)?.blockedSlots;
-    if (!Array.isArray(arr)) {
-      if ((data as AnyRecord)?.traceId) return { events: [], rawResponse: data };
-      return { events: [], rawResponse: data, error: "Unexpected shape from /blocked-slots" };
-    }
-
-    return { events: arr as GHLEvent[], rawResponse: data };
-  } catch (err) {
-    console.error('[GHL] Fetch /blocked-slots error:', err);
-    return { events: [], error: String(err) };
+  if (etFound.value) {
+    mapping.end_time = etFound.path ?? "?";
+    const nt = normalizeTime(etFound.value);
+    if (nt) normalized.end_time = nt;
   }
-}
 
-// Check overlap: eventStart < windowEnd && eventEnd > windowStart
-function hasOverlap(eventStartMs: number, eventEndMs: number, windowStartMs: number, windowEndMs: number): boolean {
-  return eventStartMs < windowEndMs && eventEndMs > windowStartMs;
-}
-
-// Filter events that overlap with the requested window and are not cancelled
-function filterConflictingEvents(events: GHLEvent[], windowStartMs: number, windowEndMs: number): GHLEvent[] {
-  const conflicts: GHLEvent[] = [];
-  for (const ev of events) {
-    // Skip cancelled
-    if (ev.appointmentStatus?.toLowerCase() === "cancelled") continue;
-
-    const evStartMs = parseEventTimeToMs(ev.startTime);
-    const evEndMs = parseEventTimeToMs(ev.endTime);
-    if (evStartMs == null || evEndMs == null) continue;
-
-    if (hasOverlap(evStartMs, evEndMs, windowStartMs, windowEndMs)) {
-      conflicts.push(ev);
-    }
+  if (tzFound.value) {
+    mapping.timezone = tzFound.path ?? "?";
+    normalized.timezone = tzFound.value;
   }
-  return conflicts;
+
+  if (!normalized.timezone) normalized.timezone = DEFAULT_TIMEZONE;
+
+  return { normalized, mapping };
 }
 
-function logBody(label: string, body: AnyRecord): void {
-  const safe = JSON.parse(JSON.stringify(body));
-  const redactKeys = (obj: AnyRecord) => {
-    for (const key of Object.keys(obj)) {
-      if (/secret|token|key|password|auth/i.test(key)) obj[key] = '[REDACTED]';
-      else if (obj[key] && typeof obj[key] === 'object') redactKeys(obj[key] as AnyRecord);
-    }
-  };
-  redactKeys(safe);
-  console.log(`[${label}]`, JSON.stringify(safe));
-}
-
-// ============= PAYLOAD VALIDATION HELPERS =============
-
-// GHL Voice Agent sometimes calls custom actions with empty payload — handle missing payload safely.
-function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
-  // Empty mode
-  if (parsed.mode === "empty") return true;
-  
-  // JSON mode but no useful keys
-  if (parsed.mode === "json") {
-    const topKeys = Object.keys(parsed.body);
-    if (topKeys.length === 0) return true;
-    
-    // Only has internal keys like _raw or _value
-    const usefulKeys = topKeys.filter(k => !k.startsWith('_'));
-    if (usefulKeys.length === 0) return true;
-  }
-  
-  return false;
-}
+// ============= NEW: QUERY PARAMS EXTRACTION =============
 
 function extractFromQueryParams(url: string): AnyRecord {
-  const urlObj = new URL(url);
-  const params = urlObj.searchParams;
-  
+  try {
+    const urlObj = new URL(url);
+    const params = urlObj.searchParams;
+    const result: AnyRecord = {};
+    
+    for (const [key, value] of params.entries()) {
+      result[key] = value;
+    }
+    
+    return result;
+  } catch {
+    return {};
+  }
+}
+
+// ============= NEW: HEADERS EXTRACTION =============
+
+function extractFromHeaders(req: Request): AnyRecord {
   const result: AnyRecord = {};
   
-  // booking_type aliases
-  const bt = params.get('booking_type') || params.get('bookingType') || params.get('Booking Type');
-  if (bt) result.booking_type = bt;
+  // Try to extract payload from common GHL header names
+  const ghlPayloadHeader = req.headers.get('x-ghl-payload');
+  if (ghlPayloadHeader) {
+    try {
+      const parsed = JSON.parse(ghlPayloadHeader);
+      if (isPlainObject(parsed)) Object.assign(result, parsed);
+    } catch { /* ignore */ }
+  }
   
-  // date aliases
-  const date = params.get('date') || params.get('Date');
-  if (date) result.date = date;
+  const paramsHeader = req.headers.get('x-params');
+  if (paramsHeader) {
+    try {
+      const parsed = JSON.parse(paramsHeader);
+      if (isPlainObject(parsed)) Object.assign(result, parsed);
+    } catch { /* ignore */ }
+  }
   
-  // start_time aliases
-  const st = params.get('start_time') || params.get('startTime') || params.get('Start Time');
-  if (st) result.start_time = st;
-  
-  // end_time aliases
-  const et = params.get('end_time') || params.get('endTime') || params.get('End Time');
-  if (et) result.end_time = et;
-  
-  // timezone aliases
-  const tz = params.get('timezone') || params.get('tz') || params.get('Timezone');
-  if (tz) result.timezone = tz;
+  const variablesHeader = req.headers.get('x-variables');
+  if (variablesHeader) {
+    try {
+      const parsed = JSON.parse(variablesHeader);
+      if (isPlainObject(parsed)) Object.assign(result, parsed);
+    } catch { /* ignore */ }
+  }
   
   return result;
 }
 
-// Never confirm availability when ok:false.
-function buildMissingPayloadResponse(
-  req: Request,
-  rawText: string,
-  parsed: { body: AnyRecord; mode: string; error?: string },
-  queryParams: AnyRecord
-): Response {
-  const contentType = req.headers.get('content-type');
-  const contentLength = req.headers.get('content-length');
+// ============= NEW: PAYLOAD EMPTY CHECK =============
+
+function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
+  if (parsed.mode === "empty") return true;
+  if (!isPlainObject(parsed.body)) return true;
+  
+  const keys = Object.keys(parsed.body);
+  if (keys.length === 0) return true;
+  
+  // Check if only has metadata keys
+  const meaningfulKeys = keys.filter(k => !k.startsWith('_'));
+  if (meaningfulKeys.length === 0) return true;
+  
+  // Check if all collected keys are empty
+  const allKeys = collectAllKeysDeep(parsed.body);
+  const meaningfulDeepKeys = allKeys.filter(k => !k.startsWith('_'));
+  return meaningfulDeepKeys.length === 0;
+}
+
+// ============= NEW: MISSING PAYLOAD RESPONSE =============
+
+function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord) {
+  const url = new URL(req.url);
+  const queryKeys = Object.keys(queryParams);
+  const topLevelKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 20) : [];
   
   return new Response(
     JSON.stringify({
@@ -540,165 +366,381 @@ function buildMissingPayloadResponse(
       available: null,
       error: "missing_payload",
       message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
+      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
       debug: {
         received: {
           has_raw_text: rawText.length > 0,
           raw_text_len: rawText.length,
           parse_mode: parsed.mode,
-          top_level_keys: Object.keys(parsed.body),
-          query_param_keys: Object.keys(queryParams),
-          content_type: contentType,
-          content_length: contentLength
+          parse_error: parsed.error || null,
+          top_level_keys: topLevelKeys,
+          query_param_keys: queryKeys,
+          query_params: queryParams,
+          content_type: req.headers.get('content-type'),
+          content_length: req.headers.get('content-length'),
+          method: req.method,
+          path: url.pathname,
         },
         hint: [
           "Ensure Custom Action variables are mapped and the agent only calls the action AFTER collecting booking_type and date.",
           "If GHL sends variables via body, verify Content-Type application/json.",
-          "If GHL sends variables via query params, fallback will work automatically."
-        ]
-      }
+          "If GHL sends variables via query params, fallback will work automatically.",
+        ],
+      },
     }),
-    { 
-      status: 200, 
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-    }
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
 
-// ============= SELF-TEST (overlap logic only, no GHL calls) =============
+// ============= NEW: OK FALSE VALIDATION RESPONSE =============
 
-function runSelfTests(): { passed: boolean; results: Array<{ test: string; passed: boolean; details: string }> } {
-  const results: Array<{ test: string; passed: boolean; details: string }> = [];
-  const assert = (test: string, passed: boolean, details: unknown) => {
-    results.push({ test, passed, details: typeof details === "string" ? details : JSON.stringify(details) });
-  };
+function buildOkFalseResponse(data: AnyRecord) {
+  return new Response(
+    JSON.stringify({
+      ok: false,
+      available: null,  // NEVER true when ok:false
+      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
+      ...data,
+    }),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
+}
 
-  // Test 1: hasOverlap - overlapping
-  {
-    const pass = hasOverlap(1000, 2000, 1500, 2500);
-    assert("overlap_partial", pass, "event 1000-2000 vs window 1500-2500 should overlap");
-  }
+// ============= NEW: ENHANCED EVENT TIME PARSING =============
 
-  // Test 2: hasOverlap - no overlap
-  {
-    const pass = !hasOverlap(1000, 2000, 3000, 4000);
-    assert("no_overlap", pass, "event 1000-2000 vs window 3000-4000 should NOT overlap");
-  }
+/**
+ * Extract event time window from GHL event object in MS
+ * Handles multiple field names and formats
+ */
+function extractEventWindowMs(ev: GHLEvent): { startMs: number | null; endMs: number | null; status: string | null } {
+  // Try different field names in order
+  let startRaw: string | number | undefined;
+  let endRaw: string | number | undefined;
+  
+  // Priority 1: Direct fields
+  startRaw = startRaw || ev.startTime;
+  endRaw = endRaw || ev.endTime;
+  
+  // Priority 2: Underscore fields
+  startRaw = startRaw || ev.start_time;
+  endRaw = endRaw || ev.end_time;
+  
+  // Priority 3: Short names
+  startRaw = startRaw || ev.start;
+  endRaw = endRaw || ev.end;
+  
+  // Priority 4: Date fields
+  if (!startRaw && ev.startDate) startRaw = ev.startDate;
+  if (!endRaw && ev.endDate) endRaw = ev.endDate;
+  
+  // Priority 5: Nested in event object
+  if (!startRaw && ev.event?.startTime) startRaw = ev.event.startTime;
+  if (!endRaw && ev.event?.endTime) endRaw = ev.event.endTime;
+  
+  // Priority 6: Nested in appointment object
+  if (!startRaw && ev.appointment?.startTime) startRaw = ev.appointment.startTime;
+  if (!endRaw && ev.appointment?.endTime) endRaw = ev.appointment.endTime;
+  
+  // Parse to MS
+  const startMs = parseEventTimeToMs(startRaw);
+  const endMs = parseEventTimeToMs(endRaw);
+  
+  // Extract status
+  const status = ev.appointmentStatus || ev.status || null;
+  
+  return { startMs, endMs, status };
+}
 
-  // Test 3: hasOverlap - event contains window
-  {
-    const pass = hasOverlap(1000, 5000, 2000, 3000);
-    assert("overlap_contains", pass, "event 1000-5000 vs window 2000-3000 should overlap");
-  }
-
-  // Test 4: Daily payload normalization
-  {
-    const payload = { Date: "2026-02-06", booking_type: "daily", timezone: "America/New_York" };
-    const { normalized } = normalizePayload(payload);
-    assert("daily_normalization", normalized.booking_type === "daily" && normalized.date === "2026-02-06", normalized);
-  }
-
-  // Test 5: Hourly payload normalization with AM/PM
-  {
-    const payload = { booking_type: "hourly", Date: "2026-02-06", start_time: "6:00 PM", end_time: "10:00 PM", timezone: "America/New_York" };
-    const { normalized } = normalizePayload(payload);
-    assert("hourly_normalization_ampm", normalized.booking_type === "hourly" && normalized.date === "2026-02-06" && normalized.start_time === "18:00" && normalized.end_time === "22:00", normalized);
-  }
-
-  // Test 6: Time format variations
-  {
-    const tests = [
-      { input: "6:00 PM", expected: "18:00" },
-      { input: "6PM", expected: "18:00" },
-      { input: "18:00", expected: "18:00" },
-      { input: "12:30 AM", expected: "00:30" },
-    ];
-    let allPass = true;
-    const details: string[] = [];
-    for (const t of tests) {
-      const result = normalizeTime(t.input);
-      if (result !== t.expected) { allPass = false; details.push(`FAIL: ${t.input} -> ${result}`); }
-      else details.push(`OK: ${t.input} -> ${result}`);
+/**
+ * Parse event time to milliseconds
+ * Handles: epoch seconds (10 digits), epoch ms (13 digits), ISO strings
+ */
+function parseEventTimeToMs(val: string | number | undefined): number | null {
+  if (val === undefined || val === null) return null;
+  
+  // Unwrap if it's an object with value/text/etc
+  const unwrapped = unwrapValue(val);
+  
+  // If it's a number or numeric string
+  if (typeof unwrapped === "number" || typeof unwrapped === "string") {
+    const num = typeof unwrapped === "number" ? unwrapped : parseFloat(String(unwrapped));
+    
+    if (!isNaN(num)) {
+      // If it's less than 1e12 (10-11 digits), treat as seconds
+      if (num < 1e12) {
+        return num * 1000;
+      }
+      // If it's >= 1e12 (13+ digits), treat as milliseconds
+      return num;
     }
-    assert("time_formats", allPass, details.join("; "));
   }
-
-  // Test 7: filterConflictingEvents (mock)
-  {
-    const mockEvents: GHLEvent[] = [
-      { id: "1", startTime: "1000", endTime: "2000" },
-      { id: "2", startTime: "3000", endTime: "4000" },
-      { id: "3", startTime: "1500", endTime: "2500", appointmentStatus: "cancelled" },
-    ];
-    const conflicts = filterConflictingEvents(mockEvents, 1500, 2500);
-    // Should only include event 1 (overlaps) and event 2 (no overlap), event 3 is cancelled
-    // event 1: 1000-2000 overlaps 1500-2500 => YES
-    // event 2: 3000-4000 vs 1500-2500 => NO (3000 >= 2500)
-    const pass = conflicts.length === 1 && conflicts[0].id === "1";
-    assert("filter_conflicts_mock", pass, { found: conflicts.map(e => e.id), expected: ["1"] });
+  
+  // If it's an ISO string
+  if (typeof unwrapped === "string") {
+    try {
+      const parsed = Date.parse(unwrapped);
+      if (!isNaN(parsed)) return parsed;
+    } catch { /* ignore */ }
   }
+  
+  return null;
+}
 
-  // Test 8: parseEventTimeToMs - seconds to ms (string)
-  {
-    const result = parseEventTimeToMs("1730000000");
-    const expected = 1730000000000;
-    const pass = result === expected;
-    assert("parse_seconds_to_ms_string", pass, `parseEventTimeToMs("1730000000") => ${result}, expected ${expected}`);
+// ============= TIME UTILITIES =============
+
+function hhmmToMinutes(time: string): number | null {
+  const match = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+  const h = parseInt(match[1], 10);
+  const m = parseInt(match[2], 10);
+  if (h < 0 || h > 23 || m < 0 || m > 59) return null;
+  return h * 60 + m;
+}
+
+function buildDateRangeForQuery(date: string, startTime: string | undefined, endTime: string | undefined, timezone: string): { start: string; end: string } | null {
+  try {
+    const [y, m, d] = date.split('-').map(Number);
+    
+    if (startTime && endTime) {
+      const [sh, sm] = startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      
+      const startLocal = new Date(y, m - 1, d, sh, sm, 0);
+      const endLocal = new Date(y, m - 1, d, eh, em, 0);
+      
+      const startUTC = convertLocalToUTC(startLocal, timezone);
+      const endUTC = convertLocalToUTC(endLocal, timezone);
+      
+      return {
+        start: startUTC.toISOString(),
+        end: endUTC.toISOString(),
+      };
+    } else {
+      // Daily: entire day in local time
+      const startLocal = new Date(y, m - 1, d, 0, 0, 0);
+      const endLocal = new Date(y, m - 1, d, 23, 59, 59);
+      
+      const startUTC = convertLocalToUTC(startLocal, timezone);
+      const endUTC = convertLocalToUTC(endLocal, timezone);
+      
+      return {
+        start: startUTC.toISOString(),
+        end: endUTC.toISOString(),
+      };
+    }
+  } catch {
+    return null;
   }
+}
 
-  // Test 9: parseEventTimeToMs - seconds to ms (number)
-  {
-    const result = parseEventTimeToMs(1730000000);
-    const expected = 1730000000000;
-    const pass = result === expected;
-    assert("parse_seconds_to_ms_number", pass, `parseEventTimeToMs(1730000000) => ${result}, expected ${expected}`);
+function convertLocalToUTC(localDate: Date, timezone: string): Date {
+  try {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+      timeZone: timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(localDate);
+    const partsMap: Record<string, string> = {};
+    for (const part of parts) {
+      if (part.type !== 'literal') partsMap[part.type] = part.value;
+    }
+    
+    const utcMs = Date.UTC(
+      parseInt(partsMap.year, 10),
+      parseInt(partsMap.month, 10) - 1,
+      parseInt(partsMap.day, 10),
+      parseInt(partsMap.hour, 10),
+      parseInt(partsMap.minute, 10),
+      parseInt(partsMap.second, 10)
+    );
+    
+    const offset = utcMs - localDate.getTime();
+    return new Date(localDate.getTime() - offset);
+  } catch {
+    return localDate;
   }
+}
 
-  // Test 10: parseEventTimeToMs - already ms (unchanged)
-  {
-    const result = parseEventTimeToMs(1730000000000);
-    const expected = 1730000000000;
-    const pass = result === expected;
-    assert("parse_ms_unchanged", pass, `parseEventTimeToMs(1730000000000) => ${result}, expected ${expected}`);
+// ============= GHL API =============
+
+async function fetchGHLEvents(calendarId: string, startTime: string, endTime: string, locationId: string, ghlToken: string): Promise<{ events: GHLEvent[]; raw: unknown }> {
+  const url = `${GHL_API_BASE}/calendars/events?calendarId=${encodeURIComponent(calendarId)}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}&locationId=${encodeURIComponent(locationId)}`;
+  
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${ghlToken}`,
+      'Version': '2021-04-15',
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!resp.ok) {
+    throw new Error(`GHL API error: ${resp.status} ${resp.statusText}`);
   }
-
-  // Test 11: Real overlap scenario (18:00-22:00 event vs 18:00-22:00 window)
-  {
-    const eventStart = 1730664000000; // Nov 3, 2024 18:00 ET
-    const eventEnd = 1730678400000;   // Nov 3, 2024 22:00 ET
-    const windowStart = 1730664000000;
-    const windowEnd = 1730678400000;
-    const pass = hasOverlap(eventStart, eventEnd, windowStart, windowEnd);
-    assert("overlap_exact_match", pass, "18:00-22:00 event vs 18:00-22:00 window should detect conflict");
+  
+  const data = await resp.json();
+  
+  // Handle different response shapes
+  let events: GHLEvent[] = [];
+  if (Array.isArray(data)) {
+    events = data;
+  } else if (data && Array.isArray(data.events)) {
+    events = data.events;
+  } else if (data && Array.isArray(data.data)) {
+    events = data.data;
   }
+  
+  return { events, raw: data };
+}
 
-  // Test 12: Missing payload detection
-  {
-    const emptyParsed = { body: {}, mode: "empty" };
-    const pass = isPayloadEmpty(emptyParsed);
-    assert("missing_payload_detection_empty", pass, "Empty mode should be detected as missing payload");
+async function fetchGHLBlockedSlots(calendarId: string, startDate: string, endDate: string, timezone: string, ghlToken: string): Promise<{ slots: unknown[]; raw: unknown }> {
+  const url = `${GHL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/blocked-slots?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&timezone=${encodeURIComponent(timezone)}`;
+  
+  const resp = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${ghlToken}`,
+      'Version': '2021-04-15',
+      'Content-Type': 'application/json',
+    },
+  });
+  
+  if (!resp.ok) {
+    console.warn(`Blocked slots fetch failed: ${resp.status}`);
+    return { slots: [], raw: null };
   }
+  
+  const data = await resp.json();
+  const slots = Array.isArray(data) ? data : (Array.isArray(data?.slots) ? data.slots : []);
+  
+  return { slots, raw: data };
+}
 
-  // Test 13: Missing payload detection (JSON with no useful keys)
-  {
-    const emptyJsonParsed = { body: { _raw: "something" }, mode: "json" };
-    const pass = isPayloadEmpty(emptyJsonParsed);
-    assert("missing_payload_detection_json_no_keys", pass, "JSON mode with only internal keys should be detected as missing payload");
+// ============= CONFLICT DETECTION =============
+
+function filterConflictingEvents(events: GHLEvent[], windowStartMs: number, windowEndMs: number): { conflicts: GHLEvent[]; details: unknown[] } {
+  const conflicts: GHLEvent[] = [];
+  const details: unknown[] = [];
+  
+  for (const ev of events) {
+    const { startMs, endMs, status } = extractEventWindowMs(ev);
+    
+    // Skip if we couldn't parse times
+    if (startMs === null || endMs === null) {
+      console.log(`[SKIP_EVENT] Could not parse times for event ${ev.id || 'unknown'}`);
+      continue;
+    }
+    
+    // Check for overlap: event_start < window_end AND event_end > window_start
+    const hasOverlap = startMs < windowEndMs && endMs > windowStartMs;
+    
+    if (hasOverlap) {
+      conflicts.push(ev);
+      details.push({
+        id: ev.id,
+        title: ev.title,
+        status,
+        start_ms: startMs,
+        end_ms: endMs,
+        start_iso: new Date(startMs).toISOString(),
+        end_iso: new Date(endMs).toISOString(),
+      });
+    }
   }
+  
+  return { conflicts, details };
+}
 
-  // Test 14: Query params extraction
-  {
-    const testUrl = "https://example.com?booking_type=hourly&date=2026-02-06&start_time=18:00&end_time=22:00&timezone=America/New_York";
-    const extracted = extractFromQueryParams(testUrl);
-    const pass = extracted.booking_type === "hourly" && extracted.date === "2026-02-06" && extracted.start_time === "18:00";
-    assert("query_params_fallback", pass, { extracted, expected: { booking_type: "hourly", date: "2026-02-06", start_time: "18:00" } });
+// ============= LOGGING =============
+
+function logBody(label: string, body: unknown) {
+  try {
+    const str = JSON.stringify(body);
+    if (str.length <= 1500) {
+      console.log(`[${label}]`, str);
+    } else {
+      console.log(`[${label}]`, str.substring(0, 1500) + `... (truncated, total ${str.length} chars)`);
+    }
+  } catch {
+    console.log(`[${label}]`, String(body).substring(0, 500));
   }
+}
 
-  // Test 15: Query params extraction with aliases
+// ============= SELF-TESTS =============
+
+function runSelfTests(): { passed: boolean; results: { name: string; passed: boolean; details?: unknown }[] } {
+  const results: { name: string; passed: boolean; details?: unknown }[] = [];
+  
+  const assert = (name: string, pass: boolean, details?: unknown) => {
+    results.push({ name, passed: pass, details });
+  };
+  
+  // Test 1: Parse epoch seconds
   {
-    const testUrl = "https://example.com?bookingType=daily&Date=2026-03-15&tz=America/New_York";
-    const extracted = extractFromQueryParams(testUrl);
-    const pass = extracted.booking_type === "daily" && extracted.date === "2026-03-15" && extracted.timezone === "America/New_York";
-    assert("query_params_aliases", pass, { extracted, expected: { booking_type: "daily", date: "2026-03-15", timezone: "America/New_York" } });
+    const secondsStr = "1736539200";
+    const ms = parseEventTimeToMs(secondsStr);
+    const pass = ms === 1736539200000;
+    assert("parse_epoch_seconds_string", pass, { input: secondsStr, output: ms, expected: 1736539200000 });
+  }
+  
+  // Test 2: Parse epoch seconds number
+  {
+    const secondsNum = 1736539200;
+    const ms = parseEventTimeToMs(secondsNum);
+    const pass = ms === 1736539200000;
+    assert("parse_epoch_seconds_number", pass, { input: secondsNum, output: ms, expected: 1736539200000 });
+  }
+  
+  // Test 3: Parse epoch ms
+  {
+    const msNum = 1736539200000;
+    const ms = parseEventTimeToMs(msNum);
+    const pass = ms === 1736539200000;
+    assert("parse_epoch_ms", pass, { input: msNum, output: ms });
+  }
+  
+  // Test 4: Parse ISO string
+  {
+    const iso = "2026-02-06T18:00:00-05:00";
+    const ms = parseEventTimeToMs(iso);
+    const pass = ms !== null && !isNaN(ms);
+    assert("parse_iso_string", pass, { input: iso, output: ms });
+  }
+  
+  // Test 5: Extract from wrapped value
+  {
+    const wrapped = { value: "1736539200" };
+    const ms = parseEventTimeToMs(wrapped as any);
+    const pass = ms === 1736539200000;
+    assert("parse_wrapped_value", pass, { input: wrapped, output: ms });
+  }
+  
+  // Test 6: Overlap detection
+  {
+    const windowStart = Date.parse("2026-02-06T18:00:00Z");
+    const windowEnd = Date.parse("2026-02-06T22:00:00Z");
+    
+    const eventStart = Date.parse("2026-02-06T20:00:00Z");
+    const eventEnd = Date.parse("2026-02-06T23:00:00Z");
+    
+    const hasOverlap = eventStart < windowEnd && eventEnd > windowStart;
+    assert("overlap_detection", hasOverlap, { windowStart, windowEnd, eventStart, eventEnd });
+  }
+  
+  // Test 7: Extract from query params
+  {
+    const url = "https://example.com/test?booking_type=hourly&date=2026-02-06&start_time=6:00 PM&end_time=10:00 PM";
+    const params = extractFromQueryParams(url);
+    const pass = params.booking_type === "hourly" && params.date === "2026-02-06";
+    assert("extract_query_params", pass, { params });
   }
 
   return { passed: results.every(r => r.passed), results };
@@ -711,7 +753,7 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // NEW: Handle non-POST methods with 200 (not 405) to avoid GHL marking as failed
+  // Handle non-POST with 200 (not 405) to avoid GHL marking as failed
   if (req.method !== 'POST') {
     return new Response(
       JSON.stringify({ 
@@ -724,7 +766,7 @@ serve(async (req) => {
     );
   }
 
-  // Auth check (accept multiple header formats)
+  // Auth check
   const expectedSecret = Deno.env.get('VOICE_AGENT_WEBHOOK_SECRET');
   const secretFromCustomHeader = req.headers.get('x-voice-agent-secret');
   const authHeader = req.headers.get('authorization');
@@ -734,7 +776,6 @@ serve(async (req) => {
 
   if (!providedSecret || !expectedSecret || providedSecret !== expectedSecret) {
     console.log('[AUTH] Invalid or missing secret');
-    // Return 200 with ok:false so GHL can save the action
     return new Response(JSON.stringify({ ok: false, available: null, error: "auth_failed", message: "Invalid or missing authentication" }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -748,38 +789,44 @@ serve(async (req) => {
 
   // Parse body
   const rawText = await req.text().catch(() => "");
-  console.log("[RAW_TEXT]", rawText.substring(0, 800));
-
   const parsed = parseBodyText(rawText);
-  console.log(`[BODY_PARSE] mode=${parsed.mode}${parsed.error ? ` error=${parsed.error}` : ""}`);
-  logBody("PARSED_BODY", parsed.body);
+  
+  // Log compact request summary
+  const url = new URL(req.url);
+  const queryKeys = Array.from(url.searchParams.keys());
+  const topBodyKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 10) : [];
+  console.log(`[REQUEST] ${req.method} ${url.pathname} | hasBody:${rawText.length > 0} | parseMode:${parsed.mode} | queryKeys:[${queryKeys.join(',')}] | topBodyKeys:[${topBodyKeys.join(',')}]`);
 
-  // NEW: Fallback to query params if body is empty
+  // ULTRA TOLERANT PARSING: Fallback to query params and headers
   const isEmpty = isPayloadEmpty(parsed);
   if (isEmpty) {
+    console.log("[FALLBACK] Body is empty, trying query params...");
     const queryParams = extractFromQueryParams(req.url);
     
-    if (queryParams.booking_type && queryParams.date) {
-      // Use query params as body
-      console.log("[FALLBACK] Using query params as payload");
+    if (Object.keys(queryParams).length > 0) {
+      console.log(`[FALLBACK] Found ${Object.keys(queryParams).length} query params, using as body`);
       parsed.body = queryParams;
       parsed.mode = "query";
     } else {
-      // Truly empty - cannot proceed
-      console.log("[MISSING_PAYLOAD] No body and no query params with required fields");
-      return buildMissingPayloadResponse(req, rawText, parsed, queryParams);
+      // Try headers as last resort
+      const headerPayload = extractFromHeaders(req);
+      if (Object.keys(headerPayload).length > 0) {
+        console.log(`[FALLBACK] Found payload in headers, merging`);
+        Object.assign(parsed.body, headerPayload);
+      } else {
+        // Truly empty - cannot proceed
+        console.log("[MISSING_PAYLOAD] No body, no query params, no header payload");
+        return buildMissingPayloadResponse(req, rawText, parsed, queryParams);
+      }
     }
   }
 
   const receivedKeys = collectAllKeysDeep(parsed.body);
-  console.log("[RECEIVED_KEYS]", receivedKeys.slice(0, 120).join(", "));
-
   const { normalized, mapping } = normalizePayload(parsed.body);
-  console.log("[NORMALIZED]", JSON.stringify({ normalized, mapping }));
 
-  const receivedBodyShape: AnyRecord = { parse_mode: parsed.mode, parse_error: parsed.error ?? null, top_level_keys: isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 80) : [], body: parsed.body };
+  console.log("[NORMALIZED]", JSON.stringify(normalized));
 
-  // Validation
+  // Validation - NEVER return available=true if validation fails
   const missingFields: string[] = [];
   if (!normalized.booking_type) missingFields.push("booking_type");
   if (!normalized.date) missingFields.push("date");
@@ -794,149 +841,162 @@ serve(async (req) => {
 
   if (missingFields.length > 0) {
     console.log("[VALIDATION] Failed:", missingFields);
-    return buildOkFalseResponse({ error: "validation_failed", missing_fields: missingFields, receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
-  }
-
-  // Get GHL config
-  const ghlToken = Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN");
-  const locationId = Deno.env.get("GHL_LOCATION_ID");
-
-  if (!ghlToken || !locationId) {
-    console.error("[CONFIG] Missing GHL_PRIVATE_INTEGRATION_TOKEN or GHL_LOCATION_ID");
-    return buildOkFalseResponse({ error: "config_missing", missing_fields: [], receivedBodyShape: { ...receivedBodyShape, config: { hasToken: !!ghlToken, hasLocationId: !!locationId } }, receivedKeys, normalized, mapping: mapping as AnyRecord });
-  }
-
-  const tz = normalized.timezone || DEFAULT_TIMEZONE;
-
-  // Calculate time range
-  let startMs: number, endMs: number;
-
-  if (normalized.booking_type === "daily") {
-    const range = getDailyRange(normalized.date!, tz);
-    if (!range) return buildOkFalseResponse({ error: "validation_failed", missing_fields: ["date (could not compute day range)"], receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
-    startMs = range.startMs;
-    endMs = range.endMs;
-  } else {
-    const range = getHourlyRange(normalized.date!, normalized.start_time!, normalized.end_time!, tz);
-    if (!range) return buildOkFalseResponse({ error: "validation_failed", missing_fields: ["time_range"], receivedBodyShape, receivedKeys, normalized, mapping: mapping as AnyRecord });
-    startMs = range.startMs;
-    endMs = range.endMs;
-  }
-
-  console.log(`[CHECK] type=${normalized.booking_type} date=${normalized.date} tz=${tz} windowMs=${startMs}..${endMs}`);
-
-  // Query BOTH endpoints
-  const [eventsResult, blockedResult] = await Promise.all([
-    getCalendarEvents(locationId, startMs, endMs, ghlToken),
-    getBlockedSlots(locationId, startMs, endMs, ghlToken),
-  ]);
-
-  // Check for upstream errors - NEVER say available=true if we can't verify
-  const hasEventsError = !!eventsResult.error;
-  const hasBlockedError = !!blockedResult.error;
-
-  if (hasEventsError && hasBlockedError) {
-    console.error("[UPSTREAM] Both GHL calls failed");
-    return buildOkFalseResponse({
-      error: "upstream_unverified",
-      missing_fields: [],
-      receivedBodyShape: { ...receivedBodyShape, events_error: eventsResult.error, blocked_error: blockedResult.error },
-      receivedKeys,
-      normalized,
-      mapping: mapping as AnyRecord,
-      debug: { events_raw: eventsResult.rawResponse, blocked_raw: blockedResult.rawResponse },
+    return buildOkFalseResponse({ 
+      error: "validation_failed", 
+      missing_fields: missingFields, 
+      received_keys: receivedKeys.slice(0, 50),
+      normalized, 
+      mapping,
+      parse_mode: parsed.mode,
+      query_keys: queryKeys,
     });
   }
 
-  // Even if blocked-slots fails, if events succeeded we can still check
-  // But if events failed, we CANNOT trust the result
-  if (hasEventsError) {
-    console.error("[UPSTREAM] /calendars/events failed, cannot verify availability");
-    return buildOkFalseResponse({
-      error: "upstream_unverified",
-      missing_fields: [],
-      receivedBodyShape: { ...receivedBodyShape, events_error: eventsResult.error },
-      receivedKeys,
-      normalized,
-      mapping: mapping as AnyRecord,
-      debug: { events_raw: eventsResult.rawResponse, blocked_events_count: blockedResult.events.length },
+  // Get GHL credentials
+  const ghlToken = Deno.env.get('GHL_API_TOKEN');
+  const ghlLocationId = Deno.env.get('GHL_LOCATION_ID');
+
+  if (!ghlToken || !ghlLocationId) {
+    console.error('[CONFIG] Missing GHL credentials');
+    return buildOkFalseResponse({ 
+      error: "config_error", 
+      message: "GHL API not configured" 
     });
   }
 
-  // Merge events from both sources
-  const allEvents: GHLEvent[] = [...eventsResult.events, ...blockedResult.events];
-  console.log(`[EVENTS] events_count=${eventsResult.events.length} blocked_count=${blockedResult.events.length} total=${allEvents.length}`);
+  // Build date range for query
+  const dateRange = buildDateRangeForQuery(
+    normalized.date!,
+    normalized.start_time,
+    normalized.end_time,
+    normalized.timezone!
+  );
 
-  // Defensive logs (no secrets)
-  console.log(`[DEBUG] window_start_ms=${startMs} window_end_ms=${endMs}`);
-  console.log(`[DEBUG] events_count=${eventsResult.events.length} blocked_count=${blockedResult.events.length}`);
-
-  // Log 2 sample events with original and normalized times
-  if (allEvents.length > 0) {
-    const samples = allEvents.slice(0, 2).map(ev => ({
-      id: ev.id,
-      startTime_original: ev.startTime,
-      endTime_original: ev.endTime,
-      startTime_ms: parseEventTimeToMs(ev.startTime),
-      endTime_ms: parseEventTimeToMs(ev.endTime),
-    }));
-    console.log(`[DEBUG] sample_events=`, JSON.stringify(samples));
-  }
-
-  // ANTI-FALSE-POSITIVE: If calendar returned zero events, cannot verify availability
-  if (eventsResult.events.length === 0 && blockedResult.events.length === 0) {
-    console.warn("[ANTI-FALSE-POSITIVE] Calendar returned zero events - cannot verify availability");
-    return buildOkFalseResponse({
-      error: "unverified_empty_calendar",
-      missing_fields: [],
-      receivedBodyShape: { ...receivedBodyShape, warning: "Calendar returned no events - availability unverified" },
-      receivedKeys,
-      normalized,
-      mapping: mapping as AnyRecord,
-      debug: { 
-        events_count: 0, 
-        blocked_count: 0,
-        window_start_ms: startMs,
-        window_end_ms: endMs 
-      },
+  if (!dateRange) {
+    return buildOkFalseResponse({ 
+      error: "date_parse_error", 
+      message: "Could not build date range" 
     });
   }
 
-  // Find conflicts
-  const conflicts = filterConflictingEvents(allEvents, startMs, endMs);
-  console.log(`[CONFLICTS] found=${conflicts.length}`);
+  const windowStartMs = Date.parse(dateRange.start);
+  const windowEndMs = Date.parse(dateRange.end);
 
-  const available = conflicts.length === 0;
+  console.log(`[QUERY_WINDOW] ${dateRange.start} to ${dateRange.end} (${windowStartMs} - ${windowEndMs})`);
 
-  // Build sample events for debug (include original + converted timestamps)
-  const sampleEvents = conflicts.slice(0, 2).map(ev => ({
-    id: ev.id ?? null,
-    title: ev.title ?? null,
-    startTime_original: ev.startTime ?? null,
-    endTime_original: ev.endTime ?? null,
-    startTime_ms: parseEventTimeToMs(ev.startTime),
-    endTime_ms: parseEventTimeToMs(ev.endTime),
-  }));
+  // Fetch events and blocked slots
+  let events: GHLEvent[] = [];
+  let blockedSlots: unknown[] = [];
+  let eventsRaw: unknown = null;
+  let blockedRaw: unknown = null;
+
+  try {
+    const eventsResult = await fetchGHLEvents(
+      GHL_CALENDAR_ID,
+      dateRange.start,
+      dateRange.end,
+      ghlLocationId,
+      ghlToken
+    );
+    events = eventsResult.events;
+    eventsRaw = eventsResult.raw;
+    
+    console.log(`[GHL_EVENTS] Fetched ${events.length} events`);
+  } catch (err) {
+    console.error('[GHL_EVENTS] Fetch failed:', err);
+    return buildOkFalseResponse({
+      error: "ghl_fetch_error", 
+      message: "Could not fetch calendar events", 
+      detail: String(err) 
+    });
+  }
+
+  try {
+    const blockedResult = await fetchGHLBlockedSlots(
+      GHL_CALENDAR_ID,
+      normalized.date!,
+      normalized.date!,
+      normalized.timezone!,
+      ghlToken
+    );
+    blockedSlots = blockedResult.slots;
+    blockedRaw = blockedResult.raw;
+    
+    console.log(`[GHL_BLOCKED] Fetched ${blockedSlots.length} blocked slots`);
+  } catch (err) {
+    console.warn('[GHL_BLOCKED] Fetch failed (non-fatal):', err);
+  }
+
+  // ANTI-FALSE-POSITIVE: If no events and no blocked slots, we can't verify availability
+  if (events.length === 0 && blockedSlots.length === 0) {
+    console.log("[UNVERIFIED] No events and no blocked slots returned - cannot confirm availability");
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        available: null,
+        error: "unverified_empty_calendar",
+        message: "Could not verify availability - calendar returned no data",
+        assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The calendar appears empty which may indicate a sync issue. Ask the customer to call directly or try again.",
+        debug: {
+          checked_calendar_id: GHL_CALENDAR_ID,
+          window_start_ms: windowStartMs,
+          window_end_ms: windowEndMs,
+          window_start_iso: dateRange.start,
+          window_end_iso: dateRange.end,
+          events_count: 0,
+          blocked_count: 0,
+      normalized,
+        },
+      }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  // Check for conflicts
+  const { conflicts, details } = filterConflictingEvents(events, windowStartMs, windowEndMs);
+  
+  console.log(`[CONFLICTS] Found ${conflicts.length} conflicting events`);
+
+  // Build sample events for debug
+  const sampleEvents = details.slice(0, 3);
+
+  // Determine availability
+  const hasBlockedSlots = blockedSlots.length > 0;
+  const hasConflicts = conflicts.length > 0;
+  const available = !hasConflicts && !hasBlockedSlots;
 
   const response = {
     ok: true,
     available,
     reason: available
-      ? "No conflicts found - time slot is available"
-      : `Found ${conflicts.length} conflict(s) in the requested window`,
-    checked_calendar_id: GHL_CALENDAR_ID,
-    window_start_ms: startMs,
-    window_end_ms: endMs,
-    timezone: tz,
-    events_count: eventsResult.events.length,
-    blocked_count: blockedResult.events.length,
+      ? "No conflicts found for requested time" 
+      : hasConflicts 
+        ? `Found ${conflicts.length} existing booking(s) during requested time` 
+        : "Time slot is blocked",
     conflicts_count: conflicts.length,
+    blocked_slots_count: blockedSlots.length,
+    assistant_instruction: available 
+      ? "This time slot IS AVAILABLE. You may proceed with the booking." 
+      : "This time slot IS NOT AVAILABLE. Suggest alternative dates or times.",
+    debug: {
+      checked_calendar_id: GHL_CALENDAR_ID,
+      window_start_ms: windowStartMs,
+      window_end_ms: windowEndMs,
+      window_start_iso: dateRange.start,
+      window_end_iso: dateRange.end,
+      events_count: events.length,
+      blocked_count: blockedSlots.length,
     sample_events: sampleEvents,
+      parse_mode: parsed.mode,
+      query_keys: queryKeys,
     normalized,
-    debug: { mapping },
+    },
   };
 
-  console.log(`[RESULT] ok=true available=${available} conflicts=${conflicts.length}`);
+  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}, blocked=${blockedSlots.length}`);
 
-  return new Response(JSON.stringify(response), { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  return new Response(
+    JSON.stringify(response),
+    { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+  );
 });
