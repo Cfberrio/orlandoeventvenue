@@ -624,6 +624,89 @@ async function fetchGHLBlockedSlots(calendarId: string, startDate: string, endDa
   return { slots, raw: data };
 }
 
+// ============= GHL CONFIG WITH FALLBACKS =============
+
+interface GhlConfig {
+  token: string;
+  locationId: string;
+  calendarId: string;
+  debug: {
+    hasToken: boolean;
+    hasLocationId: boolean;
+    hasCalendarId: boolean;
+    tokenSourceKey: string | null;
+    locationSourceKey: string | null;
+    calendarSourceKey: string | null;
+    ghlEnvKeysPresent: string[];
+  };
+}
+
+function getGhlConfig(): GhlConfig {
+  // Token fallbacks
+  const tokenKeys = ["GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN"];
+  let token = "";
+  let tokenSourceKey: string | null = null;
+  
+  for (const key of tokenKeys) {
+    const val = (Deno.env.get(key) ?? "").trim();
+    if (val.length > 0) {
+      token = val;
+      tokenSourceKey = key;
+      break;
+    }
+  }
+  
+  // Location fallbacks
+  const locationKeys = ["GHL_LOCATION_ID", "GHL_SUBACCOUNT_ID", "GHL_ACCOUNT_ID"];
+  let locationId = "";
+  let locationSourceKey: string | null = null;
+  
+  for (const key of locationKeys) {
+    const val = (Deno.env.get(key) ?? "").trim();
+    if (val.length > 0) {
+      locationId = val;
+      locationSourceKey = key;
+      break;
+    }
+  }
+  
+  // Calendar fallback
+  const calendarFromEnv = (Deno.env.get("GHL_CALENDAR_ID") ?? "").trim();
+  const calendarId = calendarFromEnv || GHL_CALENDAR_ID;
+  const calendarSourceKey = calendarFromEnv ? "GHL_CALENDAR_ID" : "hardcoded";
+  
+  // List all GHL_* keys present (without values)
+  const ghlEnvKeysPresent: string[] = [];
+  const allPossibleKeys = [
+    ...tokenKeys, 
+    ...locationKeys, 
+    "GHL_CALENDAR_ID",
+    "GHL_API_KEY",
+    "GHL_API_TOKEN"
+  ];
+  
+  for (const key of allPossibleKeys) {
+    if (Deno.env.get(key) !== undefined && Deno.env.get(key) !== null) {
+      ghlEnvKeysPresent.push(key);
+    }
+  }
+  
+  return {
+    token,
+    locationId,
+    calendarId,
+    debug: {
+      hasToken: token.length > 0,
+      hasLocationId: locationId.length > 0,
+      hasCalendarId: calendarId.length > 0,
+      tokenSourceKey,
+      locationSourceKey,
+      calendarSourceKey,
+      ghlEnvKeysPresent
+    }
+  };
+}
+
 // ============= CONFLICT DETECTION =============
 
 function filterConflictingEvents(events: GHLEvent[], windowStartMs: number, windowEndMs: number): { conflicts: GHLEvent[]; details: unknown[] } {
@@ -743,6 +826,61 @@ function runSelfTests(): { passed: boolean; results: { name: string; passed: boo
     assert("extract_query_params", pass, { params });
   }
 
+  // Test 8: getGhlConfig with GHL_PRIVATE_INTEGRATION_TOKEN
+  {
+    const originalGet = Deno.env.get;
+    try {
+      // Mock env
+      Deno.env.get = (key: string) => {
+        if (key === "GHL_PRIVATE_INTEGRATION_TOKEN") return "test_token_123";
+        if (key === "GHL_LOCATION_ID") return "test_loc_456";
+        return originalGet(key);
+      };
+      
+      const cfg = getGhlConfig();
+      const pass = cfg.debug.hasToken && cfg.debug.tokenSourceKey === "GHL_PRIVATE_INTEGRATION_TOKEN";
+      assert("env_resolution_primary_token", pass, { tokenSource: cfg.debug.tokenSourceKey });
+    } finally {
+      Deno.env.get = originalGet;
+    }
+  }
+
+  // Test 9: getGhlConfig fallback to GHL_BACKEND_TOKEN
+  {
+    const originalGet = Deno.env.get;
+    try {
+      Deno.env.get = (key: string) => {
+        if (key === "GHL_BACKEND_TOKEN") return "backend_token_789";
+        if (key === "GHL_LOCATION_ID") return "test_loc_456";
+        return originalGet(key);
+      };
+      
+      const cfg = getGhlConfig();
+      const pass = cfg.debug.hasToken && cfg.debug.tokenSourceKey === "GHL_BACKEND_TOKEN";
+      assert("env_resolution_fallback_token", pass, { tokenSource: cfg.debug.tokenSourceKey });
+    } finally {
+      Deno.env.get = originalGet;
+    }
+  }
+
+  // Test 10: getGhlConfig fallback location
+  {
+    const originalGet = Deno.env.get;
+    try {
+      Deno.env.get = (key: string) => {
+        if (key === "GHL_PRIVATE_INTEGRATION_TOKEN") return "test_token";
+        if (key === "GHL_SUBACCOUNT_ID") return "subaccount_999";
+        return originalGet(key);
+      };
+      
+      const cfg = getGhlConfig();
+      const pass = cfg.debug.hasLocationId && cfg.debug.locationSourceKey === "GHL_SUBACCOUNT_ID";
+      assert("env_resolution_fallback_location", pass, { locationSource: cfg.debug.locationSourceKey });
+    } finally {
+      Deno.env.get = originalGet;
+    }
+  }
+
   return { passed: results.every(r => r.passed), results };
 }
 
@@ -768,10 +906,10 @@ serve(async (req) => {
 
   // Read and normalize env vars (TRIM whitespace)
   const voiceSecret = (Deno.env.get("VOICE_AGENT_WEBHOOK_SECRET") ?? "").trim();
-  const ghlToken = (Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN") ?? "").trim();
-  const locationId = (Deno.env.get("GHL_LOCATION_ID") ?? "").trim();
-  const calendarIdFromEnv = (Deno.env.get("GHL_CALENDAR_ID") ?? "").trim();
-  const calendarIdEffective = calendarIdFromEnv || GHL_CALENDAR_ID;
+  const cfg = getGhlConfig();
+  const ghlToken = cfg.token;
+  const locationId = cfg.locationId;
+  const calendarIdEffective = cfg.calendarId;
 
   // Auth check
   const secretFromCustomHeader = req.headers.get('x-voice-agent-secret');
@@ -799,30 +937,18 @@ serve(async (req) => {
     return new Response(JSON.stringify({ ok: true, self_test: testResults.passed ? 'PASS' : 'FAIL', results: testResults.results }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
-  // ENV diagnostic mode
-  const debugEnv = req.headers.get('x-debug-env');
-  if (debugEnv === 'true') {
+  // ENV diagnostic mode (header OR query param)
+  const url = new URL(req.url);
+  const debugEnvHeader = req.headers.get('x-debug-env');
+  const debugEnvQuery = url.searchParams.get('debug_env');
+  const debugEnv = debugEnvHeader === 'true' || debugEnvQuery === '1';
+
+  if (debugEnv) {
     return new Response(JSON.stringify({
       ok: false,
       available: null,
       error: "debug_env",
-      env: {
-        hasVoiceSecret: voiceSecret.length > 0,
-        hasGhlToken: ghlToken.length > 0,
-        hasLocationId: locationId.length > 0,
-        hasCalendarId: calendarIdFromEnv.length > 0,
-        keyNamesUsed: {
-          voice: "VOICE_AGENT_WEBHOOK_SECRET",
-          ghlToken: "GHL_PRIVATE_INTEGRATION_TOKEN",
-          location: "GHL_LOCATION_ID",
-          calendar: "GHL_CALENDAR_ID"
-        },
-        lengths: {
-          ghlTokenLen: ghlToken.length,
-          locationIdLen: locationId.length,
-          calendarIdLen: calendarIdFromEnv.length
-        }
-      }
+      debug: cfg.debug
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
@@ -831,7 +957,6 @@ serve(async (req) => {
   const parsed = parseBodyText(rawText);
   
   // Log compact request summary
-  const url = new URL(req.url);
   const queryKeys = Array.from(url.searchParams.keys());
   const topBodyKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 10) : [];
   console.log(`[REQUEST] ${req.method} ${url.pathname} | hasBody:${rawText.length > 0} | parseMode:${parsed.mode} | queryKeys:[${queryKeys.join(',')}] | topBodyKeys:[${topBodyKeys.join(',')}]`);
@@ -892,27 +1017,17 @@ serve(async (req) => {
   }
 
   // Config check (SEPARATE from auth)
-  if (ghlToken.length === 0 || locationId.length === 0) {
-    console.error('[CONFIG] Missing GHL credentials:', { 
-      hasToken: ghlToken.length > 0, 
-      tokenLen: ghlToken.length,
-      hasLocation: locationId.length > 0,
-      locationLen: locationId.length
-    });
+  if (!cfg.debug.hasToken || !cfg.debug.hasLocationId) {
+    console.error('[CONFIG] Missing GHL credentials:', cfg.debug);
     return buildOkFalseResponse({ 
-      error: "config_missing", 
-      message: "Missing GHL_PRIVATE_INTEGRATION_TOKEN or GHL_LOCATION_ID",
-      assistant_instruction: "DO NOT CONFIRM AVAILABILITY",
-      debug: {
-        hasGhlToken: ghlToken.length > 0,
-        hasLocationId: locationId.length > 0,
-        ghlTokenLen: ghlToken.length,
-        locationIdLen: locationId.length
-      }
+      error: "config_error",
+      message: "GHL API not configured",
+      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Offer booking link or callback. System cannot read GHL credentials.",
+      debug: cfg.debug
     });
   }
 
-  console.log(`[CONFIG] hasToken=${ghlToken.length > 0} lenToken=${ghlToken.length} hasLocation=${locationId.length > 0} lenLoc=${locationId.length} calendarId=${calendarIdEffective}`);
+  console.log(`[ENV] hasToken=${cfg.debug.hasToken} tokenKey=${cfg.debug.tokenSourceKey} hasLocationId=${cfg.debug.hasLocationId} locationKey=${cfg.debug.locationSourceKey} calendarKey=${cfg.debug.calendarSourceKey} keys=[${cfg.debug.ghlEnvKeysPresent.join(',')}]`);
 
   // Build date range for query
   const dateRange = buildDateRangeForQuery(
@@ -1052,35 +1167,43 @@ serve(async (req) => {
 });
 
 /*
-VERIFICACIÓN DE ENV VARS:
+VERIFICACIÓN DE ENV VARS CON FALLBACKS:
 
-Para diagnosticar problemas de configuración, ejecutar:
+1. Test modo debug (muestra qué env vars están presentes):
 
-curl -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
-  -H "x-voice-agent-secret: <TU_VOICE_AGENT_WEBHOOK_SECRET>" \
-  -H "x-debug-env: true"
+curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability?debug_env=1" \
+  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "Content-Type: application/json" \
+  -d "{}"
 
-Debe retornar:
+Esperado:
 {
   "ok": false,
   "error": "debug_env",
-  "env": {
-    "hasGhlToken": true,
-    "hasLocationId": true,
-    "hasCalendarId": true,
-    "lengths": {
-      "ghlTokenLen": 50+,
-      "locationIdLen": 20+
-    }
+  "debug": {
+    "hasToken": true/false,
+    "hasLocationId": true/false,
+    "tokenSourceKey": "GHL_PRIVATE_INTEGRATION_TOKEN" o "GHL_BACKEND_TOKEN" o null,
+    "locationSourceKey": "GHL_LOCATION_ID" o "GHL_SUBACCOUNT_ID" o null,
+    "ghlEnvKeysPresent": ["GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_LOCATION_ID", ...]
   }
 }
 
-Si hasGhlToken o hasLocationId es false, verificar secrets en:
-https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/settings/functions
+2. Test normal (daily booking):
 
-Secrets requeridos:
-- VOICE_AGENT_WEBHOOK_SECRET (para auth)
-- GHL_PRIVATE_INTEGRATION_TOKEN (para GHL API)
-- GHL_LOCATION_ID (para GHL API)
-- GHL_CALENDAR_ID (opcional, usa hardcoded por defecto)
+curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
+  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "Content-Type: application/json" \
+  -d '{"booking_type":"daily","date":"2026-01-17","timezone":"America/New_York"}'
+
+3. Test self-tests (incluye tests de env resolution):
+
+curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
+  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "x-self-test: true"
+
+Diagnóstico en 20 segundos:
+- Si debug muestra hasToken:false, revisa qué keys están en ghlEnvKeysPresent
+- Si ghlEnvKeysPresent está vacío, los secrets no están configurados en Supabase
+- Si ghlEnvKeysPresent tiene keys pero hasToken es false, hay un problema de nombres
 */
