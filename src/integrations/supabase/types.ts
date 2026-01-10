@@ -992,6 +992,17 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      reschedule_booking: {
+        Args: {
+          p_actor_id?: string
+          p_booking_id: string
+          p_new_date: string
+          p_new_end_time?: string
+          p_new_start_time?: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       app_role: "admin" | "staff"
