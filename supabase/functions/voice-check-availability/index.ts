@@ -657,7 +657,7 @@ interface GhlConfig {
 
 function getGhlConfig(): GhlConfig {
   // Token fallbacks
-  const tokenKeys = ["GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN"];
+  const tokenKeys = ["GHL_READONLY_TOKEN", "GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN"];
   let token = "";
   let tokenSourceKey: string | null = null;
   
@@ -963,7 +963,7 @@ serve(async (req) => {
     // Get all env keys starting with GHL_
     const allEnvKeysSample: string[] = [];
     const potentialKeys = [
-      "GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN",
+      "GHL_READONLY_TOKEN", "GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN",
       "GHL_LOCATION_ID", "GHL_SUBACCOUNT_ID", "GHL_ACCOUNT_ID",
       "GHL_CALENDAR_ID", "GHL_API_KEY", "GHL_API_TOKEN"
     ];
@@ -980,6 +980,7 @@ serve(async (req) => {
       available: null,
       error: "debug_env",
       message: "env debug",
+      note: "This is env diagnostics only",
       debug: {
         hasToken: cfg.debug.hasToken,
         hasLocationId: cfg.debug.hasLocationId,
@@ -1073,7 +1074,7 @@ serve(async (req) => {
     console.error('[CONFIG] Missing GHL credentials:', cfg.debug);
     return buildOkFalseResponse({ 
       error: "config_error",
-      message: "GHL API not configured",
+      message: "Missing GHL token or locationId in env",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Offer booking link or callback. System cannot read GHL credentials.",
       debug: cfg.debug
     });
