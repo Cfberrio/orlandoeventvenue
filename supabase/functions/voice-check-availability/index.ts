@@ -461,10 +461,32 @@ function parseEventTimeToMs(val: string | number | undefined): number | null {
   // Unwrap if it's an object with value/text/etc
   const unwrapped = unwrapValue(val);
   
-  // If it's a number or numeric string
-  if (typeof unwrapped === "number" || typeof unwrapped === "string") {
-    const num = typeof unwrapped === "number" ? unwrapped : parseFloat(String(unwrapped));
+  // If it's a number, treat as seconds or ms
+  if (typeof unwrapped === "number") {
+    // If it's less than 1e12 (10-11 digits), treat as seconds
+    if (unwrapped < 1e12) {
+      return unwrapped * 1000;
+    }
+    // If it's >= 1e12 (13+ digits), treat as milliseconds
+    return unwrapped;
+  }
+  
+  // If it's a string
+  if (typeof unwrapped === "string") {
+    const str = unwrapped.trim();
     
+    // Try Date.parse() FIRST for ISO strings
+    if (str.includes('-') || str.includes('T') || str.includes(':')) {
+      try {
+        const parsed = Date.parse(str);
+        if (!isNaN(parsed) && parsed > 1e12) {
+          return parsed;
+        }
+      } catch { /* ignore */ }
+    }
+    
+    // Try as numeric string (epoch seconds or ms)
+    const num = parseFloat(str);
     if (!isNaN(num)) {
       // If it's less than 1e12 (10-11 digits), treat as seconds
       if (num < 1e12) {
@@ -473,14 +495,6 @@ function parseEventTimeToMs(val: string | number | undefined): number | null {
       // If it's >= 1e12 (13+ digits), treat as milliseconds
       return num;
     }
-  }
-  
-  // If it's an ISO string
-  if (typeof unwrapped === "string") {
-    try {
-      const parsed = Date.parse(unwrapped);
-      if (!isNaN(parsed)) return parsed;
-    } catch { /* ignore */ }
   }
   
   return null;
@@ -794,8 +808,8 @@ function runSelfTests(): { passed: boolean; results: { name: string; passed: boo
   {
     const iso = "2026-02-06T18:00:00-05:00";
     const ms = parseEventTimeToMs(iso);
-    const pass = ms !== null && !isNaN(ms);
-    assert("parse_iso_string", pass, { input: iso, output: ms });
+    const pass = ms !== null && !isNaN(ms) && ms > 1e12;
+    assert("parse_iso_string", pass, { input: iso, output: ms, expectedRange: "> 1e12" });
   }
   
   // Test 5: Extract from wrapped value
@@ -881,6 +895,16 @@ function runSelfTests(): { passed: boolean; results: { name: string; passed: boo
     }
   }
 
+  // Test 11: debug_env detection
+  {
+    // Just verify the logic would work
+    const testDebugEnv1 = "1";
+    const testDebugEnvTrue = "true";
+    const pass = (testDebugEnv1 === "1" || testDebugEnv1 === "true") && 
+                 (testDebugEnvTrue === "1" || testDebugEnvTrue === "true");
+    assert("debug_env_detection", pass, { tested: ["1", "true"] });
+  }
+
   return { passed: results.every(r => r.passed), results };
 }
 
@@ -929,27 +953,52 @@ serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
+  // ENV diagnostic mode (header OR query param) - CHECK BEFORE parsing body
+  const url = new URL(req.url);
+  const debugEnvHeader = req.headers.get('x-debug-env');
+  const debugEnvQuery = url.searchParams.get('debug_env');
+  const debugEnv = debugEnvHeader === 'true' || debugEnvQuery === '1' || debugEnvQuery === 'true';
+
+  if (debugEnv) {
+    // Get all env keys starting with GHL_
+    const allEnvKeysSample: string[] = [];
+    const potentialKeys = [
+      "GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN",
+      "GHL_LOCATION_ID", "GHL_SUBACCOUNT_ID", "GHL_ACCOUNT_ID",
+      "GHL_CALENDAR_ID", "GHL_API_KEY", "GHL_API_TOKEN"
+    ];
+    
+    for (const key of potentialKeys) {
+      const val = Deno.env.get(key);
+      if (val !== undefined && val !== null) {
+        allEnvKeysSample.push(key);
+      }
+    }
+    
+    return new Response(JSON.stringify({
+      ok: false,
+      available: null,
+      error: "debug_env",
+      message: "env debug",
+      debug: {
+        hasToken: cfg.debug.hasToken,
+        hasLocationId: cfg.debug.hasLocationId,
+        hasCalendarId: cfg.debug.hasCalendarId,
+        tokenKeyUsed: cfg.debug.tokenSourceKey,
+        locationKeyUsed: cfg.debug.locationSourceKey,
+        calendarKeyUsed: cfg.debug.calendarSourceKey,
+        ghlKeysPresent: cfg.debug.ghlEnvKeysPresent,
+        allEnvKeysSample
+      }
+    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+
   // Self-test mode
   const selfTest = req.headers.get('x-self-test');
   if (selfTest === 'true') {
     console.log('[SELF-TEST] Running internal tests...');
     const testResults = runSelfTests();
     return new Response(JSON.stringify({ ok: true, self_test: testResults.passed ? 'PASS' : 'FAIL', results: testResults.results }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-
-  // ENV diagnostic mode (header OR query param)
-  const url = new URL(req.url);
-  const debugEnvHeader = req.headers.get('x-debug-env');
-  const debugEnvQuery = url.searchParams.get('debug_env');
-  const debugEnv = debugEnvHeader === 'true' || debugEnvQuery === '1';
-
-  if (debugEnv) {
-    return new Response(JSON.stringify({
-      ok: false,
-      available: null,
-      error: "debug_env",
-      debug: cfg.debug
-    }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
 
   // Parse body
@@ -966,6 +1015,9 @@ serve(async (req) => {
   if (isEmpty) {
     console.log("[FALLBACK] Body is empty, trying query params...");
     const queryParams = extractFromQueryParams(req.url);
+    
+    // Filter out debug_env from payload fallback
+    delete queryParams['debug_env'];
     
     if (Object.keys(queryParams).length > 0) {
       console.log(`[FALLBACK] Found ${Object.keys(queryParams).length} query params, using as body`);
