@@ -95,7 +95,7 @@ function toStringOrNull(val: unknown): string | null {
   return null;
 }
 
-function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown"; error?: string } {
+function parseBodyText(rawText: string): { body: AnyRecord; mode: "json" | "form" | "empty" | "unknown" | "query"; error?: string } {
   const text = (rawText ?? "").trim();
   if (!text) return { body: {}, mode: "empty" };
 

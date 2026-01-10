@@ -469,23 +469,25 @@ export default function BookingDetail() {
       const result = await response.json();
 
       if (!result.ok) {
-        if (result.error === "conflict") {
-          toast({
-            title: "Cannot reschedule",
-            description: `${result.message || "That date/time is already booked"}${
-              result.conflict_booking?.reservation_number
-                ? ` (Conflicting booking: ${result.conflict_booking.reservation_number})`
-                : ""
-            }`,
-            variant: "destructive",
-          });
-        } else {
-          toast({
-            title: "Reschedule failed",
-            description: result.message || result.error,
-            variant: "destructive",
-          });
-        }
+        // Handle specific error types from the RPC
+        const errorMessages: Record<string, string> = {
+          date_conflict: "That date is already reserved.",
+          daily_conflict: "That date has a full-day rental.",
+          time_overlap: "That time overlaps with another booking.",
+          times_required: "Start and end times are required for hourly bookings.",
+          invalid_time_range: "End time must be after start time.",
+          invalid_event_window: "Event window end time must be after start time.",
+        };
+        
+        const message = errorMessages[result.error] || result.message || "Unable to reschedule booking";
+        
+        toast({
+          title: "Cannot reschedule",
+          description: result.conflict 
+            ? `${message} (${result.conflict.guest || result.conflict.type || ''})` 
+            : message,
+          variant: "destructive",
+        });
         return;
       }
 
@@ -1603,14 +1605,15 @@ export default function BookingDetail() {
             </div>
 
             {/* Validation errors inline */}
-            {booking.booking_type === "daily" && 
-             rescheduleData.start_time && 
+            {rescheduleData.start_time && 
              rescheduleData.end_time && 
              rescheduleData.end_time <= rescheduleData.start_time && (
               <div className="flex items-start gap-2 p-3 bg-destructive/10 border border-destructive/30 rounded-lg">
                 <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
                 <p className="text-sm text-destructive">
-                  Event end time must be after start time
+                  {booking.booking_type === "daily" 
+                    ? "Event end time must be after start time" 
+                    : "End time must be after start time"}
                 </p>
               </div>
             )}
@@ -1630,6 +1633,7 @@ export default function BookingDetail() {
                 rescheduleLoading ||
                 !rescheduleData.date ||
                 (booking.booking_type === "hourly" && (!rescheduleData.start_time || !rescheduleData.end_time)) ||
+                (booking.booking_type === "hourly" && rescheduleData.start_time && rescheduleData.end_time && rescheduleData.end_time <= rescheduleData.start_time) ||
                 (booking.booking_type === "daily" && rescheduleData.start_time && rescheduleData.end_time && rescheduleData.end_time <= rescheduleData.start_time)
               }
             >
