@@ -587,6 +587,9 @@ function convertLocalToUTC(localDate: Date, timezone: string): Date {
 async function fetchGHLEvents(calendarId: string, startTime: string, endTime: string, locationId: string, ghlToken: string): Promise<{ events: GHLEvent[]; raw: unknown }> {
   const url = `${GHL_API_BASE}/calendars/events?calendarId=${encodeURIComponent(calendarId)}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}&locationId=${encodeURIComponent(locationId)}`;
   
+  console.log(`[GHL_REQUEST] GET ${url}`);
+  console.log(`[GHL_REQUEST] Token: ${ghlToken.slice(0, 8)}...${ghlToken.slice(-4)}`);
+  
   const resp = await fetch(url, {
     method: 'GET',
     headers: {
@@ -596,11 +599,16 @@ async function fetchGHLEvents(calendarId: string, startTime: string, endTime: st
     },
   });
   
+  console.log(`[GHL_RESPONSE] Status: ${resp.status} ${resp.statusText}`);
+  
   if (!resp.ok) {
+    const errorText = await resp.text();
+    console.error(`[GHL_ERROR] ${resp.status}: ${errorText}`);
     throw new Error(`GHL API error: ${resp.status} ${resp.statusText}`);
   }
   
   const data = await resp.json();
+  console.log(`[GHL_RESPONSE] Body keys: ${JSON.stringify(Object.keys(data || {}))}`);
   
   // Handle different response shapes
   let events: GHLEvent[] = [];
@@ -612,11 +620,15 @@ async function fetchGHLEvents(calendarId: string, startTime: string, endTime: st
     events = data.data;
   }
   
+  console.log(`[GHL_RESPONSE] Parsed ${events.length} events`);
+  
   return { events, raw: data };
 }
 
 async function fetchGHLBlockedSlots(calendarId: string, startDate: string, endDate: string, timezone: string, ghlToken: string): Promise<{ slots: unknown[]; raw: unknown }> {
   const url = `${GHL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/blocked-slots?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&timezone=${encodeURIComponent(timezone)}`;
+  
+  console.log(`[GHL_BLOCKED_REQUEST] GET ${url}`);
   
   const resp = await fetch(url, {
     method: 'GET',
@@ -627,13 +639,18 @@ async function fetchGHLBlockedSlots(calendarId: string, startDate: string, endDa
     },
   });
   
+  console.log(`[GHL_BLOCKED_RESPONSE] Status: ${resp.status}`);
+  
   if (!resp.ok) {
-    console.warn(`Blocked slots fetch failed: ${resp.status}`);
+    const errorText = await resp.text();
+    console.warn(`[GHL_BLOCKED_ERROR] ${resp.status}: ${errorText}`);
     return { slots: [], raw: null };
   }
   
   const data = await resp.json();
   const slots = Array.isArray(data) ? data : (Array.isArray(data?.slots) ? data.slots : []);
+  
+  console.log(`[GHL_BLOCKED_RESPONSE] Parsed ${slots.length} blocked slots`);
   
   return { slots, raw: data };
 }
