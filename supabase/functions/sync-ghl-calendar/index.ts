@@ -149,13 +149,14 @@ function calculateTimes(booking: BookingData): { startTime: string; endTime: str
 async function findGHLContactByEmail(
   locationId: string,
   email: string,
-  ghlToken: string
+  ghlToken: string,
+  tokenFingerprint: string | null
 ): Promise<string | null> {
   const url = `https://services.leadconnectorhq.com/contacts/search`;
   
   console.log(`Searching for GHL contact with email: ${email}`);
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${ghlToken}`,
@@ -167,7 +168,12 @@ async function findGHLContactByEmail(
       query: email,
       limit: 1,
     }),
-  });
+  }, 8000);
+
+  if (resp.status === 401) {
+    console.error(`[GHL][401] contacts search denied with token: ${tokenFingerprint}`);
+    throw new Error("ghl_scope_contacts_read_denied");
+  }
 
   if (!resp.ok) {
     console.log("GHL contact search failed, will try to create:", resp.status);
@@ -198,7 +204,8 @@ async function createGHLContact(
   email: string,
   name: string,
   phone: string | null,
-  ghlToken: string
+  ghlToken: string,
+  tokenFingerprint: string | null
 ): Promise<string> {
   const url = "https://services.leadconnectorhq.com/contacts";
   
@@ -215,7 +222,7 @@ async function createGHLContact(
 
   console.log("Creating GHL contact:", JSON.stringify(payload));
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${ghlToken}`,
@@ -223,7 +230,12 @@ async function createGHLContact(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
+  }, 8000);
+
+  if (resp.status === 401) {
+    console.error(`[GHL][401] contacts.write denied with token: ${tokenFingerprint}`);
+    throw new Error("ghl_scope_contacts_write_denied");
+  }
 
   if (!resp.ok) {
     const errText = await resp.text();
@@ -260,7 +272,8 @@ async function ensureContact(
   locationId: string,
   ghlToken: string,
   // deno-lint-ignore no-explicit-any
-  supabase: any
+  supabase: any,
+  tokenFingerprint: string | null
 ): Promise<string> {
   // Use existing contact ID if available (set by GHL webhook automation)
   if (booking.ghl_contact_id) {
@@ -290,7 +303,8 @@ async function ensureContact(
     email,
     name,
     booking.phone || null,
-    ghlToken
+    ghlToken,
+    tokenFingerprint
   );
   
   // Save contact ID to booking for future use
@@ -473,7 +487,8 @@ async function createAppointment(
   startTime: string,
   endTime: string,
   ghlToken: string,
-  staffResult: StaffSyncResult
+  staffResult: StaffSyncResult,
+  tokenFingerprint: string | null
 ): Promise<{ appointmentId: string }> {
   const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
   
@@ -529,7 +544,7 @@ async function createAppointment(
 
   console.log("Creating GHL appointment:", JSON.stringify(payload));
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${ghlToken}`,
@@ -537,7 +552,12 @@ async function createAppointment(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
+  }, 8000);
+
+  if (resp.status === 401) {
+    console.error(`[GHL][401] calendars.events.write denied with token: ${tokenFingerprint}`);
+    throw new Error("ghl_scope_calendars_events_write_denied");
+  }
 
   if (!resp.ok) {
     const errText = await resp.text();
@@ -564,7 +584,8 @@ async function updateAppointment(
   endTime: string,
   ghlToken: string,
   cancelled: boolean = false,
-  staffResult: StaffSyncResult
+  staffResult: StaffSyncResult,
+  tokenFingerprint: string | null
 ): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
@@ -620,7 +641,7 @@ async function updateAppointment(
 
   console.log("Updating GHL appointment:", appointmentId, JSON.stringify(payload));
 
-  const resp = await fetch(url, {
+  const resp = await fetchWithTimeout(url, {
     method: "PUT",
     headers: {
       "Authorization": `Bearer ${ghlToken}`,
@@ -628,7 +649,12 @@ async function updateAppointment(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
-  });
+  }, 8000);
+
+  if (resp.status === 401) {
+    console.error(`[GHL][401] calendars.events.write denied with token: ${tokenFingerprint}`);
+    throw new Error("ghl_scope_calendars_events_write_denied");
+  }
 
   if (!resp.ok) {
     const errText = await resp.text();
@@ -719,6 +745,78 @@ function extractBookingId(body: unknown): string | null {
   return null;
 }
 
+// ============= GHL CONFIG WITH DEBUG =============
+
+interface GhlConfig {
+  token: string;
+  locationId: string;
+  calendarId: string;
+  assignedUserId: string;
+  debug: {
+    hasToken: boolean;
+    hasLocationId: boolean;
+    hasCalendarId: boolean;
+    hasAssignedUserId: boolean;
+    tokenFingerprint: string | null;
+    locationId: string;
+    calendarId: string;
+    assignedUserId: string;
+  };
+}
+
+function getGhlConfig(): GhlConfig {
+  const token = (Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN") ?? "").trim();
+  const locationId = (Deno.env.get("GHL_LOCATION_ID") ?? "").trim();
+  const calendarId = (Deno.env.get("GHL_CALENDAR_ID") ?? "").trim();
+  const assignedUserId = (Deno.env.get("GHL_ASSIGNED_USER_ID") ?? "").trim();
+  
+  // Token fingerprint (primeros 8 + últimos 4 chars)
+  const tokenFingerprint = token.length > 12 
+    ? token.slice(0, 8) + "..." + token.slice(-4)
+    : null;
+  
+  return {
+    token,
+    locationId,
+    calendarId,
+    assignedUserId,
+    debug: {
+      hasToken: token.length > 0,
+      hasLocationId: locationId.length > 0,
+      hasCalendarId: calendarId.length > 0,
+      hasAssignedUserId: assignedUserId.length > 0,
+      tokenFingerprint,
+      locationId,  // Safe to expose (not a secret)
+      calendarId,  // Safe to expose
+      assignedUserId,  // Safe to expose
+    }
+  };
+}
+
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number = 8000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('GHL request timeout');
+    }
+    throw error;
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -741,6 +839,23 @@ serve(async (req) => {
     }
   }
 
+  // Debug env mode
+  const url = new URL(req.url);
+  const debugEnv = url.searchParams.get('debug_env') === '1' || req.headers.get('x-debug-env') === 'true';
+  
+  if (debugEnv) {
+    const cfg = getGhlConfig();
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: "debug_env",
+        message: "Environment diagnostics",
+        cfg: cfg.debug
+      }),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
+
   try {
     const rawBody = await req.json().catch(() => ({}));
     const booking_id = extractBookingId(rawBody);
@@ -760,12 +875,16 @@ serve(async (req) => {
     }
 
     // Get environment variables
-    const ghlToken = Deno.env.get("GHL_PRIVATE_INTEGRATION_TOKEN");
-    const locationId = Deno.env.get("GHL_LOCATION_ID");
-    const calendarId = Deno.env.get("GHL_CALENDAR_ID");
-    const assignedUserId = Deno.env.get("GHL_ASSIGNED_USER_ID");
+    const cfg = getGhlConfig();
+    const ghlToken = cfg.token;
+    const locationId = cfg.locationId;
+    const calendarId = cfg.calendarId;
+    const assignedUserId = cfg.assignedUserId;
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Log config status (without exposing full token)
+    console.log(`[CONFIG] hasToken=${cfg.debug.hasToken} tokenFP=${cfg.debug.tokenFingerprint} hasLocation=${cfg.debug.hasLocationId} location=${cfg.debug.locationId}`);
 
     if (!ghlToken || !locationId || !calendarId || !assignedUserId) {
       console.error("Missing GHL configuration");
@@ -827,7 +946,7 @@ serve(async (req) => {
     }
 
     // Ensure we have a contact (create if needed)
-    const contactId = await ensureContact(bookingData, locationId, ghlToken, supabase);
+    const contactId = await ensureContact(bookingData, locationId, ghlToken, supabase, cfg.debug.tokenFingerprint);
 
     let appointmentId = bookingData.ghl_appointment_id;
     let eventType: string;
@@ -845,7 +964,8 @@ serve(async (req) => {
         times?.endTime || "",
         ghlToken,
         true, // cancelled
-        staffResult
+        staffResult,
+        cfg.debug.tokenFingerprint
       );
       eventType = "ghl_appointment_cancelled";
     } else if (appointmentId && times) {
@@ -861,7 +981,8 @@ serve(async (req) => {
         times.endTime,
         ghlToken,
         false,
-        staffResult
+        staffResult,
+        cfg.debug.tokenFingerprint
       );
       eventType = "ghl_appointment_updated";
     } else if (times && !isCancelled) {
@@ -875,7 +996,8 @@ serve(async (req) => {
         times.startTime,
         times.endTime,
         ghlToken,
-        staffResult
+        staffResult,
+        cfg.debug.tokenFingerprint
       );
       appointmentId = result.appointmentId;
       eventType = "ghl_appointment_created";
@@ -931,8 +1053,59 @@ serve(async (req) => {
     );
 
   } catch (err: unknown) {
-    console.error("Error in sync-ghl-calendar:", err);
-    const errorMessage = err instanceof Error ? err.message : "Unknown error";
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.error("Sync failed:", errorMessage);
+    
+    // Check if it's a scope error
+    if (errorMessage.includes('ghl_scope_')) {
+      const which = errorMessage.includes('contacts') ? 'contacts.write' : 
+                    errorMessage.includes('calendars') ? 'calendars.events.write' : 
+                    'unknown';
+      
+      // Log to booking_events
+      try {
+        const cfg = getGhlConfig();
+        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+        const supabase = createClient(supabaseUrl, supabaseServiceKey);
+        
+        await supabase.from("booking_events").insert({
+          booking_id: booking_id,
+          event_type: "ghl_sync_scope_error",
+          metadata: {
+            error: errorMessage,
+            which,
+            tokenFingerprint: cfg.debug.tokenFingerprint,
+            statusCode: 401
+          }
+        });
+      } catch (logErr) {
+        console.error("Failed to log scope error:", logErr);
+      }
+      
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "ghl_scope_error",
+          message: "Token lacks required scope",
+          details: { which }
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
+    // Check if it's a timeout
+    if (errorMessage.includes('timeout')) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          error: "ghl_timeout",
+          message: "GHL API request timed out"
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
