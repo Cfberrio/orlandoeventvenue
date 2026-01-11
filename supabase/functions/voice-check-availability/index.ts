@@ -898,8 +898,8 @@ function runSelfTests(): { passed: boolean; results: { name: string; passed: boo
   // Test 11: debug_env detection
   {
     // Just verify the logic would work
-    const testDebugEnv1 = "1";
-    const testDebugEnvTrue = "true";
+    const testDebugEnv1: string = "1";
+    const testDebugEnvTrue: string = "true";
     const pass = (testDebugEnv1 === "1" || testDebugEnv1 === "true") && 
                  (testDebugEnvTrue === "1" || testDebugEnvTrue === "true");
     assert("debug_env_detection", pass, { tested: ["1", "true"] });

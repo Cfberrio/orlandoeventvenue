@@ -1062,26 +1062,8 @@ serve(async (req) => {
                     errorMessage.includes('calendars') ? 'calendars.events.write' : 
                     'unknown';
       
-      // Log to booking_events
-      try {
-        const cfg = getGhlConfig();
-        const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-        const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-        const supabase = createClient(supabaseUrl, supabaseServiceKey);
-        
-        await supabase.from("booking_events").insert({
-          booking_id: booking_id,
-          event_type: "ghl_sync_scope_error",
-          metadata: {
-            error: errorMessage,
-            which,
-            tokenFingerprint: cfg.debug.tokenFingerprint,
-            statusCode: 401
-          }
-        });
-      } catch (logErr) {
-        console.error("Failed to log scope error:", logErr);
-      }
+      // Log scope error (booking_id not in scope in catch block)
+      console.error("GHL scope error detected:", which, "error:", errorMessage);
       
       return new Response(
         JSON.stringify({
