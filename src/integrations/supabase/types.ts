@@ -499,6 +499,7 @@ export type Database = {
           ghl_appointment_id: string | null
           ghl_appointment_start_at: string | null
           ghl_assigned_user_id: string | null
+          ghl_blocked_slot_id: string | null
           ghl_calendar_id: string | null
           ghl_contact_id: string | null
           host_report_step: string | null
@@ -562,6 +563,7 @@ export type Database = {
           ghl_appointment_id?: string | null
           ghl_appointment_start_at?: string | null
           ghl_assigned_user_id?: string | null
+          ghl_blocked_slot_id?: string | null
           ghl_calendar_id?: string | null
           ghl_contact_id?: string | null
           host_report_step?: string | null
@@ -625,6 +627,7 @@ export type Database = {
           ghl_appointment_id?: string | null
           ghl_appointment_start_at?: string | null
           ghl_assigned_user_id?: string | null
+          ghl_blocked_slot_id?: string | null
           ghl_calendar_id?: string | null
           ghl_contact_id?: string | null
           host_report_step?: string | null
