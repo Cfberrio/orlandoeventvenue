@@ -356,12 +356,16 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
 
 // ============= NEW: MISSING PAYLOAD RESPONSE =============
 
-function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord) {
+function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord, isVoiceAgent: boolean) {
   const url = new URL(req.url);
   const queryKeys = Object.keys(queryParams);
   const topLevelKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 20) : [];
   
   const messageText = "I need more information to check availability";
+  
+  if (isVoiceAgent) {
+    return buildPlainTextResponse(messageText);
+  }
   
   return new Response(
     JSON.stringify({
@@ -401,10 +405,27 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
   );
 }
 
+// ============= PLAIN TEXT RESPONSE FOR VOICE AGENT =============
+
+function buildPlainTextResponse(message: string): Response {
+  return new Response(message, {
+    status: 200,
+    headers: { 
+      ...corsHeaders, 
+      'Content-Type': 'text/plain; charset=utf-8' 
+    }
+  });
+}
+
 // ============= NEW: OK FALSE VALIDATION RESPONSE =============
 
-function buildOkFalseResponse(data: AnyRecord, say?: string) {
+function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: boolean) {
   const messageText = say || "I need more information";
+  
+  if (isVoiceAgent) {
+    return buildPlainTextResponse(messageText);
+  }
+  
   return new Response(
     JSON.stringify({
       ok: false,
@@ -965,6 +986,13 @@ serve(async (req) => {
   // Handle non-POST with 200 (not 405) to avoid GHL marking as failed
   if (req.method !== 'POST') {
     const messageText = "Invalid request method";
+    
+    // Check for Voice Agent mode early (before auth, from method check)
+    const isVoiceAgentEarly = req.headers.get('x-voice-agent') === 'true';
+    if (isVoiceAgentEarly) {
+      return buildPlainTextResponse(messageText);
+    }
+    
     return new Response(
       JSON.stringify({ 
         ok: false, 
@@ -992,9 +1020,21 @@ serve(async (req) => {
   const secretFromApiKeyHeader = req.headers.get('x-api-key') ?? req.headers.get('x-api_key');
   const providedSecret = (secretFromCustomHeader?.trim()) || (secretFromApiKeyHeader?.trim()) || (secretFromBearer) || null;
 
+  // Detect Voice Agent mode BEFORE auth (need for auth error response)
+  const isVoiceAgent = req.headers.get('x-voice-agent') === 'true';
+  
+  if (isVoiceAgent) {
+    console.log('[VOICE_AGENT_MODE] Detected - will return plain text');
+  }
+
   if (!providedSecret || voiceSecret.length === 0 || providedSecret !== voiceSecret) {
     console.log('[AUTH] Invalid or missing secret');
     const messageText = "Authentication error";
+    
+    if (isVoiceAgent) {
+      return buildPlainTextResponse(messageText);
+    }
+    
     return new Response(JSON.stringify({ 
       ok: false, 
       available: null,
@@ -1008,6 +1048,10 @@ serve(async (req) => {
       error_message: "Invalid or missing authentication",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY"
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+  }
+  
+  if (isVoiceAgent) {
+    console.log('[VOICE_AGENT_MODE] Detected - will return plain text');
   }
 
   // ENV diagnostic mode (header OR query param) - CHECK BEFORE parsing body
@@ -1024,10 +1068,11 @@ serve(async (req) => {
       message: "Debug mode: Now using Supabase DB instead of GHL API",
       note: "voice-check-availability queries bookings table directly",
       debug: {
-        mode: "database_query",
+        mode: isVoiceAgent ? "voice_agent_plain_text" : "database_query",
         source: "supabase_bookings_table",
         has_supabase_url: !!Deno.env.get("SUPABASE_URL"),
-        has_supabase_key: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+        has_supabase_key: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+        is_voice_agent: isVoiceAgent
       }
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
@@ -1071,7 +1116,7 @@ serve(async (req) => {
       } else {
         // Truly empty - cannot proceed
         console.log("[MISSING_PAYLOAD] No body, no query params, no header payload");
-        return buildMissingPayloadResponse(req, rawText, parsed, queryParams);
+        return buildMissingPayloadResponse(req, rawText, parsed, queryParams, isVoiceAgent);
       }
     }
   }
@@ -1104,7 +1149,7 @@ serve(async (req) => {
       mapping,
       parse_mode: parsed.mode,
       query_keys: queryKeys,
-    }, "I need more information to check availability");
+    }, "I need more information to check availability", isVoiceAgent);
   }
 
   console.log(`[DB_MODE] Using Supabase DB for availability checking`);
@@ -1121,7 +1166,7 @@ serve(async (req) => {
     return buildOkFalseResponse({ 
       error: "date_parse_error", 
       message: "Could not build date range" 
-    }, "Invalid date format");
+    }, "Invalid date format", isVoiceAgent);
   }
 
   const windowStartMs = Date.parse(dateRange.start);
@@ -1148,7 +1193,7 @@ serve(async (req) => {
       error: "db_fetch_error", 
       message: "Could not fetch bookings from database", 
       detail: String(err) 
-    }, "System error, please try again");
+    }, "System error, please try again", isVoiceAgent);
   }
 
   // Determine availability
@@ -1159,6 +1204,15 @@ serve(async (req) => {
     ? "That date looks available" 
     : "That date is already booked";
 
+  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}`);
+
+  // Voice Agent mode: return plain text
+  if (isVoiceAgent) {
+    console.log(`[VOICE_AGENT_RESPONSE] ${messageText}`);
+    return buildPlainTextResponse(messageText);
+  }
+
+  // Normal mode: return full JSON (existing behavior)
   const response = {
     ok: true,
     available,
@@ -1184,8 +1238,6 @@ serve(async (req) => {
       normalized,
     },
   };
-
-  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}`);
 
   return new Response(
     JSON.stringify(response),
