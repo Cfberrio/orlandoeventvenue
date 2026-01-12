@@ -569,23 +569,7 @@ async function createAppointment(
   const appointmentId = data.id || data.event?.id || data.appointment?.id;
   console.log("GHL appointment created:", appointmentId);
   
-  // Create blocked slot for this appointment
-  const blockedSlotId = await createBlockedSlot(
-    calendarId,
-    startTime,
-    endTime,
-    ghlToken,
-    tokenFingerprint,
-    `${booking.full_name} - ${booking.event_type}`
-  );
-  
-  if (blockedSlotId) {
-    console.log(`[APPOINTMENT] Created with blocked slot: ${appointmentId} -> ${blockedSlotId}`);
-  } else {
-    console.warn(`[APPOINTMENT] Created WITHOUT blocked slot: ${appointmentId}`);
-  }
-  
-  return { appointmentId, blockedSlotId };
+  return { appointmentId };
 }
 
 /**
@@ -604,8 +588,7 @@ async function updateAppointment(
   cancelled: boolean = false,
   staffResult: StaffSyncResult,
   tokenFingerprint: string | null,
-  blockedSlotId: string | null = null
-): Promise<string | null> {
+): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
   // Build title with event window for daily bookings
@@ -682,44 +665,6 @@ async function updateAppointment(
   }
 
   console.log("GHL appointment updated successfully");
-  
-  // Handle blocked slot updates
-  if (blockedSlotId && !cancelled) {
-    // Delete old blocked slot and create new one with updated times
-    const deleted = await deleteBlockedSlot(calendarId, blockedSlotId, ghlToken, tokenFingerprint);
-    if (deleted) {
-      const newBlockedSlotId = await createBlockedSlot(
-        calendarId,
-        startTime,
-        endTime,
-        ghlToken,
-        tokenFingerprint,
-        `${booking.full_name} - ${booking.event_type}`
-      );
-      console.log(`[APPOINTMENT] Updated blocked slot: ${blockedSlotId} -> ${newBlockedSlotId}`);
-      return newBlockedSlotId;
-    }
-    return null;
-  } else if (blockedSlotId && cancelled) {
-    // Just delete blocked slot when cancelled
-    await deleteBlockedSlot(calendarId, blockedSlotId, ghlToken, tokenFingerprint);
-    console.log(`[APPOINTMENT] Deleted blocked slot for cancelled appointment: ${blockedSlotId}`);
-    return null;
-  } else if (!blockedSlotId && !cancelled) {
-    // Create blocked slot if it didn't exist before
-    const newBlockedSlotId = await createBlockedSlot(
-      calendarId,
-      startTime,
-      endTime,
-      ghlToken,
-      tokenFingerprint,
-      `${booking.full_name} - ${booking.event_type}`
-    );
-    console.log(`[APPOINTMENT] Created missing blocked slot: ${newBlockedSlotId}`);
-    return newBlockedSlotId;
-  }
-  
-  return blockedSlotId; // Return existing if no change
 }
 
 /**
@@ -874,105 +819,6 @@ async function fetchWithTimeout(
   }
 }
 
-// ============= BLOCKED SLOTS HELPERS =============
-
-/**
- * Create blocked slot in GHL calendar
- * Blocked slots are used by voice-check-availability to detect conflicts
- * since appointments are not queryable by date range via GHL API
- */
-async function createBlockedSlot(
-  calendarId: string,
-  startTime: string, // ISO format with timezone
-  endTime: string,   // ISO format with timezone
-  ghlToken: string,
-  tokenFingerprint: string | null,
-  title: string = "Orlando Event Venue - Booking"
-): Promise<string | null> {
-  const url = `https://services.leadconnectorhq.com/calendars/${calendarId}/blocked-slots`;
-  
-  const payload = {
-    startTime,
-    endTime,
-    title,
-    reason: "Booking confirmed"
-  };
-  
-  console.log(`[BLOCKED_SLOT] Creating: ${startTime} to ${endTime}`);
-  
-  try {
-    const resp = await fetchWithTimeout(url, {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${ghlToken}`,
-        "Version": GHL_API_VERSION,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    }, 8000);
-    
-    if (resp.status === 401) {
-      console.error(`[BLOCKED_SLOT][401] create denied with token: ${tokenFingerprint}`);
-      throw new Error("ghl_scope_blocked_slots_write_denied");
-    }
-    
-    if (!resp.ok) {
-      const errorText = await resp.text();
-      console.error(`[BLOCKED_SLOT] Create failed: ${resp.status} ${errorText}`);
-      return null; // Non-fatal - appointment still created
-    }
-    
-    const data = await resp.json();
-    const blockedSlotId = data.id || data.blockedSlotId || data._id;
-    console.log(`[BLOCKED_SLOT] Created: ${blockedSlotId}`);
-    return blockedSlotId;
-  } catch (err) {
-    console.error(`[BLOCKED_SLOT] Create error:`, err);
-    return null; // Non-fatal
-  }
-}
-
-/**
- * Delete blocked slot from GHL calendar
- */
-async function deleteBlockedSlot(
-  calendarId: string,
-  blockedSlotId: string,
-  ghlToken: string,
-  tokenFingerprint: string | null
-): Promise<boolean> {
-  const url = `https://services.leadconnectorhq.com/calendars/${calendarId}/blocked-slots/${blockedSlotId}`;
-  
-  console.log(`[BLOCKED_SLOT] Deleting: ${blockedSlotId}`);
-  
-  try {
-    const resp = await fetchWithTimeout(url, {
-      method: "DELETE",
-      headers: {
-        "Authorization": `Bearer ${ghlToken}`,
-        "Version": GHL_API_VERSION,
-      },
-    }, 8000);
-    
-    if (resp.status === 401) {
-      console.error(`[BLOCKED_SLOT][401] delete denied with token: ${tokenFingerprint}`);
-      return false;
-    }
-    
-    if (!resp.ok && resp.status !== 404) {
-      const errorText = await resp.text();
-      console.error(`[BLOCKED_SLOT] Delete failed: ${resp.status} ${errorText}`);
-      return false;
-    }
-    
-    console.log(`[BLOCKED_SLOT] Deleted: ${blockedSlotId}`);
-    return true;
-  } catch (err) {
-    console.error(`[BLOCKED_SLOT] Delete error:`, err);
-    return false;
-  }
-}
-
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -1105,12 +951,11 @@ serve(async (req) => {
     const contactId = await ensureContact(bookingData, locationId, ghlToken, supabase, cfg.debug.tokenFingerprint);
 
     let appointmentId = bookingData.ghl_appointment_id;
-    let blockedSlotId = bookingData.ghl_blocked_slot_id;
     let eventType: string;
 
     if (isCancelled && appointmentId) {
-      // Update appointment to cancelled status and delete blocked slot
-      blockedSlotId = await updateAppointment(
+      // Update appointment to cancelled status
+      await updateAppointment(
         appointmentId,
         contactId,
         calendarId,
@@ -1122,13 +967,12 @@ serve(async (req) => {
         ghlToken,
         true, // cancelled
         staffResult,
-        cfg.debug.tokenFingerprint,
-        blockedSlotId
+        cfg.debug.tokenFingerprint
       );
       eventType = "ghl_appointment_cancelled";
     } else if (appointmentId && times) {
-      // Update existing appointment and blocked slot
-      blockedSlotId = await updateAppointment(
+      // Update existing appointment
+      await updateAppointment(
         appointmentId,
         contactId,
         calendarId,
@@ -1140,12 +984,11 @@ serve(async (req) => {
         ghlToken,
         false,
         staffResult,
-        cfg.debug.tokenFingerprint,
-        blockedSlotId
+        cfg.debug.tokenFingerprint
       );
       eventType = "ghl_appointment_updated";
     } else if (times && !isCancelled) {
-      // Create new appointment and blocked slot
+      // Create new appointment
       const result = await createAppointment(
         contactId,
         calendarId,
@@ -1159,7 +1002,6 @@ serve(async (req) => {
         cfg.debug.tokenFingerprint
       );
       appointmentId = result.appointmentId;
-      blockedSlotId = result.blockedSlotId;
       eventType = "ghl_appointment_created";
     } else {
       return new Response(
@@ -1174,7 +1016,6 @@ serve(async (req) => {
         .from("bookings")
         .update({
           ghl_appointment_id: appointmentId,
-          ghl_blocked_slot_id: blockedSlotId,
           ghl_calendar_id: calendarId,
           ghl_assigned_user_id: assignedUserId,
           ghl_appointment_start_at: times.startTime,

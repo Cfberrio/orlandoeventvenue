@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -584,75 +585,89 @@ function convertLocalToUTC(localDate: Date, timezone: string): Date {
 
 // ============= GHL API =============
 
-async function fetchGHLEvents(calendarId: string, startTime: string, endTime: string, locationId: string, ghlToken: string): Promise<{ events: GHLEvent[]; raw: unknown }> {
-  const url = `${GHL_API_BASE}/calendars/events?calendarId=${encodeURIComponent(calendarId)}&startTime=${encodeURIComponent(startTime)}&endTime=${encodeURIComponent(endTime)}&locationId=${encodeURIComponent(locationId)}`;
-  
-  console.log(`[GHL_REQUEST] GET ${url}`);
-  console.log(`[GHL_REQUEST] Token: ${ghlToken.slice(0, 8)}...${ghlToken.slice(-4)}`);
-  
-  const resp = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${ghlToken}`,
-      'Version': '2021-04-15',
-      'Content-Type': 'application/json',
-    },
-  });
-  
-  console.log(`[GHL_RESPONSE] Status: ${resp.status} ${resp.statusText}`);
-  
-  if (!resp.ok) {
-    const errorText = await resp.text();
-    console.error(`[GHL_ERROR] ${resp.status}: ${errorText}`);
-    throw new Error(`GHL API error: ${resp.status} ${resp.statusText}`);
-  }
-  
-  const data = await resp.json();
-  console.log(`[GHL_RESPONSE] Body keys: ${JSON.stringify(Object.keys(data || {}))}`);
-  
-  // Handle different response shapes
-  let events: GHLEvent[] = [];
-  if (Array.isArray(data)) {
-    events = data;
-  } else if (data && Array.isArray(data.events)) {
-    events = data.events;
-  } else if (data && Array.isArray(data.data)) {
-    events = data.data;
-  }
-  
-  console.log(`[GHL_RESPONSE] Parsed ${events.length} events`);
-  
-  return { events, raw: data };
+// ============= DATABASE QUERY FOR BOOKINGS =============
+
+interface BookingConflict {
+  type: string;
+  title: string;
+  start: string;
+  end: string;
+  source: string;
+  booking_type?: string;
 }
 
-async function fetchGHLBlockedSlots(calendarId: string, startDate: string, endDate: string, timezone: string, ghlToken: string): Promise<{ slots: unknown[]; raw: unknown }> {
-  const url = `${GHL_API_BASE}/calendars/${encodeURIComponent(calendarId)}/blocked-slots?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}&timezone=${encodeURIComponent(timezone)}`;
+async function fetchBookingsFromDB(
+  date: string,
+  bookingType: string,
+  startTime?: string,
+  endTime?: string,
+  timezone?: string
+): Promise<BookingConflict[]> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
   
-  console.log(`[GHL_BLOCKED_REQUEST] GET ${url}`);
+  console.log(`[DB_QUERY] Checking bookings for date: ${date}, type: ${bookingType}`);
   
-  const resp = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${ghlToken}`,
-      'Version': '2021-04-15',
-      'Content-Type': 'application/json',
-    },
-  });
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('event_date', date)
+    .neq('status', 'cancelled')
+    .order('start_time');
   
-  console.log(`[GHL_BLOCKED_RESPONSE] Status: ${resp.status}`);
-  
-  if (!resp.ok) {
-    const errorText = await resp.text();
-    console.warn(`[GHL_BLOCKED_ERROR] ${resp.status}: ${errorText}`);
-    return { slots: [], raw: null };
+  if (error) {
+    console.error('[DB_QUERY] Error:', error);
+    throw new Error(`Database query error: ${error.message}`);
   }
   
-  const data = await resp.json();
-  const slots = Array.isArray(data) ? data : (Array.isArray(data?.slots) ? data.slots : []);
+  console.log(`[DB_QUERY] Found ${(data || []).length} bookings for ${date}`);
   
-  console.log(`[GHL_BLOCKED_RESPONSE] Parsed ${slots.length} blocked slots`);
+  // Filter for overlaps based on booking type
+  const bookings = (data || []).filter(booking => {
+    if (bookingType === 'daily') {
+      // Daily bookings always conflict with entire day
+      return true;
+    }
+    
+    // For hourly bookings, check time overlap
+    if (!startTime || !endTime || !booking.start_time || !booking.end_time) {
+      return false;
+    }
+    
+    // Convert times to minutes for comparison
+    const requestStart = timeToMinutes(startTime);
+    const requestEnd = timeToMinutes(endTime);
+    const bookingStart = timeToMinutes(booking.start_time);
+    const bookingEnd = timeToMinutes(booking.end_time);
+    
+    // Check for overlap: start < booking.end AND end > booking.start
+    const hasOverlap = requestStart < bookingEnd && requestEnd > bookingStart;
+    
+    if (hasOverlap) {
+      console.log(`[DB_QUERY] Overlap detected: ${startTime}-${endTime} with ${booking.start_time}-${booking.end_time}`);
+    }
+    
+    return hasOverlap;
+  });
   
-  return { slots, raw: data };
+  console.log(`[DB_QUERY] ${bookings.length} conflicting bookings after overlap check`);
+  
+  // Map to conflict format
+  return bookings.map(b => ({
+    type: 'booking',
+    title: `${b.full_name} - ${b.event_type || 'Event'}`,
+    start: `${b.event_date}T${b.start_time || '00:00'}:00.000Z`,
+    end: `${b.event_date}T${b.end_time || '23:59'}:59.000Z`,
+    source: b.source || 'website',
+    booking_type: b.booking_type
+  }));
+}
+
+// Helper function to convert "HH:MM" to minutes since midnight
+function timeToMinutes(time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return hours * 60 + minutes;
 }
 
 // ============= GHL CONFIG WITH FALLBACKS =============
@@ -947,10 +962,6 @@ serve(async (req) => {
 
   // Read and normalize env vars (TRIM whitespace)
   const voiceSecret = (Deno.env.get("VOICE_AGENT_WEBHOOK_SECRET") ?? "").trim();
-  const cfg = getGhlConfig();
-  const ghlToken = cfg.token;
-  const locationId = cfg.locationId;
-  const calendarIdEffective = cfg.calendarId;
 
   // Auth check
   const secretFromCustomHeader = req.headers.get('x-voice-agent-secret');
@@ -977,36 +988,17 @@ serve(async (req) => {
   const debugEnv = debugEnvHeader === 'true' || debugEnvQuery === '1' || debugEnvQuery === 'true';
 
   if (debugEnv) {
-    // Get all env keys starting with GHL_
-    const allEnvKeysSample: string[] = [];
-    const potentialKeys = [
-      "GHL_READONLY_TOKEN", "GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_BACKEND_TOKEN", "GHL_TOKEN",
-      "GHL_LOCATION_ID", "GHL_SUBACCOUNT_ID", "GHL_ACCOUNT_ID",
-      "GHL_CALENDAR_ID", "GHL_API_KEY", "GHL_API_TOKEN"
-    ];
-    
-    for (const key of potentialKeys) {
-      const val = Deno.env.get(key);
-      if (val !== undefined && val !== null) {
-        allEnvKeysSample.push(key);
-      }
-    }
-    
     return new Response(JSON.stringify({
       ok: false,
       available: null,
       error: "debug_env",
-      message: "env debug",
-      note: "This is env diagnostics only",
+      message: "Debug mode: Now using Supabase DB instead of GHL API",
+      note: "voice-check-availability queries bookings table directly",
       debug: {
-        hasToken: cfg.debug.hasToken,
-        hasLocationId: cfg.debug.hasLocationId,
-        hasCalendarId: cfg.debug.hasCalendarId,
-        tokenKeyUsed: cfg.debug.tokenSourceKey,
-        locationKeyUsed: cfg.debug.locationSourceKey,
-        calendarKeyUsed: cfg.debug.calendarSourceKey,
-        ghlKeysPresent: cfg.debug.ghlEnvKeysPresent,
-        allEnvKeysSample
+        mode: "database_query",
+        source: "supabase_bookings_table",
+        has_supabase_url: !!Deno.env.get("SUPABASE_URL"),
+        has_supabase_key: !!Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
       }
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
@@ -1086,18 +1078,7 @@ serve(async (req) => {
     });
   }
 
-  // Config check (SEPARATE from auth)
-  if (!cfg.debug.hasToken || !cfg.debug.hasLocationId) {
-    console.error('[CONFIG] Missing GHL credentials:', cfg.debug);
-    return buildOkFalseResponse({ 
-      error: "config_error",
-      message: "Missing GHL token or locationId in env",
-      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Offer booking link or callback. System cannot read GHL credentials.",
-      debug: cfg.debug
-    });
-  }
-
-  console.log(`[ENV] hasToken=${cfg.debug.hasToken} tokenKey=${cfg.debug.tokenSourceKey} hasLocationId=${cfg.debug.hasLocationId} locationKey=${cfg.debug.locationSourceKey} calendarKey=${cfg.debug.calendarSourceKey} keys=[${cfg.debug.ghlEnvKeysPresent.join(',')}]`);
+  console.log(`[DB_MODE] Using Supabase DB for availability checking`);
 
   // Build date range for query
   const dateRange = buildDateRangeForQuery(
@@ -1119,116 +1100,53 @@ serve(async (req) => {
 
   console.log(`[QUERY_WINDOW] ${dateRange.start} to ${dateRange.end} (${windowStartMs} - ${windowEndMs})`);
 
-  // Fetch events and blocked slots
-  let events: GHLEvent[] = [];
-  let blockedSlots: unknown[] = [];
-  let eventsRaw: unknown = null;
-  let blockedRaw: unknown = null;
+  // Fetch bookings from database
+  let conflicts: BookingConflict[] = [];
 
   try {
-    const eventsResult = await fetchGHLEvents(
-      calendarIdEffective,
-      dateRange.start,
-      dateRange.end,
-      locationId,
-      ghlToken
+    conflicts = await fetchBookingsFromDB(
+      normalized.date!,
+      normalized.booking_type!,
+      normalized.start_time,
+      normalized.end_time,
+      normalized.timezone
     );
-    events = eventsResult.events;
-    eventsRaw = eventsResult.raw;
     
-    console.log(`[GHL_EVENTS] Fetched ${events.length} events`);
+    console.log(`[DB_BOOKINGS] Found ${conflicts.length} conflicting bookings`);
   } catch (err) {
-    console.error('[GHL_EVENTS] Fetch failed:', err);
+    console.error('[DB_BOOKINGS] Fetch failed:', err);
     return buildOkFalseResponse({
-      error: "ghl_fetch_error", 
-      message: "Could not fetch calendar events", 
+      error: "db_fetch_error", 
+      message: "Could not fetch bookings from database", 
       detail: String(err) 
     });
   }
 
-  try {
-    const blockedResult = await fetchGHLBlockedSlots(
-      calendarIdEffective,
-      normalized.date!,
-      normalized.date!,
-      normalized.timezone!,
-      ghlToken
-    );
-    blockedSlots = blockedResult.slots;
-    blockedRaw = blockedResult.raw;
-    
-    console.log(`[GHL_BLOCKED] Fetched ${blockedSlots.length} blocked slots`);
-  } catch (err) {
-    console.warn('[GHL_BLOCKED] Fetch failed (non-fatal):', err);
-  }
-
-  // ANTI-FALSE-POSITIVE: If no events and no blocked slots, we can't verify availability
-  if (events.length === 0 && blockedSlots.length === 0) {
-    console.log("[UNVERIFIED] No events and no blocked slots returned - cannot confirm availability");
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        available: null,
-        error: "unverified_empty_calendar",
-        message: "Could not verify availability - calendar returned no data",
-        assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The calendar appears empty which may indicate a sync issue. Ask the customer to call directly or try again.",
-        debug: {
-          checked_calendar_id: calendarIdEffective,
-          window_start_ms: windowStartMs,
-          window_end_ms: windowEndMs,
-          window_start_iso: dateRange.start,
-          window_end_iso: dateRange.end,
-          events_count: 0,
-          blocked_count: 0,
-      normalized,
-        },
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
-  }
-
-  // Check for conflicts
-  const { conflicts, details } = filterConflictingEvents(events, windowStartMs, windowEndMs);
-  
-  console.log(`[CONFLICTS] Found ${conflicts.length} conflicting events`);
-
-  // Build sample events for debug
-  const sampleEvents = details.slice(0, 3);
-
   // Determine availability
-  const hasBlockedSlots = blockedSlots.length > 0;
   const hasConflicts = conflicts.length > 0;
-  const available = !hasConflicts && !hasBlockedSlots;
+  const available = !hasConflicts;
 
   const response = {
     ok: true,
     available,
-    reason: available
-      ? "No conflicts found for requested time" 
-      : hasConflicts 
-        ? `Found ${conflicts.length} existing booking(s) during requested time` 
-        : "Time slot is blocked",
-    conflicts_count: conflicts.length,
-    blocked_slots_count: blockedSlots.length,
     assistant_instruction: available 
-      ? "This time slot IS AVAILABLE. You may proceed with the booking." 
-      : "This time slot IS NOT AVAILABLE. Suggest alternative dates or times.",
+      ? "Great news! That date IS available. You may proceed with the booking." 
+      : "That date is NOT available. A booking already exists.",
+    conflicts: hasConflicts ? conflicts : undefined,
     debug: {
-      checked_calendar_id: calendarIdEffective,
-      window_start_ms: windowStartMs,
-      window_end_ms: windowEndMs,
+      query_date: normalized.date,
+      query_type: normalized.booking_type,
+      query_time: normalized.start_time && normalized.end_time 
+        ? `${normalized.start_time}-${normalized.end_time}` 
+        : 'full_day',
+      bookings_count: conflicts.length,
       window_start_iso: dateRange.start,
       window_end_iso: dateRange.end,
-      events_count: events.length,
-      blocked_count: blockedSlots.length,
-    sample_events: sampleEvents,
-      parse_mode: parsed.mode,
-      query_keys: queryKeys,
-    normalized,
+      normalized,
     },
   };
 
-  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}, blocked=${blockedSlots.length}`);
+  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}`);
 
   return new Response(
     JSON.stringify(response),

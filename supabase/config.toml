@@ -60,8 +60,5 @@ verify_jwt = false
 [functions.voice-availability]
 verify_jwt = false
 
-[functions.sync-blocked-slots-cron]
-verify_jwt = false
-
-[functions.backfill-blocked-slots]
+[functions.ghl-appointment-webhook]
 verify_jwt = false
