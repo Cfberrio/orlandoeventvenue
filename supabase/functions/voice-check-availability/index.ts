@@ -365,6 +365,7 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
     JSON.stringify({
       ok: false,
       available: null,
+      say: "I need more information to check availability",
       error: "missing_payload",
       message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
@@ -395,11 +396,12 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
 
 // ============= NEW: OK FALSE VALIDATION RESPONSE =============
 
-function buildOkFalseResponse(data: AnyRecord) {
+function buildOkFalseResponse(data: AnyRecord, say?: string) {
   return new Response(
     JSON.stringify({
       ok: false,
       available: null,  // NEVER true when ok:false
+      say: say || "I need more information",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
       ...data,
     }),
@@ -953,6 +955,7 @@ serve(async (req) => {
       JSON.stringify({ 
         ok: false, 
         available: null,
+        say: "Invalid request method",
         error: "method_not_allowed",
         message: "Only POST requests are supported"
       }),
@@ -974,7 +977,8 @@ serve(async (req) => {
     console.log('[AUTH] Invalid or missing secret');
     return new Response(JSON.stringify({ 
       ok: false, 
-      available: null, 
+      available: null,
+      say: "Authentication error",
       error: "auth_failed", 
       message: "Invalid or missing authentication",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY"
@@ -1075,7 +1079,7 @@ serve(async (req) => {
       mapping,
       parse_mode: parsed.mode,
       query_keys: queryKeys,
-    });
+    }, "I need more information to check availability");
   }
 
   console.log(`[DB_MODE] Using Supabase DB for availability checking`);
@@ -1092,7 +1096,7 @@ serve(async (req) => {
     return buildOkFalseResponse({ 
       error: "date_parse_error", 
       message: "Could not build date range" 
-    });
+    }, "Invalid date format");
   }
 
   const windowStartMs = Date.parse(dateRange.start);
@@ -1119,7 +1123,7 @@ serve(async (req) => {
       error: "db_fetch_error", 
       message: "Could not fetch bookings from database", 
       detail: String(err) 
-    });
+    }, "System error, please try again");
   }
 
   // Determine availability
@@ -1129,6 +1133,9 @@ serve(async (req) => {
   const response = {
     ok: true,
     available,
+    say: available 
+      ? "That date looks available" 
+      : "That date is already booked",
     assistant_instruction: available 
       ? "Great news! That date IS available. You may proceed with the booking." 
       : "That date is NOT available. A booking already exists.",
@@ -1169,11 +1176,10 @@ Esperado:
   "ok": false,
   "error": "debug_env",
   "debug": {
-    "hasToken": true/false,
-    "hasLocationId": true/false,
-    "tokenSourceKey": "GHL_PRIVATE_INTEGRATION_TOKEN" o "GHL_BACKEND_TOKEN" o null,
-    "locationSourceKey": "GHL_LOCATION_ID" o "GHL_SUBACCOUNT_ID" o null,
-    "ghlEnvKeysPresent": ["GHL_PRIVATE_INTEGRATION_TOKEN", "GHL_LOCATION_ID", ...]
+    "mode": "database_query",
+    "source": "supabase_bookings_table",
+    "has_supabase_url": true/false,
+    "has_supabase_key": true/false
   }
 }
 
@@ -1184,14 +1190,47 @@ curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-ch
   -H "Content-Type: application/json" \
   -d '{"booking_type":"daily","date":"2026-01-17","timezone":"America/New_York"}'
 
+Respuesta esperada:
+{
+  "ok": true,
+  "available": true/false,
+  "say": "That date looks available" | "That date is already booked",
+  "assistant_instruction": "...",
+  "debug": { ... }
+}
+
 3. Test self-tests (incluye tests de env resolution):
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
   -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
   -H "x-self-test: true"
 
-Diagnóstico en 20 segundos:
-- Si debug muestra hasToken:false, revisa qué keys están en ghlEnvKeysPresent
-- Si ghlEnvKeysPresent está vacío, los secrets no están configurados en Supabase
-- Si ghlEnvKeysPresent tiene keys pero hasToken es false, hay un problema de nombres
+====================================
+CONFIGURACIÓN DEL GHL VOICE AGENT
+====================================
+
+IMPORTANTE: El Voice Agent debe leer el campo "say" de la respuesta JSON.
+
+Prompt sugerido para el Voice Agent:
+
+After calling the availability check Custom Action:
+1. Read the "say" field from the JSON response
+2. Repeat that exact sentence to the caller
+3. If "say" contains "booked" or "already": offer alternative dates or ask to reschedule
+4. If "say" contains "available" or "looks": proceed to collect booking details and payment
+5. If "say" contains "need" or "information": ask for the missing booking details (date, type, times)
+6. If "say" contains "error": apologize and suggest calling directly
+
+Example GHL Voice Agent flow:
+- Agent: "Let me check if that date is available..."
+- [Calls Custom Action]
+- [Reads response.say]
+- Agent: "{response.say}" 
+- If booked: "Would you like to try a different date?"
+- If available: "Great! Let me get your details to complete the booking."
+
+Diagnóstico:
+- Si debug muestra has_supabase_url:false, revisa los secrets en Supabase
+- La función ahora consulta directamente la DB de bookings, NO usa GHL API
+- El campo "say" está diseñado para que el Voice Agent lo lea sin interpretación
 */
