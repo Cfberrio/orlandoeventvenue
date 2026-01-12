@@ -361,13 +361,20 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
   const queryKeys = Object.keys(queryParams);
   const topLevelKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 20) : [];
   
+  const messageText = "I need more information to check availability";
+  
   return new Response(
     JSON.stringify({
       ok: false,
       available: null,
-      say: "I need more information to check availability",
+      say: messageText,
+      message: messageText,
+      text: messageText,
+      response: messageText,
+      result: messageText,
+      status_message: messageText,
       error: "missing_payload",
-      message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
+      error_message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
       debug: {
         received: {
@@ -397,11 +404,17 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
 // ============= NEW: OK FALSE VALIDATION RESPONSE =============
 
 function buildOkFalseResponse(data: AnyRecord, say?: string) {
+  const messageText = say || "I need more information";
   return new Response(
     JSON.stringify({
       ok: false,
       available: null,  // NEVER true when ok:false
-      say: say || "I need more information",
+      say: messageText,
+      message: messageText,
+      text: messageText,
+      response: messageText,
+      result: messageText,
+      status_message: messageText,
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
       ...data,
     }),
@@ -951,13 +964,19 @@ serve(async (req) => {
 
   // Handle non-POST with 200 (not 405) to avoid GHL marking as failed
   if (req.method !== 'POST') {
+    const messageText = "Invalid request method";
     return new Response(
       JSON.stringify({ 
         ok: false, 
         available: null,
-        say: "Invalid request method",
+        say: messageText,
+        message: messageText,
+        text: messageText,
+        response: messageText,
+        result: messageText,
+        status_message: messageText,
         error: "method_not_allowed",
-        message: "Only POST requests are supported"
+        error_message: "Only POST requests are supported"
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -975,12 +994,18 @@ serve(async (req) => {
 
   if (!providedSecret || voiceSecret.length === 0 || providedSecret !== voiceSecret) {
     console.log('[AUTH] Invalid or missing secret');
+    const messageText = "Authentication error";
     return new Response(JSON.stringify({ 
       ok: false, 
       available: null,
-      say: "Authentication error",
+      say: messageText,
+      message: messageText,
+      text: messageText,
+      response: messageText,
+      result: messageText,
+      status_message: messageText,
       error: "auth_failed", 
-      message: "Invalid or missing authentication",
+      error_message: "Invalid or missing authentication",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY"
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
@@ -1130,12 +1155,19 @@ serve(async (req) => {
   const hasConflicts = conflicts.length > 0;
   const available = !hasConflicts;
 
+  const messageText = available 
+    ? "That date looks available" 
+    : "That date is already booked";
+
   const response = {
     ok: true,
     available,
-    say: available 
-      ? "That date looks available" 
-      : "That date is already booked",
+    say: messageText,
+    message: messageText,
+    text: messageText,
+    response: messageText,
+    result: messageText,
+    status_message: messageText,
     assistant_instruction: available 
       ? "Great news! That date IS available. You may proceed with the booking." 
       : "That date is NOT available. A booking already exists.",
@@ -1162,14 +1194,15 @@ serve(async (req) => {
 });
 
 /*
-VERIFICACIÓN DE ENV VARS CON FALLBACKS:
+====================================
+VERIFICACIÓN Y TESTING
+====================================
 
-1. Test modo debug (muestra qué env vars están presentes):
+1. Test modo debug (muestra configuración DB):
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability?debug_env=1" \
   -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
-  -H "Content-Type: application/json" \
-  -d "{}"
+  -d ""
 
 Esperado:
 {
@@ -1183,54 +1216,71 @@ Esperado:
   }
 }
 
-2. Test normal (daily booking):
+2. Test normal (fecha ocupada):
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
   -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
   -H "Content-Type: application/json" \
-  -d '{"booking_type":"daily","date":"2026-01-17","timezone":"America/New_York"}'
+  -d '{"booking_type":"daily","date":"2026-01-31"}'
 
 Respuesta esperada:
 {
   "ok": true,
-  "available": true/false,
-  "say": "That date looks available" | "That date is already booked",
-  "assistant_instruction": "...",
+  "available": false,
+  "say": "That date is already booked",
+  "message": "That date is already booked",
+  "text": "That date is already booked",
+  "response": "That date is already booked",
+  "result": "That date is already booked",
+  "status_message": "That date is already booked",
+  "assistant_instruction": "That date is NOT available...",
+  "conflicts": [...],
   "debug": { ... }
 }
 
-3. Test self-tests (incluye tests de env resolution):
+3. Test fecha disponible:
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
   -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
-  -H "x-self-test: true"
+  -H "Content-Type: application/json" \
+  -d '{"booking_type":"daily","date":"2026-02-15"}'
+
+Respuesta esperada: Todos los campos de mensaje deben decir "That date looks available"
 
 ====================================
 CONFIGURACIÓN DEL GHL VOICE AGENT
 ====================================
 
-IMPORTANTE: El Voice Agent debe leer el campo "say" de la respuesta JSON.
+IMPORTANTE: GHL Voice AI NO soporta Response Mapping en Custom Actions.
 
-Prompt sugerido para el Voice Agent:
+Esta función incluye el mensaje en MÚLTIPLES CAMPOS para maximizar compatibilidad:
+- say
+- message (campo estándar más común)
+- text
+- response
+- result
+- status_message
 
-After calling the availability check Custom Action:
-1. Read the "say" field from the JSON response
-2. Repeat that exact sentence to the caller
-3. If "say" contains "booked" or "already": offer alternative dates or ask to reschedule
-4. If "say" contains "available" or "looks": proceed to collect booking details and payment
-5. If "say" contains "need" or "information": ask for the missing booking details (date, type, times)
-6. If "say" contains "error": apologize and suggest calling directly
+GHL Voice AI debería leer automáticamente al menos uno de estos campos.
 
-Example GHL Voice Agent flow:
-- Agent: "Let me check if that date is available..."
-- [Calls Custom Action]
-- [Reads response.say]
-- Agent: "{response.say}" 
-- If booked: "Would you like to try a different date?"
-- If available: "Great! Let me get your details to complete the booking."
+Prompt simplificado para GHL Voice Agent:
+
+You are a booking assistant for Orlando Event Venue.
+
+When a customer asks about availability:
+1. Collect the date and booking type (hourly or daily)
+2. If hourly, also collect start and end times
+3. Call the Check Availability action with these details
+4. The system will tell you if the date is available or not
+5. Communicate this clearly to the customer
+6. If unavailable: Offer to check alternative dates
+7. If available: Proceed to collect booking details and payment
+
+Always be clear and helpful. If the system reports an error, apologize and offer to transfer to a human agent.
 
 Diagnóstico:
 - Si debug muestra has_supabase_url:false, revisa los secrets en Supabase
-- La función ahora consulta directamente la DB de bookings, NO usa GHL API
-- El campo "say" está diseñado para que el Voice Agent lo lea sin interpretación
+- La función consulta directamente la DB de bookings (NO usa GHL API)
+- Los campos múltiples (message, text, response, result) permiten que GHL Voice AI lea automáticamente el mensaje
+- Si el Voice Agent sigue sin leer: verifica que el Custom Action esté configurado correctamente en GHL
 */
