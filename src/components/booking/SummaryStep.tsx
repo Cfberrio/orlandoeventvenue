@@ -18,14 +18,18 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
-    percentage: number;
+    percentage?: number;
     amount: number;
+    type: "rental" | "cleaning_fee";
   } | null>(null);
   const [discountError, setDiscountError] = useState("");
 
-  // Available discount codes (only for hourly bookings)
-  const discountCodes: Record<string, number> = {
-    "CHRIS": 40,
+  // Available discount codes
+  // Percentage codes (hourly only): discount % of base rental
+  // Special code "199": $199 off cleaning fee (any booking type)
+  const discountCodes: Record<string, number | { type: "cleaning_fee"; amount: number }> = {
+    "CHRIS": 40, // 40% off base rental (hourly only)
+    "199": { type: "cleaning_fee", amount: 199 }, // $199 off cleaning fee
   };
 
   const applyDiscountCode = () => {
@@ -36,17 +40,31 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       return;
     }
 
-    if (data.bookingType !== "hourly") {
-      setDiscountError("Discount codes only apply to hourly bookings");
-      return;
-    }
-
-    const percentage = discountCodes[code];
+    const discountConfig = discountCodes[code];
     
-    if (!percentage) {
+    if (!discountConfig) {
       setDiscountError("Invalid discount code");
       return;
     }
+
+    // Check if it's a cleaning fee discount (special code "199")
+    if (typeof discountConfig === "object" && discountConfig.type === "cleaning_fee") {
+      setAppliedDiscount({
+        code,
+        amount: discountConfig.amount,
+        type: "cleaning_fee",
+      });
+      setDiscountError("");
+      return;
+    }
+
+    // For percentage-based discounts (only hourly bookings)
+    if (data.bookingType !== "hourly") {
+      setDiscountError("This discount code only applies to hourly bookings");
+      return;
+    }
+
+    const percentage = discountConfig as number;
 
     // Calculate discount amount based on base rental
     let baseRental = 0;
@@ -63,6 +81,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       code,
       percentage,
       amount: discountAmount,
+      type: "rental",
     });
     setDiscountError("");
   };
@@ -89,7 +108,19 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         baseRental = 899;
       }
 
-      const cleaningFee = 199;
+      let cleaningFee = 199;
+      let rentalDiscount = 0;
+
+      // Apply discounts
+      if (appliedDiscount) {
+        if (appliedDiscount.type === "cleaning_fee") {
+          // Discount applied to cleaning fee
+          cleaningFee = Math.max(0, cleaningFee - appliedDiscount.amount);
+        } else {
+          // Discount applied to base rental (hourly only)
+          rentalDiscount = data.bookingType === "hourly" ? appliedDiscount.amount : 0;
+        }
+      }
 
       const packageRates: Record<string, number> = {
         none: 0,
@@ -112,10 +143,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         optionalServices += data.tableclothQuantity * 5 + 25;
       }
 
-      // Apply discount only to hourly bookings
-      const discount = data.bookingType === "hourly" && appliedDiscount ? appliedDiscount.amount : 0;
-
-      const total = baseRental + cleaningFee + packageCost + optionalServices - discount;
+      const total = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
       const deposit = Math.round(total * 0.5);
       const balance = total - deposit;
 
@@ -125,7 +153,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           cleaningFee,
           packageCost,
           optionalServices,
-          discount,
+          discount: appliedDiscount ? appliedDiscount.amount : 0,
           discountCode: appliedDiscount?.code,
           total,
           deposit,
@@ -247,64 +275,66 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
       <Separator className="my-6" />
 
-      {/* Discount Code Section - Only for Hourly Bookings */}
-      {data.bookingType === "hourly" && (
-        <div className="bg-accent/20 rounded-lg p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <Tag className="h-4 w-4 text-primary" />
-            <h3 className="font-semibold">Have a Discount Code?</h3>
-          </div>
-          
-          {!appliedDiscount ? (
-            <div className="flex gap-2">
-              <Input
-                type="text"
-                placeholder="Enter discount code"
-                value={discountCode}
-                onChange={(e) => {
-                  setDiscountCode(e.target.value.toUpperCase());
-                  setDiscountError("");
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    applyDiscountCode();
-                  }
-                }}
-                className="flex-1"
-              />
-              <Button 
-                type="button" 
-                onClick={applyDiscountCode}
-                variant="outline"
-              >
-                Apply
-              </Button>
-            </div>
-          ) : (
-            <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-md p-3">
-              <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                <Check className="h-4 w-4" />
-                <span className="font-medium">
-                  {appliedDiscount.code} applied ({appliedDiscount.percentage}% off)
-                </span>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={removeDiscount}
-                className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-          
-          {discountError && (
-            <p className="text-sm text-red-600 dark:text-red-400">{discountError}</p>
-          )}
+      {/* Discount Code Section */}
+      <div className="bg-accent/20 rounded-lg p-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <Tag className="h-4 w-4 text-primary" />
+          <h3 className="font-semibold">Have a Discount Code?</h3>
         </div>
-      )}
+        
+        {!appliedDiscount ? (
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Enter discount code"
+              value={discountCode}
+              onChange={(e) => {
+                setDiscountCode(e.target.value.toUpperCase());
+                setDiscountError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  applyDiscountCode();
+                }
+              }}
+              className="flex-1"
+            />
+            <Button 
+              type="button" 
+              onClick={applyDiscountCode}
+              variant="outline"
+            >
+              Apply
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-md p-3">
+            <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+              <Check className="h-4 w-4" />
+              <span className="font-medium">
+                {appliedDiscount.code} applied
+                {appliedDiscount.type === "cleaning_fee" 
+                  ? " (Free cleaning)" 
+                  : ` (${appliedDiscount.percentage}% off)`
+                }
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={removeDiscount}
+              className="h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
+        {discountError && (
+          <p className="text-sm text-red-600 dark:text-red-400">{discountError}</p>
+        )}
+      </div>
 
       {/* Pricing Breakdown */}
       {data.pricing && (
