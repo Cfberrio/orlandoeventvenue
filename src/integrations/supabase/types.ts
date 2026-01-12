@@ -523,6 +523,7 @@ export type Database = {
           signature: string
           signature_date: string
           signer_name: string
+          source: string | null
           start_time: string | null
           status: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id: string | null
@@ -587,6 +588,7 @@ export type Database = {
           signature: string
           signature_date: string
           signer_name: string
+          source?: string | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
@@ -651,6 +653,7 @@ export type Database = {
           signature?: string
           signature_date?: string
           signer_name?: string
+          source?: string | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
