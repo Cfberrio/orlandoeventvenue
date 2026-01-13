@@ -50,6 +50,7 @@ interface ContactPoliciesStepProps {
 const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPoliciesStepProps) => {
   const [isDrawing, setIsDrawing] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const currentDate = new Date().toLocaleDateString('en-US', { 
     year: 'numeric', 
     month: 'long', 
@@ -82,31 +83,92 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
     return () => subscription.unsubscribe();
   }, [form]);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Initialize canvas size
+  useEffect(() => {
+    const resizeCanvas = () => {
+      const canvas = canvasRef.current;
+      const container = containerRef.current;
+      if (!canvas || !container) return;
+
+      const rect = container.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      // Set canvas internal size (scaled by device pixel ratio for crisp lines)
+      canvas.width = rect.width * dpr;
+      canvas.height = 200 * dpr;
+
+      // Set canvas display size
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = '200px';
+
+      // Scale context to match device pixel ratio
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.scale(dpr, dpr);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+      }
+    };
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+    return () => window.removeEventListener('resize', resizeCanvas);
+  }, []);
+
+  const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+
+    const rect = canvas.getBoundingClientRect();
+    let clientX: number, clientY: number;
+
+    if ('touches' in e) {
+      // Touch event
+      clientX = e.touches[0].clientX;
+      clientY = e.touches[0].clientY;
+    } else {
+      // Mouse event
+      clientX = e.clientX;
+      clientY = e.clientY;
+    }
+
+    return {
+      x: clientX - rect.left,
+      y: clientY - rect.top,
+    };
+  };
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     setIsDrawing(true);
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
+
+    const { x, y } = getCoordinates(e);
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(x, y);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
     if (!isDrawing) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+
+    const { x, y } = getCoordinates(e);
+    ctx.lineTo(x, y);
     ctx.stroke();
   };
 
   const stopDrawing = () => {
     if (isDrawing && canvasRef.current) {
-      const signature = canvasRef.current.toDataURL();
+      const signature = canvasRef.current.toDataURL('image/png');
       form.setValue("signature", signature);
     }
     setIsDrawing(false);
@@ -117,7 +179,10 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Clear with proper scaling
+    const dpr = window.devicePixelRatio || 1;
+    ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
     form.setValue("signature", "");
   };
 
@@ -339,19 +404,24 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           <div>
             <FormLabel>Signature *</FormLabel>
             <FormDescription className="mb-2">
-              Draw your signature in the box below
+              Draw your signature in the box below (use mouse or touch)
             </FormDescription>
             
-            <div className="border-2 border-border rounded-lg overflow-hidden">
+            <div 
+              ref={containerRef} 
+              className="border-2 border-border rounded-lg overflow-hidden bg-background"
+            >
               <canvas
                 ref={canvasRef}
-                width={600}
-                height={200}
-                className="w-full bg-background cursor-crosshair touch-none"
+                className="w-full cursor-crosshair touch-none"
+                style={{ height: '200px' }}
                 onMouseDown={startDrawing}
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
+                onTouchStart={startDrawing}
+                onTouchMove={draw}
+                onTouchEnd={stopDrawing}
               />
             </div>
             
