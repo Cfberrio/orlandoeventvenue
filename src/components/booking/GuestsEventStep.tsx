@@ -15,7 +15,9 @@ const formSchema = z.object({
     .max(90, "Maximum capacity is 90 guests"),
   eventType: z.string().min(1, "Please select an event type"),
   eventTypeOther: z.string().optional(),
-  notes: z.string().max(1000, "Notes must be less than 1000 characters").optional(),
+  notes: z.string()
+    .min(10, "Please tell us more about how you'll use the venue (minimum 10 characters)")
+    .max(1000, "Notes must be less than 1000 characters"),
 });
 
 interface GuestsEventStepProps {
@@ -125,17 +127,17 @@ const GuestsEventStep = ({ data, updateData, onNext, onBack }: GuestsEventStepPr
           render={({ field }) => (
             <FormItem>
               <FormLabel className="text-base font-semibold">
-                Notes / Special Requests <span className="text-muted-foreground font-normal">(Optional)</span>
+                🎯 Tell Us About Your Event! <span className="text-red-600">*</span>
               </FormLabel>
               <FormControl>
                 <Textarea
-                  placeholder="Any special requirements or requests for your event?"
+                  placeholder="What will you be using the venue for? Tell us about your event plans, activities, setup needs, or any special requests..."
                   className="min-h-[120px]"
                   {...field}
                 />
               </FormControl>
               <FormDescription>
-                {field.value?.length || 0} / 1000 characters
+                Please describe how you'll use the space • {field.value?.length || 0} / 1000 characters
               </FormDescription>
               <FormMessage />
             </FormItem>
