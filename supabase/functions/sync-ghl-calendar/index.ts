@@ -420,32 +420,75 @@ async function getStaffForCalendarSync(
  * Build formatted notes for calendar event
  */
 function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
-  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  
   const notesLines = [
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📋 RESERVATION: ${booking.reservation_number || "N/A"}`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `Orlando Event Venue – Access Instructions & Rules`,
+    `Welcome to Orlando Event Venue!`,
+    `3847 E Colonial Dr, Orlando, FL 32803`,
+    `Wifi - User: GlobalChurch / Password: Orlandoministry`,
     ``,
-    `👤 Guest: ${booking.full_name}`,
-    `📧 Email: ${booking.email || "N/A"}`,
-    `📱 Phone: ${booking.phone || "N/A"}`,
+    `Step-by-Step Venue Access`,
+    `1. Locate the Entrance`,
+    `Arrive at Colonial Event Space in Colonial Town Center. Look for the Global sign with the number 3847 displayed.`,
     ``,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `📅 EVENT DETAILS`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+    `2. Venue Entry & Lockbox Access`,
+    `• Facing the Global sign, go to the door on the left side of the building.`,
+    `• On the wall near the entrance, you will find a black lockbox with a touchscreen keypad.`,
+    `• Touch the screen first to light it up, then enter the CODE: 10102025.`,
+    `• Unlock the box and retrieve the Magnetic Key.`,
     ``,
-    `🎊 Type: ${eventTypeDisplay}`,
-    `👥 Guests: ${booking.number_of_guests}`,
-    `📦 Package: ${booking.booking_type === 'hourly' ? 'Hourly Rental' : 'Full Day Rental'}`,
+    `3. Unlock the Door`,
+    `• Tap the magnetic key on the sensor (located on the right side of the door).`,
+    `• After unlocking, return the key to the lockbox and close it.`,
+    ``,
+    `4. Enter the Venue`,
+    `• Open the door and step inside.`,
+    `• On the left wall, locate the remote labeled "Light".`,
+    `• Point it at the lights and press the left-side buttons to turn them on.`,
+    `• Return the remote to its original spot after use.`,
+    ``,
+    `Venue Rules & Penalties`,
+    `1. Setup & Breakdown – $150 Fee if Violated`,
+    `Guests must set up chairs/tables and return them to their original layout within allocated setup/breakdown time.`,
+    ``,
+    `2. No Alcohol – $250 Fee`,
+    `Strictly prohibited. Violations recorded by cameras. Severe cases may end event without refund.`,
+    ``,
+    `3. No Drugs – $500 Fee`,
+    `Possession/use strictly forbidden. Law enforcement may be notified.`,
+    ``,
+    `4. No Smoking – $300 Fee`,
+    `Applies indoors and around the venue perimeter.`,
+    ``,
+    `5. No Pets – $100 Fee`,
+    `Only certified service animals allowed with prior authorization.`,
+    ``,
+    `6. Food & Beverage – $300 Fee for Violations`,
+    `• Professional caterers allowed (with liability insurance).`,
+    `• Commercially prepared food permitted.`,
+    `• No on-site cooking unless pre-approved.`,
+    ``,
+    `7. No Glitter/Confetti – $300 Cleaning Fee`,
+    `Strictly prohibited (includes rice, similar items).`,
+    ``,
+    `8. Setup/Breakdown Time Limits – $200/hr Fee`,
+    `50% of booking time is allocated for setup/breakdown. Example: 2 hrs for setup/cleanup in a 4-hr booking.`,
+    ``,
+    `9. Noise Limits – $150 Fee`,
+    `Amplified music allowed within city ordinance limits. All events must end before quiet hours.`,
+    ``,
+    `10. Occupancy Limit – $200 Fee`,
+    `Maximum capacity is 90 guests.`,
+    ``,
+    `11. Decorations – $200 Fee for Damage`,
+    `No nails, staples, residue tape, or open flames (unless pre-approved).`,
+    ``,
+    `12. Damage & Repair – $200 Minimum`,
+    `Guest is responsible for any damage caused during the event.`,
+    ``,
+    `Contact:`,
+    `Luis Torres`,
+    `(407) 276-3234`,
   ];
-
-  // Add event window for daily bookings (planning only)
-  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
-    notesLines.push(``);
-    notesLines.push(`⏰ Event Window (Planning): ${booking.start_time} - ${booking.end_time}`);
-    notesLines.push(`   Note: Entire day is blocked. Window is for planning only.`);
-  }
 
   // Add staff section if there are staff assigned
   if (staffInfo.length > 0) {
@@ -464,13 +507,15 @@ function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
     }
   }
 
+  // Add booking info at the end
   notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  notesLines.push(`🏢 VENUE`);
+  notesLines.push(`📋 BOOKING INFO`);
   notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-  notesLines.push(``);
-  notesLines.push(`Orlando Event Venue`);
-  notesLines.push(`3847 E Colonial Dr`);
-  notesLines.push(`Orlando, FL 32803`);
+  notesLines.push(`Reservation: ${booking.reservation_number || "N/A"}`);
+  notesLines.push(`Guest: ${booking.full_name}`);
+  notesLines.push(`Phone: ${booking.phone}`);
+  notesLines.push(`Email: ${booking.email}`);
+  notesLines.push(`Guests: ${booking.number_of_guests}`);
 
   return notesLines.join('\n');
 }
@@ -492,23 +537,9 @@ async function createAppointment(
 ): Promise<{ appointmentId: string }> {
   const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
   
-  // Build title with event window for daily bookings
+  // Build title: {full_name} {event_type} - Orlando Event Venue
   const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  let title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
-  
-  // If daily with event window, add it to title
-  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
-    const formatTime = (time: string) => {
-      const [h, m] = time.split(':');
-      const hour = parseInt(h, 10);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const hour12 = hour % 12 || 12;
-      return `${hour12}:${m} ${ampm}`;
-    };
-    const startFormatted = formatTime(booking.start_time);
-    const endFormatted = formatTime(booking.end_time);
-    title += ` (Daily — Event ${startFormatted}–${endFormatted})`;
-  }
+  const title = `${booking.full_name} ${eventTypeDisplay} - Orlando Event Venue`;
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
@@ -591,23 +622,9 @@ async function updateAppointment(
 ): Promise<void> {
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
-  // Build title with event window for daily bookings
+  // Build title: {full_name} {event_type} - Orlando Event Venue
   const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
-  let title = `🎉 ${eventTypeDisplay} | ${booking.full_name}`;
-  
-  // If daily with event window, add it to title
-  if (booking.booking_type === 'daily' && booking.start_time && booking.end_time) {
-    const formatTime = (time: string) => {
-      const [h, m] = time.split(':');
-      const hour = parseInt(h, 10);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const hour12 = hour % 12 || 12;
-      return `${hour12}:${m} ${ampm}`;
-    };
-    const startFormatted = formatTime(booking.start_time);
-    const endFormatted = formatTime(booking.end_time);
-    title += ` (Daily — Event ${startFormatted}–${endFormatted})`;
-  }
+  const title = `${booking.full_name} ${eventTypeDisplay} - Orlando Event Venue`;
   
   // Combine primary assigned user with additional staff users
   const allUserIds = [assignedUserId, ...staffResult.ghlUserIds.filter(id => id !== assignedUserId)];
