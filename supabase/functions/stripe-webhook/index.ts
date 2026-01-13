@@ -358,7 +358,7 @@ serve(async (req) => {
         await sendInternalPaymentEmail(data, "balance", amountPaid, currency, sessionId, paymentIntentId);
 
         await syncToGHL(bookingId);
-        await syncToGHLCalendar(bookingId);
+        // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_update)
 
       } else {
         // Handle deposit payment
@@ -444,7 +444,7 @@ serve(async (req) => {
         }
 
         await syncToGHL(bookingId);
-        await syncToGHLCalendar(bookingId);
+        // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_insert/update)
 
         // Schedule balance payment jobs
         try {
