@@ -19,6 +19,8 @@ import gallery4 from "@/assets/gallery-4.png";
 import gallery5 from "@/assets/gallery-5.png";
 import gallery6 from "@/assets/gallery-6.png";
 import gallery7 from "@/assets/gallery-7.png";
+import gallery8 from "@/assets/gallery-8.png";
+import gallery9 from "@/assets/gallery-9.png";
 
 const Gallery = () => {
   const [selectedImage, setSelectedImage] = useState<{ url: string; title: string } | null>(null);
@@ -84,6 +86,14 @@ const Gallery = () => {
     {
       url: gallery7,
       title: "Event Setup",
+    },
+    {
+      url: gallery8,
+      title: "Venue Exterior",
+    },
+    {
+      url: gallery9,
+      title: "Prep Kitchen",
     },
   ];
 
