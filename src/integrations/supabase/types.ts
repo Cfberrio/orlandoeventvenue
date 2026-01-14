@@ -667,6 +667,27 @@ export type Database = {
         }
         Relationships: []
       }
+      ghl_calendar_sync_config: {
+        Row: {
+          function_url: string
+          id: number
+          secret: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          function_url: string
+          id?: number
+          secret?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          function_url?: string
+          id?: number
+          secret?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       inventory_locations: {
         Row: {
           created_at: string
