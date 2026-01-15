@@ -22,13 +22,13 @@ import {
 } from "date-fns";
 
 const lifecycleColors: Record<string, string> = {
-  pending: "bg-muted",
-  confirmed: "bg-primary",
-  pre_event_ready: "bg-chart-1",
-  in_progress: "bg-chart-2",
-  post_event: "bg-chart-3",
-  closed_review_complete: "bg-chart-4",
-  cancelled: "bg-destructive",
+  pending: "bg-yellow-500 text-white",
+  confirmed: "bg-blue-600 text-white",
+  pre_event_ready: "bg-indigo-600 text-white",
+  in_progress: "bg-green-600 text-white",
+  post_event: "bg-purple-600 text-white",
+  closed_review_complete: "bg-gray-500 text-white",
+  cancelled: "bg-red-600 text-white",
 };
 
 type ViewMode = "week" | "month";
@@ -167,29 +167,39 @@ export default function StaffSchedule() {
               {days.map((day) => {
                 const events = getEventsForDay(day);
                 const isToday = isSameDay(day, new Date());
+                const hasEvents = events.length > 0;
                 
                 return (
                   <div
                     key={day.toISOString()}
                     className={`min-h-[120px] border rounded-lg p-2 ${
-                      isToday ? "border-primary bg-primary/5" : "border-border"
+                      isToday 
+                        ? "border-primary bg-primary/5" 
+                        : hasEvents
+                          ? "border-blue-300 bg-blue-50 dark:bg-blue-950/20"
+                          : "border-border bg-background"
                     }`}
                   >
-                    <div className={`text-sm font-medium mb-1 ${isToday ? "text-primary" : ""}`}>
-                      {format(day, "d")}
+                    <div className={`text-sm font-medium mb-1 flex items-center justify-between ${isToday ? "text-primary" : ""}`}>
+                      <span>{format(day, "d")}</span>
+                      {hasEvents && (
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold bg-blue-600 text-white">
+                          {events.length}
+                        </Badge>
+                      )}
                     </div>
                     <div className="space-y-1">
                       {events.slice(0, 3).map((event) => (
                         <Link
                           key={event.id}
                           to={event.linkTo}
-                          className={`block p-1 rounded text-xs ${event.color} text-primary-foreground hover:opacity-80 transition-opacity`}
+                          className={`block p-2 rounded-md text-xs ${event.color} hover:opacity-90 transition-all shadow-sm border border-white/20`}
                           title={`${event.title} - ${event.subtitle} | Your role: ${event.role}`}
                         >
                           <div className="truncate">
                             <span className="font-medium">{event.time}</span> {event.title}
                           </div>
-                          <div className="text-[10px] opacity-80 truncate">
+                          <div className="text-[10px] opacity-90 truncate">
                             {event.role}
                           </div>
                         </Link>
@@ -207,6 +217,17 @@ export default function StaffSchedule() {
           )}
         </CardContent>
       </Card>
+
+      {/* Visual Guide */}
+      {!isLoading && data && data.bookings.length > 0 && (
+        <div className="text-sm p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
+          <strong className="text-blue-900 dark:text-blue-100">📅 Visual Guide:</strong>{" "}
+          <span className="text-blue-800 dark:text-blue-200">
+            Days with a blue background have bookings assigned to you. The badge shows the number of bookings. 
+            Click on any booking to see full details.
+          </span>
+        </div>
+      )}
 
       {/* Legend */}
       <Card>
