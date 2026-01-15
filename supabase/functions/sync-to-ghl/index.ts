@@ -39,11 +39,12 @@ interface BookingSnapshot {
     email: string | null;
     phone: string | null;
   };
-  // Legacy staff info (first assigned - for backwards compatibility)
-  staff_email: string | null;
-  staff_name: string | null;
-  staff_id: string | null;
-  // Custodial-specific staff info (for cleaning report emails)
+  // Staff info - ALWAYS custodial role (used by GHL Internal Notifications)
+  // Will be null if no custodial staff assigned (NEVER fallback to production/assistant)
+  staff_email: string | null;  // Email of custodial staff ONLY
+  staff_name: string | null;   // Name of custodial staff ONLY
+  staff_id: string | null;     // ID of custodial staff ONLY
+  // Deprecated - kept for backwards compatibility (same as staff_* fields)
   custodial_email: string | null;
   custodial_name: string | null;
   custodial_staff_id: string | null;
@@ -125,26 +126,39 @@ async function buildBookingSnapshot(
     console.error("Error fetching staff assignments:", staffError);
   }
 
-  // Get staff count and first assigned staff's info (for backwards compatibility)
+  // Get total staff count
   const staffCount = staffAssignments?.length || 0;
-  const firstAssignment = staffAssignments?.[0];
-  const staffMember = firstAssignment?.staff_members as unknown as { id: string; full_name: string; email: string } | null;
-  const staff_email = staffMember?.email || null;
-  const staff_name = staffMember?.full_name || null;
-  const staff_id = staffMember?.id || null;
 
-  // Get Custodial-specific staff (for cleaning report emails)
-  // Filter by assignment_role = 'Custodial' and pick the oldest by created_at
+  // Get Custodial staff FIRST (this is what GHL workflows need for notifications)
+  // CRITICAL: staff_email/name/id now ALWAYS point to custodial (never production/assistant)
   const custodialAssignments = staffAssignments?.filter(a => a.assignment_role === "Custodial") || [];
   const custodialCount = custodialAssignments.length;
   const firstCustodial = custodialAssignments[0]; // Already sorted by created_at ASC
   const custodialMember = firstCustodial?.staff_members as unknown as { id: string; full_name: string; email: string } | null;
-  const custodial_email = custodialMember?.email || null;
-  const custodial_name = custodialMember?.full_name || null;
-  const custodial_staff_id = custodialMember?.id || null;
+  
+  // CRITICAL: staff_email now ALWAYS points to custodial (never production/assistant)
+  const staff_email = custodialMember?.email || null;
+  const staff_name = custodialMember?.full_name || null;
+  const staff_id = custodialMember?.id || null;
 
-  console.log(`Staff info for booking ${bookingId}: email=${staff_email}, name=${staff_name}, count=${staffCount}`);
-  console.log(`Custodial info for booking ${bookingId}: email=${custodial_email}, name=${custodial_name}, count=${custodialCount}`);
+  // Log clearly with warning if no custodial
+  if (custodialCount === 0 && staffCount > 0) {
+    console.warn(`⚠️ Booking ${bookingId} has ${staffCount} staff but NO CUSTODIAL - staff_email will be null`);
+  }
+  console.log(`Staff info (CUSTODIAL ONLY) for booking ${bookingId}: email=${staff_email}, name=${staff_name}, custodial_count=${custodialCount}, total_staff=${staffCount}`);
+
+  // Safety check: verify staff_email is actually custodial (should ALWAYS be true with new logic)
+  if (staff_email) {
+    const actualStaffRole = staffAssignments?.find(a => 
+      (a.staff_members as any)?.email === staff_email
+    )?.assignment_role;
+    
+    if (actualStaffRole && actualStaffRole !== "Custodial") {
+      console.error(`🚨 CRITICAL: staff_email is set to non-custodial role: ${actualStaffRole}`);
+      console.error(`This should NEVER happen - check the filtering logic!`);
+      console.error(`Booking: ${bookingId}, Email: ${staff_email}`);
+    }
+  }
 
   // Check for completed cleaning reports
   const { data: cleaningReports, error: cleaningError } = await supabase
@@ -240,14 +254,14 @@ async function buildBookingSnapshot(
       email: booking.email,
       phone: booking.phone,
     },
-    // Legacy staff info (backwards compatibility)
-    staff_email,
-    staff_name,
-    staff_id,
-    // Custodial-specific staff info (for cleaning report emails)
-    custodial_email,
-    custodial_name,
-    custodial_staff_id,
+    // Staff info (ALWAYS custodial role - used by GHL notifications)
+    staff_email,      // null if no custodial assigned
+    staff_name,       // null if no custodial assigned
+    staff_id,         // null if no custodial assigned
+    // Deprecated fields (kept for backwards compatibility, same values as staff_*)
+    custodial_email: staff_email,
+    custodial_name: staff_name,
+    custodial_staff_id: staff_id,
     custodial_count: custodialCount,
   };
 }
