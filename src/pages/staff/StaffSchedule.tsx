@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { useStaffScheduleData } from "@/hooks/useStaffData";
+import { useStaffSession } from "@/hooks/useStaffSession";
 import { 
   format, 
   startOfWeek, 
@@ -35,6 +36,7 @@ type ViewMode = "week" | "month";
 export default function StaffSchedule() {
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const { staffMember } = useStaffSession();
 
   const dateFrom = viewMode === "week" 
     ? format(startOfWeek(currentDate), "yyyy-MM-dd")
@@ -44,6 +46,16 @@ export default function StaffSchedule() {
     : format(endOfMonth(currentDate), "yyyy-MM-dd");
 
   const { data, isLoading } = useStaffScheduleData(dateFrom, dateTo);
+
+  // Debug logging
+  useEffect(() => {
+    if (data?.bookings) {
+      console.log(`[Staff Calendar] ${staffMember?.full_name} (${staffMember?.role}) - ${data.bookings.length} bookings found for ${dateFrom} to ${dateTo}`);
+      data.bookings.forEach(b => {
+        console.log(`  - ${b.event_date}: ${b.full_name} (${b.event_type}) - Role: ${b.assignment_role}`);
+      });
+    }
+  }, [data, staffMember, dateFrom, dateTo]);
 
   const days = eachDayOfInterval({
     start: viewMode === "week" ? startOfWeek(currentDate) : startOfMonth(currentDate),
@@ -66,6 +78,7 @@ export default function StaffSchedule() {
       time: string;
       color: string;
       linkTo: string;
+      role: string;
     }> = [];
 
     data?.bookings
@@ -78,6 +91,7 @@ export default function StaffSchedule() {
           time: booking.start_time?.slice(0, 5) || "All day",
           color: lifecycleColors[booking.lifecycle_status] || "bg-muted",
           linkTo: `/staff/bookings/${booking.id}`,
+          role: booking.assignment_role || "Staff",
         });
       });
 
@@ -87,7 +101,15 @@ export default function StaffSchedule() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <h1 className="text-2xl font-bold text-foreground">My Schedule</h1>
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">My Schedule</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {staffMember?.full_name} ({staffMember?.role})
+            {!isLoading && data && (
+              <> • <span className="font-medium text-primary">{data.bookings.length} assigned booking{data.bookings.length !== 1 ? 's' : ''}</span> in this period</>
+            )}
+          </p>
+        </div>
         <div className="flex gap-1">
           <Button 
             variant={viewMode === "week" ? "default" : "outline"} 
@@ -127,6 +149,11 @@ export default function StaffSchedule() {
         <CardContent>
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading schedule...</div>
+          ) : data?.bookings.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-muted-foreground">No bookings assigned to you in this period.</p>
+              <p className="text-sm text-muted-foreground mt-2">Navigate to other weeks/months to see your assignments.</p>
+            </div>
           ) : (
             <div className={`grid gap-2 ${viewMode === "week" ? "grid-cols-7" : "grid-cols-7"}`}>
               {/* Day headers */}
@@ -156,10 +183,15 @@ export default function StaffSchedule() {
                         <Link
                           key={event.id}
                           to={event.linkTo}
-                          className={`block p-1 rounded text-xs ${event.color} text-primary-foreground truncate hover:opacity-80 transition-opacity`}
-                          title={`${event.title} - ${event.subtitle}`}
+                          className={`block p-1 rounded text-xs ${event.color} text-primary-foreground hover:opacity-80 transition-opacity`}
+                          title={`${event.title} - ${event.subtitle} | Your role: ${event.role}`}
                         >
-                          <span className="font-medium">{event.time}</span> {event.title}
+                          <div className="truncate">
+                            <span className="font-medium">{event.time}</span> {event.title}
+                          </div>
+                          <div className="text-[10px] opacity-80 truncate">
+                            {event.role}
+                          </div>
                         </Link>
                       ))}
                       {events.length > 3 && (
