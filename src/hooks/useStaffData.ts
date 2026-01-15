@@ -296,3 +296,47 @@ export function useRemoveStaffAssignment() {
     },
   });
 }
+
+// Get schedule data for staff (bookings assigned to them in a date range)
+export function useStaffScheduleData(dateFrom: string, dateTo: string) {
+  const { staffMember } = useStaffSession();
+  
+  return useQuery({
+    queryKey: ["staff-schedule-data", staffMember?.id, dateFrom, dateTo],
+    queryFn: async () => {
+      if (!staffMember?.id) return { bookings: [] };
+      
+      const { data, error } = await supabase
+        .from("booking_staff_assignments")
+        .select(`
+          id,
+          assignment_role,
+          bookings!inner (
+            id,
+            reservation_number,
+            event_date,
+            start_time,
+            end_time,
+            booking_type,
+            event_type,
+            number_of_guests,
+            full_name,
+            lifecycle_status
+          )
+        `)
+        .eq("staff_id", staffMember.id)
+        .gte("bookings.event_date", dateFrom)
+        .lte("bookings.event_date", dateTo);
+      
+      if (error) throw error;
+      
+      const bookings = (data || []).map((assignment: any) => ({
+        ...assignment.bookings,
+        assignment_role: assignment.assignment_role,
+      }));
+      
+      return { bookings };
+    },
+    enabled: !!staffMember?.id && !!dateFrom && !!dateTo,
+  });
+}

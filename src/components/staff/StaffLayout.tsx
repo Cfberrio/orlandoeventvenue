@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { NavLink, Outlet } from "react-router-dom";
-import { CalendarDays, Menu, X, LogOut, Package } from "lucide-react";
+import { CalendarDays, Menu, X, LogOut, Package, Calendar } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStaffSession } from "@/hooks/useStaffSession";
@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 
 const baseNavItems = [
   { to: "/staff", icon: CalendarDays, label: "My Bookings", end: true },
+  { to: "/staff/schedule", icon: Calendar, label: "Calendar" },
   { to: "/staff/inventory", icon: Package, label: "Inventory", roles: ["Custodial"] },
 ];
 
