@@ -306,34 +306,35 @@ export function useStaffScheduleData(dateFrom: string, dateTo: string) {
     queryFn: async () => {
       if (!staffMember?.id) return { bookings: [] };
       
-      const { data, error } = await supabase
+      // First, get all bookings in the date range
+      const { data: bookingsData, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("id, reservation_number, event_date, start_time, end_time, booking_type, event_type, number_of_guests, full_name, lifecycle_status")
+        .gte("event_date", dateFrom)
+        .lte("event_date", dateTo);
+      
+      if (bookingsError) throw bookingsError;
+      
+      // Get all assignments for this staff member
+      const { data: assignmentsData, error: assignmentsError } = await supabase
         .from("booking_staff_assignments")
-        .select(`
-          id,
-          assignment_role,
-          bookings!inner (
-            id,
-            reservation_number,
-            event_date,
-            start_time,
-            end_time,
-            booking_type,
-            event_type,
-            number_of_guests,
-            full_name,
-            lifecycle_status
-          )
-        `)
-        .eq("staff_id", staffMember.id)
-        .gte("bookings.event_date", dateFrom)
-        .lte("bookings.event_date", dateTo);
+        .select("booking_id, assignment_role")
+        .eq("staff_id", staffMember.id);
       
-      if (error) throw error;
+      if (assignmentsError) throw assignmentsError;
       
-      const bookings = (data || []).map((assignment: any) => ({
-        ...assignment.bookings,
-        assignment_role: assignment.assignment_role,
-      }));
+      // Create a map of booking_id -> assignment_role
+      const assignmentMap = new Map(
+        assignmentsData?.map(a => [a.booking_id, a.assignment_role]) || []
+      );
+      
+      // Filter bookings to only include those assigned to this staff member
+      const bookings = (bookingsData || [])
+        .filter(booking => assignmentMap.has(booking.id))
+        .map(booking => ({
+          ...booking,
+          assignment_role: assignmentMap.get(booking.id),
+        }));
       
       return { bookings };
     },
