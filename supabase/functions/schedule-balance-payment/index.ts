@@ -49,10 +49,10 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Fetch booking details
+    // Fetch booking details with policy
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*")
+      .select("*, booking_policies(*)")
       .eq("id", booking_id)
       .single();
 
@@ -62,6 +62,28 @@ serve(async (req) => {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // [POLICY GUARD] Check if payment processing is required for this booking
+    if (booking.booking_policies && booking.booking_policies.requires_payment === false) {
+      console.log(
+        `[POLICY_SKIP] Balance payment scheduling skipped ` +
+        `(booking: ${booking_id}, origin: ${booking.booking_origin}, ` +
+        `policy: ${booking.booking_policies.policy_name})`
+      );
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          skipped: true,
+          reason: "policy_requires_payment_false",
+          booking_id,
+          reservation_number: booking.reservation_number
+        }), 
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const responseData: Record<string, unknown> = {
