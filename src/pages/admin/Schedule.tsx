@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Plus, Lock } from 
 import { useScheduleData } from "@/hooks/useAdminData";
 import { useAvailabilityBlocks } from "@/hooks/useAvailabilityBlocks";
 import { InternalBookingWizard } from "@/components/admin/InternalBookingWizard";
+import { ExternalBookingWizard } from "@/components/admin/ExternalBookingWizard";
 import { 
   format, 
   startOfWeek, 
@@ -43,6 +44,7 @@ export default function Schedule() {
   const [showCleaning, setShowCleaning] = useState(true);
   const [showBlocks, setShowBlocks] = useState(true);
   const [internalBookingOpen, setInternalBookingOpen] = useState(false);
+  const [externalBookingOpen, setExternalBookingOpen] = useState(false);
 
   const dateFrom = viewMode === "week" 
     ? format(startOfWeek(currentDate), "yyyy-MM-dd")
@@ -164,6 +166,10 @@ export default function Schedule() {
           <Button onClick={() => setInternalBookingOpen(true)} size="sm">
             <Plus className="h-4 w-4 mr-2" />
             Internal Booking
+          </Button>
+          <Button onClick={() => setExternalBookingOpen(true)} size="sm" variant="secondary">
+            <Plus className="h-4 w-4 mr-2" />
+            External Booking
           </Button>
           <div className="flex items-center gap-2">
             <Checkbox 
@@ -299,6 +305,9 @@ export default function Schedule() {
 
       {/* Internal Booking Wizard */}
       <InternalBookingWizard open={internalBookingOpen} onOpenChange={setInternalBookingOpen} />
+      
+      {/* External Booking Wizard */}
+      <ExternalBookingWizard open={externalBookingOpen} onOpenChange={setExternalBookingOpen} />
     </div>
   );
 }
