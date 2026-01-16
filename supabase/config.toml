@@ -62,3 +62,11 @@ verify_jwt = false
 
 [functions.ghl-appointment-webhook]
 verify_jwt = false
+
+[functions.send-internal-booking-reminders]
+verify_jwt = false
+
+# Cron job: Run daily at 8:00 AM Orlando time (13:00 UTC)
+# Sends 1-day reminders for internal bookings
+[functions.send-internal-booking-reminders.cron]
+schedule = "0 13 * * *"
