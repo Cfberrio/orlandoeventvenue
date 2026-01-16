@@ -43,6 +43,8 @@ export interface Booking {
   discount_amount: number | null;
   discount_code: string | null;
   payment_status: string;
+  deposit_paid_at: string | null;
+  balance_paid_at: string | null;
   full_name: string;
   email: string;
   phone: string;
@@ -53,6 +55,8 @@ export interface Booking {
   pre_event_ready: string | null;
   host_report_step: string | null;
   created_at: string;
+  booking_origin: "website" | "internal" | "external";
+  policy_id: string;
 }
 
 export interface StaffMember {
