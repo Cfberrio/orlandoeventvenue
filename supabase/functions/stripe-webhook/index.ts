@@ -289,6 +289,57 @@ serve(async (req) => {
 
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+      // [IDEMPOTENCY CHECK] Verify this event hasn't been processed before
+      const { data: existingEvent } = await supabase
+        .from("stripe_event_log")
+        .select("id")
+        .eq("event_id", event.id)
+        .maybeSingle();
+
+      if (existingEvent) {
+        console.log(`[IDEMPOTENT_SKIP] Event ${event.id} already processed`);
+        return new Response(
+          JSON.stringify({ received: true, skipped: "already_processed" }), 
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
+
+      // [POLICY GUARD] Check if payment processing is required for this booking
+      const { data: bookingWithPolicy, error: policyError } = await supabase
+        .from("bookings")
+        .select("booking_origin, booking_policies(*)")
+        .eq("id", bookingId)
+        .single();
+
+      if (policyError) {
+        console.error("Error fetching booking policy:", policyError);
+      } else if (bookingWithPolicy?.booking_policies?.requires_payment === false) {
+        console.log(
+          `[POLICY_SKIP] Payment processing skipped ` +
+          `(booking: ${bookingId}, origin: ${bookingWithPolicy.booking_origin}, ` +
+          `policy: ${bookingWithPolicy.booking_policies.policy_name})`
+        );
+        
+        // Log event as policy-skipped
+        await supabase.from("stripe_event_log").insert({
+          event_id: event.id,
+          event_type: event.type,
+          booking_id: bookingId,
+          metadata: { skipped_reason: "policy_requires_payment_false" }
+        });
+
+        return new Response(
+          JSON.stringify({ received: true, skipped: "policy" }), 
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          }
+        );
+      }
+
       if (paymentType === "balance") {
         // Check if already processed (idempotency)
         const { data: existingBooking } = await supabase
@@ -360,6 +411,15 @@ serve(async (req) => {
         await syncToGHL(bookingId);
         // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_update)
 
+        // Log Stripe event as successfully processed
+        await supabase.from("stripe_event_log").insert({
+          event_id: event.id,
+          event_type: event.type,
+          booking_id: bookingId,
+          metadata: { payment_type: "balance", amount_cents: session.amount_total }
+        });
+        console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);
+
       } else {
         // Handle deposit payment
         // Check if already processed (idempotency)
@@ -399,15 +459,18 @@ serve(async (req) => {
         // Send internal email notification
         await sendInternalPaymentEmail(data, "deposit", amountPaid, currency, sessionId, paymentIntentId);
 
-        // Send customer confirmation email
-        try {
-          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-            },
-            body: JSON.stringify({
+        // Send customer confirmation email (check policy first)
+        const shouldSendConfirmation = bookingWithPolicy?.booking_policies?.send_customer_confirmation !== false;
+        
+        if (shouldSendConfirmation) {
+          try {
+            const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-booking-confirmation`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              },
+              body: JSON.stringify({
               email: data.email,
               full_name: data.full_name,
               reservation_number: data.reservation_number,
@@ -434,13 +497,19 @@ serve(async (req) => {
             }),
           });
 
-          if (!emailResponse.ok) {
-            console.error("Failed to send confirmation email:", await emailResponse.text());
-          } else {
-            console.log("Customer confirmation email sent successfully");
+            if (!emailResponse.ok) {
+              console.error("Failed to send confirmation email:", await emailResponse.text());
+            } else {
+              console.log("Customer confirmation email sent successfully");
+            }
+          } catch (emailError) {
+            console.error("Error sending confirmation email:", emailError);
           }
-        } catch (emailError) {
-          console.error("Error sending confirmation email:", emailError);
+        } else {
+          console.log(
+            `[POLICY_SKIP] Customer confirmation email skipped ` +
+            `(booking: ${bookingId}, policy: ${bookingWithPolicy?.booking_policies?.policy_name})`
+          );
         }
 
         await syncToGHL(bookingId);
@@ -469,6 +538,15 @@ serve(async (req) => {
         } catch (scheduleError) {
           console.error("Error scheduling balance payment:", scheduleError);
         }
+
+        // Log Stripe event as successfully processed
+        await supabase.from("stripe_event_log").insert({
+          event_id: event.id,
+          event_type: event.type,
+          booking_id: bookingId,
+          metadata: { payment_type: "deposit", amount_cents: session.amount_total }
+        });
+        console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);
       }
     }
 
