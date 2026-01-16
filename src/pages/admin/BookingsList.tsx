@@ -242,6 +242,8 @@ export default function BookingsList() {
                     <TableHead>Payment</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    <TableHead>Deposit Paid</TableHead>
+                    <TableHead>Balance Paid</TableHead>
                     <TableHead></TableHead>
                   </TableRow>
                 </TableHeader>
@@ -279,6 +281,22 @@ export default function BookingsList() {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           ${Number(booking.total_amount).toLocaleString()}
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {booking.deposit_paid_at 
+                              ? format(new Date(booking.deposit_paid_at), "MM/dd/yyyy")
+                              : <span className="text-muted-foreground">Pending</span>
+                            }
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {booking.balance_paid_at 
+                              ? format(new Date(booking.balance_paid_at), "MM/dd/yyyy")
+                              : <span className="text-muted-foreground">Pending</span>
+                            }
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Link to={`/admin/bookings/${booking.id}`}>
