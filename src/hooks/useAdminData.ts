@@ -820,16 +820,26 @@ export function useCreateStaffAssignment() {
 
       // Send staff assignment notification email
       try {
-        // Fetch booking details
+        // Fetch booking details with policy
         const { data: booking, error: bookingError } = await supabase
           .from("bookings")
-          .select("reservation_number, event_date, start_time, end_time, package, package_start_time, package_end_time, full_name")
+          .select("reservation_number, event_date, start_time, end_time, package, package_start_time, package_end_time, full_name, booking_origin, booking_policies(*)")
           .eq("id", variables.booking_id)
           .single();
 
         if (bookingError) {
           console.error("Error fetching booking for email:", bookingError);
           return;
+        }
+
+        // [POLICY GUARD] Check if staff assignment emails are enabled for this booking
+        if (booking.booking_policies && booking.booking_policies.send_staff_assignment_emails === false) {
+          console.log(
+            `[POLICY_SKIP] Staff assignment email skipped ` +
+            `(booking: ${variables.booking_id}, origin: ${booking.booking_origin}, ` +
+            `policy: ${booking.booking_policies.policy_name})`
+          );
+          return; // Skip email but don't fail the assignment
         }
 
         // Fetch staff member details
