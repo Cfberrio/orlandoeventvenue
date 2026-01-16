@@ -265,6 +265,13 @@ export type Database = {
             foreignKeyName: "booking_cleaning_reports_cleaner_id_fkey"
             columns: ["cleaner_id"]
             isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "booking_cleaning_reports_cleaner_id_fkey"
+            columns: ["cleaner_id"]
+            isOneToOne: false
             referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
@@ -378,10 +385,77 @@ export type Database = {
             foreignKeyName: "booking_host_reports_reviewed_by_id_fkey"
             columns: ["reviewed_by_id"]
             isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "booking_host_reports_reviewed_by_id_fkey"
+            columns: ["reviewed_by_id"]
+            isOneToOne: false
             referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
         ]
+      }
+      booking_policies: {
+        Row: {
+          auto_lifecycle_transitions: boolean | null
+          created_at: string | null
+          description: string | null
+          id: string
+          include_host_report: boolean | null
+          policy_name: string
+          requires_payment: boolean | null
+          requires_staff_assignment: boolean | null
+          send_balance_emails: boolean | null
+          send_cleaning_report: boolean | null
+          send_customer_confirmation: boolean | null
+          send_deposit_emails: boolean | null
+          send_pre_event_1d: boolean | null
+          send_pre_event_30d: boolean | null
+          send_pre_event_7d: boolean | null
+          send_staff_assignment_emails: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_lifecycle_transitions?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          include_host_report?: boolean | null
+          policy_name: string
+          requires_payment?: boolean | null
+          requires_staff_assignment?: boolean | null
+          send_balance_emails?: boolean | null
+          send_cleaning_report?: boolean | null
+          send_customer_confirmation?: boolean | null
+          send_deposit_emails?: boolean | null
+          send_pre_event_1d?: boolean | null
+          send_pre_event_30d?: boolean | null
+          send_pre_event_7d?: boolean | null
+          send_staff_assignment_emails?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_lifecycle_transitions?: boolean | null
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          include_host_report?: boolean | null
+          policy_name?: string
+          requires_payment?: boolean | null
+          requires_staff_assignment?: boolean | null
+          send_balance_emails?: boolean | null
+          send_cleaning_report?: boolean | null
+          send_customer_confirmation?: boolean | null
+          send_deposit_emails?: boolean | null
+          send_pre_event_1d?: boolean | null
+          send_pre_event_30d?: boolean | null
+          send_pre_event_7d?: boolean | null
+          send_staff_assignment_emails?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       booking_reviews: {
         Row: {
@@ -464,6 +538,13 @@ export type Database = {
             foreignKeyName: "booking_staff_assignments_staff_id_fkey"
             columns: ["staff_id"]
             isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
             referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
@@ -477,6 +558,7 @@ export type Database = {
           balance_paid_at: string | null
           balance_payment_url: string | null
           base_rental: number
+          booking_origin: Database["public"]["Enums"]["booking_origin"]
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at: string | null
           cleaning_fee: number
@@ -517,6 +599,7 @@ export type Database = {
           package_start_time: string | null
           payment_status: Database["public"]["Enums"]["payment_status"]
           phone: string
+          policy_id: string
           pre_event_ready: string
           reservation_number: string | null
           setup_breakdown: boolean
@@ -542,6 +625,7 @@ export type Database = {
           balance_paid_at?: string | null
           balance_payment_url?: string | null
           base_rental: number
+          booking_origin?: Database["public"]["Enums"]["booking_origin"]
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null
           cleaning_fee?: number
@@ -582,6 +666,7 @@ export type Database = {
           package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone: string
+          policy_id: string
           pre_event_ready?: string
           reservation_number?: string | null
           setup_breakdown?: boolean
@@ -607,6 +692,7 @@ export type Database = {
           balance_paid_at?: string | null
           balance_payment_url?: string | null
           base_rental?: number
+          booking_origin?: Database["public"]["Enums"]["booking_origin"]
           booking_type?: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null
           cleaning_fee?: number
@@ -647,6 +733,7 @@ export type Database = {
           package_start_time?: string | null
           payment_status?: Database["public"]["Enums"]["payment_status"]
           phone?: string
+          policy_id?: string
           pre_event_ready?: string
           reservation_number?: string | null
           setup_breakdown?: boolean
@@ -665,7 +752,15 @@ export type Database = {
           updated_at?: string
           user_agent?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "bookings_policy_id_fkey"
+            columns: ["policy_id"]
+            isOneToOne: false
+            referencedRelation: "booking_policies"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       ghl_calendar_sync_config: {
         Row: {
@@ -956,6 +1051,41 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_event_log: {
+        Row: {
+          booking_id: string | null
+          event_id: string
+          event_type: string
+          id: string
+          metadata: Json | null
+          processed_at: string | null
+        }
+        Insert: {
+          booking_id?: string | null
+          event_id: string
+          event_type: string
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+        }
+        Update: {
+          booking_id?: string | null
+          event_id?: string
+          event_type?: string
+          id?: string
+          metadata?: Json | null
+          processed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_event_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1003,7 +1133,23 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      booking_custodial_staff: {
+        Row: {
+          booking_id: string | null
+          staff_email: string | null
+          staff_id: string | null
+          staff_name: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       add_internal_note: {
@@ -1033,6 +1179,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "staff"
+      booking_origin: "website" | "internal" | "external"
       booking_status:
         | "pending_review"
         | "confirmed"
@@ -1178,6 +1325,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "staff"],
+      booking_origin: ["website", "internal", "external"],
       booking_status: [
         "pending_review",
         "confirmed",

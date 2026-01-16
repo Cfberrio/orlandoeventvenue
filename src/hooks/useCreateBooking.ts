@@ -59,6 +59,18 @@ export const useCreateBooking = () => {
       if (!formData.initials) throw new Error("Initials are required");
       if (!formData.signerName) throw new Error("Signer name is required");
 
+      // Get the WEBSITE_FULL_FLOW policy for website bookings
+      const { data: policyData, error: policyError } = await supabase
+        .from("booking_policies")
+        .select("id")
+        .eq("policy_name", "WEBSITE_FULL_FLOW")
+        .single();
+
+      if (policyError || !policyData) {
+        console.error("Error fetching website policy:", policyError);
+        throw new Error("Failed to fetch booking policy");
+      }
+
       const eventDateStr = format(formData.date, "yyyy-MM-dd");
       const bookingType = formData.bookingType as "hourly" | "daily";
 
@@ -211,6 +223,8 @@ export const useCreateBooking = () => {
         lifecycle_status: "pending",
         lead_source: "direct_site",
         reservation_number: reservationNumber,
+        booking_origin: "website" as const,
+        policy_id: policyData.id,
       };
 
       console.log("Creating booking with data:", { 

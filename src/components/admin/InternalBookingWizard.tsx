@@ -168,6 +168,17 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
       const effectiveDuration = bookingType === "hourly" ? "1_day" : duration;
       const effectiveEndDate = bookingType === "hourly" ? eventDate : endDateStr;
 
+      // Get the INTERNAL_BLOCK_FLOW policy
+      const { data: policyData, error: policyError } = await supabase
+        .from("booking_policies")
+        .select("id")
+        .eq("policy_name", "INTERNAL_BLOCK_FLOW")
+        .single();
+
+      if (policyError || !policyData) {
+        throw new Error("Failed to fetch internal booking policy");
+      }
+
       // Step 1: Create the booking record
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
@@ -199,6 +210,8 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
           signature: "Internal Booking",
           signature_date: eventDate,
           client_notes: notes || null,
+          booking_origin: "internal",
+          policy_id: policyData.id,
         })
         .select()
         .single();
