@@ -26,12 +26,10 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
   // Available discount codes
   // Percentage codes: discount % of base rental
-  // NANO: 30% off (both hourly and daily)
-  // CHRIS: 40% off (hourly only)
   // Special code "199": $199 off cleaning fee (any booking type)
   const discountCodes: Record<string, number | { type: "cleaning_fee"; amount: number }> = {
     "CHRIS": 40, // 40% off base rental (hourly only)
-    "NANO": 30,  // 30% off base rental (both hourly and daily)
+    "NANO": 30,  // 30% off base rental (hourly AND daily)
     "199": { type: "cleaning_fee", amount: 199 }, // $199 off cleaning fee
   };
 
@@ -62,14 +60,14 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
     }
 
     // For percentage-based discounts
-    const percentage = discountConfig as number;
-
-    // NANO applies to both hourly and daily
-    // Other percentage codes (like CHRIS) only apply to hourly
-    if (code !== "NANO" && data.bookingType !== "hourly") {
+    // NANO applies to both hourly and daily, others only hourly
+    const allowDailyBookings = code === "NANO";
+    if (data.bookingType !== "hourly" && !allowDailyBookings) {
       setDiscountError("This discount code only applies to hourly bookings");
       return;
     }
+
+    const percentage = discountConfig as number;
 
     // Calculate discount amount based on base rental
     let baseRental = 0;
@@ -79,7 +77,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
       baseRental = 140 * hours;
     } else if (data.bookingType === "daily") {
-      baseRental = 899; // Daily rate
+      baseRental = 899;
     }
 
     const discountAmount = Math.round((baseRental * percentage) / 100);
@@ -124,7 +122,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           // Discount applied to cleaning fee
           cleaningFee = Math.max(0, cleaningFee - appliedDiscount.amount);
         } else {
-          // Discount applied to base rental (both hourly and daily)
+          // Discount applied to base rental (hourly or daily, depending on code)
           rentalDiscount = appliedDiscount.amount;
         }
       }
