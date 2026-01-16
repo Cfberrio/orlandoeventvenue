@@ -314,13 +314,20 @@ serve(async (req) => {
         .eq("id", bookingId)
         .single();
 
+      // Extract policy (may be array or object depending on Supabase version)
+      const policy = bookingWithPolicy?.booking_policies 
+        ? (Array.isArray(bookingWithPolicy.booking_policies) 
+            ? bookingWithPolicy.booking_policies[0] 
+            : bookingWithPolicy.booking_policies)
+        : null;
+
       if (policyError) {
         console.error("Error fetching booking policy:", policyError);
-      } else if (bookingWithPolicy?.booking_policies?.requires_payment === false) {
+      } else if (policy?.requires_payment === false) {
         console.log(
           `[POLICY_SKIP] Payment processing skipped ` +
           `(booking: ${bookingId}, origin: ${bookingWithPolicy.booking_origin}, ` +
-          `policy: ${bookingWithPolicy.booking_policies.policy_name})`
+          `policy: ${policy.policy_name})`
         );
         
         // Log event as policy-skipped
@@ -460,7 +467,7 @@ serve(async (req) => {
         await sendInternalPaymentEmail(data, "deposit", amountPaid, currency, sessionId, paymentIntentId);
 
         // Send customer confirmation email (check policy first)
-        const shouldSendConfirmation = bookingWithPolicy?.booking_policies?.send_customer_confirmation !== false;
+        const shouldSendConfirmation = policy?.send_customer_confirmation !== false;
         
         if (shouldSendConfirmation) {
           try {
@@ -508,7 +515,7 @@ serve(async (req) => {
         } else {
           console.log(
             `[POLICY_SKIP] Customer confirmation email skipped ` +
-            `(booking: ${bookingId}, policy: ${bookingWithPolicy?.booking_policies?.policy_name})`
+            `(booking: ${bookingId}, policy: ${policy?.policy_name})`
           );
         }
 
