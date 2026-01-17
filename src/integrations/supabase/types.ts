@@ -762,6 +762,45 @@ export type Database = {
           },
         ]
       }
+      discount_coupons: {
+        Row: {
+          applies_to: string
+          applies_to_daily: boolean | null
+          applies_to_hourly: boolean | null
+          code: string
+          created_at: string | null
+          discount_type: Database["public"]["Enums"]["discount_type"]
+          discount_value: number
+          id: string
+          is_active: boolean | null
+          updated_at: string | null
+        }
+        Insert: {
+          applies_to?: string
+          applies_to_daily?: boolean | null
+          applies_to_hourly?: boolean | null
+          code: string
+          created_at?: string | null
+          discount_type: Database["public"]["Enums"]["discount_type"]
+          discount_value: number
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Update: {
+          applies_to?: string
+          applies_to_daily?: boolean | null
+          applies_to_hourly?: boolean | null
+          code?: string
+          created_at?: string | null
+          discount_type?: Database["public"]["Enums"]["discount_type"]
+          discount_value?: number
+          id?: string
+          is_active?: boolean | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       ghl_calendar_sync_config: {
         Row: {
           function_url: string
@@ -1189,6 +1228,7 @@ export type Database = {
         | "needs_payment"
         | "declined"
       booking_type: "hourly" | "daily"
+      discount_type: "percentage" | "fixed_amount"
       package_type: "none" | "basic" | "led" | "workshop"
       payment_status:
         | "pending"
@@ -1336,6 +1376,7 @@ export const Constants = {
         "declined",
       ],
       booking_type: ["hourly", "daily"],
+      discount_type: ["percentage", "fixed_amount"],
       package_type: ["none", "basic", "led", "workshop"],
       payment_status: [
         "pending",

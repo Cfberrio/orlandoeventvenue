@@ -92,12 +92,26 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
     // If not found in hardcoded, check database coupons
     try {
+      // Type for discount coupons (until types regenerate)
+      type DiscountCoupon = {
+        id: string;
+        code: string;
+        discount_type: 'percentage' | 'fixed_amount';
+        discount_value: number;
+        applies_to: string;
+        applies_to_hourly: boolean;
+        applies_to_daily: boolean;
+        is_active: boolean;
+        created_at: string;
+        updated_at: string;
+      };
+      
       const { data: dbCoupon, error } = await supabase
-        .from("discount_coupons")
+        .from("discount_coupons" as any)
         .select("*")
         .eq("code", code)
         .eq("is_active", true)
-        .maybeSingle();
+        .maybeSingle() as { data: DiscountCoupon | null; error: any };
 
       if (error) {
         console.error("Error checking coupon:", error);
