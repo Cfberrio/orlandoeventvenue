@@ -24,6 +24,7 @@ import Staff from "./pages/admin/Staff";
 import Reminders from "./pages/admin/Reminders";
 import Reports from "./pages/admin/Reports";
 import Cleaning from "./pages/admin/Cleaning";
+import Discounts from "./pages/admin/Discounts";
 import Inventory from "./pages/admin/Inventory";
 // Staff Dashboard imports
 import StaffLayout from "./components/staff/StaffLayout";
@@ -71,6 +72,7 @@ const App = () => (
                 <Route path="reminders" element={<Reminders />} />
                 <Route path="reports" element={<Reports />} />
                 <Route path="cleaning" element={<Cleaning />} />
+                <Route path="discounts" element={<Discounts />} />
                 <Route path="inventory" element={<Inventory />} />
               </Route>
 

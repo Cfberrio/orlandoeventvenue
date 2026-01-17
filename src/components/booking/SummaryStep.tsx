@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { BookingFormData } from "@/pages/Book";
 import { format } from "date-fns";
 import { Edit, Tag, Check, X } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -33,7 +34,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
     "199": { type: "cleaning_fee", amount: 199 }, // $199 off cleaning fee
   };
 
-  const applyDiscountCode = () => {
+  const applyDiscountCode = async () => {
     const code = discountCode.trim().toUpperCase();
     
     if (!code) {
@@ -41,54 +42,101 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       return;
     }
 
+    // First, check hardcoded coupons (priority)
     const discountConfig = discountCodes[code];
     
-    if (!discountConfig) {
-      setDiscountError("Invalid discount code");
-      return;
-    }
+    if (discountConfig) {
+      // Check if it's a cleaning fee discount (special code "199")
+      if (typeof discountConfig === "object" && discountConfig.type === "cleaning_fee") {
+        setAppliedDiscount({
+          code,
+          amount: discountConfig.amount,
+          type: "cleaning_fee",
+        });
+        setDiscountError("");
+        return;
+      }
 
-    // Check if it's a cleaning fee discount (special code "199")
-    if (typeof discountConfig === "object" && discountConfig.type === "cleaning_fee") {
+      // For percentage-based discounts
+      // NANO applies to both hourly and daily, others only hourly
+      const allowDailyBookings = code === "NANO";
+      if (data.bookingType !== "hourly" && !allowDailyBookings) {
+        setDiscountError("This discount code only applies to hourly bookings");
+        return;
+      }
+
+      const percentage = discountConfig as number;
+
+      // Calculate discount amount based on base rental
+      let baseRental = 0;
+      if (data.bookingType === "hourly" && data.startTime && data.endTime) {
+        const start = new Date(`2000-01-01T${data.startTime}`);
+        const end = new Date(`2000-01-01T${data.endTime}`);
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        baseRental = 140 * hours;
+      } else if (data.bookingType === "daily") {
+        baseRental = 899;
+      }
+
+      const discountAmount = Math.round((baseRental * percentage) / 100);
+
       setAppliedDiscount({
         code,
-        amount: discountConfig.amount,
-        type: "cleaning_fee",
+        percentage,
+        amount: discountAmount,
+        type: "rental",
       });
       setDiscountError("");
       return;
     }
 
-    // For percentage-based discounts
-    // NANO applies to both hourly and daily, others only hourly
-    const allowDailyBookings = code === "NANO";
-    if (data.bookingType !== "hourly" && !allowDailyBookings) {
-      setDiscountError("This discount code only applies to hourly bookings");
-      return;
+    // If not found in hardcoded, check database coupons
+    try {
+      const { data: dbCoupon, error } = await supabase
+        .from("discount_coupons")
+        .select("*")
+        .eq("code", code)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error checking coupon:", error);
+        setDiscountError("Error validating coupon code");
+        return;
+      }
+
+      if (!dbCoupon) {
+        setDiscountError("Invalid discount code");
+        return;
+      }
+
+      // DB coupons apply to both hourly and daily
+      const percentage = dbCoupon.discount_percentage;
+
+      // Calculate discount amount based on base rental
+      let baseRental = 0;
+      if (data.bookingType === "hourly" && data.startTime && data.endTime) {
+        const start = new Date(`2000-01-01T${data.startTime}`);
+        const end = new Date(`2000-01-01T${data.endTime}`);
+        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+        baseRental = 140 * hours;
+      } else if (data.bookingType === "daily") {
+        baseRental = 899;
+      }
+
+      const discountAmount = Math.round((baseRental * percentage) / 100);
+
+      setAppliedDiscount({
+        code: dbCoupon.code,
+        percentage,
+        amount: discountAmount,
+        type: "rental",
+      });
+      setDiscountError("");
+    } catch (err) {
+      console.error("Unexpected error:", err);
+      setDiscountError("Error validating coupon code");
     }
-
-    const percentage = discountConfig as number;
-
-    // Calculate discount amount based on base rental
-    let baseRental = 0;
-    if (data.bookingType === "hourly" && data.startTime && data.endTime) {
-      const start = new Date(`2000-01-01T${data.startTime}`);
-      const end = new Date(`2000-01-01T${data.endTime}`);
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      baseRental = 140 * hours;
-    } else if (data.bookingType === "daily") {
-      baseRental = 899;
-    }
-
-    const discountAmount = Math.round((baseRental * percentage) / 100);
-
-    setAppliedDiscount({
-      code,
-      percentage,
-      amount: discountAmount,
-      type: "rental",
-    });
-    setDiscountError("");
   };
 
   const removeDiscount = () => {

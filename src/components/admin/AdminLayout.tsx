@@ -11,7 +11,8 @@ import {
   Menu,
   X,
   LogOut,
-  Package
+  Package,
+  Tag
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/admin/reminders", icon: Bell, label: "Reminders" },
   { to: "/admin/reports", icon: FileText, label: "Reports" },
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },
+  { to: "/admin/discounts", icon: Tag, label: "Discounts" },
   { to: "/admin/inventory", icon: Package, label: "Inventory" },
 ];
 
