@@ -422,7 +422,20 @@ serve(async (req) => {
     const results: Array<{ block_id: string; status: string; reason?: string }> = [];
 
     // Process each block
-    for (const block of blocks as BlockWithBooking[]) {
+    for (const rawBlock of blocks) {
+      // Supabase returns arrays even with !inner, so we need to extract the first element
+      const bookingData = Array.isArray(rawBlock.bookings) ? rawBlock.bookings[0] : rawBlock.bookings;
+      const policyData = Array.isArray(bookingData?.booking_policies) ? bookingData.booking_policies[0] : bookingData?.booking_policies;
+      
+      // Transform to expected type
+      const block: BlockWithBooking = {
+        ...rawBlock,
+        bookings: {
+          ...bookingData,
+          booking_policies: policyData
+        }
+      };
+      
       const booking = block.bookings;
       const policy = booking.booking_policies;
 
