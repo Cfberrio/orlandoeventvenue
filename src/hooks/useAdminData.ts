@@ -1189,7 +1189,7 @@ export function useDiscountCoupons(activeOnly?: boolean) {
     queryKey: ["discount-coupons", activeOnly],
     queryFn: async () => {
       let query = supabase
-        .from("discount_coupons" as any)
+        .from("discount_coupons")
         .select("*")
         .order("created_at", { ascending: false });
       
@@ -1199,7 +1199,7 @@ export function useDiscountCoupons(activeOnly?: boolean) {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data as unknown as DiscountCoupon[];
+      return data;
     },
   });
 }
@@ -1216,7 +1216,7 @@ export function useCreateDiscountCoupon() {
       is_active: boolean;
     }) => {
       const { data, error } = await supabase
-        .from("discount_coupons" as any)
+        .from("discount_coupons")
         .insert({
           ...coupon,
           code: coupon.code.toUpperCase(), // Always uppercase
@@ -1224,7 +1224,7 @@ export function useCreateDiscountCoupon() {
         .select()
         .single();
       if (error) throw error;
-      return data as unknown as DiscountCoupon;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
@@ -1253,13 +1253,13 @@ export function useUpdateDiscountCoupon() {
         updates.code = updates.code.toUpperCase();
       }
       const { data, error } = await supabase
-        .from("discount_coupons" as any)
+        .from("discount_coupons")
         .update(updates)
         .eq("id", id)
         .select()
         .single();
       if (error) throw error;
-      return data as unknown as DiscountCoupon;
+      return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
@@ -1272,7 +1272,7 @@ export function useDeleteDiscountCoupon() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("discount_coupons" as any)
+        .from("discount_coupons")
         .delete()
         .eq("id", id);
       if (error) throw error;
