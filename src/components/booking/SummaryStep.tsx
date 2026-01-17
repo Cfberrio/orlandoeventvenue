@@ -29,7 +29,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   // Special code "199": $199 off cleaning fee (any booking type)
   const discountCodes: Record<string, number | { type: "cleaning_fee"; amount: number }> = {
     "CHRIS": 40, // 40% off base rental (hourly only)
-    "NANO": 30,  // 30% off base rental (hourly AND daily)
+    "NANO": 50,  // 50% off base rental (hourly AND daily)
     "199": { type: "cleaning_fee", amount: 199 }, // $199 off cleaning fee
   };
 
