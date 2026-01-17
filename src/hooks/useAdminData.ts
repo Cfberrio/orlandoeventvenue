@@ -1169,13 +1169,27 @@ export function usePastBookingsForReviews(days = 30) {
   });
 }
 
+// Type for discount coupons (until types regenerate)
+export type DiscountCoupon = {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'fixed_amount';
+  discount_value: number;
+  applies_to: string;
+  applies_to_hourly: boolean;
+  applies_to_daily: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 // Discount Coupons hooks
 export function useDiscountCoupons(activeOnly?: boolean) {
   return useQuery({
     queryKey: ["discount-coupons", activeOnly],
     queryFn: async () => {
       let query = supabase
-        .from("discount_coupons")
+        .from("discount_coupons" as any)
         .select("*")
         .order("created_at", { ascending: false });
       
@@ -1185,7 +1199,7 @@ export function useDiscountCoupons(activeOnly?: boolean) {
       
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+      return data as unknown as DiscountCoupon[];
     },
   });
 }
@@ -1202,7 +1216,7 @@ export function useCreateDiscountCoupon() {
       is_active: boolean;
     }) => {
       const { data, error } = await supabase
-        .from("discount_coupons")
+        .from("discount_coupons" as any)
         .insert({
           ...coupon,
           code: coupon.code.toUpperCase(), // Always uppercase
@@ -1210,7 +1224,7 @@ export function useCreateDiscountCoupon() {
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as DiscountCoupon;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
@@ -1239,13 +1253,13 @@ export function useUpdateDiscountCoupon() {
         updates.code = updates.code.toUpperCase();
       }
       const { data, error } = await supabase
-        .from("discount_coupons")
+        .from("discount_coupons" as any)
         .update(updates)
         .eq("id", id)
         .select()
         .single();
       if (error) throw error;
-      return data;
+      return data as unknown as DiscountCoupon;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
@@ -1258,7 +1272,7 @@ export function useDeleteDiscountCoupon() {
   return useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from("discount_coupons")
+        .from("discount_coupons" as any)
         .delete()
         .eq("id", id);
       if (error) throw error;
