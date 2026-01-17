@@ -229,7 +229,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         for (const recurringDate of recurringDates) {
           const recurringDateStr = format(recurringDate, "yyyy-MM-dd");
           await createBlock.mutateAsync({
-            source: "external_admin",
+            source: "internal_admin",
             booking_id: booking.id,
             block_type: bookingType,
             start_date: recurringDateStr,
@@ -242,7 +242,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       } else {
         // For single occurrence or daily bookings
         await createBlock.mutateAsync({
-          source: "external_admin",
+          source: "internal_admin",
           booking_id: booking.id,
           block_type: bookingType,
           start_date: eventDate,
