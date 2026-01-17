@@ -33,48 +33,157 @@ interface BlockWithBooking {
  * Gets tomorrow's date in YYYY-MM-DD format (Orlando timezone)
  */
 function getTomorrowDate(): string {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const now = new Date();
   
-  // Format as YYYY-MM-DD
-  const year = tomorrow.getFullYear();
-  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
-  const day = String(tomorrow.getDate()).padStart(2, '0');
+  // Get tomorrow's date
+  const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
   
+  // Format in Orlando timezone (America/New_York)
+  const orlandoDate = tomorrow.toLocaleString('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+  
+  // Convert MM/DD/YYYY to YYYY-MM-DD
+  const [month, day, year] = orlandoDate.split('/');
   return `${year}-${month}-${day}`;
 }
 
 /**
- * Builds reminder message for internal booking
+ * Builds HTML email for internal booking reminder
  */
-function buildReminderMessage(block: BlockWithBooking, date: string): string {
+function buildReminderHTML(block: BlockWithBooking, date: string): string {
   const booking = block.bookings;
+  const firstName = booking.full_name.split(' ')[0];
   
   const timeInfo = block.block_type === "hourly" && block.start_time && block.end_time
-    ? `Time: ${formatTime(block.start_time)} - ${formatTime(block.end_time)}`
-    : "Time: All day";
+    ? `${formatTime(block.start_time)} - ${formatTime(block.end_time)}`
+    : "All day";
   
+  const accessInstructions = `Orlando Event Venue – Access Instructions & Rules
+
+Welcome to Orlando Event Venue!
+3847 E Colonial Dr, Orlando, FL 32803
+
+Wifi - User: GlobalChurch / Password: Orlandoministry
+
+Step-by-Step Venue Access:
+
+1. Locate the Entrance
+   Arrive at Colonial Event Space in Colonial Town Center. Look for the Global sign with the number 3847 displayed.
+
+2. Venue Entry & Lockbox Access
+   Facing the Global sign, go to the door on the left side of the building.
+   On the wall near the entrance, you will find a black lockbox with a touchscreen keypad.
+   Touch the screen first to light it up, then enter the CODE: 10102025.
+   Unlock the box and retrieve the Magnetic Key.
+
+3. Unlock the Door
+   Tap the magnetic key on the sensor (located on the right side of the door).
+   After unlocking, return the key to the lockbox and close it.
+
+4. Enter the Venue
+   Open the door and step inside.
+   On the left wall, locate the remote labeled "Light".
+   Point it at the lights and press the left-side buttons to turn them on.
+   Return the remote to its original spot after use.
+
+Contact: Luis Torres (407) 276-3234`;
+
   return `
-🔔 Reminder: Your event at Orlando Event Venue is TOMORROW!
+<table style="margin:0;padding:28px 12px;" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f6">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="margin:0;padding:0;" align="center">
+<table style="max-width:680px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 12px 30px rgba(15,23,42,0.10);overflow:hidden;" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="background:linear-gradient(135deg,#111827,#1f2937);padding:22px 26px;color:#ffffff;text-align:left;font-family:Verdana,Arial,sans-serif;">
+<div style="padding-left: 0px!important;; padding-left: 0px!important;; padding-left: 0px!important;; font-size:18px;font-weight:800;letter-spacing:0.2px;margin:0;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Your Booking Starts Soon</strong></p>
+</div>
+<div style="padding-left: 0px!important;; padding-left: 0px!important;; padding-left: 0px!important;; margin-top:6px;font-size:13px;line-height:1.6;color:#e5e7eb;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Quick reminder — your booking starts soon. Here are access notes and details for your event.</p>
+</div>
+<table style="margin-top:12px;" cellpadding="0" cellspacing="0" border="0">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="background:#16a34a;color:#dcfce7;border-radius:999px;padding:6px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:800;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Tomorrow</strong></p>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+<tr>
+<td colspan="1" rowspan="1" style="padding:22px 26px 14px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;color:#111827;">
+<p style="margin:0px; line-height: 1.7;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">Hi <strong>${firstName}</strong>,</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px 0 12px 0;font-size: 14px;color: #374151;">We're excited to host you tomorrow — hope you have an amazing event. Here's everything you need in one place so you can arrive confidently.</p>
 
-Event: ${booking.event_type}
-Date: ${formatDate(date)}
-${timeInfo}
-Guests: ${booking.number_of_guests}
+<table style="border:1px solid #e5e7eb;background:#ffffff;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="padding:14px 14px;">
+<div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Event Details</strong></p>
+</div>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Event:</strong> ${booking.event_type}</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Date:</strong> ${formatDate(date)}</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Time:</strong> ${timeInfo}</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Guests:</strong> ${booking.number_of_guests}</p>
+</td>
+</tr>
+</tbody>
+</table>
 
-Location:
-Orlando Event Venue
-3847 E Colonial Dr
-Orlando, FL 32803
+<table style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="padding:14px 14px;">
+<div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Access / Arrival Notes</strong></p>
+</div>
+<div style="padding-left: 0px!important;; font-size:14px;line-height:1.75;color:#111827;white-space:pre-line;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;">${accessInstructions}</p>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
 
-Access Instructions:
-- Use the magnetic key from the lockbox (CODE: 10102025)
-- WiFi: GlobalChurch / Orlandoministry
-- Full venue rules in your booking confirmation
+<table style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
+<tbody>
+<tr>
+<td colspan="1" rowspan="1" style="padding:14px 14px;">
+<div style="padding-left: 0px!important;; font-size:14px;font-weight:900;margin:0 0 8px 0;color:#111827;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>What happens next</strong></p>
+</div>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Arrive a few minutes early so you can start on time and maximize your booking window.</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Follow all venue rules to avoid fees.</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Need help fast? Reply to this email and we'll help immediately.</p>
+</td>
+</tr>
+</tbody>
+</table>
 
-Questions? Contact us at (407) 276-3234
-
-See you tomorrow!
+<div style="padding-left: 0px!important;; border-top:1px solid #e5e7eb;margin:16px 0;"></div>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">— <strong>Orlando Event Venue Team</strong></p>
+</td>
+</tr>
+<tr>
+<td colspan="1" rowspan="1" style="padding:0 26px 20px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;font-size:11px;line-height:1.6;color:#9ca3af;">
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br>This is an automated email — please keep it for your records.</p>
+</td>
+</tr>
+</tbody>
+</table>
+</td>
+</tr>
+</tbody>
+</table>
   `.trim();
 }
 
@@ -176,9 +285,9 @@ async function sendViaGHL(block: BlockWithBooking, message: string): Promise<voi
 }
 
 /**
- * Alternative: Send via SendGrid (more reliable for emails)
+ * Send via SendGrid (HTML email)
  */
-async function sendViaSendGrid(block: BlockWithBooking, message: string): Promise<void> {
+async function sendViaSendGrid(block: BlockWithBooking, htmlContent: string): Promise<void> {
   const sendGridApiKey = Deno.env.get("SENDGRID_API_KEY");
   const fromEmail = Deno.env.get("SENDGRID_FROM_EMAIL") || "noreply@orlandoeventvenue.com";
   
@@ -199,12 +308,12 @@ async function sendViaSendGrid(block: BlockWithBooking, message: string): Promis
       body: JSON.stringify({
         personalizations: [{
           to: [{ email: booking.email, name: booking.full_name }],
-          subject: "🔔 Event Reminder: Tomorrow at Orlando Event Venue",
+          subject: "Orlando Event Venue — Starting Soon (Access Notes Inside)",
         }],
         from: { email: fromEmail, name: "Orlando Event Venue" },
         content: [{
-          type: "text/plain",
-          value: message
+          type: "text/html",
+          value: htmlContent
         }],
       }),
     });
@@ -350,8 +459,8 @@ serve(async (req) => {
         continue;
       }
 
-      // Build reminder message
-      const message = buildReminderMessage(block, tomorrowStr);
+      // Build reminder HTML email
+      const htmlContent = buildReminderHTML(block, tomorrowStr);
 
       // Send reminder
       let channel = "none";
@@ -360,11 +469,12 @@ serve(async (req) => {
       try {
         // Try SendGrid first (more reliable for emails)
         if (Deno.env.get("SENDGRID_API_KEY")) {
-          await sendViaSendGrid(block, message);
+          await sendViaSendGrid(block, htmlContent);
           channel = "sendgrid";
         } else if (Deno.env.get("GHL_API_KEY")) {
-          // Fallback to GHL
-          await sendViaGHL(block, message);
+          // Fallback to GHL (using plain text version)
+          const plainText = `Event: ${booking.event_type}\nDate: ${tomorrowStr}\nContact: ${booking.full_name}`;
+          await sendViaGHL(block, plainText);
           channel = "ghl";
         } else {
           console.warn("[WARN] No email provider configured!");
