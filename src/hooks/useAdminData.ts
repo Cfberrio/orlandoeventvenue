@@ -1168,3 +1168,103 @@ export function usePastBookingsForReviews(days = 30) {
     },
   });
 }
+
+// Discount Coupons hooks
+export function useDiscountCoupons(activeOnly?: boolean) {
+  return useQuery({
+    queryKey: ["discount-coupons", activeOnly],
+    queryFn: async () => {
+      let query = supabase
+        .from("discount_coupons")
+        .select("*")
+        .order("created_at", { ascending: false });
+      
+      if (activeOnly) {
+        query = query.eq("is_active", true);
+      }
+      
+      const { data, error } = await query;
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useCreateDiscountCoupon() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (coupon: {
+      code: string;
+      discount_type: "percentage" | "fixed_amount";
+      discount_value: number;
+      applies_to_hourly: boolean;
+      applies_to_daily: boolean;
+      is_active: boolean;
+    }) => {
+      const { data, error } = await supabase
+        .from("discount_coupons")
+        .insert({
+          ...coupon,
+          code: coupon.code.toUpperCase(), // Always uppercase
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
+    },
+  });
+}
+
+export function useUpdateDiscountCoupon() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      id,
+      updates,
+    }: {
+      id: string;
+      updates: Partial<{
+        code: string;
+        discount_type: "percentage" | "fixed_amount";
+        discount_value: number;
+        applies_to_hourly: boolean;
+        applies_to_daily: boolean;
+        is_active: boolean;
+      }>;
+    }) => {
+      if (updates.code) {
+        updates.code = updates.code.toUpperCase();
+      }
+      const { data, error } = await supabase
+        .from("discount_coupons")
+        .update(updates)
+        .eq("id", id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
+    },
+  });
+}
+
+export function useDeleteDiscountCoupon() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("discount_coupons")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["discount-coupons"] });
+    },
+  });
+}

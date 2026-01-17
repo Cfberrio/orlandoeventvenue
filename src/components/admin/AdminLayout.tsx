@@ -26,8 +26,8 @@ const navItems = [
   { to: "/admin/reminders", icon: Bell, label: "Reminders" },
   { to: "/admin/reports", icon: FileText, label: "Reports" },
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },
-  { to: "/admin/discounts", icon: Tag, label: "Discounts" },
   { to: "/admin/inventory", icon: Package, label: "Inventory" },
+  { to: "/admin/discounts", icon: Tag, label: "Discounts" },
 ];
 
 export default function AdminLayout() {

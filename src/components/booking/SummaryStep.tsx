@@ -110,10 +110,20 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         return;
       }
 
-      // DB coupons apply to both hourly and daily
-      const percentage = dbCoupon.discount_percentage;
+      // Check if coupon applies to this booking type
+      const appliesToThisType = 
+        (data.bookingType === "hourly" && dbCoupon.applies_to_hourly) ||
+        (data.bookingType === "daily" && dbCoupon.applies_to_daily);
 
-      // Calculate discount amount based on base rental
+      if (!appliesToThisType) {
+        setDiscountError(`This code only applies to ${
+          dbCoupon.applies_to_hourly && dbCoupon.applies_to_daily ? "all" :
+          dbCoupon.applies_to_hourly ? "hourly" : "daily"
+        } bookings`);
+        return;
+      }
+
+      // Calculate base rental
       let baseRental = 0;
       if (data.bookingType === "hourly" && data.startTime && data.endTime) {
         const start = new Date(`2000-01-01T${data.startTime}`);
@@ -124,11 +134,18 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         baseRental = 899;
       }
 
-      const discountAmount = Math.round((baseRental * percentage) / 100);
+      // Calculate discount based on type
+      let discountAmount = 0;
+      if (dbCoupon.discount_type === "percentage") {
+        discountAmount = Math.round((baseRental * dbCoupon.discount_value) / 100);
+      } else {
+        // fixed_amount
+        discountAmount = Math.min(dbCoupon.discount_value, baseRental); // Cap at base rental
+      }
 
       setAppliedDiscount({
         code: dbCoupon.code,
-        percentage,
+        percentage: dbCoupon.discount_type === "percentage" ? dbCoupon.discount_value : undefined,
         amount: discountAmount,
         type: "rental",
       });
