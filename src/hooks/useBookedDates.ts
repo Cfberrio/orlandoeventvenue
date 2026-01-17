@@ -145,10 +145,15 @@ export const isDateFullyBooked = (
     return true;
   }
 
-  // Check any booking on this date
-  if (bookedSlots.some((slot) => isSameDay(parseISO(slot.event_date), date))) {
+  // Check if there's a DAILY booking on this date
+  if (bookedSlots.some((slot) => 
+    slot.booking_type === "daily" && isSameDay(parseISO(slot.event_date), date)
+  )) {
     return true;
   }
+
+  // NOTE: Hourly bookings do NOT fully block a date - only the specific time slots
+  // Time availability is validated separately in isTimeRangeAvailable()
 
   return false;
 };

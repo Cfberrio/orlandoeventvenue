@@ -224,7 +224,7 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
               <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive">
                 <AlertCircle className="h-4 w-4 flex-shrink-0" />
                 <p className="text-sm">
-                  This time range conflicts with an existing booking. Please select different times.
+                  Not available during this time. Please try another time slot.
                 </p>
               </div>
             )}
