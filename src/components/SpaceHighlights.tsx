@@ -8,8 +8,8 @@ const SpaceHighlights = () => {
   const highlights = [
     { icon: Car, label: "Free parking", link: null },
     { icon: Star, label: "⭐️ 5.0 Reviews", link: "https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTEyMy4xIKXMDSoASAFQAw%3D%3D" },
-    { icon: Clock, label: "24/7 Availability", link: null },
-    { icon: MapPin, label: "3847 E Colonial Dr, Orlando, FL 32803", link: null },
+    { icon: Clock, label: "Day + Night Events", link: null },
+    { icon: MapPin, label: "3847 E Colonial Dr, Orlando, FL 32803", link: "https://www.google.com/maps/dir//3847+E+Colonial+Dr,+Orlando,+FL+32803/@28.5442048,-81.1597824,13z/data=!4m8!4m7!1m0!1m5!1m1!1s0x88e7658349956c29:0x14dd97040d50b24f!2m2!1d-81.3365053!2d28.5546946?entry=ttu&g_ep=EgoyMDI2MDExMy4wIKXMDSoASAFQAw%3D%3D" },
   ];
 
   const included = [
@@ -34,7 +34,21 @@ const SpaceHighlights = () => {
             Everything you need for a successful event in one place
           </p>
 
-          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 transition-all duration-1000 delay-300 ${
+          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg mb-16">
+            <h3 className="text-2xl font-bold mb-6 text-center text-foreground">
+              What's Included
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {included.map((item, index) => (
+                <div key={index} className="text-center">
+                  <item.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
+                  <p className="text-sm text-muted">{item.label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all duration-1000 delay-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
             {highlights.map((item, index) => (
@@ -51,30 +65,11 @@ const SpaceHighlights = () => {
                       {item.label}
                     </a>
                   ) : (
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{item.label}</p>
-                      {item.icon === MapPin && (
-                        <p className="text-xs text-muted mt-1">(Near Downtown Orlando)</p>
-                      )}
-                    </div>
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
                   )}
                 </CardContent>
               </Card>
             ))}
-          </div>
-
-          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg">
-            <h3 className="text-2xl font-bold mb-6 text-center text-foreground">
-              What's Included
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {included.map((item, index) => (
-                <div key={index} className="text-center">
-                  <item.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm text-muted">{item.label}</p>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
