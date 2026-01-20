@@ -91,6 +91,9 @@ const GuestsEventStep = ({ data, updateData, onNext, onBack }: GuestsEventStepPr
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent className="bg-background">
+                  <SelectItem value="baby-shower">Baby Shower</SelectItem>
+                  <SelectItem value="wedding">Wedding</SelectItem>
+                  <SelectItem value="reception">Reception</SelectItem>
                   <SelectItem value="corporate-offsite">Corporate Offsite</SelectItem>
                   <SelectItem value="training">Training</SelectItem>
                   <SelectItem value="workshop">Workshop</SelectItem>
