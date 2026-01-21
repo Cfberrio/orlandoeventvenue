@@ -24,6 +24,7 @@ interface BookingData {
   event_type: string;
   number_of_guests: number;
   lead_source: string | null;
+  client_notes: string | null;
   ghl_appointment_id: string | null;
   ghl_contact_id: string | null;
   ghl_appointment_start_at: string | null;
@@ -501,6 +502,15 @@ function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
     `(407) 276-3234`,
   ];
 
+  // Add client notes if they exist
+  if (booking.client_notes && booking.client_notes.trim() !== "") {
+    notesLines.push(``);
+    notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    notesLines.push(`📝 CLIENT NOTES`);
+    notesLines.push(`━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    notesLines.push(booking.client_notes);
+  }
+
   // Add staff section if there are staff assigned
   if (staffInfo.length > 0) {
     notesLines.push(``);
@@ -570,7 +580,7 @@ async function createAppointment(
     toNotify: true, // Enable notifications so staff get calendar invites
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes,
+    description: notes, // Syncs to Google Calendar
   };
   
   // Add additional staff as users if GHL supports it
@@ -655,7 +665,7 @@ async function updateAppointment(
     toNotify: true, // Enable notifications
     ignoreDateRange: true,
     ignoreFreeSlotValidation: true,
-    notes,
+    description: notes, // Syncs to Google Calendar
   };
   
   // Add additional staff as users
