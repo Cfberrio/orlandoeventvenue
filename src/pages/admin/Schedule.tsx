@@ -182,6 +182,24 @@ export default function Schedule() {
     return events.sort((a, b) => a.time.localeCompare(b.time));
   };
 
+  const getDayIndicators = (day: Date) => {
+    if (!data?.bookings) {
+      return { hasWebsiteBookings: false, hasInternalBookings: false, hasExternalBookings: false };
+    }
+
+    const hasWebsiteBookings = showWebsiteBookings && data.bookings.some(
+      b => b.booking_origin === "website" && isSameDay(parseISO(b.event_date), day)
+    );
+    const hasInternalBookings = showInternalBookings && data.bookings.some(
+      b => b.booking_origin === "internal" && isSameDay(parseISO(b.event_date), day)
+    );
+    const hasExternalBookings = showExternalBookings && data.bookings.some(
+      b => b.booking_origin === "external" && isSameDay(parseISO(b.event_date), day)
+    );
+
+    return { hasWebsiteBookings, hasInternalBookings, hasExternalBookings };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
@@ -379,6 +397,7 @@ export default function Schedule() {
               {days.map((day) => {
                 const events = getEventsForDay(day);
                 const isToday = isSameDay(day, new Date());
+                const { hasWebsiteBookings, hasInternalBookings, hasExternalBookings } = getDayIndicators(day);
                 
                 return (
                   <div
@@ -387,6 +406,27 @@ export default function Schedule() {
                       isToday ? "border-primary bg-primary/5" : "border-border"
                     }`}
                   >
+                    {/* Badges indicadores */}
+                    {(hasWebsiteBookings || hasInternalBookings || hasExternalBookings) && (
+                      <div className="flex gap-1 mb-1 flex-wrap">
+                        {hasWebsiteBookings && (
+                          <div className="px-1.5 py-0.5 rounded-full bg-green-500 text-white text-[10px] font-medium">
+                            WEB
+                          </div>
+                        )}
+                        {hasInternalBookings && (
+                          <div className="px-1.5 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-medium">
+                            INT
+                          </div>
+                        )}
+                        {hasExternalBookings && (
+                          <div className="px-1.5 py-0.5 rounded-full bg-purple-500 text-white text-[10px] font-medium">
+                            EXT
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    
                     <div className={`text-sm font-medium mb-1 ${isToday ? "text-primary" : ""}`}>
                       {format(day, "d")}
                     </div>
