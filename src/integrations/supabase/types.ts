@@ -1195,6 +1195,8 @@ export type Database = {
         Args: { _author_id: string; _booking_id: string; _note: string }
         Returns: undefined
       }
+      count_bookings_without_balance_jobs: { Args: never; Returns: number }
+      count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
       has_role: {
         Args: {
