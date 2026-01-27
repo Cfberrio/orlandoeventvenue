@@ -47,7 +47,7 @@ serve(async (req) => {
         type: "jobs_atrasados",
         severity: "CRITICAL",
         count: jobsAtrasados,
-        description: `${jobsAtrasados} jobs llevan más de 1 hora atrasados. El procesador puede no estar funcionando correctamente.`,
+        description: `${jobsAtrasados} jobs are overdue by more than 1 hour. The processor may not be working correctly.`,
       });
     }
 
@@ -66,7 +66,7 @@ serve(async (req) => {
         type: "jobs_fallidos",
         severity: "HIGH",
         count: jobsFallidos,
-        description: `${jobsFallidos} jobs han fallado después de 3 intentos y necesitan revisión manual.`,
+        description: `${jobsFallidos} jobs have failed after 3 attempts and require manual review.`,
       });
     }
 
@@ -88,7 +88,7 @@ serve(async (req) => {
         type: "sin_balance_jobs",
         severity: "CRITICAL",
         count: countBalance,
-        description: `${countBalance} bookings con deposit_paid no tienen balance payment jobs programados. Los guests no recibirán recordatorios de pago.`,
+        description: `${countBalance} bookings with deposit_paid status do not have balance payment jobs scheduled. Guests will not receive payment reminders.`,
       });
     }
 
@@ -110,7 +110,7 @@ serve(async (req) => {
         type: "sin_host_jobs",
         severity: "HIGH",
         count: countHost,
-        description: `${countHost} bookings activos no tienen host report jobs programados. Los guests no recibirán reminders para el host report.`,
+        description: `${countHost} active bookings do not have host report jobs scheduled. Guests will not receive host report reminders.`,
       });
     }
 
@@ -131,7 +131,7 @@ serve(async (req) => {
         type: "sync_ghl_failed",
         severity: "MEDIUM",
         count: syncFallos,
-        description: `${syncFallos} sincronizaciones con GoHighLevel han fallado en las últimas 24 horas.`,
+        description: `${syncFallos} GoHighLevel synchronizations have failed in the last 24 hours.`,
       });
     }
 
@@ -179,7 +179,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({
       ok: true,
       alert_sent: false,
-      message: "Sistema funcionando correctamente - no se requiere alerta",
+      message: "System running correctly - no alert required",
       checked_at: new Date().toISOString(),
     }), {
       status: 200,
@@ -231,10 +231,10 @@ async function sendAlertEmail(issues: HealthIssue[]): Promise<void> {
   const mediumCount = issues.filter(i => i.severity === 'MEDIUM').length;
   
   const subject = criticalCount > 0 
-    ? `[CRITICO] Sistema OEV tiene ${criticalCount} problema(s) critico(s)`
+    ? `[CRITICAL] OEV System has ${criticalCount} critical issue(s)`
     : highCount > 0
-    ? `[ALERTA] Sistema OEV requiere atencion (${issues.length} problema(s))`
-    : `[INFO] Alerta: Sistema OEV - ${issues.length} problema(s) detectado(s)`;
+    ? `[ALERT] OEV System requires attention (${issues.length} issue(s))`
+    : `[INFO] Alert: OEV System - ${issues.length} issue(s) detected`;
 
   const emailHTML = generateAlertHTML(issues);
 
@@ -262,7 +262,7 @@ function generateAlertHTML(issues: HealthIssue[]): string {
   const issuesHTML = sortedIssues.map(issue => {
     const color = issue.severity === 'CRITICAL' ? '#dc2626' : issue.severity === 'HIGH' ? '#ea580c' : '#2563eb';
     const bgColor = issue.severity === 'CRITICAL' ? '#fef2f2' : issue.severity === 'HIGH' ? '#fff7ed' : '#eff6ff';
-    const label = issue.severity === 'CRITICAL' ? 'CRITICO' : issue.severity === 'HIGH' ? 'ALTA PRIORIDAD' : 'MEDIA PRIORIDAD';
+    const label = issue.severity === 'CRITICAL' ? 'CRITICAL' : issue.severity === 'HIGH' ? 'HIGH PRIORITY' : 'MEDIUM PRIORITY';
     
     return `
       <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border-left:4px solid ${color};margin:12px 0;">
@@ -284,9 +284,9 @@ function generateAlertHTML(issues: HealthIssue[]): string {
   const mediumCount = sortedIssues.filter(i => i.severity === 'MEDIUM').length;
 
   const summaryText = [
-    criticalCount > 0 ? `${criticalCount} CRÍTICO(S)` : null,
-    highCount > 0 ? `${highCount} ALTA PRIORIDAD` : null,
-    mediumCount > 0 ? `${mediumCount} MEDIA PRIORIDAD` : null,
+    criticalCount > 0 ? `${criticalCount} CRITICAL` : null,
+    highCount > 0 ? `${highCount} HIGH PRIORITY` : null,
+    mediumCount > 0 ? `${mediumCount} MEDIUM PRIORITY` : null,
   ].filter(Boolean).join(' • ');
 
   return `<!DOCTYPE html>
@@ -304,8 +304,8 @@ function generateAlertHTML(issues: HealthIssue[]): string {
           <!-- Header -->
           <tr>
             <td style="background:#dc2626;padding:30px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:bold;">ALERTA DEL SISTEMA</h1>
-              <p style="margin:8px 0 0;color:#ffffff;font-size:14px;">Orlando Event Venue - Sistema de Automatizacion</p>
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:bold;">SYSTEM ALERT</h1>
+              <p style="margin:8px 0 0;color:#ffffff;font-size:14px;">Orlando Event Venue - Automation System</p>
             </td>
           </tr>
 
@@ -317,13 +317,13 @@ function generateAlertHTML(issues: HealthIssue[]): string {
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fee2e2;border:2px solid #fecaca;border-radius:8px;margin-bottom:20px;">
                 <tr>
                   <td style="padding:16px;text-align:center;">
-                    <p style="margin:0;color:#991b1b;font-size:18px;font-weight:bold;">${issues.length} Problema(s) Detectado(s)</p>
+                    <p style="margin:0;color:#991b1b;font-size:18px;font-weight:bold;">${issues.length} Issue(s) Detected</p>
                     <p style="margin:4px 0 0;color:#dc2626;font-size:13px;font-weight:bold;">${summaryText}</p>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 20px;color:#333333;font-size:16px;line-height:1.6;">El sistema de monitoreo ha detectado los siguientes problemas que requieren atencion:</p>
+              <p style="margin:0 0 20px;color:#333333;font-size:16px;line-height:1.6;">The monitoring system has detected the following issues that require attention:</p>
 
               <!-- Issues -->
               ${issuesHTML}
@@ -332,13 +332,13 @@ function generateAlertHTML(issues: HealthIssue[]): string {
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-top:30px;">
                 <tr>
                   <td style="padding:20px;">
-                    <p style="margin:0 0 12px;color:#1e40af;font-weight:bold;font-size:15px;">Acciones Recomendadas:</p>
+                    <p style="margin:0 0 12px;color:#1e40af;font-weight:bold;font-size:15px;">Recommended Actions:</p>
                     <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px;line-height:1.8;">
-                      <li>Ejecutar el dashboard de monitoreo en Supabase SQL Editor para ver detalles</li>
-                      <li>Revisar los logs de las Edge Functions en Supabase Dashboard</li>
-                      <li>Verificar que el cron job process-scheduled-jobs este activo</li>
-                      <li>Si hay jobs atrasados, verificar la configuracion del procesador</li>
-                      <li>El sistema de auto-reparacion intentara corregir algunos problemas automaticamente cada hora</li>
+                      <li>Run the monitoring dashboard in Supabase SQL Editor to see details</li>
+                      <li>Review Edge Functions logs in Supabase Dashboard</li>
+                      <li>Verify that the process-scheduled-jobs cron job is active</li>
+                      <li>If there are overdue jobs, check the processor configuration</li>
+                      <li>The auto-repair system will attempt to fix some issues automatically every hour</li>
                     </ul>
                   </td>
                 </tr>
@@ -348,9 +348,9 @@ function generateAlertHTML(issues: HealthIssue[]): string {
               <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-top:20px;">
                 <tr>
                   <td style="padding:16px;">
-                    <p style="margin:0 0 8px;color:#374151;font-weight:bold;font-size:13px;">Enlaces Rapidos:</p>
+                    <p style="margin:0 0 8px;color:#374151;font-weight:bold;font-size:13px;">Quick Links:</p>
                     <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.8;">
-                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/editor" style="color:#2563eb;">SQL Editor</a> (para ejecutar queries de verificacion)<br>
+                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/editor" style="color:#2563eb;">SQL Editor</a> (to run verification queries)<br>
                       <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/logs" style="color:#2563eb;">Edge Functions Logs</a><br>
                       <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/database/cron-jobs" style="color:#2563eb;">Cron Jobs</a>
                     </p>
@@ -363,11 +363,11 @@ function generateAlertHTML(issues: HealthIssue[]): string {
                 <tr>
                   <td style="text-align:center;">
                     <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
-                      Este es un email automatico generado por el sistema de monitoreo de salud.<br>
-                      <strong>Solo se envia cuando se detectan problemas.</strong> Si todo funciona correctamente, no recibiras emails.
+                      This is an automated email generated by the health monitoring system.<br>
+                      <strong>Only sent when issues are detected.</strong> If everything works correctly, you will not receive emails.
                     </p>
                     <p style="margin:12px 0 0;color:#9ca3af;font-size:11px;">
-                      Fecha: ${new Date().toLocaleString('es-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })} EST
+                      Date: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })} EST
                     </p>
                   </td>
                 </tr>
