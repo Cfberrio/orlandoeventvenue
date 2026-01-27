@@ -231,18 +231,17 @@ async function sendAlertEmail(issues: HealthIssue[]): Promise<void> {
   const mediumCount = issues.filter(i => i.severity === 'MEDIUM').length;
   
   const subject = criticalCount > 0 
-    ? `🚨 CRÍTICO: Sistema OEV tiene ${criticalCount} problema(s) crítico(s)`
+    ? `[CRITICO] Sistema OEV tiene ${criticalCount} problema(s) critico(s)`
     : highCount > 0
-    ? `⚠️ Alta Prioridad: Sistema OEV requiere atención (${issues.length} problema(s))`
-    : `ℹ️ Alerta: Sistema OEV - ${issues.length} problema(s) detectado(s)`;
+    ? `[ALERTA] Sistema OEV requiere atencion (${issues.length} problema(s))`
+    : `[INFO] Alerta: Sistema OEV - ${issues.length} problema(s) detectado(s)`;
 
   const emailHTML = generateAlertHTML(issues);
 
   await client.send({
-    from: gmailUser,
+    from: `"Orlando Event Venue" <${gmailUser}>`,
     to: "orlandoglobalministries@gmail.com",
     subject: subject,
-    content: "Sistema de Automatización - Alerta de Problemas",
     html: emailHTML,
   });
 
@@ -261,19 +260,22 @@ function generateAlertHTML(issues: HealthIssue[]): string {
   });
 
   const issuesHTML = sortedIssues.map(issue => {
-    const icon = issue.severity === 'CRITICAL' ? '🚨' : issue.severity === 'HIGH' ? '⚠️' : 'ℹ️';
     const color = issue.severity === 'CRITICAL' ? '#dc2626' : issue.severity === 'HIGH' ? '#ea580c' : '#2563eb';
     const bgColor = issue.severity === 'CRITICAL' ? '#fef2f2' : issue.severity === 'HIGH' ? '#fff7ed' : '#eff6ff';
+    const label = issue.severity === 'CRITICAL' ? 'CRITICO' : issue.severity === 'HIGH' ? 'ALTA PRIORIDAD' : 'MEDIA PRIORIDAD';
     
     return `
-      <div style="background:${bgColor};border-left:4px solid ${color};padding:16px;margin:12px 0;border-radius:4px;">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
-          <span style="font-size:20px;">${icon}</span>
-          <strong style="color:${color};font-size:16px;">${issue.severity}</strong>
-          <span style="background:${color};color:white;padding:4px 12px;border-radius:12px;font-size:13px;font-weight:600;">${issue.count}</span>
-        </div>
-        <p style="margin:0;color:#374151;line-height:1.6;font-size:14px;">${issue.description}</p>
-      </div>
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border-left:4px solid ${color};margin:12px 0;">
+        <tr>
+          <td style="padding:16px;">
+            <p style="margin:0 0 8px;">
+              <strong style="color:${color};font-size:16px;">${label}</strong>
+              <span style="background:${color};color:#ffffff;padding:4px 12px;border-radius:12px;font-size:13px;font-weight:bold;margin-left:8px;">${issue.count}</span>
+            </p>
+            <p style="margin:0;color:#374151;line-height:1.6;font-size:14px;">${issue.description}</p>
+          </td>
+        </tr>
+      </table>
     `;
   }).join('');
 
@@ -287,84 +289,97 @@ function generateAlertHTML(issues: HealthIssue[]): string {
     mediumCount > 0 ? `${mediumCount} MEDIA PRIORIDAD` : null,
   ].filter(Boolean).join(' • ');
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;">
-  <div style="max-width:600px;margin:0 auto;padding:20px;">
-    <div style="background:white;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,0.1);overflow:hidden;">
-      
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,#dc2626 0%,#ea580c 100%);padding:32px 24px;text-align:center;">
-        <h1 style="margin:0;color:white;font-size:26px;font-weight:700;">
-          🚨 Alerta del Sistema
-        </h1>
-        <p style="margin:8px 0 0;color:rgba(255,255,255,0.95);font-size:15px;font-weight:500;">
-          Orlando Event Venue - Sistema de Automatización
-        </p>
-      </div>
+<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f5f5;">
+    <tr>
+      <td align="center" style="padding:20px;">
+        <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="background:#dc2626;padding:30px;text-align:center;">
+              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:bold;">ALERTA DEL SISTEMA</h1>
+              <p style="margin:8px 0 0;color:#ffffff;font-size:14px;">Orlando Event Venue - Sistema de Automatizacion</p>
+            </td>
+          </tr>
 
-      <!-- Content -->
-      <div style="padding:32px 24px;">
-        
-        <!-- Summary Badge -->
-        <div style="background:#fee2e2;border:2px solid #fecaca;border-radius:8px;padding:16px;margin-bottom:24px;text-align:center;">
-          <p style="margin:0;color:#991b1b;font-size:18px;font-weight:700;">
-            ${issues.length} Problema(s) Detectado(s)
-          </p>
-          <p style="margin:4px 0 0;color:#dc2626;font-size:13px;font-weight:600;">
-            ${summaryText}
-          </p>
-        </div>
+          <!-- Content -->
+          <tr>
+            <td style="padding:30px;">
+              
+              <!-- Summary -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fee2e2;border:2px solid #fecaca;border-radius:8px;margin-bottom:20px;">
+                <tr>
+                  <td style="padding:16px;text-align:center;">
+                    <p style="margin:0;color:#991b1b;font-size:18px;font-weight:bold;">${issues.length} Problema(s) Detectado(s)</p>
+                    <p style="margin:4px 0 0;color:#dc2626;font-size:13px;font-weight:bold;">${summaryText}</p>
+                  </td>
+                </tr>
+              </table>
 
-        <p style="margin:0 0 20px;color:#1f2937;font-size:16px;line-height:1.6;">
-          El sistema de monitoreo ha detectado los siguientes problemas que requieren atención:
-        </p>
+              <p style="margin:0 0 20px;color:#333333;font-size:16px;line-height:1.6;">El sistema de monitoreo ha detectado los siguientes problemas que requieren atencion:</p>
 
-        <!-- Issues List -->
-        ${issuesHTML}
+              <!-- Issues -->
+              ${issuesHTML}
 
-        <!-- Recommendations Box -->
-        <div style="margin-top:32px;padding:20px;background:#eff6ff;border-radius:8px;border:1px solid #bfdbfe;">
-          <p style="margin:0 0 12px;color:#1e40af;font-weight:600;font-size:15px;">📋 Acciones Recomendadas:</p>
-          <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px;line-height:1.8;">
-            <li>Ejecutar el dashboard de monitoreo en Supabase SQL Editor para ver detalles</li>
-            <li>Revisar los logs de las Edge Functions en Supabase Dashboard</li>
-            <li>Verificar que el cron job <code style="background:#dbeafe;padding:2px 6px;border-radius:3px;">process-scheduled-jobs</code> esté activo</li>
-            <li>Si hay jobs atrasados, verificar la configuración del procesador</li>
-            <li>El sistema de auto-reparación intentará corregir algunos problemas automáticamente cada hora</li>
-          </ul>
-        </div>
+              <!-- Recommendations -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-top:30px;">
+                <tr>
+                  <td style="padding:20px;">
+                    <p style="margin:0 0 12px;color:#1e40af;font-weight:bold;font-size:15px;">Acciones Recomendadas:</p>
+                    <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px;line-height:1.8;">
+                      <li>Ejecutar el dashboard de monitoreo en Supabase SQL Editor para ver detalles</li>
+                      <li>Revisar los logs de las Edge Functions en Supabase Dashboard</li>
+                      <li>Verificar que el cron job process-scheduled-jobs este activo</li>
+                      <li>Si hay jobs atrasados, verificar la configuracion del procesador</li>
+                      <li>El sistema de auto-reparacion intentara corregir algunos problemas automaticamente cada hora</li>
+                    </ul>
+                  </td>
+                </tr>
+              </table>
 
-        <!-- Quick Links Box -->
-        <div style="margin-top:20px;padding:16px;background:#f9fafb;border-radius:8px;border:1px solid #e5e7eb;">
-          <p style="margin:0 0 8px;color:#374151;font-weight:600;font-size:13px;">🔗 Enlaces Rápidos:</p>
-          <div style="font-size:13px;color:#6b7280;line-height:1.8;">
-            • <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/editor" style="color:#2563eb;">SQL Editor</a> (para ejecutar queries de verificación)<br>
-            • <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/logs" style="color:#2563eb;">Edge Functions Logs</a><br>
-            • <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/database/cron-jobs" style="color:#2563eb;">Cron Jobs</a>
-          </div>
-        </div>
+              <!-- Links -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-top:20px;">
+                <tr>
+                  <td style="padding:16px;">
+                    <p style="margin:0 0 8px;color:#374151;font-weight:bold;font-size:13px;">Enlaces Rapidos:</p>
+                    <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.8;">
+                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/editor" style="color:#2563eb;">SQL Editor</a> (para ejecutar queries de verificacion)<br>
+                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/logs" style="color:#2563eb;">Edge Functions Logs</a><br>
+                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/database/cron-jobs" style="color:#2563eb;">Cron Jobs</a>
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
-        <!-- Footer -->
-        <div style="margin-top:32px;padding-top:24px;border-top:1px solid #e5e7eb;text-align:center;">
-          <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
-            Este es un email automático generado por el sistema de monitoreo de salud.<br>
-            <strong>Solo se envía cuando se detectan problemas.</strong> Si todo funciona correctamente, no recibirás emails.
-          </p>
-          <p style="margin:12px 0 0;color:#9ca3af;font-size:11px;">
-            Fecha: ${new Date().toLocaleString('es-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })} EST
-          </p>
-        </div>
-      </div>
+              <!-- Footer -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;">
+                <tr>
+                  <td style="text-align:center;">
+                    <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
+                      Este es un email automatico generado por el sistema de monitoreo de salud.<br>
+                      <strong>Solo se envia cuando se detectan problemas.</strong> Si todo funciona correctamente, no recibiras emails.
+                    </p>
+                    <p style="margin:12px 0 0;color:#9ca3af;font-size:11px;">
+                      Fecha: ${new Date().toLocaleString('es-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })} EST
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
-    </div>
-  </div>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
 </body>
-</html>
-  `;
+</html>`;
 }
