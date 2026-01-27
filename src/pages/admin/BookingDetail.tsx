@@ -153,6 +153,10 @@ export default function BookingDetail() {
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositOverrideLoading, setDepositOverrideLoading] = useState(false);
   const [manualPaymentIntentId, setManualPaymentIntentId] = useState("");
+
+  // Cancellation state
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [manualCustomerId, setManualCustomerId] = useState("");
   const [manualSessionId, setManualSessionId] = useState("");
 
@@ -510,6 +514,46 @@ export default function BookingDetail() {
     }
   };
 
+  const handleCancelBooking = async () => {
+    setIsCancelling(true);
+    
+    try {
+      console.log(`Cancelling booking: ${booking.id}`);
+      
+      const { data, error } = await supabase.functions.invoke("cancel-booking", {
+        body: { booking_id: booking.id },
+      });
+
+      if (error) {
+        throw new Error(error.message || "Failed to cancel booking");
+      }
+
+      if (!data?.ok) {
+        throw new Error(data?.error || "Cancellation failed");
+      }
+
+      toast({
+        title: "Booking Cancelled Successfully",
+        description: `Reservation ${booking.reservation_number} has been cancelled. ${data.jobs_deleted || 0} scheduled jobs removed. Guest has been notified.`,
+      });
+
+      setShowCancelDialog(false);
+      
+      // Reload booking data to show updated status
+      window.location.reload();
+      
+    } catch (error) {
+      console.error("Cancellation error:", error);
+      toast({
+        title: "Failed to Cancel Booking",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
   const hostReport = hostReports?.[0];
 
   return (
@@ -555,6 +599,17 @@ export default function BookingDetail() {
               <CalendarIcon className="mr-2 h-4 w-4" />
               Reschedule
             </Button>
+            {booking.status !== "completed" && booking.status !== "cancelled" && (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setShowCancelDialog(true)}
+                disabled={isCancelling}
+              >
+                <AlertTriangle className="mr-2 h-4 w-4" />
+                Cancel Booking
+              </Button>
+            )}
             <Select value={booking.lifecycle_status} onValueChange={handleStatusChange}>
               <SelectTrigger className="w-48">
                 <SelectValue placeholder="Change status" />
@@ -1638,6 +1693,55 @@ export default function BookingDetail() {
               }
             >
               {rescheduleLoading ? "Rescheduling..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Booking Dialog */}
+      <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Cancel Booking?
+            </DialogTitle>
+            <DialogDescription className="space-y-3 pt-2">
+              <div className="font-medium text-foreground">
+                This will cancel reservation <span className="font-mono bg-muted px-2 py-0.5 rounded">{booking.reservation_number}</span>
+              </div>
+              
+              <div className="text-sm space-y-2">
+                <div className="font-medium">The following actions will be performed:</div>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Mark the booking as <strong>cancelled</strong></li>
+                  <li>Remove all pending and failed automated jobs</li>
+                  <li>Send cancellation notification to <strong>{booking.email}</strong></li>
+                  <li>Update status in GoHighLevel</li>
+                </ul>
+              </div>
+
+              <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 mt-3">
+                <p className="text-sm font-medium text-destructive">
+                  ⚠️ This action cannot be undone.
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="mt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowCancelDialog(false)}
+              disabled={isCancelling}
+            >
+              Keep Booking
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleCancelBooking}
+              disabled={isCancelling}
+            >
+              {isCancelling ? "Cancelling..." : "Yes, Cancel Booking"}
             </Button>
           </DialogFooter>
         </DialogContent>

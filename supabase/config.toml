@@ -78,3 +78,6 @@ verify_jwt = false
 # Checks system health and sends email alerts if issues detected
 [functions.daily-health-check.cron]
 schedule = "0 13 * * *"
+
+[functions.cancel-booking]
+verify_jwt = false
