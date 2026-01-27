@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { MapPin, Sparkles } from "lucide-react";
+import { Armchair, Table, ChefHat, Bath } from "lucide-react";
 import heroBg from "@/assets/hero-bg-new.jpg";
 
 const Hero = () => {
@@ -40,22 +40,22 @@ const Hero = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0s' }}>
                 <div className="text-5xl md:text-6xl font-bold text-primary">90</div>
-                <div className="text-sm text-foreground/70 text-center font-medium">Guest Capacity</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">chairs</div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.2s' }}>
-                <div className="text-5xl md:text-6xl font-bold text-primary">24/7</div>
-                <div className="text-sm text-foreground/70 text-center font-medium">Access</div>
+                <div className="text-5xl md:text-6xl font-bold text-primary">10</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">tables</div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.4s' }}>
-                <MapPin size={48} strokeWidth={2.5} className="text-primary" />
-                <div className="text-sm text-foreground/70 text-center font-medium">Near Downtown Orlando</div>
+                <ChefHat size={48} strokeWidth={2.5} className="text-primary" />
+                <div className="text-sm text-foreground/70 text-center font-medium">Prep kitchen</div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.6s' }}>
-                <Sparkles size={48} strokeWidth={2.5} className="text-primary" />
-                <div className="text-sm text-foreground/70 text-center font-medium">High Level Production A/V</div>
+                <Bath size={48} strokeWidth={2.5} className="text-primary" />
+                <div className="text-sm text-foreground/70 text-center font-medium">Two bathrooms</div>
               </div>
             </div>
           </Card>
