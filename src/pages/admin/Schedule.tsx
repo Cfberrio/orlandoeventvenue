@@ -156,7 +156,7 @@ export default function Schedule() {
             title: booking.full_name,
             subtitle: `${booking.event_type} • ${booking.number_of_guests} guests`,
             time: booking.start_time?.slice(0, 5) || "All day",
-            color: lifecycleColors[booking.lifecycle_status] || "bg-muted",
+            color: originColor,
             linkTo: `/admin/bookings/${booking.id}`,
             bookingOrigin: booking.booking_origin,
           });
