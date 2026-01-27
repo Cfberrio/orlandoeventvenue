@@ -70,3 +70,11 @@ verify_jwt = false
 # Sends 1-day reminders for internal bookings
 [functions.send-internal-booking-reminders.cron]
 schedule = "0 13 * * *"
+
+[functions.daily-health-check]
+verify_jwt = false
+
+# Cron job: Run daily at 8:00 AM EST (13:00 UTC)
+# Checks system health and sends email alerts if issues detected
+[functions.daily-health-check.cron]
+schedule = "0 13 * * *"

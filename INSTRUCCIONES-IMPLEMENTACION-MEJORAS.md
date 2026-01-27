@@ -15,94 +15,49 @@ Se han creado los siguientes archivos:
 
 ---
 
-## 🔧 PASO 1: Obtener tu SERVICE_ROLE_KEY
+## ✨ CONFIGURACIÓN PARA LOVABLE CLOUD
 
-**IMPORTANTE:** Necesitas reemplazar el placeholder `YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE` con tu clave real.
+**Este proyecto está configurado para Lovable Cloud - NO necesitas configurar SERVICE_ROLE_KEY manualmente.**
 
-### Cómo obtenerla:
+Lovable Cloud maneja automáticamente:
+- ✅ Autenticación de Edge Functions (todas tienen `verify_jwt = false`)
+- ✅ Deployment de funciones al hacer push
+- ✅ Ejecución de migraciones SQL
+- ✅ Configuración de cron jobs
 
-1. Ve a **Supabase Dashboard**
-2. Navega a **Settings** → **API**
-3. En la sección **Project API keys**, busca la sección **service_role**
-4. Copia la clave completa (empieza con `eyJhbG...`)
-5. **NUNCA compartas esta clave públicamente**
-
----
-
-## 🔧 PASO 2: Reemplazar SERVICE_ROLE_KEY en las Migraciones
-
-Necesitas editar 3 archivos y reemplazar el placeholder:
-
-### Archivo 1: `20260126222111_auto_trigger_booking_automation.sql`
-
-Busca esta línea (línea 23):
-```sql
-'Authorization', 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdnNnZXNncWp0d3V0YWRjc2hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzUyNDgwMiwiZXhwIjoyMDQ5MTAwODAyfQ.YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE'
-```
-
-Reemplaza todo desde `eyJhbG...` hasta el final con tu SERVICE_ROLE_KEY real.
-
-### Archivo 2: `20260126222113_auto_fix_missing_jobs_cron.sql`
-
-Busca estas líneas (líneas 35 y 59):
-```sql
-"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdnNnZXNncWp0d3V0YWRjc2hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzUyNDgwMiwiZXhwIjoyMDQ5MTAwODAyfQ.YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE"
-```
-
-Reemplaza en AMBAS ocurrencias (hay 2 en este archivo).
-
-### Archivo 3: `20260126222114_daily_health_check_cron.sql`
-
-Busca esta línea (línea 13):
-```sql
-"Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdnNnZXNncWp0d3V0YWRjc2hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzUyNDgwMiwiZXhwIjoyMDQ5MTAwODAyfQ.YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE"
-```
-
-Reemplaza con tu SERVICE_ROLE_KEY real.
+**Las migraciones SQL ya están adaptadas para funcionar sin SERVICE_ROLE_KEY hardcodeado.**
 
 ---
 
-## 🚀 PASO 3: Ejecutar las Migraciones
+## 🔧 PASO ÚNICO: Push a GitHub
 
-### Opción A: Via Supabase CLI (Recomendado)
-
-Desde tu terminal en el directorio del proyecto:
+Todo lo que necesitas hacer:
 
 ```bash
-# 1. Asegúrate de estar en el directorio correcto
 cd /Users/cberrio04/Documents/OEV-PROJECT/orlandoeventvenue
 
-# 2. Verificar que las migraciones están listadas
-supabase db diff
-
-# 3. Aplicar las migraciones
-supabase db push
-
-# 4. Verificar que se aplicaron
-supabase migration list
+# Lovable desplegará automáticamente Edge Functions y ejecutará migraciones
+git push origin main
 ```
 
-### Opción B: Via Supabase Dashboard
-
-1. Ve a **Supabase Dashboard** → **Database** → **Migrations**
-2. Verás las nuevas migraciones listadas
-3. Haz clic en **Run** para cada una en orden:
-   - `20260126222111_auto_trigger_booking_automation.sql`
-   - `20260126222112_health_check_functions.sql`
-   - `20260126222113_auto_fix_missing_jobs_cron.sql`
-   - `20260126222114_daily_health_check_cron.sql`
+**Eso es todo.** Lovable Cloud detectará los cambios y:
+1. ✅ Desplegará la Edge Function `daily-health-check`
+2. ✅ Ejecutará las 4 migraciones SQL automáticamente
+3. ✅ Configurará el cron job para health check diario
+4. ✅ Activará el trigger automático en la base de datos
 
 ---
 
-## 🚀 PASO 4: Desplegar la Edge Function
+## 🔍 Qué Pasa Después del Push
 
-```bash
-# Desplegar la función daily-health-check
-supabase functions deploy daily-health-check
+Lovable Cloud automáticamente:
 
-# Verificar que se desplegó correctamente
-supabase functions list
-```
+1. **Detecta los cambios** en `supabase/migrations/` y `supabase/functions/`
+2. **Despliega `daily-health-check`** con la configuración en `config.toml`
+3. **Ejecuta las migraciones** en orden cronológico
+4. **Configura el cron job** para ejecutarse diariamente a las 8 AM EST
+
+**No necesitas hacer nada más.**
 
 ---
 

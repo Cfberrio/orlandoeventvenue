@@ -1,4 +1,4 @@
-# 🚀 EMPIEZA AQUÍ - Sistema de Automatización
+# 🚀 EMPIEZA AQUÍ - Sistema de Automatización para Lovable Cloud
 
 ## ✅ Todo está listo para implementar
 
@@ -19,44 +19,27 @@ Cada día a las 8:00 AM, el sistema revisa su salud. **Solo si hay problemas**, 
 
 ---
 
-## 📋 IMPLEMENTACIÓN EN 3 PASOS SIMPLES
+## 📋 IMPLEMENTACIÓN AUTOMÁTICA CON LOVABLE CLOUD
 
-### PASO 1: Obtener tu SERVICE_ROLE_KEY (2 minutos)
+### ✨ Todo ya está configurado para Lovable Cloud
 
-1. Ve a: https://supabase.com/dashboard
-2. Selecciona tu proyecto
-3. Ve a: **Settings** → **API**
-4. En "Project API keys", busca **service_role**
-5. Haz clic en **Reveal** y copia la clave completa
+**No necesitas configurar SERVICE_ROLE_KEY ni ejecutar comandos manualmente.**
 
-### PASO 2: Editar 3 Archivos (5 minutos)
+Lovable Cloud maneja automáticamente:
+- ✅ Autenticación de Edge Functions (verify_jwt = false)
+- ✅ Deployment de funciones
+- ✅ Ejecución de migraciones SQL
+- ✅ Configuración de cron jobs
 
-Abre estos archivos y busca `YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE`, reemplázalo con tu clave:
-
-1. `supabase/migrations/20260126222111_auto_trigger_booking_automation.sql`
-   - Buscar en línea ~23
-   - Reemplazar **1 vez**
-
-2. `supabase/migrations/20260126222113_auto_fix_missing_jobs_cron.sql`
-   - Buscar en líneas ~35 y ~59
-   - Reemplazar **2 veces**
-
-3. `supabase/migrations/20260126222114_daily_health_check_cron.sql`
-   - Buscar en línea ~13
-   - Reemplazar **1 vez**
-
-### PASO 3: Ejecutar Comandos (2 minutos)
+### PASO ÚNICO: Push a GitHub
 
 Desde tu terminal:
 
 ```bash
 cd /Users/cberrio04/Documents/OEV-PROJECT/orlandoeventvenue
 
-# Aplicar migraciones
-supabase db push
-
-# Desplegar Edge Function
-supabase functions deploy daily-health-check
+# Hacer push - Lovable desplegará automáticamente
+git push origin main
 ```
 
 ---

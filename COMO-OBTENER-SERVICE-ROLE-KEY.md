@@ -1,8 +1,20 @@
 # Cómo Obtener y Configurar el SERVICE_ROLE_KEY
 
-## 🔑 ¿Qué es el SERVICE_ROLE_KEY?
+## ⚠️ NOTA PARA LOVABLE CLOUD
 
-Es una clave especial de Supabase que tiene **permisos completos** sobre tu base de datos. Se usa para:
+**Si usas Lovable Cloud: NO NECESITAS este archivo.**
+
+Lovable Cloud maneja automáticamente la autenticación y configuración de Edge Functions. Las migraciones SQL han sido adaptadas para funcionar sin SERVICE_ROLE_KEY hardcodeado.
+
+Solo necesitas hacer `git push` y Lovable desplegará todo automáticamente.
+
+---
+
+## 🔑 Para Supabase Tradicional (No Lovable)
+
+Si NO usas Lovable Cloud y tienes Supabase tradicional, sigue estos pasos:
+
+El SERVICE_ROLE_KEY es una clave especial de Supabase que tiene **permisos completos** sobre tu base de datos. Se usa para:
 - Triggers de base de datos que llaman a Edge Functions
 - Cron jobs que ejecutan operaciones programadas
 - Operaciones administrativas automatizadas

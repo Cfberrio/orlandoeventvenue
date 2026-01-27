@@ -37,7 +37,7 @@ SELECT cron.schedule(
       -- Llamar a trigger-booking-automation para reparar
       SELECT net.http_post(
         url := 'https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/trigger-booking-automation',
-        headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdnNnZXNncWp0d3V0YWRjc2hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzUyNDgwMiwiZXhwIjoyMDQ5MTAwODAyfQ.YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE"}'::jsonb,
+        headers := '{"Content-Type": "application/json"}'::jsonb,
         body := jsonb_build_object('booking_id', booking_record.id)
       ) INTO request_id;
       
@@ -66,7 +66,7 @@ SELECT cron.schedule(
       -- Llamar a schedule-host-report-reminders para reparar
       SELECT net.http_post(
         url := 'https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/schedule-host-report-reminders',
-        headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZzdnNnZXNncWp0d3V0YWRjc2hpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczMzUyNDgwMiwiZXhwIjoyMDQ5MTAwODAyfQ.YOUR_ACTUAL_SERVICE_ROLE_KEY_HERE"}'::jsonb,
+        headers := '{"Content-Type": "application/json"}'::jsonb,
         body := jsonb_build_object('booking_id', booking_record.id, 'force_reschedule', true)
       ) INTO request_id;
       
