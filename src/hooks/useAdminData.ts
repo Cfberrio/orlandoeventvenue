@@ -29,6 +29,8 @@ export interface Booking {
   event_type_other: string | null;
   client_notes: string | null;
   package: "none" | "basic" | "led" | "workshop";
+  package_start_time: string | null;
+  package_end_time: string | null;
   setup_breakdown: boolean;
   tablecloths: boolean;
   tablecloth_quantity: number;

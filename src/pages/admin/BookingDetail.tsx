@@ -160,6 +160,13 @@ export default function BookingDetail() {
   const [manualCustomerId, setManualCustomerId] = useState("");
   const [manualSessionId, setManualSessionId] = useState("");
 
+  // Production configuration state (for external bookings)
+  const [showProductionDialog, setShowProductionDialog] = useState(false);
+  const [productionPackage, setProductionPackage] = useState<string>("none");
+  const [productionStartTime, setProductionStartTime] = useState("");
+  const [productionEndTime, setProductionEndTime] = useState("");
+  const [productionLoading, setProductionLoading] = useState(false);
+
   // Validation for Stripe IDs
   const validateStripeId = (value: string, prefix: string) => {
     if (!value) return true; // Empty is allowed
@@ -514,6 +521,98 @@ export default function BookingDetail() {
     }
   };
 
+  const handleSaveProduction = async () => {
+    // Validation: if package is not 'none', times are required
+    if (productionPackage !== "none" && (!productionStartTime || !productionEndTime)) {
+      toast({
+        title: "Missing Information",
+        description: "Please specify both start and end times for production",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validation: end time must be after start time
+    if (productionPackage !== "none" && productionStartTime && productionEndTime) {
+      const start = new Date(`2000-01-01T${productionStartTime}`);
+      const end = new Date(`2000-01-01T${productionEndTime}`);
+      
+      if (end <= start) {
+        toast({
+          title: "Invalid Time Range",
+          description: "End time must be after start time",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validation: minimum 4 hours
+      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      if (hours < 4) {
+        toast({
+          title: "Invalid Duration",
+          description: "Production package requires a minimum of 4 hours",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Validation: for hourly bookings, production hours must be within booking hours
+      if (booking?.booking_type === "hourly" && booking.start_time && booking.end_time) {
+        const bookingStart = new Date(`2000-01-01T${booking.start_time}`);
+        const bookingEnd = new Date(`2000-01-01T${booking.end_time}`);
+        
+        if (start < bookingStart || end > bookingEnd) {
+          toast({
+            title: "Invalid Time Range",
+            description: `Production hours must be within booking time (${booking.start_time.slice(0, 5)} - ${booking.end_time.slice(0, 5)})`,
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
+    setProductionLoading(true);
+    
+    try {
+      const updates = {
+        package: productionPackage as "none" | "basic" | "led" | "workshop",
+        package_start_time: productionPackage === "none" ? null : productionStartTime,
+        package_end_time: productionPackage === "none" ? null : productionEndTime,
+        package_cost: 0, // Always 0 for external bookings
+      };
+      
+      const { error } = await supabase
+        .from("bookings")
+        .update(updates)
+        .eq("id", booking.id);
+      
+      if (error) throw error;
+      
+      toast({
+        title: "✓ Production Configuration Updated",
+        description: productionPackage === "none" 
+          ? "Production removed from this booking" 
+          : `${productionPackage.charAt(0).toUpperCase() + productionPackage.slice(1)} package configured`,
+      });
+      
+      setShowProductionDialog(false);
+      
+      // Refresh booking data
+      window.location.reload();
+    } catch (error) {
+      console.error("Error updating production configuration:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update production configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setProductionLoading(false);
+    }
+  };
+
   const handleCancelBooking = async () => {
     setIsCancelling(true);
     
@@ -760,6 +859,55 @@ export default function BookingDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Production Configuration - Only for External Bookings */}
+            {booking.booking_origin === "external" && (
+              <Card className="border-l-4 border-l-purple-500">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Users className="h-5 w-5 text-purple-500" />
+                    Production Configuration
+                  </CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Configure production package and hours for staff scheduling
+                  </p>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Production Package</span>
+                    <Badge variant={booking.package !== "none" ? "default" : "secondary"}>
+                      {booking.package === "none" ? "No Production" : 
+                       booking.package === "basic" ? "Basic ($79/hr)" :
+                       booking.package === "led" ? "LED ($99/hr)" :
+                       booking.package === "workshop" ? "Workshop ($149/hr)" :
+                       booking.package || "None"}
+                    </Badge>
+                  </div>
+                  {booking.package !== "none" && booking.package_start_time && booking.package_end_time && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground">Production Hours</span>
+                      <Badge className="bg-purple-600 text-white flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {booking.package_start_time.slice(0, 5)} - {booking.package_end_time.slice(0, 5)}
+                      </Badge>
+                    </div>
+                  )}
+                  <Button 
+                    onClick={() => {
+                      setProductionPackage(booking.package || "none");
+                      setProductionStartTime(booking.package_start_time?.slice(0, 5) || "");
+                      setProductionEndTime(booking.package_end_time?.slice(0, 5) || "");
+                      setShowProductionDialog(true);
+                    }}
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                  >
+                    {booking.package !== "none" ? "Edit Production" : "Configure Production"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Financial Summary */}
             <Card className="border-l-4 border-l-green-500">
@@ -1742,6 +1890,83 @@ export default function BookingDetail() {
               disabled={isCancelling}
             >
               {isCancelling ? "Cancelling..." : "Yes, Cancel Booking"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Production Configuration Dialog */}
+      <Dialog open={showProductionDialog} onOpenChange={setShowProductionDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Production</DialogTitle>
+            <DialogDescription>
+              Select production package and specify working hours for staff scheduling
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Package Selection */}
+            <div className="space-y-2">
+              <Label>Production Package</Label>
+              <Select value={productionPackage} onValueChange={setProductionPackage}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Production</SelectItem>
+                  <SelectItem value="basic">Basic Package - $79/hr</SelectItem>
+                  <SelectItem value="led">LED Package - $99/hr</SelectItem>
+                  <SelectItem value="workshop">Workshop Package - $149/hr</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Time Inputs - Only show if package is selected */}
+            {productionPackage !== "none" && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="prod-start">Production Start Time</Label>
+                  <Input
+                    id="prod-start"
+                    type="time"
+                    value={productionStartTime}
+                    onChange={(e) => setProductionStartTime(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="prod-end">Production End Time</Label>
+                  <Input
+                    id="prod-end"
+                    type="time"
+                    value={productionEndTime}
+                    onChange={(e) => setProductionEndTime(e.target.value)}
+                    required
+                  />
+                </div>
+                {booking?.booking_type === "hourly" && booking.start_time && booking.end_time && (
+                  <p className="text-xs text-muted-foreground">
+                    Booking time: {booking.start_time.slice(0, 5)} - {booking.end_time.slice(0, 5)}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowProductionDialog(false)}
+              disabled={productionLoading}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveProduction}
+              disabled={productionLoading}
+            >
+              {productionLoading ? "Saving..." : "Save Configuration"}
             </Button>
           </DialogFooter>
         </DialogContent>
