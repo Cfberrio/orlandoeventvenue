@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      availability_block_reminders: {
+        Row: {
+          block_id: string
+          booking_id: string
+          channel: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          reminder_type: string
+          sent_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          block_id: string
+          booking_id: string
+          channel?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          reminder_type: string
+          sent_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          block_id?: string
+          booking_id?: string
+          channel?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          reminder_type?: string
+          sent_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_block_reminders_block_id_fkey"
+            columns: ["block_id"]
+            isOneToOne: false
+            referencedRelation: "availability_blocks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_block_reminders_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       availability_blocks: {
         Row: {
           block_type: string
