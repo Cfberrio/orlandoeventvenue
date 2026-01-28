@@ -7,11 +7,19 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+interface BookingDetail {
+  reservation_number: string;
+  event_date: string;
+  guest_name?: string;
+  guest_email?: string;
+}
+
 interface HealthIssue {
   type: string;
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM';
   count: number;
   description: string;
+  bookings?: BookingDetail[];
 }
 
 serve(async (req) => {
@@ -73,44 +81,58 @@ serve(async (req) => {
     // =====================================================
     // 3. Verificar bookings sin balance jobs
     // =====================================================
-    const { data: sinBalanceJobs, error: balanceError } = await supabase
-      .rpc("count_bookings_without_balance_jobs");
-    
-    const countBalance = sinBalanceJobs || 0;
+    const { data: bookingsSinBalance, error: balanceError } = await supabase
+      .from("bookings")
+      .select("id, reservation_number, event_date, guest_name, guest_email")
+      .eq("lifecycle_status", "deposit_paid")
+      .is("balance_payment_url", null);
 
     if (balanceError) {
-      console.error("Error counting bookings without balance jobs:", balanceError);
+      console.error("Error getting bookings without balance jobs:", balanceError);
     }
 
-    if (countBalance > 0) {
-      console.log(`[ISSUE] Found ${countBalance} bookings without balance jobs`);
+    if (bookingsSinBalance && bookingsSinBalance.length > 0) {
+      console.log(`[ISSUE] Found ${bookingsSinBalance.length} bookings without balance jobs`);
       issues.push({
         type: "sin_balance_jobs",
         severity: "CRITICAL",
-        count: countBalance,
-        description: `${countBalance} bookings with deposit_paid status do not have balance payment jobs scheduled. Guests will not receive payment reminders.`,
+        count: bookingsSinBalance.length,
+        description: `${bookingsSinBalance.length} bookings with deposit_paid status do not have balance payment jobs scheduled. Guests will not receive payment reminders.`,
+        bookings: bookingsSinBalance.map(b => ({
+          reservation_number: b.reservation_number,
+          event_date: b.event_date,
+          guest_name: b.guest_name,
+          guest_email: b.guest_email,
+        })),
       });
     }
 
     // =====================================================
     // 4. Verificar bookings sin host report jobs
     // =====================================================
-    const { data: sinHostJobs, error: hostError } = await supabase
-      .rpc("count_bookings_without_host_jobs");
-    
-    const countHost = sinHostJobs || 0;
+    const { data: bookingsSinHost, error: hostError } = await supabase
+      .from("bookings")
+      .select("id, reservation_number, event_date, guest_name, guest_email")
+      .eq("lifecycle_status", "pre_event_ready")
+      .eq("host_report_step", "not_started");
 
     if (hostError) {
-      console.error("Error counting bookings without host jobs:", hostError);
+      console.error("Error getting bookings without host jobs:", hostError);
     }
 
-    if (countHost > 0) {
-      console.log(`[ISSUE] Found ${countHost} bookings without host report jobs`);
+    if (bookingsSinHost && bookingsSinHost.length > 0) {
+      console.log(`[ISSUE] Found ${bookingsSinHost.length} bookings without host report jobs`);
       issues.push({
         type: "sin_host_jobs",
         severity: "HIGH",
-        count: countHost,
-        description: `${countHost} active bookings do not have host report jobs scheduled. Guests will not receive host report reminders.`,
+        count: bookingsSinHost.length,
+        description: `${bookingsSinHost.length} active bookings do not have host report jobs scheduled. Guests will not receive host report reminders.`,
+        bookings: bookingsSinHost.map(b => ({
+          reservation_number: b.reservation_number,
+          event_date: b.event_date,
+          guest_name: b.guest_name,
+          guest_email: b.guest_email,
+        })),
       });
     }
 
@@ -253,133 +275,69 @@ async function sendAlertEmail(issues: HealthIssue[]): Promise<void> {
  * Genera el HTML del email de alerta
  */
 function generateAlertHTML(issues: HealthIssue[]): string {
-  // Ordenar por severidad
   const sortedIssues = issues.sort((a, b) => {
     const order = { CRITICAL: 1, HIGH: 2, MEDIUM: 3 };
     return order[a.severity] - order[b.severity];
   });
 
   const issuesHTML = sortedIssues.map(issue => {
-    const color = issue.severity === 'CRITICAL' ? '#dc2626' : issue.severity === 'HIGH' ? '#ea580c' : '#2563eb';
-    const bgColor = issue.severity === 'CRITICAL' ? '#fef2f2' : issue.severity === 'HIGH' ? '#fff7ed' : '#eff6ff';
-    const label = issue.severity === 'CRITICAL' ? 'CRITICAL' : issue.severity === 'HIGH' ? 'HIGH PRIORITY' : 'MEDIUM PRIORITY';
+    const severityLabel = issue.severity === 'CRITICAL' ? '[CRITICAL]' : 
+                         issue.severity === 'HIGH' ? '[HIGH]' : '[MEDIUM]';
     
-    return `
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgColor};border-left:4px solid ${color};margin:12px 0;">
-        <tr>
-          <td style="padding:16px;">
-            <p style="margin:0 0 8px;">
-              <strong style="color:${color};font-size:16px;">${label}</strong>
-              <span style="background:${color};color:#ffffff;padding:4px 12px;border-radius:12px;font-size:13px;font-weight:bold;margin-left:8px;">${issue.count}</span>
-            </p>
-            <p style="margin:0;color:#374151;line-height:1.6;font-size:14px;">${issue.description}</p>
-          </td>
-        </tr>
-      </table>
-    `;
+    let bookingsHTML = '';
+    if (issue.bookings && issue.bookings.length > 0) {
+      bookingsHTML = '<br><br><strong>Affected Bookings:</strong><br>';
+      issue.bookings.forEach(booking => {
+        const eventDate = new Date(booking.event_date).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric'
+        });
+        bookingsHTML += `<br>- ${booking.reservation_number} | ${eventDate}`;
+        if (booking.guest_name) {
+          bookingsHTML += ` | ${booking.guest_name}`;
+        }
+      });
+    }
+    
+    return `<p><strong>${severityLabel} ${issue.description}</strong>${bookingsHTML}</p>`;
   }).join('');
 
   const criticalCount = sortedIssues.filter(i => i.severity === 'CRITICAL').length;
   const highCount = sortedIssues.filter(i => i.severity === 'HIGH').length;
-  const mediumCount = sortedIssues.filter(i => i.severity === 'MEDIUM').length;
-
-  const summaryText = [
-    criticalCount > 0 ? `${criticalCount} CRITICAL` : null,
-    highCount > 0 ? `${highCount} HIGH PRIORITY` : null,
-    mediumCount > 0 ? `${mediumCount} MEDIUM PRIORITY` : null,
-  ].filter(Boolean).join(' • ');
 
   return `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
 </head>
-<body style="margin:0;padding:0;font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f5f5f5;">
-    <tr>
-      <td align="center" style="padding:20px;">
-        <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
-          
-          <!-- Header -->
-          <tr>
-            <td style="background:#dc2626;padding:30px;text-align:center;">
-              <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:bold;">SYSTEM ALERT</h1>
-              <p style="margin:8px 0 0;color:#ffffff;font-size:14px;">Orlando Event Venue - Automation System</p>
-            </td>
-          </tr>
+<body style="font-family:Arial,sans-serif;padding:20px;background:#f5f5f5;">
+<div style="max-width:600px;margin:0 auto;background:white;padding:30px;">
 
-          <!-- Content -->
-          <tr>
-            <td style="padding:30px;">
-              
-              <!-- Summary -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fee2e2;border:2px solid #fecaca;border-radius:8px;margin-bottom:20px;">
-                <tr>
-                  <td style="padding:16px;text-align:center;">
-                    <p style="margin:0;color:#991b1b;font-size:18px;font-weight:bold;">${issues.length} Issue(s) Detected</p>
-                    <p style="margin:4px 0 0;color:#dc2626;font-size:13px;font-weight:bold;">${summaryText}</p>
-                  </td>
-                </tr>
-              </table>
+<h1 style="color:#dc2626;margin:0 0 10px;">OEV SYSTEM ALERT</h1>
+<p style="margin:0 0 20px;color:#666;">Orlando Event Venue - Automation System</p>
 
-              <p style="margin:0 0 20px;color:#333333;font-size:16px;line-height:1.6;">The monitoring system has detected the following issues that require attention:</p>
+<div style="background:#fee2e2;padding:15px;margin:20px 0;">
+<p style="margin:0;"><strong>${issues.length} Issue(s) Detected</strong></p>
+${criticalCount > 0 ? `<p style="margin:5px 0 0;color:#dc2626;">${criticalCount} CRITICAL</p>` : ''}
+${highCount > 0 ? `<p style="margin:5px 0 0;color:#ea580c;">${highCount} HIGH PRIORITY</p>` : ''}
+</div>
 
-              <!-- Issues -->
-              ${issuesHTML}
+<div style="margin:20px 0;">
+${issuesHTML}
+</div>
 
-              <!-- Recommendations -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;margin-top:30px;">
-                <tr>
-                  <td style="padding:20px;">
-                    <p style="margin:0 0 12px;color:#1e40af;font-weight:bold;font-size:15px;">Recommended Actions:</p>
-                    <ul style="margin:0;padding-left:20px;color:#1e3a8a;font-size:14px;line-height:1.8;">
-                      <li>Run the monitoring dashboard in Supabase SQL Editor to see details</li>
-                      <li>Review Edge Functions logs in Supabase Dashboard</li>
-                      <li>Verify that the process-scheduled-jobs cron job is active</li>
-                      <li>If there are overdue jobs, check the processor configuration</li>
-                      <li>The auto-repair system will attempt to fix some issues automatically every hour</li>
-                    </ul>
-                  </td>
-                </tr>
-              </table>
+<div style="background:#eff6ff;padding:15px;margin:20px 0;">
+<p style="margin:0;"><strong>Recommended Actions:</strong></p>
+<p style="margin:10px 0 0;">Review the affected bookings listed above and verify job scheduling. The auto-repair system runs hourly to fix missing jobs automatically.</p>
+</div>
 
-              <!-- Links -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;margin-top:20px;">
-                <tr>
-                  <td style="padding:16px;">
-                    <p style="margin:0 0 8px;color:#374151;font-weight:bold;font-size:13px;">Quick Links:</p>
-                    <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.8;">
-                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/editor" style="color:#2563eb;">SQL Editor</a> (to run verification queries)<br>
-                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/logs" style="color:#2563eb;">Edge Functions Logs</a><br>
-                      <a href="https://supabase.com/dashboard/project/vsvsgesgqjtwutadcshi/database/cron-jobs" style="color:#2563eb;">Cron Jobs</a>
-                    </p>
-                  </td>
-                </tr>
-              </table>
+<p style="margin:30px 0 0;color:#666;font-size:12px;border-top:1px solid #ddd;padding-top:15px;">
+This is an automated alert sent only when issues are detected.<br>
+Date: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York' })} EST
+</p>
 
-              <!-- Footer -->
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:30px;padding-top:20px;border-top:1px solid #e5e7eb;">
-                <tr>
-                  <td style="text-align:center;">
-                    <p style="margin:0;color:#6b7280;font-size:12px;line-height:1.6;">
-                      This is an automated email generated by the health monitoring system.<br>
-                      <strong>Only sent when issues are detected.</strong> If everything works correctly, you will not receive emails.
-                    </p>
-                    <p style="margin:12px 0 0;color:#9ca3af;font-size:11px;">
-                      Date: ${new Date().toLocaleString('en-US', { timeZone: 'America/New_York', dateStyle: 'full', timeStyle: 'short' })} EST
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
-            </td>
-          </tr>
-
-        </table>
-      </td>
-    </tr>
-  </table>
+</div>
 </body>
 </html>`;
 }
