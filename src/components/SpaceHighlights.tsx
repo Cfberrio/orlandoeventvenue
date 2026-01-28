@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, Star, Clock, MapPin, Users, KeyRound, Sparkles } from "lucide-react";
+import { Car, Star, Clock, MapPin, Users, KeyRound, Sparkles, Bath } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const SpaceHighlights = () => {
@@ -23,7 +23,7 @@ const SpaceHighlights = () => {
   const included = [
     { icon: Users, label: "90 Guest Capacity" },
     { icon: KeyRound, label: "24/7 Access" },
-    { icon: MapPin, label: "Near Downtown Orlando" },
+    { icon: Bath, label: "Two bathrooms" },
     { icon: Sparkles, label: "High Level Production A/V" },
   ];
 
