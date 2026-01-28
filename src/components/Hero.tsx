@@ -85,6 +85,25 @@ const Hero = () => {
         </div>
       </div>
     </section>
+    <iframe
+    src="https://api.leadconnectorhq.com/widget/form/3xxV974KCddZUdCeh8BT"
+    style="width:100%;height:100%;border:none;border-radius:3px"
+    id="inline-3xxV974KCddZUdCeh8BT" 
+    data-layout="{'id':'INLINE'}"
+    data-trigger-type="alwaysShow"
+    data-trigger-value=""
+    data-activation-type="alwaysActivated"
+    data-activation-value=""
+    data-deactivation-type="neverDeactivate"
+    data-deactivation-value=""
+    data-form-name="Form 0"
+    data-height="769"
+    data-layout-iframe-id="inline-3xxV974KCddZUdCeh8BT"
+    data-form-id="3xxV974KCddZUdCeh8BT"
+    title="Form 0"
+        >
+</iframe>
+<script src="https://link.msgsndr.com/js/form_embed.js"></script>
   );
 };
 
