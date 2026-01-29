@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.send-booking-confirmation]
 verify_jwt = false
 
+[functions.send-balance-confirmation]
+verify_jwt = false
+
 [functions.send-low-rating-alert]
 verify_jwt = false
 

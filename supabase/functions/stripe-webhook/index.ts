@@ -415,6 +415,41 @@ serve(async (req) => {
         // Send internal email notification
         await sendInternalPaymentEmail(data, "balance", amountPaid, currency, sessionId, paymentIntentId);
 
+        // Send customer balance confirmation email
+        try {
+          console.log("Sending customer balance confirmation email for booking:", bookingId);
+          const emailResponse = await fetch(`${supabaseUrl}/functions/v1/send-balance-confirmation`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+            },
+            body: JSON.stringify({
+              email: data.email,
+              full_name: data.full_name,
+              reservation_number: data.reservation_number,
+              event_date: data.event_date,
+              event_type: data.event_type,
+              number_of_guests: data.number_of_guests,
+              booking_type: data.booking_type,
+              start_time: data.start_time,
+              end_time: data.end_time,
+              total_amount: data.total_amount,
+              deposit_amount: data.deposit_amount,
+              balance_amount: data.balance_amount,
+              amount_paid: amountPaid,
+            }),
+          });
+
+          if (!emailResponse.ok) {
+            console.error("Failed to send balance confirmation email:", await emailResponse.text());
+          } else {
+            console.log("Customer balance confirmation email sent successfully");
+          }
+        } catch (emailError) {
+          console.error("Error sending balance confirmation email:", emailError);
+        }
+
         await syncToGHL(bookingId);
         // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_update)
 
