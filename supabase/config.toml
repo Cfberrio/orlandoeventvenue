@@ -90,3 +90,15 @@ verify_jwt = false
 
 [functions.reschedule-booking]
 verify_jwt = false
+
+[functions.health-check]
+verify_jwt = false
+
+[functions.verify-system-health]
+verify_jwt = false
+
+[functions.get-system-metrics]
+verify_jwt = false
+
+[functions.test-trigger-automation]
+verify_jwt = false

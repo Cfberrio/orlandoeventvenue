@@ -1,10 +1,67 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+const ALERT_EMAIL = "orlandoglobalministries@gmail.com";
+
+/**
+ * Send instant critical failure alert email
+ */
+async function sendCriticalAlert(functionName: string, reservationNumber: string, errorMsg: string, bookingId?: string): Promise<void> {
+  try {
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    if (!gmailUser || !gmailPassword) return;
+
+    const client = new SMTPClient({
+      connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: gmailUser, password: gmailPassword } },
+    });
+
+    const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+
+    await client.send({
+      from: `"OEV Alert" <${gmailUser}>`,
+      to: ALERT_EMAIL,
+      subject: `🚨 CRITICAL: ${functionName} Failed for ${reservationNumber}`,
+      html,
+    });
+    await client.close();
+    console.log(`[ALERT] Critical failure alert sent for ${reservationNumber}`);
+  } catch (alertErr) {
+    console.error("[ALERT] Failed to send critical alert:", alertErr);
+  }
+}
+
+/**
+ * Log critical error to booking_events table
+ */
+async function logCriticalError(bookingId: string, functionName: string, error: Error): Promise<void> {
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    await supabase.from("booking_events").insert({
+      booking_id: bookingId,
+      event_type: `${functionName.replace(/-/g, "_")}_critical_failure`,
+      channel: "system",
+      metadata: {
+        error_message: error.message,
+        error_stack: error.stack?.substring(0, 500),
+        timestamp: new Date().toISOString(),
+        requires_manual_intervention: true,
+      },
+    });
+  } catch (logErr) {
+    console.error("Failed to log critical error:", logErr);
+  }
+}
 
 interface BookingEmailData {
   email: string;
@@ -217,6 +274,15 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error sending email:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    // Send critical alert for customer-facing email failure
+    const booking: BookingEmailData = await req.clone().json().catch(() => ({}));
+    if (booking.reservation_number) {
+      const err = error instanceof Error ? error : new Error(errorMessage);
+      await sendCriticalAlert("send-booking-confirmation", booking.reservation_number, errorMessage);
+      // Note: Can't log to booking_events without booking_id
+    }
+    
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

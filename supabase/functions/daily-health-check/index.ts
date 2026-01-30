@@ -322,6 +322,99 @@ serve(async (req) => {
     }
 
     // =====================================================
+    // 6b. CRITICAL: Bookings stuck in 'in_progress' past event date
+    // =====================================================
+    const twoDaysAgo = new Date(Date.now() - 2 * 86400000).toISOString().split('T')[0];
+    
+    const { data: stuckInProgress } = await supabase
+      .from("bookings")
+      .select("id, reservation_number, event_date, full_name")
+      .eq("lifecycle_status", "in_progress")
+      .neq("status", "cancelled")
+      .lt("event_date", twoDaysAgo)
+      .limit(10);
+
+    if (stuckInProgress && stuckInProgress.length > 0) {
+      console.log(`[CRITICAL] Found ${stuckInProgress.length} bookings stuck in in_progress`);
+      issues.push({
+        type: "stuck_in_progress",
+        severity: "CRITICAL",
+        count: stuckInProgress.length,
+        description: `${stuckInProgress.length} bookings are still in 'in_progress' but event was 2+ days ago. Should be 'post_event' or 'completed'.`,
+        bookings: stuckInProgress.map(b => ({
+          reservation_number: b.reservation_number,
+          event_date: b.event_date,
+          guest_name: b.full_name,
+        })),
+      });
+    }
+
+    // =====================================================
+    // 6c. HIGH: Policy mismatches (website bookings with wrong policy)
+    // =====================================================
+    const { data: policyMismatches } = await supabase
+      .from("bookings")
+      .select(`
+        id, reservation_number, event_date, full_name, booking_origin,
+        booking_policies!inner(policy_name)
+      `)
+      .eq("booking_origin", "website")
+      .neq("status", "cancelled")
+      .limit(20);
+
+    if (policyMismatches && policyMismatches.length > 0) {
+      const wrongPolicy = policyMismatches.filter(b => {
+        const policy = (b.booking_policies as any)?.policy_name;
+        return policy && policy !== "WEBSITE_FULL_FLOW";
+      });
+
+      if (wrongPolicy.length > 0) {
+        console.log(`[HIGH] Found ${wrongPolicy.length} website bookings with wrong policy`);
+        issues.push({
+          type: "policy_mismatch",
+          severity: "HIGH",
+          count: wrongPolicy.length,
+          description: `${wrongPolicy.length} website bookings have incorrect policy (not WEBSITE_FULL_FLOW). Manual review required.`,
+          bookings: wrongPolicy.slice(0, 5).map(b => ({
+            reservation_number: b.reservation_number,
+            event_date: b.event_date,
+            guest_name: b.full_name,
+          })),
+        });
+      }
+    }
+
+    // =====================================================
+    // 6d. Check cron job health via verify-system-health
+    // =====================================================
+    try {
+      console.log("Checking cron jobs health...");
+      const cronResponse = await fetch(`${supabaseUrl}/functions/v1/verify-system-health`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabaseServiceKey}`,
+        },
+      });
+
+      if (cronResponse.ok) {
+        const cronData = await cronResponse.json();
+        
+        if (cronData.status === "critical" || cronData.inactive_crons?.length > 0) {
+          console.log(`[CRITICAL] Cron health check failed: ${cronData.inactive_crons?.join(", ")}`);
+          issues.push({
+            type: "cron_jobs_down",
+            severity: "CRITICAL",
+            count: cronData.inactive_crons?.length || 1,
+            description: `Cron jobs may not be running! ${cronData.inactive_crons?.join(", ") || "Check process-scheduled-jobs cron."}`,
+          });
+        } else if (cronData.status === "warning") {
+          console.log(`[HIGH] Cron health check warning: ${cronData.metrics?.failed_jobs_count} failed jobs`);
+        }
+      }
+    } catch (cronErr) {
+      console.error("Error checking cron health:", cronErr);
+    }
     // 7. Check for error events in booking_events
     // =====================================================
     const { data: errorEvents } = await supabase
