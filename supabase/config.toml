@@ -84,3 +84,9 @@ schedule = "0 13 * * *"
 
 [functions.cancel-booking]
 verify_jwt = false
+
+[functions.system-health-diagnostics]
+verify_jwt = false
+
+[functions.reschedule-booking]
+verify_jwt = false
