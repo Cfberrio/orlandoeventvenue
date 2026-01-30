@@ -79,106 +79,88 @@ function generateEmailHTML(booking: BookingEmailData): string {
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Deposit Received</title>
-  </head>
-  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Verdana,Arial,sans-serif;color:#111827;">
-    <!-- Outer wrapper -->
-    <div style="padding:24px 12px;">
-      <!-- Card -->
-      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px rgba(15,23,42,0.08);overflow:hidden;">
-        
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#111827,#1f2937);padding:24px 32px;color:#ffffff;">
-          <div style="font-size:22px;font-weight:700;margin:0 0 6px 0;">
-            Deposit Received
-          </div>
-          <div style="font-size:13px;line-height:1.5;color:#e5e7eb;">
-            Deposit received — thank you. We've secured it and our team will review your request within ~24 hours.
-          </div>
-          <div style="display:inline-block;margin-top:12px;padding:4px 10px;border-radius:999px;background:#16a34a;color:#dcfce7;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">
-            Reservation #${booking.reservation_number}
-          </div>
-        </div>
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
 
-        <!-- Body -->
-        <div style="padding:24px 32px 28px 32px;">
-          <p style="margin:0 0 10px 0;font-size:16px;">
-            Hi <strong>${firstName}</strong>,
-          </p>
-          <p style="margin:0 0 10px 0;font-size:14px;line-height:1.7;color:#374151;">
-            Thank you for choosing <strong>Orlando Event Venue</strong> — we're genuinely excited to host you.
-          </p>
-          <p style="margin:0 0 16px 0;font-size:14px;line-height:1.7;color:#374151;">
-            We've secured your <strong>50% deposit</strong>, and our team will carefully validate the details and confirm everything within
-            <strong>~24 hours</strong>.
-          </p>
+<div style="background:#111827;padding:30px;color:white;">
+<h1 style="margin:0;font-size:24px;">Deposit Received</h1>
+<p style="margin:10px 0 0;">
+Thank you. We will review your request within 24 hours.
+</p>
+<p style="margin:10px 0 0;font-size:12px;">Reservation ${booking.reservation_number}</p>
+</div>
 
-          <!-- Quick reference box -->
-          <div style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:10px;padding:16px 18px;margin:0 0 18px 0;">
-            <div style="font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;">
-              Quick reference (for your records)
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Reservation #:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.reservation_number}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Type:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.event_type}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Date:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedDate}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Booking Type:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedBookingType}</td>
-              </tr>
-            </table>
-          </div>
+<div style="padding:30px;">
 
-          <div style="margin:0 0 10px 0;font-size:14px;font-weight:700;color:#111827;">
-            What happens next (and why):
-          </div>
-          <div style="margin:0 0 18px 0;">
-            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
-              <strong>1) Review &amp; soft confirmation (~24 hours):</strong>
-              We verify timing, capacity, and venue readiness so your confirmation is solid and accurate.
-            </div>
-            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
-              <strong>2) Please don't send invites yet:</strong>
-              This prevents confusion if we need to adjust anything during review.
-            </div>
-            <div style="padding:8px 0;font-size:14px;line-height:1.7;color:#374151;">
-              <strong>3) Remaining balance:</strong>
-              The final 50% is due <strong>15 days before your event</strong> — we'll send a secure payment link and reminders so you don't have to track it.
-            </div>
-          </div>
+<p style="margin:0;">Hi <strong>${firstName}</strong>,</p>
 
-          <div style="border-top:1px solid #e5e7eb;margin:18px 0;"></div>
+<p style="margin:15px 0;">
+Thank you for choosing Orlando Event Venue - we are excited to host you.
+</p>
 
-          <p style="margin:0 0 10px 0;font-size:14px;line-height:1.7;color:#374151;">
-            If you'd like to update anything (guest count, timing, details), just reply to this email and we'll adjust it with you.
-          </p>
-          <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
-            — <strong>Orlando Event Venue Team</strong>
-          </p>
-        </div>
+<p style="margin:15px 0;">
+We have secured your 50% deposit, and our team will validate the details and confirm everything within 24 hours.
+</p>
 
-        <!-- Footer -->
-        <div style="padding:0 32px 24px 32px;font-size:11px;line-height:1.6;color:#9ca3af;">
-          Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br />
-          This is an automated email — please keep it for your records.
-        </div>
-      </div>
-    </div>
-  </body>
+<p style="margin:20px 0 10px;font-weight:bold;">Quick Reference:</p>
+<table width="100%" style="margin:0;">
+<tr>
+<td style="padding:5px 0;color:#666;">Reservation:</td>
+<td style="padding:5px 0;"><strong>${booking.reservation_number}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Type:</td>
+<td style="padding:5px 0;"><strong>${booking.event_type}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Date:</td>
+<td style="padding:5px 0;"><strong>${formattedDate}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Booking Type:</td>
+<td style="padding:5px 0;"><strong>${formattedBookingType}</strong></td>
+</tr>
+</table>
+
+<p style="margin:20px 0 10px;font-weight:bold;">What happens next:</p>
+
+<p style="margin:10px 0;">
+<strong>1) Review and confirmation (24 hours):</strong><br>
+We verify timing, capacity, and venue readiness.
+</p>
+
+<p style="margin:10px 0;">
+<strong>2) Please do not send invites yet:</strong><br>
+This prevents confusion if we need to adjust anything.
+</p>
+
+<p style="margin:10px 0;">
+<strong>3) Remaining balance:</strong><br>
+The final 50% is due 15 days before your event. We will send a payment link and reminders.
+</p>
+
+<p style="margin:30px 0 10px;border-top:1px solid #ddd;padding-top:20px;">
+If you need to update anything, just reply to this email and we will adjust it with you.
+</p>
+
+<p style="margin:10px 0 0;">
+<strong>Orlando Event Venue Team</strong>
+</p>
+
+</div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
+<p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">This is an automated email - please keep it for your records.</p>
+</div>
+
+</div>
+</body>
 </html>`;
 }
 

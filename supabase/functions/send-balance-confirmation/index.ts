@@ -62,130 +62,103 @@ function generateEmailHTML(booking: BalanceEmailData): string {
     ? `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}`
     : "All Day";
 
-  return `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <title>Payment Received</title>
-  </head>
-  <body style="margin:0;padding:0;background:#f3f4f6;font-family:Verdana,Arial,sans-serif;color:#111827;">
-    <div style="padding:24px 12px;">
-      <div style="max-width:640px;margin:0 auto;background:#ffffff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 10px 25px rgba(15,23,42,0.08);overflow:hidden;">
-        
-        <!-- Header -->
-        <div style="background:linear-gradient(135deg,#059669,#10b981);padding:24px 32px;color:#ffffff;">
-          <div style="font-size:22px;font-weight:700;margin:0 0 6px 0;">
-            ✓ Payment Received - Thank You!
-          </div>
-          <div style="font-size:13px;line-height:1.5;color:#ecfdf5;">
-            Your final payment has been received and your booking is now fully paid.
-          </div>
-          <div style="display:inline-block;margin-top:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.2);color:#ffffff;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600;">
-            Reservation #${booking.reservation_number}
-          </div>
-        </div>
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
 
-        <!-- Body -->
-        <div style="padding:24px 32px 28px 32px;">
-          <p style="margin:0 0 10px 0;font-size:16px;">
-            Hi <strong>${firstName}</strong>,
-          </p>
-          <p style="margin:0 0 16px 0;font-size:14px;line-height:1.7;color:#374151;">
-            Thank you for completing your payment! Your booking at <strong>Orlando Event Venue</strong> is now <strong>fully paid</strong> and confirmed.
-          </p>
+<div style="background:#059669;padding:30px;color:white;">
+<h1 style="margin:0;font-size:24px;">Payment Received - Thank You</h1>
+<p style="margin:10px 0 0;">Your final payment has been received.</p>
+<p style="margin:10px 0 0;font-size:12px;">Reservation ${booking.reservation_number}</p>
+</div>
 
-          <!-- Amount Paid Box -->
-          <div style="background:#ecfdf5;border:2px solid #10b981;border-radius:10px;padding:20px;text-align:center;margin:0 0 20px 0;">
-            <div style="font-size:13px;color:#065f46;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 6px 0;font-weight:600;">
-              Amount Paid
-            </div>
-            <div style="font-size:32px;font-weight:700;color:#059669;margin:0;">
-              ${formatCurrency(booking.amount_paid)}
-            </div>
-            <div style="font-size:12px;color:#059669;margin:4px 0 0 0;">
-              Balance (Remaining 50%)
-            </div>
-          </div>
+<div style="padding:30px;">
 
-          <!-- Event Details -->
-          <div style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:10px;padding:16px 18px;margin:0 0 18px 0;">
-            <div style="font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;">
-              Your Event Details
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Reservation #:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.reservation_number}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Date:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedDate}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Time:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${timeRange}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Booking Type:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${formattedBookingType}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Number of Guests:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.number_of_guests}</td>
-              </tr>
-              <tr>
-                <td style="width:42%;font-size:13px;color:#6b7280;padding:6px 0;">Event Type:</td>
-                <td style="width:58%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;">${booking.event_type}</td>
-              </tr>
-            </table>
-          </div>
+<p style="margin:0;">Hi <strong>${firstName}</strong>,</p>
 
-          <!-- Payment Summary -->
-          <div style="border:1px solid #e5e7eb;background:#ffffff;border-radius:10px;padding:16px 18px;margin:0 0 18px 0;">
-            <div style="font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;">
-              Payment Summary
-            </div>
-            <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
-              <tr>
-                <td style="width:50%;font-size:13px;color:#6b7280;padding:6px 0;">Total Amount:</td>
-                <td style="width:50%;font-size:13px;color:#111827;font-weight:600;padding:6px 0;text-align:right;">${formatCurrency(booking.total_amount)}</td>
-              </tr>
-              <tr>
-                <td style="width:50%;font-size:13px;color:#6b7280;padding:6px 0;">Deposit (paid):</td>
-                <td style="width:50%;font-size:13px;color:#059669;font-weight:600;padding:6px 0;text-align:right;">${formatCurrency(booking.deposit_amount)}</td>
-              </tr>
-              <tr>
-                <td style="width:50%;font-size:13px;color:#6b7280;padding:6px 0;">Balance (paid):</td>
-                <td style="width:50%;font-size:13px;color:#059669;font-weight:600;padding:6px 0;text-align:right;">${formatCurrency(booking.balance_amount)}</td>
-              </tr>
-              <tr style="border-top:1px solid #e5e7eb;">
-                <td style="width:50%;font-size:14px;color:#111827;font-weight:700;padding:10px 0 0 0;">Payment Status:</td>
-                <td style="width:50%;font-size:14px;color:#059669;font-weight:700;padding:10px 0 0 0;text-align:right;">Fully Paid ✓</td>
-              </tr>
-            </table>
-          </div>
+<p style="margin:15px 0;">
+Thank you for completing your payment! Your booking at Orlando Event Venue is now fully paid and confirmed.
+</p>
 
-          <div style="border-top:1px solid #e5e7eb;margin:18px 0;"></div>
+<div style="background:#ecfdf5;border:2px solid #10b981;padding:20px;text-align:center;margin:20px 0;">
+<p style="margin:0;font-size:12px;color:#065f46;">AMOUNT PAID</p>
+<p style="margin:5px 0;font-size:32px;font-weight:bold;color:#059669;">
+${formatCurrency(booking.amount_paid)}
+</p>
+<p style="margin:5px 0 0;font-size:12px;color:#059669;">Balance Payment</p>
+</div>
 
-          <p style="margin:0 0 10px 0;font-size:14px;line-height:1.7;color:#374151;">
-            We're all set for your event! If you need to adjust anything or have questions, feel free to reply to this email.
-          </p>
-          <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
-            Looking forward to hosting you!<br>
-            — <strong>Orlando Event Venue Team</strong>
-          </p>
-        </div>
+<p style="margin:20px 0 10px;font-weight:bold;">Event Details:</p>
+<table width="100%" style="margin:0;">
+<tr>
+<td style="padding:5px 0;color:#666;">Reservation:</td>
+<td style="padding:5px 0;"><strong>${booking.reservation_number}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Date:</td>
+<td style="padding:5px 0;"><strong>${formattedDate}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Time:</td>
+<td style="padding:5px 0;"><strong>${timeRange}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Booking Type:</td>
+<td style="padding:5px 0;"><strong>${formattedBookingType}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Guests:</td>
+<td style="padding:5px 0;"><strong>${booking.number_of_guests}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Type:</td>
+<td style="padding:5px 0;"><strong>${booking.event_type}</strong></td>
+</tr>
+</table>
 
-        <!-- Footer -->
-        <div style="padding:0 32px 24px 32px;font-size:11px;line-height:1.6;color:#9ca3af;">
-          Questions? Contact us at orlandoglobalministries@gmail.com<br>
-          Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br />
-          This is an automated email — please keep it for your records.
-        </div>
-      </div>
-    </div>
-  </body>
+<p style="margin:20px 0 10px;font-weight:bold;">Payment Summary:</p>
+<table width="100%" style="margin:0;">
+<tr>
+<td style="padding:5px 0;color:#666;">Total Amount:</td>
+<td style="padding:5px 0;text-align:right;"><strong>${formatCurrency(booking.total_amount)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Deposit (paid):</td>
+<td style="padding:5px 0;text-align:right;color:#059669;"><strong>${formatCurrency(booking.deposit_amount)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Balance (paid):</td>
+<td style="padding:5px 0;text-align:right;color:#059669;"><strong>${formatCurrency(booking.balance_amount)}</strong></td>
+</tr>
+<tr style="border-top:1px solid #ddd;">
+<td style="padding:10px 0 0;"><strong>Payment Status:</strong></td>
+<td style="padding:10px 0 0;text-align:right;color:#059669;"><strong>Fully Paid</strong></td>
+</tr>
+</table>
+
+<p style="margin:30px 0 10px;border-top:1px solid #ddd;padding-top:20px;">
+We are all set for your event! If you need to adjust anything or have questions, feel free to reply to this email.
+</p>
+
+<p style="margin:10px 0 0;">
+Looking forward to hosting you!<br>
+<strong>Orlando Event Venue Team</strong>
+</p>
+
+</div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
+<p style="margin:0;">Questions? Contact us at orlandoglobalministries@gmail.com</p>
+<p style="margin:5px 0 0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">This is an automated email - please keep it for your records.</p>
+</div>
+
+</div>
+</body>
 </html>`;
 }
 

@@ -118,85 +118,112 @@ async function sendInternalPaymentEmail(
   };
 
   const emailHTML = `<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>OEV Payment Received</title>
-<style>
-body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background:#f3f4f6}
-.container{max-width:640px;margin:20px auto;padding:0 12px}
-.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
-.header{background:linear-gradient(135deg,#059669,#10b981);padding:24px 32px;color:#fff}
-.header h1{margin:0 0 4px 0;font-size:22px}
-.header p{margin:0;opacity:0.9;font-size:14px}
-.badge{display:inline-block;margin-top:12px;padding:4px 10px;border-radius:999px;background:rgba(255,255,255,0.2);font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:600}
-.content{padding:24px 32px}
-.amount-box{background:#ecfdf5;border:2px solid #10b981;border-radius:10px;padding:20px;text-align:center;margin:0 0 20px 0}
-.amount-box .label{font-size:13px;color:#065f46;text-transform:uppercase;letter-spacing:0.08em;margin:0 0 6px 0}
-.amount-box .amount{font-size:32px;font-weight:700;color:#059669;margin:0}
-.section{margin:0 0 20px 0}
-.section-title{font-size:13px;text-transform:uppercase;letter-spacing:0.08em;color:#6b7280;font-weight:600;margin:0 0 10px 0;border-bottom:1px solid #e5e7eb;padding-bottom:6px}
-.field{display:flex;padding:6px 0;font-size:14px}
-.field .label{width:45%;color:#6b7280}
-.field .value{width:55%;color:#111827;font-weight:500}
-.cta-btn{display:inline-block;background:#059669;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}
-.footer{padding:16px 32px;background:#f9fafb;font-size:11px;color:#9ca3af;border-top:1px solid #e5e7eb}
-.ids{font-size:11px;color:#9ca3af;margin-top:16px;padding:12px;background:#f9fafb;border-radius:6px;word-break:break-all}
-</style>
 </head>
-<body>
-<div class="container">
-<div class="card">
-<div class="header">
-<h1>💰 Payment Received (${paymentLabel})</h1>
-<p>A ${paymentType} payment has been successfully processed.</p>
-<div class="badge">Reservation #${reservationNumber}</div>
-</div>
-<div class="content">
-<div class="amount-box">
-<div class="label">Amount Paid Now</div>
-<div class="amount">${formatCurrency(amountPaid)} ${currency.toUpperCase()}</div>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+
+<div style="background:#059669;padding:30px;color:white;">
+<h1 style="margin:0;font-size:24px;">Payment Received (${paymentLabel})</h1>
+<p style="margin:10px 0 0;">A ${paymentType} payment has been processed.</p>
+<p style="margin:10px 0 0;font-size:12px;">Reservation ${reservationNumber}</p>
 </div>
 
-<div class="section">
-<div class="section-title">Booking Details</div>
-<div class="field"><span class="label">Reservation #:</span><span class="value">${reservationNumber}</span></div>
-<div class="field"><span class="label">Client Name:</span><span class="value">${booking.full_name || "N/A"}</span></div>
-<div class="field"><span class="label">Client Email:</span><span class="value">${booking.email || "N/A"}</span></div>
-<div class="field"><span class="label">Client Phone:</span><span class="value">${booking.phone || "N/A"}</span></div>
-<div class="field"><span class="label">Event Type:</span><span class="value">${booking.event_type || "N/A"}</span></div>
-<div class="field"><span class="label">Event Date:</span><span class="value">${formatDate(booking.event_date as string)}</span></div>
-<div class="field"><span class="label">Event Time:</span><span class="value">${formatTime(booking.start_time as string)} - ${formatTime(booking.end_time as string)}</span></div>
-<div class="field"><span class="label">Booking Type:</span><span class="value">${booking.booking_type === "daily" ? "Full Day (24h)" : "Hourly"}</span></div>
-<div class="field"><span class="label"># of Guests:</span><span class="value">${booking.number_of_guests || "N/A"}</span></div>
+<div style="padding:30px;">
+
+<div style="background:#ecfdf5;border:2px solid #10b981;padding:20px;text-align:center;margin:0 0 20px;">
+<p style="margin:0;font-size:12px;color:#065f46;">AMOUNT PAID</p>
+<p style="margin:5px 0;font-size:32px;font-weight:bold;color:#059669;">
+${formatCurrency(amountPaid)} ${currency.toUpperCase()}
+</p>
 </div>
 
-<div class="section">
-<div class="section-title">Payment Summary</div>
-<div class="field"><span class="label">Payment Type:</span><span class="value" style="text-transform:capitalize">${paymentType}</span></div>
-<div class="field"><span class="label">Current Status:</span><span class="value">${booking.payment_status || "N/A"}</span></div>
-<div class="field"><span class="label">Total Amount:</span><span class="value">${formatCurrency(Number(booking.total_amount) || 0)}</span></div>
-<div class="field"><span class="label">Deposit Amount:</span><span class="value">${formatCurrency(Number(booking.deposit_amount) || 0)}</span></div>
-<div class="field"><span class="label">Balance Amount:</span><span class="value">${formatCurrency(Number(booking.balance_amount) || 0)}</span></div>
+<p style="margin:0 0 10px;font-weight:bold;">Booking Details:</p>
+<table width="100%" style="margin:0 0 20px;">
+<tr>
+<td style="padding:5px 0;color:#666;">Reservation:</td>
+<td style="padding:5px 0;"><strong>${reservationNumber}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Client Name:</td>
+<td style="padding:5px 0;"><strong>${booking.full_name || "N/A"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Client Email:</td>
+<td style="padding:5px 0;"><strong>${booking.email || "N/A"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Client Phone:</td>
+<td style="padding:5px 0;"><strong>${booking.phone || "N/A"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Type:</td>
+<td style="padding:5px 0;"><strong>${booking.event_type || "N/A"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Date:</td>
+<td style="padding:5px 0;"><strong>${formatDate(booking.event_date as string)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Event Time:</td>
+<td style="padding:5px 0;"><strong>${formatTime(booking.start_time as string)} - ${formatTime(booking.end_time as string)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Booking Type:</td>
+<td style="padding:5px 0;"><strong>${booking.booking_type === "daily" ? "Full Day" : "Hourly"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Guests:</td>
+<td style="padding:5px 0;"><strong>${booking.number_of_guests || "N/A"}</strong></td>
+</tr>
+</table>
+
+<p style="margin:0 0 10px;font-weight:bold;">Payment Summary:</p>
+<table width="100%" style="margin:0 0 20px;">
+<tr>
+<td style="padding:5px 0;color:#666;">Payment Type:</td>
+<td style="padding:5px 0;"><strong>${paymentType}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Current Status:</td>
+<td style="padding:5px 0;"><strong>${booking.payment_status || "N/A"}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Total Amount:</td>
+<td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.total_amount) || 0)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Deposit Amount:</td>
+<td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.deposit_amount) || 0)}</strong></td>
+</tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Balance Amount:</td>
+<td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.balance_amount) || 0)}</strong></td>
+</tr>
+</table>
+
+<div style="text-align:center;margin:20px 0;">
+<a href="${adminUrl}" style="display:inline-block;background:#059669;color:white;padding:12px 24px;text-decoration:none;font-weight:bold;border-radius:8px;">
+View Booking in Admin
+</a>
 </div>
 
-<div style="text-align:center;margin:24px 0 16px 0">
-<a href="${adminUrl}" class="cta-btn">View Booking in Admin →</a>
+<div style="background:#f9fafb;padding:15px;margin:20px 0;font-size:11px;color:#666;">
+<p style="margin:0;"><strong>Technical IDs:</strong></p>
+<p style="margin:5px 0 0;">Booking ID: ${booking.id}</p>
+<p style="margin:5px 0 0;">Stripe Session ID: ${sessionId}</p>
+<p style="margin:5px 0 0;">Payment Intent ID: ${paymentIntentId || "N/A"}</p>
 </div>
 
-<div class="ids">
-<strong>Technical IDs:</strong><br>
-Booking ID: ${booking.id}<br>
-Stripe Session ID: ${sessionId}<br>
-Payment Intent ID: ${paymentIntentId || "N/A"}
 </div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
+<p style="margin:0;">This is an internal notification. Do not forward to customers.</p>
+<p style="margin:5px 0 0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
 </div>
-<div class="footer">
-This is an internal notification. Do not forward to customers.<br>
-Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803
-</div>
-</div>
+
 </div>
 </body>
 </html>`;

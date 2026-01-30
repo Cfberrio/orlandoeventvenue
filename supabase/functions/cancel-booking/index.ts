@@ -31,77 +31,61 @@ function generateCancellationEmailHTML(booking: BookingData): string {
     day: 'numeric' 
   });
 
-  return `
-<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="UTF-8">
 </head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f3f4f6;">
-  <div style="max-width:600px;margin:0 auto;padding:20px;">
-    <div style="background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-      
-      <!-- Header with cancellation notice -->
-      <div style="background:linear-gradient(135deg,#dc2626 0%,#991b1b 100%);padding:32px;text-align:center;">
-        <h1 style="margin:0;color:white;font-size:28px;font-weight:700;">
-          Booking Cancelled
-        </h1>
-        <p style="margin:12px 0 0;color:rgba(255,255,255,0.95);font-size:16px;">
-          Reservation ${booking.reservation_number}
-        </p>
-      </div>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
 
-      <!-- Content -->
-      <div style="padding:32px;">
-        <p style="margin:0 0 16px 0;font-size:16px;line-height:1.7;color:#374151;">
-          Hello <strong>${firstName}</strong>,
-        </p>
-        
-        <p style="margin:0 0 16px 0;font-size:15px;line-height:1.7;color:#374151;">
-          Your booking at <strong>Orlando Event Venue</strong> has been cancelled.
-        </p>
+<div style="background:#dc2626;padding:30px;text-align:center;color:white;">
+<h1 style="margin:0;font-size:24px;">Booking Cancelled</h1>
+<p style="margin:10px 0 0;">Reservation ${booking.reservation_number}</p>
+</div>
 
-        <!-- Booking Details -->
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:0 0 20px 0;">
-          <div style="font-size:14px;font-weight:600;color:#6b7280;margin:0 0 12px 0;">CANCELLED BOOKING DETAILS</div>
-          <div style="font-size:14px;color:#111827;line-height:1.8;">
-            <div style="margin:4px 0;"><strong>Reservation #:</strong> ${booking.reservation_number}</div>
-            <div style="margin:4px 0;"><strong>Event Date:</strong> ${eventDate}</div>
-            <div style="margin:4px 0;"><strong>Event Type:</strong> ${booking.event_type}</div>
-          </div>
-        </div>
+<div style="padding:30px;">
 
-        <p style="margin:0 0 16px 0;font-size:14px;line-height:1.7;color:#374151;">
-          If you have any questions or would like to rebook, please contact us at:
-        </p>
+<p style="margin:0;">Hello <strong>${firstName}</strong>,</p>
 
-        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:0 0 20px 0;">
-          <div style="font-size:14px;color:#1e40af;line-height:1.8;">
-            <div style="margin:4px 0;"><strong>Email:</strong> orlandoglobalministries@gmail.com</div>
-            <div style="margin:4px 0;"><strong>Phone:</strong> (407) 555-0123</div>
-          </div>
-        </div>
+<p style="margin:15px 0;">
+Your booking at Orlando Event Venue has been cancelled.
+</p>
 
-        <p style="margin:0;font-size:14px;line-height:1.7;color:#374151;">
-          We're sorry to see your booking cancelled. We hope to serve you in the future.
-        </p>
-        
-        <p style="margin:12px 0 0;font-size:14px;line-height:1.7;color:#374151;">
-          — <strong>Orlando Event Venue Team</strong>
-        </p>
-      </div>
+<div style="background:#f9fafb;border:1px solid #ddd;padding:20px;margin:20px 0;">
+<p style="margin:0 0 10px;font-weight:bold;color:#666;">CANCELLED BOOKING DETAILS</p>
+<p style="margin:5px 0;"><strong>Reservation:</strong> ${booking.reservation_number}</p>
+<p style="margin:5px 0;"><strong>Event Date:</strong> ${eventDate}</p>
+<p style="margin:5px 0;"><strong>Event Type:</strong> ${booking.event_type}</p>
+</div>
 
-      <!-- Footer -->
-      <div style="padding:0 32px 24px 32px;font-size:11px;line-height:1.6;color:#9ca3af;text-align:center;">
-        Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br>
-        This is an automated notification.
-      </div>
-    </div>
-  </div>
+<p style="margin:20px 0 10px;">
+If you have any questions or would like to rebook, please contact us:
+</p>
+
+<div style="background:#eff6ff;border:1px solid #bfdbfe;padding:15px;margin:0 0 20px;">
+<p style="margin:5px 0;color:#1e40af;"><strong>Email:</strong> orlandoglobalministries@gmail.com</p>
+<p style="margin:5px 0;color:#1e40af;"><strong>Phone:</strong> (407) 555-0123</p>
+</div>
+
+<p style="margin:20px 0 10px;">
+We are sorry to see your booking cancelled. We hope to serve you in the future.
+</p>
+
+<p style="margin:10px 0 0;">
+<strong>Orlando Event Venue Team</strong>
+</p>
+
+</div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;">
+<p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">This is an automated notification.</p>
+</div>
+
+</div>
 </body>
-</html>
-  `;
+</html>`;
 }
 
 serve(async (req) => {
