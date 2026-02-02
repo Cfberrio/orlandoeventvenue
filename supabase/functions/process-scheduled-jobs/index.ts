@@ -15,6 +15,9 @@ const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress", "set_lifecycle_post_ev
 // Host report reminder job types
 const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
 
+// Guest feedback job types
+const GUEST_FEEDBACK_JOB_TYPES = ["guest_feedback_post_event"];
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -927,6 +930,48 @@ serve(async (req) => {
           results.succeeded++;
           results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
           console.log(`Job ${job.id} completed - booking ${job.booking_id} host_report_step changed: ${previousStep} -> ${newStep}`);
+
+        // ===============================
+        // GUEST FEEDBACK JOBS
+        // ===============================
+        } else if (GUEST_FEEDBACK_JOB_TYPES.includes(job.job_type)) {
+          console.log(`[JOB ${job.id}] Sending guest feedback email...`);
+          
+          const feedbackEmailResponse = await fetch(
+            `${supabaseUrl}/functions/v1/send-guest-feedback`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                booking_id: job.booking_id,
+              }),
+            }
+          );
+
+          if (!feedbackEmailResponse.ok) {
+            throw new Error(`send-guest-feedback failed: ${await feedbackEmailResponse.text()}`);
+          }
+          
+          console.log(`[JOB ${job.id}] Guest feedback email sent successfully`);
+          
+          await supabase
+            .from("scheduled_jobs")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.id);
+
+          results.succeeded++;
+          results.details.push({
+            job_id: job.id,
+            job_type: job.job_type,
+            status: "completed",
+          });
 
         } else {
           // Unknown job type

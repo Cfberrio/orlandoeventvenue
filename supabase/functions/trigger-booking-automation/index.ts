@@ -97,7 +97,36 @@ serve(async (req) => {
       };
     }
 
-    // 2. Call schedule-balance-payment (only if lifecycle is pre_event_ready)
+    // 2. Call schedule-guest-feedback (NEW - independent system)
+    console.log("Calling schedule-guest-feedback...");
+    try {
+      const feedbackResponse = await fetch(
+        `${supabaseUrl}/functions/v1/schedule-guest-feedback`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ booking_id }),
+        }
+      );
+
+      const feedbackResult = await feedbackResponse.json();
+      results.guest_feedback_scheduling = {
+        success: feedbackResponse.ok,
+        ...feedbackResult,
+      };
+      console.log("Guest feedback scheduling result:", JSON.stringify(feedbackResult));
+    } catch (err) {
+      console.error("Error calling schedule-guest-feedback:", err);
+      results.guest_feedback_scheduling = {
+        success: false,
+        error: err instanceof Error ? err.message : "Unknown error",
+      };
+    }
+
+    // 3. Call schedule-balance-payment (only if lifecycle is pre_event_ready)
     if (booking.lifecycle_status === "pre_event_ready") {
       console.log("Calling schedule-balance-payment...");
       try {
@@ -143,6 +172,7 @@ serve(async (req) => {
         lifecycle_status: booking.lifecycle_status,
         payment_status: booking.payment_status,
         host_report_result: results.host_report_scheduling,
+        guest_feedback_result: results.guest_feedback_scheduling,
         balance_payment_result: results.balance_payment_scheduling,
       },
     });
