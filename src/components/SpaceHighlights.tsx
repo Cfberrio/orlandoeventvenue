@@ -46,20 +46,8 @@ const SpaceHighlights = () => {
             Everything you need for a successful event in one place
           </p>
 
-          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg mb-16">
-            <h3 className="text-2xl font-bold mb-6 text-center text-foreground">What's Included</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {included.map((item, index) => (
-                <div key={index} className="text-center">
-                  <item.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm text-muted">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
           <div
-            className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-all duration-1000 delay-300 ${
+            className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16 transition-all duration-1000 delay-300 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
@@ -85,6 +73,18 @@ const SpaceHighlights = () => {
                 </CardContent>
               </Card>
             ))}
+          </div>
+
+          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg">
+            <h3 className="text-2xl font-bold mb-6 text-center text-foreground">What's Included</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+              {included.map((item, index) => (
+                <div key={index} className="text-center">
+                  <item.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
+                  <p className="text-sm text-muted">{item.label}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

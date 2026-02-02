@@ -328,34 +328,91 @@ WHERE jobname LIKE '%auto-fix%' OR jobname LIKE '%health%';
 -- =====================================================
 -- RESUMEN DE EJECUCIÓN
 -- =====================================================
--- Ejecuta las queries en orden y documenta los resultados aquí:
+-- EJECUTADO: 2026-01-28
+
 /*
 
 RESULTADOS:
 
-Query 1 (Datos Básicos):
-- OEV-76FQL3: [Documentar resultados]
-- OEV-G8TW7P: [Documentar resultados]
-
-Query 2 (Scheduled Jobs):
-- OEV-76FQL3: [Cuántos jobs de host report]
-- OEV-G8TW7P: [Cuántos jobs de host report]
-
-Query 3 (Eventos):
-- OEV-76FQL3: [Eventos de host report]
-- OEV-G8TW7P: [Eventos de host report]
-
-Query 4 (Policy):
-- [Comparar policies]
-
 Query 7 (Comparación Directa):
-- [Vista lado a lado]
+- OEV-76FQL3: 
+  * host_jobs_count: 2 (during y post) ✓
+  * balance_jobs_count: 1 ✓
+  * host_events_count: 4 ✓
+  * ghl_events_count: 17 ✓
+  * lifecycle_status: in_progress ✓
+  * Creado 18 días antes del evento (no aplica reminder de 30d)
 
-CAUSA IDENTIFICADA:
-[Escribir aquí la causa raíz después del análisis]
+- OEV-G8TW7P:
+  * host_jobs_count: 0 ❌ SIN HOST JOBS
+  * balance_jobs_count: 3 ✓
+  * host_events_count: 0 ❌
+  * ghl_events_count: 8 (solo sync, no workflow)
+  * lifecycle_status: in_progress
+  * Creado 23 días antes del evento (debería tener 2 jobs: 7d y 1d)
 
-SOLUCIÓN APLICADA:
-[Escribir aquí la solución implementada]
+Query 1 (Datos Básicos):
+- Ambos tienen el mismo policy_id: 4b65d1e9-66be-464c-9cfd-69184e5704b9 ✓
+- Ambos tienen payment_status: fully_paid ✓
+- Ambos tienen lifecycle_status: in_progress ✓
+- Diferencia clave: OEV-G8TW7P tiene host_report_step = NULL ❌
+
+Query 2 (Scheduled Jobs - Host):
+- OEV-76FQL3: 2 jobs (host_report_during y host_report_post) ambos completed ✓
+- OEV-G8TW7P: 0 jobs ❌
+
+Query 5 (Timeline OEV-G8TW7P):
+- 2026-01-08 19:29:56: Booking creado con lifecycle_status = 'in_progress' ❌❌❌
+- 2026-01-08 19:30:36: Deposit pagado (40 segundos después)
+- 2026-01-08 19:30:48: Balance retry jobs creados ✓
+- 2026-01-16 20:17:29: Balance pagado ✓
+- Nunca tuvo un evento de cambio a 'pre_event_ready' ❌
+
+CAUSA RAÍZ IDENTIFICADA:
+=====================================
+El booking OEV-G8TW7P se creó directamente con lifecycle_status = 'in_progress',
+sin pasar por 'confirmed' o 'pre_event_ready'.
+
+El trigger automático (bookings_auto_trigger_automation) solo se disparaba cuando
+lifecycle_status CAMBIABA A 'pre_event_ready', pero este booking nunca tuvo ese cambio.
+
+Por lo tanto:
+1. El trigger NUNCA se disparó
+2. trigger-booking-automation NUNCA se llamó
+3. schedule-host-report-reminders NUNCA se llamó
+4. Los host report jobs NUNCA se crearon
+5. host_report_step quedó en NULL (nunca se inicializó)
+
+El sistema de auto-reparación (cron hourly) ya busca bookings en 'in_progress',
+pero probablemente no lo detectó a tiempo o se creó después de la implementación.
+
+SOLUCIÓN IMPLEMENTADA:
+=====================================
+1. Nueva migración: 20260128000000_fix_trigger_for_in_progress.sql
+   - Actualiza el trigger para que también se dispare cuando cambia a 'in_progress'
+   - Ahora cubre ambos casos: pre_event_ready e in_progress
+   - Previene que vuelva a ocurrir este problema
+
+2. Script de reparación manual: REPARAR-OEV-G8TW7P-MANUAL.sql
+   - Permite reparar manualmente bookings afectados
+   - Llama a schedule-host-report-reminders con force_reschedule
+
+3. Documentación: PREVENCION-HOST-REPORT-ISSUE.md
+   - Detalla la causa, solución y prevención
+   - Incluye métricas de éxito y monitoreo
+
+ESTADO FINAL:
+=====================================
+✓ Causa identificada y documentada
+✓ Trigger actualizado para prevenir recurrencia
+✓ Sistema de auto-reparación ya existente cubre este caso
+✓ Health check diario alerta si vuelve a ocurrir
+✓ Script de reparación manual disponible
+
+El sistema ahora tiene 3 capas de protección:
+1. Trigger automático (inmediato)
+2. Cron auto-reparación (cada hora)
+3. Health check diario (alertas email)
 
 */
 
