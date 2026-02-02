@@ -224,7 +224,7 @@ serve(async (req) => {
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, guest_name, guest_email, event_date")
+      .select("id, reservation_number, full_name, email, event_date")
       .eq("id", booking_id)
       .single();
 
@@ -236,25 +236,25 @@ serve(async (req) => {
       });
     }
 
-    // Validate guest_email
-    if (!booking.guest_email) {
-      console.error("Booking has no guest_email");
+    // Validate email
+    if (!booking.email) {
+      console.error("Booking has no email");
       await supabase.from("booking_events").insert({
         booking_id: booking_id,
         event_type: "guest_feedback_email_failed",
         channel: "system",
         metadata: {
-          error: "No guest_email",
+          error: "No email",
           reservation_number: booking.reservation_number,
         },
       });
-      return new Response(JSON.stringify({ error: "Booking has no guest_email" }), {
+      return new Response(JSON.stringify({ error: "Booking has no email" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    console.log(`Sending guest feedback email to: ${booking.guest_email}`);
+    console.log(`Sending guest feedback email to: ${booking.email}`);
 
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
@@ -281,13 +281,13 @@ serve(async (req) => {
 
     const emailHTML = generateGuestFeedbackHTML(
       booking.reservation_number,
-      booking.guest_name,
+      booking.full_name,
       booking.event_date
     );
 
     await client.send({
       from: gmailUser,
-      to: booking.guest_email,
+      to: booking.email,
       subject: `Guest Report Link for Your Reservation #${booking.reservation_number}`,
       content: "Please view this email in an HTML-compatible email client.",
       html: emailHTML,
@@ -303,7 +303,7 @@ serve(async (req) => {
       event_type: "guest_feedback_email_sent",
       channel: "email",
       metadata: {
-        recipient: booking.guest_email,
+        recipient: booking.email,
         reservation_number: booking.reservation_number,
         sent_at: new Date().toISOString(),
       },
@@ -313,7 +313,7 @@ serve(async (req) => {
       JSON.stringify({ 
         ok: true, 
         message: "Guest feedback email sent successfully",
-        recipient: booking.guest_email,
+        recipient: booking.email,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
