@@ -91,15 +91,16 @@ const GuestsEventStep = ({ data, updateData, onNext, onBack }: GuestsEventStepPr
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent className="bg-background">
+                  <SelectItem value="birthday-party">Birthday Party (adult or kids)</SelectItem>
                   <SelectItem value="baby-shower">Baby Shower</SelectItem>
-                  <SelectItem value="wedding">Wedding</SelectItem>
-                  <SelectItem value="reception">Reception</SelectItem>
-                  <SelectItem value="corporate-offsite">Corporate Offsite</SelectItem>
-                  <SelectItem value="training">Training</SelectItem>
-                  <SelectItem value="workshop">Workshop</SelectItem>
-                  <SelectItem value="meetup">Meetup</SelectItem>
-                  <SelectItem value="celebration">Celebration</SelectItem>
-                  <SelectItem value="brand-launch">Brand Launch/Showcase</SelectItem>
+                  <SelectItem value="bridal-shower">Bridal Shower</SelectItem>
+                  <SelectItem value="wedding-reception">Wedding Reception</SelectItem>
+                  <SelectItem value="graduation-party">Graduation Party</SelectItem>
+                  <SelectItem value="corporate-meeting">Corporate Meeting / Team Meeting</SelectItem>
+                  <SelectItem value="training-seminar">Training / Seminar</SelectItem>
+                  <SelectItem value="workshop-class">Workshop / Class (fitness, cooking, education, etc.)</SelectItem>
+                  <SelectItem value="networking-mixer">Networking Mixer / Meetup</SelectItem>
+                  <SelectItem value="celebration-of-life">Celebration of Life / Memorial Reception</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
