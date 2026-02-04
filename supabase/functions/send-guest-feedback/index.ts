@@ -127,18 +127,19 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
                 </div>
 
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:16px; color:#111827; line-height:1.6; margin-top:10px;">
-                  Hope you're doing well — just a quick reminder to complete your <strong>Guest Report</strong> using the link below.
+                  Now that your event has come to an end, there's just one final step needed to close out your reservation.
                 </div>
 
                 <div style="margin-top:14px; padding:12px 14px; border:1px solid #e5e7eb; border-radius:12px; background:#fafafa;">
                   <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#111827; line-height:1.6;">
-                    <strong>Confirmation Code:</strong> ${reservationNumber}<br />
-                    <strong>Event Date:</strong> ${formattedDate}
+                    Your Guest Report is required to close out your reservation.<br /><br />
+                    Reservation #: ${reservationNumber}<br />
+                    Event Date: ${formattedDate}
                   </div>
                 </div>
 
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#334155; line-height:1.6; margin-top:14px;">
-                  The form will ask for a few quick photos/videos (front door, main area, tables/chairs, bathrooms, and kitchen) and a couple of checkboxes — it only takes a few minutes.
+                  Complete it here (takes 2–3 minutes):
                 </div>
 
                 <!-- CTA Button -->
@@ -148,14 +149,13 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
                       <a href="${reportUrl}"
                         style="display:inline-block; padding:12px 18px; font-family:Arial, Helvetica, sans-serif;
                                font-size:15px; font-weight:700; color:#ffffff; text-decoration:none; border-radius:10px;">
-                        Open Guest Report
+                        Complete Guest Report
                       </a>
                     </td>
                   </tr>
                 </table>
 
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:13px; color:#64748b; line-height:1.6; margin-top:10px;">
-                  Or use this link:
                   <a href="${reportUrl}"
                      style="color:#2563eb; text-decoration:underline;">
                     ${reportUrl}
@@ -163,12 +163,19 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
                 </div>
 
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#334155; line-height:1.6; margin-top:14px;">
-                  Once you've submitted it, you can reply to this email with <strong>DONE</strong> (optional) so we know it's taken care of.
-                  If you run into any issues with the form, just reply here and we'll help.
+                  We need photos/videos (front door, main area, tables/chairs, bathrooms, kitchen) + a couple checkboxes.
+                </div>
+
+                <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#334155; line-height:1.6; margin-top:14px;">
+                  Reply DONE after submitting. If you have any issues, reply here.
+                </div>
+
+                <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#334155; line-height:1.6; margin-top:10px;">
+                  Optional review:
                 </div>
 
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:14px; color:#111827; margin-top:18px;">
-                  Thank you, <br />
+                  Looking forward to hosting you, <br />
                   — Orlando Event Venue Team
                 </div>
               </td>
@@ -178,7 +185,7 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
             <tr>
               <td style="padding:14px 22px; background:#f1f5f9;" class="px">
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#64748b; line-height:1.5;">
-                  Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803
+                  Orlando Event Venue – 3847 E Colonial Dr, Orlando, FL 32803
                 </div>
               </td>
             </tr>
