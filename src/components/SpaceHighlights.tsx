@@ -10,7 +10,7 @@ const SpaceHighlights = () => {
     {
       icon: Star,
       label: "⭐️ See our 5-star reviews",
-      link: "https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTEyMy4xIKXMDSoASAFQAw%3D%3D",
+      link: "https://g.page/r/CU-yUA0El90UEAE/review",
     },
     { icon: Clock, label: "Day + Night Events", link: null },
     {
