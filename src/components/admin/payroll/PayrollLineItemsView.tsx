@@ -124,16 +124,23 @@ export default function PayrollLineItemsView({ startDate, endDate }: PayrollLine
       
       // Query staff_payroll_items to get the IDs
       const itemPromises = selectedItems.map(async (item) => {
+        // Find payroll items by staff_id and matching amount/category
+        const { data: staffData } = await supabase
+          .from('staff_members')
+          .select('id')
+          .eq('full_name', item.staff_name)
+          .single();
+
+        if (!staffData) return null;
+
         const { data } = await supabase
           .from('staff_payroll_items')
           .select('id')
-          .eq('staff_name', item.staff_name)
-          .eq('assignment_date', item.assignment_date)
+          .eq('staff_id', staffData.id)
           .eq('pay_category', item.pay_category)
           .eq('amount', item.amount)
-          .eq('paid_status', 'pending')
           .limit(1)
-          .single();
+          .maybeSingle();
         
         return data?.id;
       });

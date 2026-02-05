@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePayrollData } from "@/hooks/usePayrollData";
@@ -167,7 +168,7 @@ export default function StandaloneAssignmentModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle>Create Standalone Assignment</DialogTitle>
           <DialogDescription>
@@ -175,7 +176,7 @@ export default function StandaloneAssignmentModal({
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit}>
+        <ScrollArea className="max-h-[60vh] pr-4">
           <div className="space-y-4">
             {/* Staff Member */}
             <div className="space-y-2">
@@ -310,22 +311,26 @@ export default function StandaloneAssignmentModal({
               </div>
             </div>
           </div>
+        </ScrollArea>
 
-          <DialogFooter className="mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onClose}
-              disabled={isSubmitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Create Assignment
-            </Button>
-          </DialogFooter>
-        </form>
+        <DialogFooter className="mt-6 pt-4 border-t">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isSubmitting}
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="button" 
+            disabled={isSubmitting}
+            onClick={(e) => handleSubmit(e as any)}
+          >
+            {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            Create Assignment
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

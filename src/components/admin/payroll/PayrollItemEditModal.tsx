@@ -66,31 +66,33 @@ export default function PayrollItemEditModal({
   // Load full assignment data
   useEffect(() => {
     const loadAssignmentData = async () => {
-      // Extract assignment_id from the item (we need to query it)
-      const { data: payrollItem } = await supabase
-        .from('staff_payroll_items')
-        .select('assignment_id')
-        .eq('staff_name', item.staff_name)
-        .eq('assignment_date', item.assignment_date)
+      // Find staff_id first from staff_members by name
+      const { data: staffData } = await supabase
+        .from('staff_members')
+        .select('id')
+        .eq('full_name', item.staff_name)
         .single();
 
-      if (payrollItem?.assignment_id) {
-        const { data: assignment } = await supabase
-          .from('booking_staff_assignments')
-          .select('*')
-          .eq('id', payrollItem.assignment_id)
-          .single();
+      if (!staffData) return;
 
-        if (assignment) {
-          setAssignmentData(assignment);
-          
-          // Populate edit form
-          setEditForm({
-            hours_worked: assignment.hours_worked?.toString() || "",
-            cleaning_type: assignment.cleaning_type || "",
-            celebration_surcharge: assignment.celebration_surcharge?.toString() || "0",
-          });
-        }
+      // Find the assignment by staff_id and scheduled_date
+      const { data: assignment } = await supabase
+        .from('booking_staff_assignments')
+        .select('*')
+        .eq('staff_id', staffData.id)
+        .eq('scheduled_date', item.assignment_date)
+        .limit(1)
+        .single();
+
+      if (assignment) {
+        setAssignmentData(assignment);
+        
+        // Populate edit form
+        setEditForm({
+          hours_worked: assignment.hours_worked?.toString() || "",
+          cleaning_type: assignment.cleaning_type || "",
+          celebration_surcharge: assignment.celebration_surcharge?.toString() || "0",
+        });
       }
     };
 
