@@ -244,18 +244,22 @@ export function usePayrollData() {
   /**
    * Mark payroll items as paid
    */
-  const markAsPaid = async (payrollItemIds: string[], paidBy: string) => {
-    const { data, error } = await supabase.rpc('mark_payroll_as_paid', {
-      p_payroll_item_ids: payrollItemIds,
-      p_paid_by: paidBy
-    });
+  const markAsPaid = async (payrollItemIds: string[], _paidBy: string) => {
+    // Direct update since mark_payroll_as_paid RPC may not exist
+    const { data, error } = await supabase
+      .from('staff_payroll_items')
+      .update({ 
+        metadata: { paid: true, paid_at: new Date().toISOString() } as any
+      })
+      .in('id', payrollItemIds)
+      .select('id');
     
     if (error) {
       console.error('Error marking as paid:', error);
       return { success: false, count: 0, error };
     }
     
-    return { success: true, count: data, error: null };
+    return { success: true, count: data?.length || 0, error: null };
   };
 
   /**

@@ -57,7 +57,7 @@ export default function PayrollByRoleView({ startDate, endDate }: PayrollByRoleV
   const totalAmount = data?.reduce((sum, item) => sum + Number(item.total_amount), 0) || 0;
   const totalStaff = data?.reduce((sum, item) => sum + Number(item.staff_count), 0) || 0;
   const totalAssignments = data?.reduce((sum, item) => sum + Number(item.assignment_count), 0) || 0;
-  const totalHours = data?.reduce((sum, item) => sum + Number(item.total_hours || 0), 0) || 0;
+  const totalHours = data?.reduce((sum, item) => sum + Number(item.hours_worked || 0), 0) || 0;
 
   // Format data for chart
   const chartData = data?.map((role) => ({
@@ -168,7 +168,7 @@ export default function PayrollByRoleView({ startDate, endDate }: PayrollByRoleV
                     <TableCell className="text-right">{role.assignment_count}</TableCell>
                     <TableCell className="text-right">
                       {role.payroll_type === 'hourly' 
-                        ? Number(role.total_hours || 0).toFixed(2) 
+                        ? Number(role.hours_worked || 0).toFixed(2) 
                         : '-'}
                     </TableCell>
                     <TableCell className="text-right font-bold">
