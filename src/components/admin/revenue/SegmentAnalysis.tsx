@@ -1,22 +1,9 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { useRevenueData, SegmentRevenueRecord } from "@/hooks/useRevenueData";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Users, Globe, Calendar, Layers } from "lucide-react";
 import {
   BarChart,
   Bar,
@@ -24,7 +11,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
 } from "recharts";
 
@@ -35,14 +21,26 @@ interface SegmentAnalysisProps {
 
 type SegmentType = 'booking_origin' | 'event_type' | 'booking_type';
 
-const SEGMENT_LABELS: Record<SegmentType, string> = {
-  booking_origin: "Booking Origin",
-  event_type: "Event Type",
-  booking_type: "Booking Type",
+const SEGMENT_CONFIG: Record<SegmentType, { label: string; description: string; icon: React.ComponentType<any> }> = {
+  booking_origin: { 
+    label: "By Source", 
+    description: "Website, Internal, External bookings",
+    icon: Globe 
+  },
+  event_type: { 
+    label: "By Event Type", 
+    description: "Birthday, Wedding, Corporate, etc.",
+    icon: Calendar 
+  },
+  booking_type: { 
+    label: "By Package", 
+    description: "Hourly vs Daily rentals",
+    icon: Layers 
+  },
 };
 
 export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisProps) {
-  const [segmentBy, setSegmentBy] = useState<SegmentType>('booking_origin');
+  const [segmentBy, setSegmentBy] = useState<SegmentType>('event_type');
   const [data, setData] = useState<SegmentRevenueRecord[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -76,15 +74,15 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
   const chartData = data?.map((item) => ({
     segment: item.segment || 'Unknown',
     Revenue: Number(item.total_revenue),
-    'Avg Revenue': Number(item.avg_revenue),
-  })) || [];
+    Bookings: Number(item.booking_count),
+  })).sort((a, b) => b.Revenue - a.Revenue) || [];
 
   if (isLoading) {
     return (
       <div className="space-y-4">
         <Card>
           <CardHeader>
-            <Skeleton className="h-10 w-48" />
+            <Skeleton className="h-10 w-full" />
           </CardHeader>
         </Card>
         <Card>
@@ -98,9 +96,9 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
 
   if (error) {
     return (
-      <Card>
+      <Card className="border-destructive/50 bg-destructive/5">
         <CardContent className="pt-6">
-          <p className="text-destructive">{error}</p>
+          <p className="text-destructive text-center">{error}</p>
         </CardContent>
       </Card>
     );
@@ -108,130 +106,162 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
 
   if (!data || data.length === 0) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-muted-foreground text-center">No revenue data found for this date range</p>
+      <Card className="border-dashed">
+        <CardContent className="pt-6 pb-6">
+          <div className="text-center space-y-2">
+            <Users className="h-12 w-12 mx-auto text-muted-foreground/50" />
+            <p className="text-muted-foreground font-medium">No Segment Data</p>
+            <p className="text-sm text-muted-foreground">
+              No revenue data found for the selected date range
+            </p>
+          </div>
         </CardContent>
       </Card>
     );
   }
 
+  const config = SEGMENT_CONFIG[segmentBy];
+  const Icon = config.icon;
+
   return (
     <div className="space-y-4">
       {/* Segment Selector */}
       <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Segment By</CardTitle>
-            <Select value={segmentBy} onValueChange={(v) => setSegmentBy(v as SegmentType)}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(SEGMENT_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap gap-2">
+            {(Object.entries(SEGMENT_CONFIG) as [SegmentType, typeof SEGMENT_CONFIG[SegmentType]][]).map(([key, value]) => {
+              const SegmentIcon = value.icon;
+              const isActive = segmentBy === key;
+              return (
+                <Button
+                  key={key}
+                  variant={isActive ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setSegmentBy(key)}
+                  className="flex items-center gap-2"
+                >
+                  <SegmentIcon className="h-4 w-4" />
+                  {value.label}
+                </Button>
+              );
+            })}
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
 
       {/* Chart */}
       <Card>
         <CardHeader>
-          <CardTitle>Revenue by {SEGMENT_LABELS[segmentBy]}</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Icon className="h-5 w-5 text-muted-foreground" />
+            Revenue {config.label}
+          </CardTitle>
+          <CardDescription>{config.description}</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={350}>
-            <BarChart data={chartData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" />
+          <ResponsiveContainer width="100%" height={Math.max(200, chartData.length * 50)}>
+            <BarChart data={chartData} layout="vertical" margin={{ left: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
               <XAxis 
                 type="number"
-                tickFormatter={(value) => `$${value.toLocaleString()}`}
+                tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                className="text-xs"
               />
-              <YAxis type="category" dataKey="segment" width={120} />
+              <YAxis 
+                type="category" 
+                dataKey="segment" 
+                width={120} 
+                className="text-xs"
+                tick={{ fontSize: 12 }}
+              />
               <Tooltip 
-                formatter={(value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
+                formatter={(value: number, name: string) => [
+                  name === "Revenue" ? `$${value.toLocaleString()}` : value,
+                  name
+                ]}
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--card))', 
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
               />
-              <Legend />
-              <Bar dataKey="Revenue" fill="#3b82f6" />
-              <Bar dataKey="Avg Revenue" fill="#8b5cf6" />
+              <Bar 
+                dataKey="Revenue" 
+                fill="hsl(var(--primary))" 
+                radius={[0, 4, 4, 0]}
+              />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Detailed Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Detailed Segment Analysis</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{SEGMENT_LABELS[segmentBy]}</TableHead>
-                  <TableHead className="text-right">Total Revenue</TableHead>
-                  <TableHead className="text-right">Bookings</TableHead>
-                  <TableHead className="text-right">Avg Revenue/Booking</TableHead>
-                  <TableHead className="text-right">% of Total</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data
-                  .sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue))
-                  .map((item, index) => {
-                    const percentage = (Number(item.total_revenue) / totalRevenue) * 100;
-                    return (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          {item.segment || 'Unknown'}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          ${Number(item.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.booking_count}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${Number(item.avg_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-primary rounded-full"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                            <span className="text-muted-foreground w-12">
-                              {percentage.toFixed(1)}%
-                            </span>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                {/* Totals Row */}
-                <TableRow className="bg-muted/50 font-bold">
-                  <TableCell>TOTAL</TableCell>
-                  <TableCell className="text-right">
-                    ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {totalBookings}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${(totalRevenue / totalBookings).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">100.0%</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+      {/* Segment Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {chartData.map((item, index) => {
+          const percentage = (item.Revenue / totalRevenue) * 100;
+          const avgPerBooking = item.Bookings > 0 ? item.Revenue / item.Bookings : 0;
+          
+          return (
+            <Card key={item.segment} className={index === 0 ? "border-primary/30 bg-primary/5" : ""}>
+              <CardContent className="pt-6">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg">{item.segment}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {item.Bookings} booking{item.Bookings !== 1 ? 's' : ''}
+                      </p>
+                    </div>
+                    {index === 0 && (
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full font-medium">
+                        Top
+                      </span>
+                    )}
+                  </div>
+                  
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-end">
+                      <span className="text-2xl font-bold">
+                        ${item.Revenue.toLocaleString()}
+                      </span>
+                      <span className="text-muted-foreground text-sm">
+                        {percentage.toFixed(0)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500"
+                        style={{ width: `${percentage}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t text-sm text-muted-foreground">
+                    Avg per booking: <span className="font-medium text-foreground">${avgPerBooking.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {/* Summary */}
+      <Card className="bg-muted/30">
+        <CardContent className="pt-6">
+          <div className="flex flex-wrap justify-center gap-8 text-center">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Revenue</p>
+              <p className="text-2xl font-bold text-primary">${totalRevenue.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Total Bookings</p>
+              <p className="text-2xl font-bold">{totalBookings}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Segments</p>
+              <p className="text-2xl font-bold">{chartData.length}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
