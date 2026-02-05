@@ -12,7 +12,7 @@ import {
 import { Plus, Edit, Trash2, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import StandaloneAssignmentModal from "./StandaloneAssignmentModal";

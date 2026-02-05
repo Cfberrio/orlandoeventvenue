@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePayrollData } from "@/hooks/usePayrollData";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
 
 interface StandaloneAssignmentModalProps {
   isOpen: boolean;
