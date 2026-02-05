@@ -22,7 +22,6 @@ import BookingDetail from "./pages/admin/BookingDetail";
 import Schedule from "./pages/admin/Schedule";
 import Staff from "./pages/admin/Staff";
 import Reminders from "./pages/admin/Reminders";
-import Reports from "./pages/admin/Reports";
 import RevenueReports from "./pages/admin/RevenueReports";
 import Cleaning from "./pages/admin/Cleaning";
 import Inventory from "./pages/admin/Inventory";
@@ -71,8 +70,7 @@ const App = () => (
                 <Route path="schedule" element={<Schedule />} />
                 <Route path="staff" element={<Staff />} />
                 <Route path="reminders" element={<Reminders />} />
-                <Route path="reports" element={<Reports />} />
-                <Route path="revenue-reports" element={<RevenueReports />} />
+                <Route path="reports" element={<RevenueReports />} />
                 <Route path="cleaning" element={<Cleaning />} />
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="discounts" element={<Discounts />} />
