@@ -12,7 +12,8 @@ import {
   X,
   LogOut,
   Package,
-  Tag
+  Tag,
+  DollarSign
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ const navItems = [
   { to: "/admin/staff", icon: Users, label: "Staff" },
   { to: "/admin/reminders", icon: Bell, label: "Reminders" },
   { to: "/admin/reports", icon: FileText, label: "Reports" },
+  { to: "/admin/revenue-reports", icon: DollarSign, label: "Revenue Reports" },
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },
   { to: "/admin/inventory", icon: Package, label: "Inventory" },
   { to: "/admin/discounts", icon: Tag, label: "Discounts" },

@@ -480,6 +480,23 @@ serve(async (req) => {
         await syncToGHL(bookingId);
         // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_update)
 
+        // Populate revenue items for this booking
+        try {
+          console.log("[REVENUE] Populating revenue items for booking:", bookingId);
+          const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
+            p_booking_id: bookingId,
+            p_is_historical: false
+          });
+          
+          if (revenueError) {
+            console.error('[REVENUE] Failed to populate revenue items:', revenueError);
+          } else {
+            console.log('[REVENUE] Revenue items populated successfully');
+          }
+        } catch (revErr) {
+          console.error('[REVENUE] Exception populating revenue items:', revErr);
+        }
+
         // Log Stripe event as successfully processed
         await supabase.from("stripe_event_log").insert({
           event_id: event.id,
@@ -606,6 +623,23 @@ serve(async (req) => {
           }
         } catch (scheduleError) {
           console.error("Error scheduling balance payment:", scheduleError);
+        }
+
+        // Populate revenue items for this booking
+        try {
+          console.log("[REVENUE] Populating revenue items for booking:", bookingId);
+          const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
+            p_booking_id: bookingId,
+            p_is_historical: false
+          });
+          
+          if (revenueError) {
+            console.error('[REVENUE] Failed to populate revenue items:', revenueError);
+          } else {
+            console.log('[REVENUE] Revenue items populated successfully');
+          }
+        } catch (revErr) {
+          console.error('[REVENUE] Exception populating revenue items:', revErr);
         }
 
         // Log Stripe event as successfully processed

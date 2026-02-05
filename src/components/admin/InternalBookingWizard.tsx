@@ -262,6 +262,24 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
         // Don't fail the booking creation if sync fails
       }
 
+      // Step 4: Populate revenue items
+      try {
+        console.log("Populating revenue items for booking:", booking.id);
+        const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
+          p_booking_id: booking.id,
+          p_is_historical: false
+        });
+        
+        if (revenueError) {
+          console.error('Failed to create revenue items:', revenueError);
+        } else {
+          console.log('Revenue items populated successfully');
+        }
+      } catch (revErr) {
+        console.error('Exception populating revenue items:', revErr);
+        // Don't fail the booking creation if revenue items fail
+      }
+
       // Invalidate queries
       queryClient.invalidateQueries({ queryKey: ["bookings"] });
       queryClient.invalidateQueries({ queryKey: ["availability-blocks"] });
