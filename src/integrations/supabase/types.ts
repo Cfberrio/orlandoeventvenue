@@ -611,29 +611,44 @@ export type Database = {
       booking_staff_assignments: {
         Row: {
           assignment_role: string
-          booking_id: string
+          booking_id: string | null
+          completed_at: string | null
           created_at: string
+          hourly_rate: number | null
+          hours_worked: number | null
           id: string
           notes: string | null
+          pay_status: string
           staff_id: string
+          total_pay: number | null
           updated_at: string
         }
         Insert: {
           assignment_role: string
-          booking_id: string
+          booking_id?: string | null
+          completed_at?: string | null
           created_at?: string
+          hourly_rate?: number | null
+          hours_worked?: number | null
           id?: string
           notes?: string | null
+          pay_status?: string
           staff_id: string
+          total_pay?: number | null
           updated_at?: string
         }
         Update: {
           assignment_role?: string
-          booking_id?: string
+          booking_id?: string | null
+          completed_at?: string | null
           created_at?: string
+          hourly_rate?: number | null
+          hours_worked?: number | null
           id?: string
           notes?: string | null
+          pay_status?: string
           staff_id?: string
+          total_pay?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -1172,8 +1187,10 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string
+          hourly_rate: number
           id: string
           is_active: boolean
+          payroll_type: string
           phone: string | null
           role: string
           updated_at: string
@@ -1182,8 +1199,10 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name: string
+          hourly_rate?: number
           id?: string
           is_active?: boolean
+          payroll_type?: string
           phone?: string | null
           role: string
           updated_at?: string
@@ -1192,13 +1211,104 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string
+          hourly_rate?: number
           id?: string
           is_active?: boolean
+          payroll_type?: string
           phone?: string | null
           role?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      staff_payroll_items: {
+        Row: {
+          assignment_id: string | null
+          booking_id: string | null
+          created_at: string
+          description: string | null
+          event_date: string | null
+          hourly_rate: number
+          hours_worked: number
+          id: string
+          item_type: string
+          metadata: Json | null
+          paid_at: string | null
+          pay_period_end: string | null
+          pay_period_start: string | null
+          pay_status: string
+          staff_id: string
+          total_pay: number
+          updated_at: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          hourly_rate?: number
+          hours_worked?: number
+          id?: string
+          item_type?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          pay_period_end?: string | null
+          pay_period_start?: string | null
+          pay_status?: string
+          staff_id: string
+          total_pay?: number
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string | null
+          booking_id?: string | null
+          created_at?: string
+          description?: string | null
+          event_date?: string | null
+          hourly_rate?: number
+          hours_worked?: number
+          id?: string
+          item_type?: string
+          metadata?: Json | null
+          paid_at?: string | null
+          pay_period_end?: string | null
+          pay_period_start?: string | null
+          pay_status?: string
+          staff_id?: string
+          total_pay?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_payroll_items_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "booking_staff_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_payroll_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_payroll_items_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "staff_payroll_items_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       stripe_event_log: {
         Row: {
@@ -1336,6 +1446,47 @@ export type Database = {
           year_month: string
         }[]
       }
+      get_payroll_by_role: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          avg_pay_per_staff: number
+          role: string
+          staff_count: number
+          total_hours: number
+          total_pay: number
+        }[]
+      }
+      get_payroll_by_staff: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          assignment_count: number
+          avg_hours_per_assignment: number
+          base_hourly_rate: number
+          payroll_type: string
+          staff_id: string
+          staff_name: string
+          staff_role: string
+          total_hours: number
+          total_pay: number
+        }[]
+      }
+      get_payroll_line_items_export: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          assignment_role: string
+          description: string
+          event_date: string
+          guest_name: string
+          hourly_rate: number
+          hours_worked: number
+          item_type: string
+          pay_status: string
+          reservation_number: string
+          staff_name: string
+          staff_role: string
+          total_pay: number
+        }[]
+      }
       get_revenue_by_category: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
@@ -1385,6 +1536,10 @@ export type Database = {
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
       populate_booking_revenue_items: {
         Args: { p_booking_id: string; p_is_historical?: boolean }
+        Returns: undefined
+      }
+      populate_staff_payroll_items: {
+        Args: { p_assignment_id: string }
         Returns: undefined
       }
       reschedule_booking: {
