@@ -514,6 +514,59 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_revenue_items: {
+        Row: {
+          amount: number
+          booking_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_historical: boolean | null
+          item_category: string
+          item_type: string | null
+          metadata: Json | null
+          quantity: number | null
+          unit_price: number | null
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          booking_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_historical?: boolean | null
+          item_category: string
+          item_type?: string | null
+          metadata?: Json | null
+          quantity?: number | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_historical?: boolean | null
+          item_category?: string
+          item_type?: string | null
+          metadata?: Json | null
+          quantity?: number | null
+          unit_price?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_revenue_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_reviews: {
         Row: {
           booking_id: string
@@ -1255,6 +1308,73 @@ export type Database = {
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
+      get_daily_revenue: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_revenue: number
+          baseline_revenue: number
+          booking_count: number
+          cleaning_revenue: number
+          discount_amount: number
+          fee_revenue: number
+          production_revenue: number
+          revenue_date: string
+          tax_amount: number
+          total_revenue: number
+        }[]
+      }
+      get_monthly_revenue: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_revenue: number
+          baseline_revenue: number
+          booking_count: number
+          cleaning_revenue: number
+          production_revenue: number
+          revenue_month: string
+          total_revenue: number
+          year_month: string
+        }[]
+      }
+      get_revenue_by_category: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          category: string
+          item_count: number
+          item_type: string
+          total_amount: number
+        }[]
+      }
+      get_revenue_by_segment: {
+        Args: {
+          p_end_date: string
+          p_segment_by?: string
+          p_start_date: string
+        }
+        Returns: {
+          avg_revenue: number
+          booking_count: number
+          segment: string
+          total_revenue: number
+        }[]
+      }
+      get_revenue_line_items_export: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          amount: number
+          booking_origin: string
+          booking_type: string
+          created_at: string
+          description: string
+          event_date: string
+          event_type: string
+          guest_name: string
+          item_category: string
+          item_type: string
+          quantity: number
+          reservation_number: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -1263,6 +1383,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      populate_booking_revenue_items: {
+        Args: { p_booking_id: string; p_is_historical?: boolean }
+        Returns: undefined
+      }
       reschedule_booking: {
         Args: {
           p_actor_id?: string
