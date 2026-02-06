@@ -88,11 +88,14 @@ export function useStaffAssignedBookings() {
       if (error) throw error;
       
       // Transform the data to include assignment role and assignment_id with booking
-      return (data || []).map((assignment: any) => ({
-        ...assignment.bookings,
-        assignment_role: assignment.assignment_role,
-        assignment_id: assignment.id,
-      })) as StaffBooking[];
+      // Filter out standalone assignments (no booking linked)
+      return (data || [])
+        .filter((assignment: any) => assignment.bookings != null)
+        .map((assignment: any) => ({
+          ...assignment.bookings,
+          assignment_role: assignment.assignment_role,
+          assignment_id: assignment.id,
+        })) as StaffBooking[];
     },
     enabled: !!staffMember?.id,
   });
