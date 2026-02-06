@@ -525,6 +525,8 @@ export type Database = {
           item_category: string
           item_type: string | null
           metadata: Json | null
+          payment_date: string | null
+          payment_split: string | null
           quantity: number | null
           unit_price: number | null
           updated_at: string
@@ -539,6 +541,8 @@ export type Database = {
           item_category: string
           item_type?: string | null
           metadata?: Json | null
+          payment_date?: string | null
+          payment_split?: string | null
           quantity?: number | null
           unit_price?: number | null
           updated_at?: string
@@ -553,6 +557,8 @@ export type Database = {
           item_category?: string
           item_type?: string | null
           metadata?: Json | null
+          payment_date?: string | null
+          payment_split?: string | null
           quantity?: number | null
           unit_price?: number | null
           updated_at?: string
@@ -1659,6 +1665,8 @@ export type Database = {
           guest_name: string
           item_category: string
           item_type: string
+          payment_date: string
+          payment_split: string
           quantity: number
           reservation_number: string
         }[]
