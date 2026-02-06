@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -191,21 +191,23 @@ export default function StandaloneAssignmentsView({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>Standalone Assignments</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Custodial assignments not linked to a booking
-                </p>
+                <CardTitle>Standalone Cleaning Assignments</CardTitle>
+                <CardDescription>
+                  Crea tareas de limpieza no vinculadas a bookings (preparación del venue, mantenimiento, etc.)
+                </CardDescription>
               </div>
-              <Button onClick={() => setIsCreateModalOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
+              <Button onClick={() => setIsCreateModalOpen(true)} size="default" className="gap-2">
+                <Plus className="h-4 w-4" />
                 Create Assignment
               </Button>
             </div>
           </CardHeader>
           <CardContent>
             {assignments.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                No standalone assignments found for this date range
+              <div className="text-center py-12 text-muted-foreground">
+                <Plus className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                <p className="font-medium mb-1">No hay standalone assignments</p>
+                <p className="text-sm">Crea un assignment para limpiezas no vinculadas a bookings</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -214,13 +216,10 @@ export default function StandaloneAssignmentsView({
                     <TableRow>
                       <TableHead>Staff</TableHead>
                       <TableHead>Date</TableHead>
-                      <TableHead>Time</TableHead>
                       <TableHead>Cleaning Type</TableHead>
-                      <TableHead className="text-right">Surcharge</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
-                      <TableHead>Notes</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>

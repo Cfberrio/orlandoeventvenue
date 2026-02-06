@@ -7,19 +7,17 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon, DollarSign, Users, Clock } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { usePayrollData } from "@/hooks/usePayrollData";
-import PayrollByStaffView from "@/components/admin/payroll/PayrollByStaffView";
-import PayrollByRoleView from "@/components/admin/payroll/PayrollByRoleView";
-import PayrollLineItemsView from "@/components/admin/payroll/PayrollLineItemsView";
+import PayrollOverviewView from "@/components/admin/payroll/PayrollOverviewView";
 import StandaloneAssignmentsView from "@/components/admin/payroll/StandaloneAssignmentsView";
-import ExportPayrollButton from "@/components/admin/payroll/ExportPayrollButton";
+import { PayrollHelpPanel } from "@/components/admin/payroll/PayrollHelpPanel";
 
 export default function PayrollReports() {
   const [dateFrom, setDateFrom] = useState<Date>(startOfMonth(new Date()));
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
-  const [activeTab, setActiveTab] = useState<string>("by-staff");
+  const [activeTab, setActiveTab] = useState<string>("overview");
   const [summaryData, setSummaryData] = useState<any>(null);
 
-  const { fetchPayrollLineItems, exportPayrollCsv } = usePayrollData();
+  const { fetchPayrollLineItems } = usePayrollData();
 
   const startDate = format(dateFrom, "yyyy-MM-dd");
   const endDate = format(dateTo, "yyyy-MM-dd");
@@ -50,15 +48,13 @@ export default function PayrollReports() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Payroll Reports</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Staff payments by role, assignment, and date range
+            Gestión simplificada de pagos de staff
           </p>
         </div>
-        <ExportPayrollButton 
-          startDate={startDate} 
-          endDate={endDate}
-          onExport={exportPayrollCsv}
-        />
       </div>
+
+      {/* Help Panel */}
+      <PayrollHelpPanel />
 
       {/* Date Range Filter */}
       <Card>
@@ -183,23 +179,13 @@ export default function PayrollReports() {
 
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="by-staff">By Staff</TabsTrigger>
-          <TabsTrigger value="by-role">By Role</TabsTrigger>
-          <TabsTrigger value="line-items">Line Items</TabsTrigger>
-          <TabsTrigger value="standalone">Standalone</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="overview">Payroll Overview</TabsTrigger>
+          <TabsTrigger value="standalone">Standalone Assignments</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="by-staff" className="mt-6 space-y-4">
-          <PayrollByStaffView startDate={startDate} endDate={endDate} />
-        </TabsContent>
-
-        <TabsContent value="by-role" className="mt-6 space-y-4">
-          <PayrollByRoleView startDate={startDate} endDate={endDate} />
-        </TabsContent>
-
-        <TabsContent value="line-items" className="mt-6 space-y-4">
-          <PayrollLineItemsView startDate={startDate} endDate={endDate} />
+        <TabsContent value="overview" className="mt-6 space-y-4">
+          <PayrollOverviewView startDate={startDate} endDate={endDate} />
         </TabsContent>
 
         <TabsContent value="standalone" className="mt-6 space-y-4">
