@@ -1204,7 +1204,6 @@ export default function BookingDetail() {
                       <TableHead>Assignment</TableHead>
                       <TableHead>Working Hours</TableHead>
                       <TableHead>Cleaning Details</TableHead>
-                      <TableHead>Notes</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1237,21 +1236,20 @@ export default function BookingDetail() {
                           </TableCell>
                           <TableCell>
                             {assignment.cleaning_type ? (
-                              <div className="space-y-1">
-                                <Badge variant="secondary">
+                              <div className="flex flex-col gap-1">
+                                <Badge variant="secondary" className="w-fit">
                                   {assignment.cleaning_type === 'touch_up' ? 'Touch-Up ($40)' :
                                    assignment.cleaning_type === 'regular' ? 'Regular ($80)' :
                                    assignment.cleaning_type === 'deep' ? 'Deep ($150)' : '-'}
                                 </Badge>
                                 {assignment.celebration_surcharge && assignment.celebration_surcharge > 0 && (
-                                  <Badge variant="outline" className="text-xs ml-1">
+                                  <Badge variant="outline" className="text-xs w-fit">
                                     +${assignment.celebration_surcharge} celebration
                                   </Badge>
                                 )}
                               </div>
                             ) : <span className="text-muted-foreground">-</span>}
                           </TableCell>
-                          <TableCell className="text-muted-foreground">{assignment.notes || "-"}</TableCell>
                           <TableCell>
                             <Button
                               variant="ghost"
