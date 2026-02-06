@@ -1013,6 +1013,34 @@ serve(async (req) => {
 
     console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Skipped: ${results.skipped}, Cancelled: ${results.cancelled}, Failed: ${results.failed}`);
 
+    // ===============================
+    // STANDALONE CLEANING REMINDERS
+    // ===============================
+    // Call standalone cleaning reminder function every time this cron runs
+    console.log("Triggering standalone cleaning reminders...");
+    try {
+      const standaloneRemindersResponse = await fetch(
+        `${supabaseUrl}/functions/v1/send-standalone-cleaning-reminder`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (standaloneRemindersResponse.ok) {
+        const reminderResult = await standaloneRemindersResponse.json();
+        console.log("Standalone reminders result:", reminderResult);
+      } else {
+        const reminderError = await standaloneRemindersResponse.text();
+        console.error("Standalone reminders failed:", reminderError);
+      }
+    } catch (reminderError) {
+      console.error("Exception calling standalone reminders:", reminderError);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       ...results
