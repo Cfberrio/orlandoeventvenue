@@ -128,6 +128,9 @@ export default function BookingDetail() {
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
   const [newAssignmentRole, setNewAssignmentRole] = useState("");
   const [newAssignmentNotes, setNewAssignmentNotes] = useState("");
+  const [newAssignmentCleaningType, setNewAssignmentCleaningType] = useState<string>("");
+  const [hasCelebrationSurcharge, setHasCelebrationSurcharge] = useState(false);
+  const [celebrationSurchargeAmount, setCelebrationSurchargeAmount] = useState<string>("");
 
   // Reschedule state
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
@@ -375,21 +378,78 @@ export default function BookingDetail() {
     }
   };
 
+  const calculatePayrollPreview = () => {
+    if (!newAssignmentCleaningType) return 0;
+    
+    const baseRates: Record<string, number> = {
+      touch_up: 40,
+      regular: 80,
+      deep: 150,
+    };
+    
+    const base = baseRates[newAssignmentCleaningType] || 0;
+    const surcharge = hasCelebrationSurcharge ? parseFloat(celebrationSurchargeAmount || "0") : 0;
+    
+    return base + surcharge;
+  };
+
   const handleAddAssignment = async () => {
     if (!newAssignmentStaff || !newAssignmentRole) {
       toast({ title: "Please select staff and role", variant: "destructive" });
       return;
     }
+    
+    // Validate cleaning type for Custodial/Assistant
+    const selectedStaff = staffMembers?.find(s => s.id === newAssignmentStaff);
+    const isCustodialOrAssistant = selectedStaff?.role === 'Custodial' || selectedStaff?.role === 'Assistant';
+    
+    if (isCustodialOrAssistant && !newAssignmentCleaningType) {
+      toast({ 
+        title: "Cleaning Type required for Custodial/Assistant staff", 
+        variant: "destructive" 
+      });
+      return;
+    }
+    
+    // Validate celebration surcharge range
+    if (hasCelebrationSurcharge) {
+      const amount = parseFloat(celebrationSurchargeAmount);
+      if (isNaN(amount) || amount < 20 || amount > 70) {
+        toast({ 
+          title: "Celebration surcharge must be between $20 and $70", 
+          variant: "destructive" 
+        });
+        return;
+      }
+    }
+    
     try {
-      await createAssignment.mutateAsync({
+      const assignmentData: any = {
         booking_id: booking.id,
         staff_id: newAssignmentStaff,
         assignment_role: newAssignmentRole,
         notes: newAssignmentNotes || undefined,
-      });
+      };
+      
+      // Add cleaning fields if Custodial/Assistant
+      if (isCustodialOrAssistant) {
+        assignmentData.assignment_type = 'cleaning';
+        assignmentData.cleaning_type = newAssignmentCleaningType;
+        assignmentData.celebration_surcharge = hasCelebrationSurcharge 
+          ? parseFloat(celebrationSurchargeAmount) 
+          : 0;
+      }
+      
+      await createAssignment.mutateAsync(assignmentData);
+      
+      // Reset form
       setNewAssignmentStaff("");
       setNewAssignmentRole("");
       setNewAssignmentNotes("");
+      setNewAssignmentCleaningType("");
+      setHasCelebrationSurcharge(false);
+      setCelebrationSurchargeAmount("");
+      
       toast({ title: "Staff assigned and notification sent" });
     } catch (error: any) {
       const errorMessage = error?.message || "Failed to assign staff";
@@ -1146,6 +1206,7 @@ export default function BookingDetail() {
                       <TableHead>Staff Role</TableHead>
                       <TableHead>Assignment</TableHead>
                       <TableHead>Working Hours</TableHead>
+                      <TableHead>Cleaning Details</TableHead>
                       <TableHead>Notes</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
                     </TableRow>
@@ -1177,6 +1238,22 @@ export default function BookingDetail() {
                               </span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {assignment.cleaning_type ? (
+                              <div className="space-y-1">
+                                <Badge variant="secondary">
+                                  {assignment.cleaning_type === 'touch_up' ? 'Touch-Up ($40)' :
+                                   assignment.cleaning_type === 'regular' ? 'Regular ($80)' :
+                                   assignment.cleaning_type === 'deep' ? 'Deep ($150)' : '-'}
+                                </Badge>
+                                {assignment.celebration_surcharge && assignment.celebration_surcharge > 0 && (
+                                  <Badge variant="outline" className="text-xs ml-1">
+                                    +${assignment.celebration_surcharge} celebration
+                                  </Badge>
+                                )}
+                              </div>
+                            ) : <span className="text-muted-foreground">-</span>}
+                          </TableCell>
                           <TableCell className="text-muted-foreground">{assignment.notes || "-"}</TableCell>
                           <TableCell>
                             <Button
@@ -1198,48 +1275,119 @@ export default function BookingDetail() {
               {/* Add Assignment Form */}
               <div className="pt-4 border-t">
                 <p className="text-sm font-medium mb-3">Add New Assignment</p>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <Select value={newAssignmentStaff} onValueChange={setNewAssignmentStaff}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select staff member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {staffMembers?.map((staff) => (
-                        <SelectItem key={staff.id} value={staff.id}>
-                          <div className="flex items-center justify-between w-full">
-                            <span>{staff.full_name} ({staff.role})</span>
-                            {staff.email ? (
-                              <Mail className="h-3 w-3 text-green-500 ml-2" />
-                            ) : (
-                              <Mail className="h-3 w-3 text-gray-300 ml-2" />
+                {(() => {
+                  // Detect if selected staff is Custodial or Assistant
+                  const selectedStaffMember = staffMembers?.find(s => s.id === newAssignmentStaff);
+                  const isCustodialOrAssistant = selectedStaffMember?.role === 'Custodial' || selectedStaffMember?.role === 'Assistant';
+                  
+                  return (
+                    <div className="space-y-4">
+                      {/* Fila 1: Staff + Role */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Select value={newAssignmentStaff} onValueChange={setNewAssignmentStaff}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select staff member" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {staffMembers?.map((staff) => (
+                              <SelectItem key={staff.id} value={staff.id}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{staff.full_name} ({staff.role})</span>
+                                  {staff.email ? (
+                                    <Mail className="h-3 w-3 text-green-500 ml-2" />
+                                  ) : (
+                                    <Mail className="h-3 w-3 text-gray-300 ml-2" />
+                                  )}
+                                </div>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Select value={newAssignmentRole} onValueChange={setNewAssignmentRole}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Assignment role" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {assignmentRoles.map((role) => (
+                              <SelectItem key={role} value={role}>
+                                {role.replace(/_/g, " ")}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      {/* Fila 2: Cleaning Fields (solo si Custodial/Assistant) */}
+                      {isCustodialOrAssistant && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="cleaning-type">Cleaning Type *</Label>
+                            <Select value={newAssignmentCleaningType} onValueChange={setNewAssignmentCleaningType}>
+                              <SelectTrigger id="cleaning-type">
+                                <SelectValue placeholder="Select cleaning type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="touch_up">Touch-Up Cleaning: $40</SelectItem>
+                                <SelectItem value="regular">Regular Cleaning: $80</SelectItem>
+                                <SelectItem value="deep">Deep Cleaning: $150</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center space-x-2 mb-2">
+                              <Checkbox 
+                                id="celebration" 
+                                checked={hasCelebrationSurcharge}
+                                onCheckedChange={(checked) => {
+                                  setHasCelebrationSurcharge(checked === true);
+                                  if (!checked) setCelebrationSurchargeAmount("");
+                                }}
+                              />
+                              <Label htmlFor="celebration">Add Celebration Surcharge</Label>
+                            </div>
+                            {hasCelebrationSurcharge && (
+                              <Input
+                                type="number"
+                                min="20"
+                                max="70"
+                                step="5"
+                                placeholder="$20-$70"
+                                value={celebrationSurchargeAmount}
+                                onChange={(e) => setCelebrationSurchargeAmount(e.target.value)}
+                              />
                             )}
                           </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={newAssignmentRole} onValueChange={setNewAssignmentRole}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Assignment role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {assignmentRoles.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {role.replace(/_/g, " ")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    placeholder="Notes (optional)"
-                    value={newAssignmentNotes}
-                    onChange={(e) => setNewAssignmentNotes(e.target.value)}
-                  />
-                  <Button onClick={handleAddAssignment}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Staff
-                  </Button>
-                </div>
+                        </div>
+                      )}
+                      
+                      {/* Preview de Payroll (si es Custodial/Assistant) */}
+                      {isCustodialOrAssistant && newAssignmentCleaningType && (
+                        <div className="bg-muted/50 p-3 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium">Estimated Payroll:</span>
+                            <span className="text-2xl font-bold">
+                              ${calculatePayrollPreview().toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Fila 3: Notes + Button */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Input
+                          placeholder="Notes (optional)"
+                          value={newAssignmentNotes}
+                          onChange={(e) => setNewAssignmentNotes(e.target.value)}
+                        />
+                        <Button onClick={handleAddAssignment}>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Staff
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>

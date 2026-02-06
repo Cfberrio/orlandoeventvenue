@@ -174,6 +174,9 @@ export interface StaffAssignment {
   staff_id: string;
   assignment_role: string;
   notes: string | null;
+  assignment_type?: string | null;
+  cleaning_type?: string | null;
+  celebration_surcharge?: number | null;
   created_at: string;
   updated_at: string;
   staff_member?: StaffMember;
@@ -792,7 +795,15 @@ export function useCreateBookingEvent() {
 export function useCreateStaffAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async (assignment: { booking_id: string; staff_id: string; assignment_role: string; notes?: string }) => {
+    mutationFn: async (assignment: { 
+      booking_id: string; 
+      staff_id: string; 
+      assignment_role: string; 
+      notes?: string;
+      assignment_type?: string;
+      cleaning_type?: string;
+      celebration_surcharge?: number;
+    }) => {
       // Validate that staff member has an email before creating assignment
       const { data: staffMember, error: staffError } = await supabase
         .from("staff_members")
