@@ -5,14 +5,14 @@ export function PayrollHelpPanel() {
   return (
     <Alert className="mb-6">
       <AlertCircle className="h-4 w-4" />
-      <AlertTitle>Cómo Funciona el Payroll</AlertTitle>
+      <AlertTitle>How Payroll Works</AlertTitle>
       <AlertDescription>
         <ol className="list-decimal list-inside space-y-1 text-sm mt-2">
-          <li>El staff debe tener configurado su <code className="text-xs bg-muted px-1 py-0.5 rounded">payroll_type</code> (hourly o per_assignment)</li>
-          <li>El payroll se calcula automáticamente cuando los assignments se marcan como "completed"</li>
-          <li>Para staff de Production: usa los tiempos de inicio y fin del package</li>
-          <li>Para staff Custodial: usa el cleaning type y el optional celebration surcharge</li>
-          <li>Marca items como "Paid" para llevar registro de pagos completados</li>
+          <li><strong>Production</strong> staff: paid hourly ($50/hr) based on the booking's production package start/end times</li>
+          <li><strong>Custodial & Assistant</strong> staff: paid per assignment based on cleaning type (Touch-up $40, Regular $80, Deep $150) plus celebration surcharge ($20-$70)</li>
+          <li>Payroll is calculated automatically when assignments are marked as "completed" (this happens when the booking transitions to in_progress)</li>
+          <li>Standalone assignments (not linked to a booking) also generate payroll when completed</li>
+          <li>Use the checkboxes to select staff and mark their payroll items as "Paid" to track completed payments</li>
         </ol>
       </AlertDescription>
     </Alert>

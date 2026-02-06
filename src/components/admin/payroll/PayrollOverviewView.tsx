@@ -166,35 +166,14 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
           return staff?.staff_name;
         }).filter(Boolean);
 
-        const itemsToMark = lineItemsResult.data.filter(
-          (item: any) => 
+        // Get pending payroll_item_ids directly from the RPC results
+        const payrollItemIds = lineItemsResult.data
+          .filter((item: any) => 
             selectedStaffNames.includes(item.staff_name) && 
-            item.paid_status === 'pending'
-        );
-
-        // Get payroll item IDs
-        const payrollItemIds: string[] = [];
-        for (const item of itemsToMark) {
-          const { data: staffData } = await supabase
-            .from('staff_members')
-            .select('id')
-            .eq('full_name', item.staff_name)
-            .single();
-
-          if (staffData) {
-            const { data: payrollItems } = await (supabase as any)
-              .from('staff_payroll_items')
-              .select('id')
-              .eq('staff_id', staffData.id)
-              .eq('pay_category', item.pay_category)
-              .eq('amount', item.amount)
-              .limit(1);
-            
-            if (payrollItems && payrollItems.length > 0) {
-              payrollItemIds.push(payrollItems[0].id);
-            }
-          }
-        }
+            item.paid_status === 'pending' &&
+            item.payroll_item_id
+          )
+          .map((item: any) => item.payroll_item_id);
 
         if (payrollItemIds.length > 0) {
           await markAsPaid(payrollItemIds, user.id);
@@ -209,7 +188,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
           setSelectedIds(new Set());
         } else {
           toast({
-            title: "No hay items para marcar",
+            title: "No hay items pendientes para marcar",
             variant: "destructive",
           });
         }

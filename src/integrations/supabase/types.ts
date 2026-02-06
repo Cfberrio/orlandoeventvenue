@@ -1249,6 +1249,8 @@ export type Database = {
           id: string
           is_historical: boolean | null
           metadata: Json | null
+          paid_at: string | null
+          paid_status: string
           pay_category: string
           pay_type: string | null
           rate: number | null
@@ -1264,6 +1266,8 @@ export type Database = {
           id?: string
           is_historical?: boolean | null
           metadata?: Json | null
+          paid_at?: string | null
+          paid_status?: string
           pay_category: string
           pay_type?: string | null
           rate?: number | null
@@ -1279,6 +1283,8 @@ export type Database = {
           id?: string
           is_historical?: boolean | null
           metadata?: Json | null
+          paid_at?: string | null
+          paid_status?: string
           pay_category?: string
           pay_type?: string | null
           rate?: number | null
@@ -1606,8 +1612,11 @@ export type Database = {
           created_at: string
           description: string
           hours: number
+          paid_at: string
+          paid_status: string
           pay_category: string
           pay_type: string
+          payroll_item_id: string
           payroll_type: string
           rate: number
           reservation_number: string

@@ -13,6 +13,7 @@ import { Edit, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { Link } from "react-router-dom";
 import { usePayrollData, PayrollLineItem } from "@/hooks/usePayrollData";
+import { supabase } from "@/integrations/supabase/client";
 import PayrollItemEditModal from "./PayrollItemEditModal";
 
 interface AssignmentDetailsTableProps {
@@ -35,13 +36,19 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate }: Assignme
       const result = await fetchPayrollLineItems(startDate, endDate);
       
       if (result.data) {
-        // Filter by staff name (we need to match staff_id somehow)
-        // For now, we'll load all and let the parent filter
-        const filteredItems = result.data.filter((item: any) => {
-          // This is a workaround - ideally we'd have staff_id in the line items
-          return true; // We'll filter by staff_name in the parent
-        });
-        setLineItems(result.data);
+        // Filter by staff_id - we need to match via staff_members table
+        const { data: staffData } = await supabase
+          .from('staff_members')
+          .select('full_name')
+          .eq('id', staffId)
+          .single();
+        
+        const staffName = staffData?.full_name;
+        const filtered = staffName 
+          ? result.data.filter((item: any) => item.staff_name === staffName)
+          : result.data;
+        
+        setLineItems(filtered);
       }
       
       setIsLoading(false);
@@ -126,9 +133,8 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate }: Assignme
               <TableCell className="text-right">
                 <Badge 
                   variant={item.paid_status === 'paid' ? 'default' : 'secondary'}
-                  className={item.paid_status === 'paid' ? 'bg-green-600' : 'bg-orange-500'}
                 >
-                  {item.paid_status}
+                  {item.paid_status === 'paid' ? 'Paid' : 'Pending'}
                 </Badge>
               </TableCell>
               <TableCell className="text-right">
