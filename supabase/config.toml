@@ -108,3 +108,6 @@ verify_jwt = false
 
 [functions.send-guest-feedback]
 verify_jwt = false
+
+[functions.send-standalone-cleaning-reminder]
+verify_jwt = false
