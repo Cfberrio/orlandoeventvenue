@@ -127,7 +127,6 @@ export default function BookingDetail() {
   // Form states
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
   const [newAssignmentRole, setNewAssignmentRole] = useState("");
-  const [newAssignmentNotes, setNewAssignmentNotes] = useState("");
   const [newAssignmentCleaningType, setNewAssignmentCleaningType] = useState<string>("");
   const [hasCelebrationSurcharge, setHasCelebrationSurcharge] = useState(false);
   const [celebrationSurchargeAmount, setCelebrationSurchargeAmount] = useState<string>("");
@@ -428,7 +427,6 @@ export default function BookingDetail() {
         booking_id: booking.id,
         staff_id: newAssignmentStaff,
         assignment_role: newAssignmentRole,
-        notes: newAssignmentNotes || undefined,
       };
       
       // Add cleaning fields if Custodial/Assistant
@@ -445,7 +443,6 @@ export default function BookingDetail() {
       // Reset form
       setNewAssignmentStaff("");
       setNewAssignmentRole("");
-      setNewAssignmentNotes("");
       setNewAssignmentCleaningType("");
       setHasCelebrationSurcharge(false);
       setCelebrationSurchargeAmount("");
@@ -1276,7 +1273,6 @@ export default function BookingDetail() {
               <div className="pt-4 border-t">
                 <p className="text-sm font-medium mb-3">Add New Assignment</p>
                 {(() => {
-                  // Detect if selected staff is Custodial or Assistant
                   const selectedStaffMember = staffMembers?.find(s => s.id === newAssignmentStaff);
                   const isCustodialOrAssistant = selectedStaffMember?.role === 'Custodial' || selectedStaffMember?.role === 'Assistant';
                   
@@ -1317,74 +1313,82 @@ export default function BookingDetail() {
                         </Select>
                       </div>
                       
-                      {/* Fila 2: Cleaning Fields (solo si Custodial/Assistant) */}
-                      {isCustodialOrAssistant && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="cleaning-type">Cleaning Type *</Label>
-                            <Select value={newAssignmentCleaningType} onValueChange={setNewAssignmentCleaningType}>
-                              <SelectTrigger id="cleaning-type">
-                                <SelectValue placeholder="Select cleaning type" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="touch_up">Touch-Up Cleaning: $40</SelectItem>
-                                <SelectItem value="regular">Regular Cleaning: $80</SelectItem>
-                                <SelectItem value="deep">Deep Cleaning: $150</SelectItem>
-                              </SelectContent>
-                            </Select>
+                      {/* Fila 2: Cleaning Type + Celebration + Button (solo si Custodial/Assistant) */}
+                      {isCustodialOrAssistant ? (
+                        <>
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="space-y-2">
+                              <Label htmlFor="cleaning-type">Cleaning Type *</Label>
+                              <Select value={newAssignmentCleaningType} onValueChange={setNewAssignmentCleaningType}>
+                                <SelectTrigger id="cleaning-type">
+                                  <SelectValue placeholder="Select cleaning type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="touch_up">Touch-Up Cleaning: $40</SelectItem>
+                                  <SelectItem value="regular">Regular Cleaning: $80</SelectItem>
+                                  <SelectItem value="deep">Deep Cleaning: $150</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label>&nbsp;</Label>
+                              <div className="flex flex-col gap-2">
+                                <div className="flex items-center space-x-2">
+                                  <Checkbox 
+                                    id="celebration" 
+                                    checked={hasCelebrationSurcharge}
+                                    onCheckedChange={(checked) => {
+                                      setHasCelebrationSurcharge(checked === true);
+                                      if (!checked) setCelebrationSurchargeAmount("");
+                                    }}
+                                  />
+                                  <Label htmlFor="celebration">Add Celebration Surcharge</Label>
+                                </div>
+                                {hasCelebrationSurcharge && (
+                                  <Input
+                                    type="number"
+                                    min="20"
+                                    max="70"
+                                    step="5"
+                                    placeholder="$20-$70"
+                                    value={celebrationSurchargeAmount}
+                                    onChange={(e) => setCelebrationSurchargeAmount(e.target.value)}
+                                  />
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label>&nbsp;</Label>
+                              <Button onClick={handleAddAssignment} className="w-full">
+                                <Plus className="h-4 w-4 mr-2" />
+                                Add Staff
+                              </Button>
+                            </div>
                           </div>
                           
-                          <div className="space-y-2">
-                            <div className="flex items-center space-x-2 mb-2">
-                              <Checkbox 
-                                id="celebration" 
-                                checked={hasCelebrationSurcharge}
-                                onCheckedChange={(checked) => {
-                                  setHasCelebrationSurcharge(checked === true);
-                                  if (!checked) setCelebrationSurchargeAmount("");
-                                }}
-                              />
-                              <Label htmlFor="celebration">Add Celebration Surcharge</Label>
+                          {/* Preview de Payroll */}
+                          {newAssignmentCleaningType && (
+                            <div className="bg-muted/50 p-3 rounded-lg border">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium">Estimated Payroll:</span>
+                                <span className="text-2xl font-bold">
+                                  ${calculatePayrollPreview().toFixed(2)}
+                                </span>
+                              </div>
                             </div>
-                            {hasCelebrationSurcharge && (
-                              <Input
-                                type="number"
-                                min="20"
-                                max="70"
-                                step="5"
-                                placeholder="$20-$70"
-                                value={celebrationSurchargeAmount}
-                                onChange={(e) => setCelebrationSurchargeAmount(e.target.value)}
-                              />
-                            )}
-                          </div>
+                          )}
+                        </>
+                      ) : (
+                        /* Si NO es Custodial/Assistant: Solo botón en fila 2 */
+                        <div className="flex justify-end">
+                          <Button onClick={handleAddAssignment}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Staff
+                          </Button>
                         </div>
                       )}
-                      
-                      {/* Preview de Payroll (si es Custodial/Assistant) */}
-                      {isCustodialOrAssistant && newAssignmentCleaningType && (
-                        <div className="bg-muted/50 p-3 rounded-lg border">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">Estimated Payroll:</span>
-                            <span className="text-2xl font-bold">
-                              ${calculatePayrollPreview().toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Fila 3: Notes + Button */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Input
-                          placeholder="Notes (optional)"
-                          value={newAssignmentNotes}
-                          onChange={(e) => setNewAssignmentNotes(e.target.value)}
-                        />
-                        <Button onClick={handleAddAssignment}>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Staff
-                        </Button>
-                      </div>
                     </div>
                   );
                 })()}
