@@ -54,6 +54,9 @@ export interface StandaloneAssignment {
   notes: string | null;
 }
 
+// Use a typed helper to bypass missing generated types for the new table
+const standaloneReportsTable = () => (supabase as any).from('standalone_cleaning_reports');
+
 /**
  * Get cleaning report for standalone assignment
  */
@@ -61,8 +64,7 @@ export function useStandaloneCleaningReport(assignmentId: string) {
   return useQuery({
     queryKey: ["standalone-cleaning-report", assignmentId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("standalone_cleaning_reports")
+      const { data, error } = await standaloneReportsTable()
         .select("*")
         .eq("assignment_id", assignmentId)
         .maybeSingle();
@@ -110,16 +112,14 @@ export function useUpdateStandaloneCleaningReport() {
       reportData: Partial<StandaloneCleaningReport>;
     }) => {
       // Check if report exists
-      const { data: existing } = await supabase
-        .from("standalone_cleaning_reports")
+      const { data: existing } = await standaloneReportsTable()
         .select("id")
         .eq("assignment_id", assignmentId)
         .maybeSingle();
       
       if (existing) {
         // Update existing
-        const { data, error } = await supabase
-          .from("standalone_cleaning_reports")
+        const { data, error } = await standaloneReportsTable()
           .update(reportData)
           .eq("id", existing.id)
           .select()
@@ -129,8 +129,7 @@ export function useUpdateStandaloneCleaningReport() {
         return data;
       } else {
         // Create new
-        const { data, error } = await supabase
-          .from("standalone_cleaning_reports")
+        const { data, error } = await standaloneReportsTable()
           .insert({ ...reportData, assignment_id: assignmentId })
           .select()
           .single();

@@ -148,8 +148,9 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate }: Assignme
       {selectedItem && (
         <PayrollItemEditModal
           item={selectedItem}
-          open={isEditModalOpen}
-          onClose={handleEditComplete}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onSuccess={handleEditComplete}
         />
       )}
     </>

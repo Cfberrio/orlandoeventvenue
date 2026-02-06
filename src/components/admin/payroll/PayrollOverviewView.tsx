@@ -78,9 +78,10 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
       const lineItemsResult = await fetchPayrollLineItems(startDate, endDate);
       
       if (lineItemsResult.data && staffResult.data) {
+        const lineItems = lineItemsResult.data as any[];
         // Calculate paid and pending amounts for each staff
-        const enrichedData = staffResult.data.map((staff: any) => {
-          const staffLineItems = lineItemsResult.data.filter(
+        const enrichedData = (staffResult.data as any[]).map((staff: any) => {
+          const staffLineItems = lineItems.filter(
             (item: any) => item.staff_name === staff.staff_name
           );
           
@@ -101,7 +102,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
         
         setData(enrichedData);
       } else {
-        setData(staffResult.data);
+        setData(staffResult.data as any);
       }
     } catch (err: any) {
       console.error('Error loading payroll data:', err);
@@ -181,13 +182,12 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
             .single();
 
           if (staffData) {
-            const { data: payrollItems } = await supabase
+            const { data: payrollItems } = await (supabase as any)
               .from('staff_payroll_items')
               .select('id')
               .eq('staff_id', staffData.id)
               .eq('pay_category', item.pay_category)
               .eq('amount', item.amount)
-              .eq('paid_status', 'pending')
               .limit(1);
             
             if (payrollItems && payrollItems.length > 0) {

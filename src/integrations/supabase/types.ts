@@ -620,6 +620,7 @@ export type Database = {
           hours_worked: number | null
           id: string
           notes: string | null
+          reminder_sent_at: string | null
           scheduled_date: string | null
           scheduled_end_time: string | null
           scheduled_start_time: string | null
@@ -639,6 +640,7 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          reminder_sent_at?: string | null
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
@@ -658,6 +660,7 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          reminder_sent_at?: string | null
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
@@ -1300,6 +1303,130 @@ export type Database = {
           {
             foreignKeyName: "staff_payroll_items_staff_id_fkey"
             columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      standalone_cleaning_reports: {
+        Row: {
+          assignment_id: string
+          clean_check_bathrooms_cleaned: boolean | null
+          clean_check_deep_cleaning_done: boolean | null
+          clean_check_equipment_stored: boolean | null
+          clean_check_floors_swept_mopped: boolean | null
+          clean_check_front_door_locked: boolean | null
+          clean_check_kitchen_cleaned: boolean | null
+          clean_check_lights_off: boolean | null
+          clean_check_office_door_locked: boolean | null
+          clean_check_tables_chairs_arranged: boolean | null
+          clean_check_trash_removed: boolean | null
+          cleaner_id: string
+          cleaner_name: string
+          cleaner_role: string
+          completed_at: string | null
+          created_at: string
+          damage_description: string | null
+          damage_found: boolean | null
+          id: string
+          inventory_items: Json | null
+          inventory_update_needed: boolean | null
+          issues_found: boolean | null
+          issues_notes: string | null
+          media_bathrooms: Json | null
+          media_deep_cleaning: Json | null
+          media_front_door: Json | null
+          media_kitchen: Json | null
+          media_main_area: Json | null
+          media_rack: Json | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          clean_check_bathrooms_cleaned?: boolean | null
+          clean_check_deep_cleaning_done?: boolean | null
+          clean_check_equipment_stored?: boolean | null
+          clean_check_floors_swept_mopped?: boolean | null
+          clean_check_front_door_locked?: boolean | null
+          clean_check_kitchen_cleaned?: boolean | null
+          clean_check_lights_off?: boolean | null
+          clean_check_office_door_locked?: boolean | null
+          clean_check_tables_chairs_arranged?: boolean | null
+          clean_check_trash_removed?: boolean | null
+          cleaner_id: string
+          cleaner_name: string
+          cleaner_role: string
+          completed_at?: string | null
+          created_at?: string
+          damage_description?: string | null
+          damage_found?: boolean | null
+          id?: string
+          inventory_items?: Json | null
+          inventory_update_needed?: boolean | null
+          issues_found?: boolean | null
+          issues_notes?: string | null
+          media_bathrooms?: Json | null
+          media_deep_cleaning?: Json | null
+          media_front_door?: Json | null
+          media_kitchen?: Json | null
+          media_main_area?: Json | null
+          media_rack?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          clean_check_bathrooms_cleaned?: boolean | null
+          clean_check_deep_cleaning_done?: boolean | null
+          clean_check_equipment_stored?: boolean | null
+          clean_check_floors_swept_mopped?: boolean | null
+          clean_check_front_door_locked?: boolean | null
+          clean_check_kitchen_cleaned?: boolean | null
+          clean_check_lights_off?: boolean | null
+          clean_check_office_door_locked?: boolean | null
+          clean_check_tables_chairs_arranged?: boolean | null
+          clean_check_trash_removed?: boolean | null
+          cleaner_id?: string
+          cleaner_name?: string
+          cleaner_role?: string
+          completed_at?: string | null
+          created_at?: string
+          damage_description?: string | null
+          damage_found?: boolean | null
+          id?: string
+          inventory_items?: Json | null
+          inventory_update_needed?: boolean | null
+          issues_found?: boolean | null
+          issues_notes?: string | null
+          media_bathrooms?: Json | null
+          media_deep_cleaning?: Json | null
+          media_front_door?: Json | null
+          media_kitchen?: Json | null
+          media_main_area?: Json | null
+          media_rack?: Json | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "standalone_cleaning_reports_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "booking_staff_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "standalone_cleaning_reports_cleaner_id_fkey"
+            columns: ["cleaner_id"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "standalone_cleaning_reports_cleaner_id_fkey"
+            columns: ["cleaner_id"]
             isOneToOne: false
             referencedRelation: "staff_members"
             referencedColumns: ["id"]

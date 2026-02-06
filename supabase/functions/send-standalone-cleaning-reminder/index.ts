@@ -1,10 +1,15 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PUBLIC_SITE_URL = Deno.env.get("PUBLIC_SITE_URL") || "https://orlandoeventvenue.com";
+const PUBLIC_SITE_URL = "https://orlandoeventvenue.lovable.app";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
 
 function generateEmailHTML(staffName: string, cleaningType: string, scheduledTime: string, reportUrl: string): string {
   return `
@@ -152,16 +157,28 @@ function generateEmailHTML(staffName: string, cleaningType: string, scheduledTim
 }
 
 serve(async (req) => {
+  // Handle CORS
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
   try {
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    
+    if (!gmailUser || !gmailPassword) {
+      throw new Error("GMAIL_USER or GMAIL_APP_PASSWORD not configured");
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Calculate time window: assignments starting in 60 minutes (±5 min buffer)
     const now = new Date();
     const targetTime = new Date(now.getTime() + 60 * 60 * 1000); // +1 hour
-    const bufferStart = new Date(targetTime.getTime() - 5 * 60 * 1000); // -5 min
-    const bufferEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);   // +5 min
+    const bufferStart = new Date(targetTime.getTime() - 5 * 60 * 1000);
+    const bufferEnd = new Date(targetTime.getTime() + 5 * 60 * 1000);
     
-    console.log(`Checking for standalone assignments between ${bufferStart.toISOString()} and ${bufferEnd.toISOString()}`);
+    console.log(`[STANDALONE-REMINDER] Checking for assignments between ${bufferStart.toISOString()} and ${bufferEnd.toISOString()}`);
     
     // Find standalone assignments that haven't been reminded yet
     const { data: assignments, error } = await supabase
@@ -174,12 +191,7 @@ serve(async (req) => {
         cleaning_type,
         celebration_surcharge,
         staff_id,
-        reminder_sent_at,
-        staff_members (
-          id,
-          full_name,
-          email
-        )
+        reminder_sent_at
       `)
       .is('booking_id', null) // Standalone only
       .eq('status', 'assigned')
@@ -187,18 +199,28 @@ serve(async (req) => {
       .not('scheduled_start_time', 'is', null);
     
     if (error) {
-      console.error("Error fetching assignments:", error);
+      console.error("[STANDALONE-REMINDER] Error fetching assignments:", error);
       throw error;
     }
     
     if (!assignments || assignments.length === 0) {
+      console.log("[STANDALONE-REMINDER] No unnotified standalone assignments found");
       return new Response(
         JSON.stringify({ message: "No assignments found to notify" }), 
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    console.log(`Found ${assignments.length} potential assignments`);
+    console.log(`[STANDALONE-REMINDER] Found ${assignments.length} potential assignments`);
+    
+    // For each assignment, get the staff member info
+    const staffIds = [...new Set(assignments.map((a: any) => a.staff_id))];
+    const { data: staffMembers } = await supabase
+      .from('staff_members')
+      .select('id, full_name, email')
+      .in('id', staffIds);
+    
+    const staffMap = new Map((staffMembers || []).map((s: any) => [s.id, s]));
     
     // Filter by time window (combine scheduled_date + scheduled_start_time)
     const assignmentsToNotify = assignments.filter((a: any) => {
@@ -208,84 +230,83 @@ serve(async (req) => {
       const inWindow = assignmentDateTime >= bufferStart && assignmentDateTime <= bufferEnd;
       
       if (inWindow) {
-        console.log(`Assignment ${a.id} scheduled for ${assignmentDateTime.toISOString()} is in window`);
+        console.log(`[STANDALONE-REMINDER] Assignment ${a.id} scheduled for ${assignmentDateTime.toISOString()} is in window`);
       }
       
       return inWindow;
     });
     
-    console.log(`${assignmentsToNotify.length} assignments need notification`);
+    console.log(`[STANDALONE-REMINDER] ${assignmentsToNotify.length} assignments need notification`);
     
     if (assignmentsToNotify.length === 0) {
       return new Response(
         JSON.stringify({ message: "No assignments in the 1-hour window" }), 
-        { status: 200, headers: { "Content-Type": "application/json" } }
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
     
-    // Send emails
-    const emailResults = await Promise.all(
-      assignmentsToNotify.map(async (assignment: any) => {
-        const staff = assignment.staff_members;
+    // Send emails via Gmail SMTP
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: { username: gmailUser, password: gmailPassword },
+      },
+    });
+    
+    const emailResults = [];
+    
+    for (const assignment of assignmentsToNotify) {
+      const staff = staffMap.get(assignment.staff_id);
+      
+      if (!staff || !staff.email) {
+        console.log(`[STANDALONE-REMINDER] Skipping assignment ${assignment.id}: no staff email`);
+        emailResults.push({ success: false, assignment_id: assignment.id, reason: "no_email" });
+        continue;
+      }
+      
+      // Generate report URL
+      const reportUrl = `${PUBLIC_SITE_URL}/staff/standalone/${assignment.id}/cleaning-report`;
+      
+      // Format cleaning type
+      const cleaningTypeLabel = 
+        assignment.cleaning_type === 'touch_up' ? 'Touch-Up Cleaning ($40)' :
+        assignment.cleaning_type === 'regular' ? 'Regular Cleaning ($80)' :
+        assignment.cleaning_type === 'deep' ? 'Deep Cleaning ($150)' : 
+        (assignment.cleaning_type || 'Cleaning Task');
+      
+      const scheduledTime = assignment.scheduled_start_time 
+        ? assignment.scheduled_start_time.slice(0, 5) 
+        : 'TBD';
+      
+      const htmlEmail = generateEmailHTML(staff.full_name, cleaningTypeLabel, scheduledTime, reportUrl);
+      
+      try {
+        await client.send({
+          from: `"Orlando Event Venue" <${gmailUser}>`,
+          to: staff.email,
+          subject: "🧹 Cleaning Assignment Reminder - Today in 1 Hour",
+          content: "Your standalone cleaning assignment starts in 1 hour.",
+          html: htmlEmail,
+        });
         
-        if (!staff || !staff.email) {
-          console.log(`Skipping assignment ${assignment.id}: no staff email`);
-          return { success: false, assignment_id: assignment.id, reason: "no_email" };
-        }
+        // Mark reminder as sent
+        await supabase
+          .from('booking_staff_assignments')
+          .update({ reminder_sent_at: new Date().toISOString() })
+          .eq('id', assignment.id);
         
-        // Generate report URL
-        const reportUrl = `${PUBLIC_SITE_URL}/staff/standalone/${assignment.id}/cleaning-report`;
+        console.log(`[STANDALONE-REMINDER] Email sent successfully to ${staff.email} for assignment ${assignment.id}`);
+        emailResults.push({ success: true, assignment_id: assignment.id, staff_email: staff.email });
         
-        // Format cleaning type
-        const cleaningTypeLabel = 
-          assignment.cleaning_type === 'touch_up' ? 'Touch-Up Cleaning ($40)' :
-          assignment.cleaning_type === 'regular' ? 'Regular Cleaning ($80)' :
-          assignment.cleaning_type === 'deep' ? 'Deep Cleaning ($150)' : 
-          (assignment.cleaning_type || 'Cleaning Task');
-        
-        const scheduledTime = assignment.scheduled_start_time 
-          ? assignment.scheduled_start_time.slice(0, 5) 
-          : 'TBD';
-        
-        const htmlEmail = generateEmailHTML(staff.full_name, cleaningTypeLabel, scheduledTime, reportUrl);
-        
-        try {
-          // Send via Resend
-          const emailResponse = await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${RESEND_API_KEY}`,
-            },
-            body: JSON.stringify({
-              from: "Orlando Event Venue <noreply@orlandoeventvenue.com>",
-              to: [staff.email],
-              subject: "Cleaning Assignment Reminder - Today in 1 Hour",
-              html: htmlEmail,
-            }),
-          });
-          
-          if (!emailResponse.ok) {
-            const errorText = await emailResponse.text();
-            console.error(`Failed to send email to ${staff.email}: ${errorText}`);
-            return { success: false, assignment_id: assignment.id, reason: "email_failed" };
-          }
-          
-          // Mark reminder as sent
-          await supabase
-            .from('booking_staff_assignments')
-            .update({ reminder_sent_at: new Date().toISOString() })
-            .eq('id', assignment.id);
-          
-          console.log(`Email sent successfully to ${staff.email} for assignment ${assignment.id}`);
-          return { success: true, assignment_id: assignment.id, staff_email: staff.email };
-          
-        } catch (emailError: any) {
-          console.error(`Error sending email for assignment ${assignment.id}:`, emailError);
-          return { success: false, assignment_id: assignment.id, reason: emailError.message };
-        }
-      })
-    );
+      } catch (emailError: any) {
+        console.error(`[STANDALONE-REMINDER] Error sending email for assignment ${assignment.id}:`, emailError);
+        emailResults.push({ success: false, assignment_id: assignment.id, reason: emailError.message });
+      }
+    }
+    
+    await client.close();
     
     const successCount = emailResults.filter(r => r.success).length;
     
@@ -296,14 +317,14 @@ serve(async (req) => {
         in_time_window: assignmentsToNotify.length,
         results: emailResults
       }), 
-      { status: 200, headers: { "Content-Type": "application/json" } }
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
     
   } catch (error: any) {
-    console.error("Error in send-standalone-cleaning-reminder:", error);
+    console.error("[STANDALONE-REMINDER] Error:", error);
     return new Response(
-      JSON.stringify({ error: error.message, stack: error.stack }), 
-      { status: 500, headers: { "Content-Type": "application/json" } }
+      JSON.stringify({ error: error.message }), 
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });
