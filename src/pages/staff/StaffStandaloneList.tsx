@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { useStaffStandaloneAssignments } from "@/hooks/useStandaloneCleaningData";
 import { format } from "date-fns";
-import { es } from "date-fns/locale";
 
 export default function StaffStandaloneList() {
   const { data: assignments, isLoading } = useStaffStandaloneAssignments();
@@ -54,11 +53,11 @@ export default function StaffStandaloneList() {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'completed':
-        return <Badge className="bg-green-500">Completado</Badge>;
+        return <Badge className="bg-green-500">Completed</Badge>;
       case 'assigned':
-        return <Badge className="bg-blue-500">Asignado</Badge>;
+        return <Badge className="bg-blue-500">Assigned</Badge>;
       case 'in_progress':
-        return <Badge className="bg-yellow-500">En Progreso</Badge>;
+        return <Badge className="bg-yellow-500">In Progress</Badge>;
       default:
         return <Badge variant="outline">{status}</Badge>;
     }
@@ -72,9 +71,9 @@ export default function StaffStandaloneList() {
           <div className="flex items-center gap-3">
             <ClipboardList className="h-8 w-8 text-primary" />
             <div>
-              <CardTitle className="text-2xl">Mis Asignaciones Standalone</CardTitle>
+              <CardTitle className="text-2xl">My Standalone Assignments</CardTitle>
               <CardDescription className="mt-1">
-                Tareas de limpieza y preparación del venue no ligadas a bookings
+                Venue cleaning and prep tasks not linked to bookings
               </CardDescription>
             </div>
           </div>
@@ -86,9 +85,9 @@ export default function StaffStandaloneList() {
         <Card>
           <CardContent className="py-16 text-center">
             <ClipboardList className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">No tienes asignaciones standalone</h3>
+            <h3 className="text-lg font-semibold mb-2">No standalone assignments</h3>
             <p className="text-muted-foreground mb-6">
-              Las asignaciones de limpieza independientes aparecerán aquí cuando sean creadas por el administrador.
+              Independent cleaning assignments will appear here when created by the administrator.
             </p>
           </CardContent>
         </Card>
@@ -104,11 +103,11 @@ export default function StaffStandaloneList() {
                     <div className="flex items-start gap-3">
                       <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div>
-                        <p className="text-sm text-muted-foreground">Fecha</p>
+                        <p className="text-sm text-muted-foreground">Date</p>
                         <p className="font-semibold">
                           {assignment.scheduled_date 
-                            ? format(new Date(assignment.scheduled_date), 'PPP', { locale: es })
-                            : 'Sin fecha'}
+                            ? format(new Date(assignment.scheduled_date), 'PPP')
+                            : 'No date'}
                         </p>
                       </div>
                     </div>
@@ -117,7 +116,7 @@ export default function StaffStandaloneList() {
                       <div className="flex items-start gap-3">
                         <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
-                          <p className="text-sm text-muted-foreground">Hora</p>
+                          <p className="text-sm text-muted-foreground">Time</p>
                           <p className="font-medium">
                             {assignment.scheduled_start_time.slice(0, 5)}
                             {assignment.scheduled_end_time && 
@@ -130,7 +129,7 @@ export default function StaffStandaloneList() {
                     <div className="flex items-start gap-3">
                       <DollarSign className="h-5 w-5 text-muted-foreground mt-0.5" />
                       <div className="space-y-1">
-                        <p className="text-sm text-muted-foreground">Tipo de Limpieza</p>
+                        <p className="text-sm text-muted-foreground">Cleaning Type</p>
                         <Badge variant="secondary" className="font-medium">
                           {getCleaningTypeLabel(assignment.cleaning_type)}
                         </Badge>
@@ -146,14 +145,14 @@ export default function StaffStandaloneList() {
                       <div className="flex items-start gap-3">
                         <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
                         <div>
-                          <p className="text-sm text-muted-foreground">Notas</p>
+                          <p className="text-sm text-muted-foreground">Notes</p>
                           <p className="text-sm">{assignment.notes}</p>
                         </div>
                       </div>
                     )}
 
                     <div className="flex items-center gap-2 pt-2">
-                      <span className="text-sm text-muted-foreground">Estado:</span>
+                      <span className="text-sm text-muted-foreground">Status:</span>
                       {getStatusBadge(assignment.status)}
                     </div>
                   </div>
@@ -163,18 +162,18 @@ export default function StaffStandaloneList() {
                     {assignment.status === 'completed' ? (
                       <div className="flex items-center gap-2 text-green-600">
                         <CheckCircle2 className="h-5 w-5" />
-                        <span className="text-sm font-medium">Reporte Enviado</span>
+                        <span className="text-sm font-medium">Report Submitted</span>
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-amber-600">
                         <AlertCircle className="h-5 w-5" />
-                        <span className="text-sm font-medium">Pendiente de Reporte</span>
+                        <span className="text-sm font-medium">Report Pending</span>
                       </div>
                     )}
                     
                     <Button asChild size="sm" className="w-full md:w-auto">
                       <Link to={`/staff/standalone/${assignment.id}/cleaning-report`}>
-                        {assignment.status === 'completed' ? 'Ver/Editar Reporte' : 'Completar Reporte'}
+                        {assignment.status === 'completed' ? 'View/Edit Report' : 'Complete Report'}
                       </Link>
                     </Button>
                   </div>

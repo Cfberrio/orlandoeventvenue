@@ -36,12 +36,12 @@ export default function StandaloneCleaningReportForm() {
         <Card>
           <CardContent className="py-12 text-center">
             <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Acceso Restringido</h3>
+            <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
             <p className="text-muted-foreground mb-4">
-              Los reportes de limpieza no están disponibles para tu rol ({staffMember.role}).
+              Cleaning reports are not available for your role ({staffMember.role}).
             </p>
             <Button asChild>
-              <Link to="/staff/standalone">Volver a Mis Asignaciones</Link>
+              <Link to="/staff/standalone">Back to My Assignments</Link>
             </Button>
           </CardContent>
         </Card>
@@ -134,10 +134,10 @@ export default function StandaloneCleaningReportForm() {
         urls.push(url);
       }
       setter(prev => [...prev, ...urls].slice(0, maxFiles));
-      toast({ title: "Archivos subidos exitosamente" });
+      toast({ title: "Files uploaded successfully" });
     } catch (error) {
       console.error("Upload error:", error);
-      toast({ title: "Error al subir archivos", variant: "destructive" });
+      toast({ title: "Error uploading files", variant: "destructive" });
     } finally {
       setUploading(null);
     }
@@ -162,24 +162,24 @@ export default function StandaloneCleaningReportForm() {
   };
 
   const validateForm = (): string | null => {
-    if (mediaMainArea.length === 0) return "Al menos 1 foto del área principal es obligatoria";
+    if (mediaMainArea.length === 0) return "At least 1 main area photo is required";
     
     const allChecked = checkFloors && checkBathrooms && checkKitchen && checkTrashRemoved &&
       checkEquipmentStored && checkTablesChairs && checkLightsOff && checkOfficeDoor &&
       checkFrontDoor && checkDeepCleaning;
     
-    if (!allChecked) return "Todos los items del checklist deben estar marcados";
+    if (!allChecked) return "All checklist items must be checked";
     
     if (issuesFound && !issuesNotes.trim()) {
-      return "Por favor describe los problemas encontrados";
+      return "Please describe the issues found";
     }
     
     if (damageFound && !damageDescription.trim()) {
-      return "Por favor describe los daños encontrados";
+      return "Please describe the damage found";
     }
     
     if (inventoryUpdateNeeded && inventoryItems.length === 0) {
-      return "Por favor agrega los items de inventario necesarios";
+      return "Please add the required inventory items";
     }
     
     return null;
@@ -233,16 +233,16 @@ export default function StandaloneCleaningReportForm() {
       await updateReport.mutateAsync({ assignmentId, reportData });
 
       toast({
-        title: "Reporte enviado exitosamente",
-        description: "Tu reporte de limpieza ha sido guardado.",
+        title: "Report submitted successfully",
+        description: "Your cleaning report has been saved.",
       });
 
       navigate("/staff/standalone");
     } catch (error: any) {
       console.error("Error submitting report:", error);
       toast({
-        title: "Error al enviar reporte",
-        description: error.message || "Intenta nuevamente",
+        title: "Error submitting report",
+        description: error.message || "Please try again",
         variant: "destructive",
       });
     } finally {
@@ -263,9 +263,9 @@ export default function StandaloneCleaningReportForm() {
       <Card>
         <CardContent className="py-12 text-center">
           <AlertCircle className="h-12 w-12 mx-auto text-destructive mb-4" />
-          <h3 className="text-lg font-semibold mb-2">Asignación No Encontrada</h3>
+          <h3 className="text-lg font-semibold mb-2">Assignment Not Found</h3>
           <Button asChild className="mt-4">
-            <Link to="/staff/standalone">Volver a Mis Asignaciones</Link>
+            <Link to="/staff/standalone">Back to My Assignments</Link>
           </Button>
         </CardContent>
       </Card>
@@ -287,7 +287,7 @@ export default function StandaloneCleaningReportForm() {
         <Button variant="ghost" size="sm" asChild>
           <Link to="/staff/standalone">
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Volver
+            Back
           </Link>
         </Button>
       </div>
@@ -295,11 +295,11 @@ export default function StandaloneCleaningReportForm() {
       {/* Assignment Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Reporte de Limpieza - Standalone Assignment</CardTitle>
+          <CardTitle>Cleaning Report - Standalone Assignment</CardTitle>
           <CardDescription>
-            Fecha: {assignment.scheduled_date ? format(new Date(assignment.scheduled_date), 'PPP') : 'N/A'}
+            Date: {assignment.scheduled_date ? format(new Date(assignment.scheduled_date), 'PPP') : 'N/A'}
             {' • '}
-            Tipo: {cleaningTypeLabel}
+            Type: {cleaningTypeLabel}
           </CardDescription>
         </CardHeader>
       </Card>
@@ -308,7 +308,7 @@ export default function StandaloneCleaningReportForm() {
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>
-            Este reporte ya ha sido completado y enviado. Los cambios se guardarán como actualizaciones.
+            This report has already been completed and submitted. Changes will be saved as updates.
           </AlertDescription>
         </Alert>
       )}
@@ -316,16 +316,16 @@ export default function StandaloneCleaningReportForm() {
       {/* Cleaner Info */}
       <Card>
         <CardHeader>
-          <CardTitle>Información del Limpiador</CardTitle>
+          <CardTitle>Cleaner Information</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label>Nombre Completo</Label>
+              <Label>Full Name</Label>
               <Input value={cleanerName} onChange={(e) => setCleanerName(e.target.value)} />
             </div>
             <div>
-              <Label>Rol</Label>
+              <Label>Role</Label>
               <Input value={cleanerRole} onChange={(e) => setCleanerRole(e.target.value)} />
             </div>
           </div>
@@ -335,68 +335,68 @@ export default function StandaloneCleaningReportForm() {
       {/* Checklist */}
       <Card>
         <CardHeader>
-          <CardTitle>Checklist de Limpieza (10 items)</CardTitle>
-          <CardDescription>Todos los items deben estar marcados antes de enviar</CardDescription>
+          <CardTitle>Cleaning Checklist (10 items)</CardTitle>
+          <CardDescription>All items must be checked before submitting</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex items-center space-x-2">
             <Checkbox id="floors" checked={checkFloors} onCheckedChange={(c) => setCheckFloors(!!c)} />
             <label htmlFor="floors" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-              Pisos barridos y trapeados
+              Floors swept and mopped
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="bathrooms" checked={checkBathrooms} onCheckedChange={(c) => setCheckBathrooms(!!c)} />
             <label htmlFor="bathrooms" className="text-sm font-medium">
-              Baños limpiados y desinfectados
+              Bathrooms cleaned and sanitized
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="kitchen" checked={checkKitchen} onCheckedChange={(c) => setCheckKitchen(!!c)} />
             <label htmlFor="kitchen" className="text-sm font-medium">
-              Cocina limpiada
+              Kitchen cleaned
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="trash" checked={checkTrashRemoved} onCheckedChange={(c) => setCheckTrashRemoved(!!c)} />
             <label htmlFor="trash" className="text-sm font-medium">
-              Basura removida
+              Trash removed
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="equipment" checked={checkEquipmentStored} onCheckedChange={(c) => setCheckEquipmentStored(!!c)} />
             <label htmlFor="equipment" className="text-sm font-medium">
-              Equipos guardados correctamente
+              Equipment stored properly
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="tables" checked={checkTablesChairs} onCheckedChange={(c) => setCheckTablesChairs(!!c)} />
             <label htmlFor="tables" className="text-sm font-medium">
-              Mesas y sillas organizadas
+              Tables and chairs arranged
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="lights" checked={checkLightsOff} onCheckedChange={(c) => setCheckLightsOff(!!c)} />
             <label htmlFor="lights" className="text-sm font-medium">
-              Luces apagadas
+              Lights off
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="office" checked={checkOfficeDoor} onCheckedChange={(c) => setCheckOfficeDoor(!!c)} />
             <label htmlFor="office" className="text-sm font-medium">
-              Puerta de oficina cerrada con llave
+              Office door locked
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="frontdoor" checked={checkFrontDoor} onCheckedChange={(c) => setCheckFrontDoor(!!c)} />
             <label htmlFor="frontdoor" className="text-sm font-medium">
-              Puerta principal cerrada con llave
+              Front door locked
             </label>
           </div>
           <div className="flex items-center space-x-2">
             <Checkbox id="deep" checked={checkDeepCleaning} onCheckedChange={(c) => setCheckDeepCleaning(!!c)} />
             <label htmlFor="deep" className="text-sm font-medium">
-              Deep cleaning completado (si aplica)
+              Deep cleaning done (if applicable)
             </label>
           </div>
         </CardContent>
@@ -405,16 +405,16 @@ export default function StandaloneCleaningReportForm() {
       {/* Media Uploads */}
       <Card>
         <CardHeader>
-          <CardTitle>Fotos Requeridas</CardTitle>
+          <CardTitle>Required Photos</CardTitle>
           <CardDescription>
-            Las fotos del área principal son OBLIGATORIAS (mínimo 1). Todas las demás son opcionales.
+            Main area photos are REQUIRED (minimum 1). All others are optional.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Main Area (REQUIRED) */}
           <div>
-            <Label className="text-base font-semibold">Área Principal (OBLIGATORIO) *</Label>
-            <p className="text-xs text-muted-foreground mb-2">Mínimo 1 foto</p>
+            <Label className="text-base font-semibold">Main Area (REQUIRED) *</Label>
+            <p className="text-xs text-muted-foreground mb-2">Minimum 1 photo</p>
             <div className="grid grid-cols-3 gap-2 mb-2">
               {mediaMainArea.map((url, idx) => (
                 <div key={idx} className="relative">
@@ -437,12 +437,12 @@ export default function StandaloneCleaningReportForm() {
               disabled={uploading === 'main_area' || mediaMainArea.length >= 10}
               onChange={(e) => handleFileUpload(e, 'main_area', setMediaMainArea, 10)}
             />
-            {uploading === 'main_area' && <p className="text-xs text-muted-foreground mt-1">Subiendo...</p>}
+            {uploading === 'main_area' && <p className="text-xs text-muted-foreground mt-1">Uploading...</p>}
           </div>
 
           {/* Other optional media sections */}
           <div>
-            <Label>Puerta Principal (Opcional)</Label>
+            <Label>Front Door (Optional)</Label>
             <div className="grid grid-cols-3 gap-2 mb-2">
               {mediaFrontDoor.map((url, idx) => (
                 <div key={idx} className="relative">
@@ -468,7 +468,7 @@ export default function StandaloneCleaningReportForm() {
           </div>
 
           <div>
-            <Label>Rack de Mesas y Sillas (Opcional)</Label>
+            <Label>Tables & Chairs Rack (Optional)</Label>
             <div className="grid grid-cols-3 gap-2 mb-2">
               {mediaRack.map((url, idx) => (
                 <div key={idx} className="relative">
@@ -494,7 +494,7 @@ export default function StandaloneCleaningReportForm() {
           </div>
 
           <div>
-            <Label>Baños (Opcional)</Label>
+            <Label>Bathrooms (Optional)</Label>
             <div className="grid grid-cols-3 gap-2 mb-2">
               {mediaBathrooms.map((url, idx) => (
                 <div key={idx} className="relative">
@@ -520,7 +520,7 @@ export default function StandaloneCleaningReportForm() {
           </div>
 
           <div>
-            <Label>Cocina (Opcional)</Label>
+            <Label>Kitchen (Optional)</Label>
             <div className="grid grid-cols-3 gap-2 mb-2">
               {mediaKitchen.map((url, idx) => (
                 <div key={idx} className="relative">
@@ -547,7 +547,7 @@ export default function StandaloneCleaningReportForm() {
 
           {checkDeepCleaning && (
             <div>
-              <Label>Deep Cleaning (Opcional)</Label>
+              <Label>Deep Cleaning (Optional)</Label>
               <div className="grid grid-cols-3 gap-2 mb-2">
                 {mediaDeepCleaning.map((url, idx) => (
                   <div key={idx} className="relative">
@@ -578,18 +578,18 @@ export default function StandaloneCleaningReportForm() {
       {/* Issues */}
       <Card>
         <CardHeader>
-          <CardTitle>Problemas Encontrados</CardTitle>
+          <CardTitle>Issues Found</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
             <Checkbox id="issues" checked={issuesFound} onCheckedChange={(c) => setIssuesFound(!!c)} />
             <label htmlFor="issues" className="text-sm font-medium">
-              Se encontraron problemas durante la limpieza
+              Issues were found during cleaning
             </label>
           </div>
           {issuesFound && (
             <Textarea
-              placeholder="Describe los problemas encontrados..."
+              placeholder="Describe the issues found..."
               value={issuesNotes}
               onChange={(e) => setIssuesNotes(e.target.value)}
               rows={4}
@@ -601,18 +601,18 @@ export default function StandaloneCleaningReportForm() {
       {/* Damage */}
       <Card>
         <CardHeader>
-          <CardTitle>Daños en el Lugar</CardTitle>
+          <CardTitle>Venue Damage</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
             <Checkbox id="damage" checked={damageFound} onCheckedChange={(c) => setDamageFound(!!c)} />
             <label htmlFor="damage" className="text-sm font-medium">
-              Se encontraron daños en el venue
+              Damage was found in the venue
             </label>
           </div>
           {damageFound && (
             <Textarea
-              placeholder="Describe los daños encontrados..."
+              placeholder="Describe the damage found..."
               value={damageDescription}
               onChange={(e) => setDamageDescription(e.target.value)}
               rows={4}
@@ -624,7 +624,7 @@ export default function StandaloneCleaningReportForm() {
       {/* Inventory */}
       <Card>
         <CardHeader>
-          <CardTitle>Actualización de Inventario</CardTitle>
+          <CardTitle>Inventory Update</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center space-x-2">
@@ -634,7 +634,7 @@ export default function StandaloneCleaningReportForm() {
               onCheckedChange={(c) => setInventoryUpdateNeeded(!!c)} 
             />
             <label htmlFor="inventory" className="text-sm font-medium">
-              Se necesita actualizar inventario (faltan productos)
+              Inventory update needed (missing items)
             </label>
           </div>
           {inventoryUpdateNeeded && (
@@ -642,13 +642,13 @@ export default function StandaloneCleaningReportForm() {
               {inventoryItems.map((item, idx) => (
                 <div key={idx} className="flex gap-2">
                   <Input
-                    placeholder="Nombre del producto"
+                    placeholder="Product name"
                     value={item.name}
                     onChange={(e) => updateInventoryItem(idx, 'name', e.target.value)}
                   />
                   <Input
                     type="number"
-                    placeholder="Cantidad"
+                    placeholder="Quantity"
                     value={item.quantity}
                     onChange={(e) => updateInventoryItem(idx, 'quantity', parseInt(e.target.value) || 1)}
                     className="w-32"
@@ -663,7 +663,7 @@ export default function StandaloneCleaningReportForm() {
                 </div>
               ))}
               <Button variant="outline" size="sm" onClick={addInventoryItem}>
-                Agregar Item
+                Add Item
               </Button>
             </div>
           )}
@@ -673,11 +673,11 @@ export default function StandaloneCleaningReportForm() {
       {/* Submit Button */}
       <div className="flex justify-end gap-4">
         <Button variant="outline" asChild>
-          <Link to="/staff/standalone">Cancelar</Link>
+          <Link to="/staff/standalone">Cancel</Link>
         </Button>
         <Button onClick={handleSubmit} disabled={submitting}>
           {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {isReportCompleted ? 'Actualizar Reporte' : 'Enviar Reporte'}
+          {isReportCompleted ? 'Update Report' : 'Submit Report'}
         </Button>
       </div>
     </div>

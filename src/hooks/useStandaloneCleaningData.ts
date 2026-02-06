@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useStaffSession } from "./useStaffSession";
 
 export interface StandaloneCleaningReport {
   id: string;
@@ -153,11 +154,12 @@ export function useUpdateStandaloneCleaningReport() {
  * Get staff's own standalone assignments
  */
 export function useStaffStandaloneAssignments() {
+  const { staffMember } = useStaffSession();
+  
   return useQuery({
-    queryKey: ["staff-standalone-assignments"],
+    queryKey: ["staff-standalone-assignments", staffMember?.id],
     queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
+      if (!staffMember?.id) return [];
       
       const { data, error } = await supabase
         .from("booking_staff_assignments")
@@ -171,13 +173,14 @@ export function useStaffStandaloneAssignments() {
           status,
           notes
         `)
-        .eq("staff_id", user.id)
+        .eq("staff_id", staffMember.id)
         .is("booking_id", null)
         .order("scheduled_date", { ascending: false });
       
       if (error) throw error;
       return data as StandaloneAssignment[];
     },
+    enabled: !!staffMember?.id,
   });
 }
 
