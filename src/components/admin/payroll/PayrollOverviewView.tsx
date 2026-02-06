@@ -380,19 +380,19 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
       <AlertDialog open={isMarkPaidDialogOpen} onOpenChange={setIsMarkPaidDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Pago</AlertDialogTitle>
+            <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
             <AlertDialogDescription>
-              Estás a punto de marcar {selectedIds.size} staff member(s) como pagados.
-              Esta acción actualizará todos los items pendientes de estos staff members.
+              You are about to mark {selectedIds.size} staff member(s) as paid.
+              This action will update all pending items for these staff members.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isMarkingPaid}>Cancelar</AlertDialogCancel>
+            <AlertDialogCancel disabled={isMarkingPaid}>Cancel</AlertDialogCancel>
             <AlertDialogAction 
               onClick={handleMarkSelectedAsPaid}
               disabled={isMarkingPaid}
             >
-              {isMarkingPaid ? 'Procesando...' : 'Confirmar'}
+              {isMarkingPaid ? 'Processing...' : 'Confirm'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

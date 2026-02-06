@@ -48,7 +48,7 @@ export default function PayrollReports() {
         <div>
           <h1 className="text-2xl font-bold text-foreground">Payroll Reports</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Gestión simplificada de pagos de staff
+            Simplified staff payment management
           </p>
         </div>
       </div>
