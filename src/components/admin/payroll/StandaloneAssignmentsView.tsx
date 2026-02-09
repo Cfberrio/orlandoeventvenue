@@ -193,7 +193,7 @@ export default function StandaloneAssignmentsView({
               <div>
                 <CardTitle>Standalone Cleaning Assignments</CardTitle>
                 <CardDescription>
-                  Crea tareas de limpieza no vinculadas a bookings (preparación del venue, mantenimiento, etc.)
+                  Create cleaning tasks not linked to bookings (venue prep, maintenance, etc.)
                 </CardDescription>
               </div>
               <Button onClick={() => setIsCreateModalOpen(true)} size="default" className="gap-2">
@@ -206,8 +206,8 @@ export default function StandaloneAssignmentsView({
             {assignments.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 <Plus className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
-                <p className="font-medium mb-1">No hay standalone assignments</p>
-                <p className="text-sm">Crea un assignment para limpiezas no vinculadas a bookings</p>
+                <p className="font-medium mb-1">No standalone assignments</p>
+                <p className="text-sm">Create an assignment for cleanings not linked to bookings</p>
               </div>
             ) : (
               <div className="overflow-x-auto">

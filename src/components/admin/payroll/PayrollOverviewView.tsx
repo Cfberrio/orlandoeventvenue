@@ -179,8 +179,8 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
           await markAsPaid(payrollItemIds, user.id);
           
           toast({
-            title: "Payroll marcado como pagado",
-            description: `${payrollItemIds.length} items marcados como pagados`,
+            title: "Payroll marked as paid",
+            description: `${payrollItemIds.length} items marked as paid`,
           });
 
           // Reload data
@@ -188,7 +188,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
           setSelectedIds(new Set());
         } else {
           toast({
-            title: "No hay items pendientes para marcar",
+            title: "No pending items to mark",
             variant: "destructive",
           });
         }
@@ -196,7 +196,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
     } catch (error: any) {
       console.error('Error marking as paid:', error);
       toast({
-        title: "Error al marcar como pagado",
+        title: "Error marking as paid",
         description: error.message,
         variant: "destructive",
       });
@@ -238,8 +238,8 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
         <CardContent className="pt-6">
           <EmptyStateCard
             title="No Payroll Data"
-            description="El payroll se genera cuando los staff assignments se marcan como 'completed'. Visita la página de Bookings para completar assignments."
-            actionText="Ver Bookings"
+            description="Payroll is generated when staff assignments are marked as 'completed'. Visit the Bookings page to complete assignments."
+            actionText="View Bookings"
             actionLink="/admin/bookings"
           />
         </CardContent>
@@ -256,7 +256,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
             <div>
               <CardTitle>Staff Payroll</CardTitle>
               <CardDescription>
-                Desglose completo de payroll por staff member
+                Complete payroll breakdown by staff member
               </CardDescription>
             </div>
             <div className="flex gap-2">
@@ -266,7 +266,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                 variant="default"
               >
                 {isMarkingPaid && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Marcar Seleccionados como Pagados ({selectedIds.size})
+                Mark Selected as Paid ({selectedIds.size})
               </Button>
               <ExportPayrollButton 
                 startDate={startDate}
@@ -348,6 +348,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                             staffId={staff.staff_id}
                             startDate={startDate}
                             endDate={endDate}
+                            onDataChanged={loadData}
                           />
                         </TableCell>
                       </TableRow>
