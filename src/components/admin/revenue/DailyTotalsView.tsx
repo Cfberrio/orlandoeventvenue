@@ -139,7 +139,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
           <CardContent>
             <div className="text-2xl font-bold">{data.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Days with confirmed deposits
+              Days with confirmed bookings
             </p>
           </CardContent>
         </Card>
@@ -154,7 +154,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
               ${(totals!.total_generated / data.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Average per deposit day
+              Average per booking day
             </p>
           </CardContent>
         </Card>
@@ -165,7 +165,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
         <CardHeader>
           <CardTitle>Daily Generated Revenue</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Full booking amounts grouped by deposit payment date
+            Full booking amounts grouped by booking creation date
           </p>
         </CardHeader>
         <CardContent>
@@ -173,7 +173,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Deposit Date</TableHead>
+                  <TableHead>Booked On</TableHead>
                   <TableHead className="text-right">Bookings</TableHead>
                   <TableHead className="text-right">Baseline</TableHead>
                   <TableHead className="text-right">Cleaning</TableHead>

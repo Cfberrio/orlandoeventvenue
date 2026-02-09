@@ -1,10 +1,11 @@
 -- =====================================================
 -- DAILY GENERATED REVENUE FUNCTION
 -- =====================================================
--- Shows the FULL booking amount grouped by the date the
--- deposit was paid (deposit_paid_at). This represents
--- total revenue generated/committed, not just received.
--- Excludes internal bookings and cancelled/declined.
+-- Shows the FULL booking amount grouped by the booking
+-- creation date (created_at). This represents total
+-- revenue generated/committed, not just received.
+-- Only website_public bookings. Excludes cancelled/declined.
+-- NOTE: Superseded by 20260209160000_fix_revenue_date_and_origin.sql
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION public.get_daily_generated_revenue(
@@ -28,7 +29,7 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
   SELECT
-    b.deposit_paid_at::date AS generated_date,
+    b.created_at::date AS generated_date,
     COUNT(*) AS booking_count,
     SUM(b.total_amount) AS total_generated,
     SUM(b.base_rental) AS baseline_generated,
@@ -38,10 +39,9 @@ AS $$
     SUM(b.taxes_fees) AS tax_generated,
     SUM(-1 * COALESCE(b.discount_amount, 0)) AS discount_generated
   FROM public.bookings b
-  WHERE b.deposit_paid_at::date BETWEEN p_start_date AND p_end_date
-    AND b.deposit_paid_at IS NOT NULL
-    AND b.booking_origin != 'internal_admin'
+  WHERE b.created_at::date BETWEEN p_start_date AND p_end_date
+    AND b.booking_origin = 'website_public'
     AND b.status NOT IN ('cancelled', 'declined')
-  GROUP BY b.deposit_paid_at::date
-  ORDER BY b.deposit_paid_at::date;
+  GROUP BY b.created_at::date
+  ORDER BY b.created_at::date;
 $$;
