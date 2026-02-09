@@ -501,18 +501,28 @@ export function useBookings(filters?: {
   lifecycleStatus?: string[];
   paymentStatus?: string;
   eventType?: string;
+  clientName?: string;
+  sortBy?: 'created_at' | 'full_name';
+  sortOrder?: 'asc' | 'desc';
 }) {
   return useQuery({
     queryKey: ["bookings", filters],
     queryFn: async () => {
-      let query = supabase.from("bookings").select("*").order("event_date", { ascending: false });
+      let query = supabase.from("bookings").select("*");
       
+      // Filter by created_at (booking date) instead of event_date
       if (filters?.dateFrom) {
-        query = query.gte("event_date", filters.dateFrom);
+        query = query.gte("created_at", filters.dateFrom);
       }
       if (filters?.dateTo) {
-        query = query.lte("event_date", filters.dateTo);
+        query = query.lte("created_at", filters.dateTo);
       }
+      
+      // Filter by client name (case-insensitive)
+      if (filters?.clientName) {
+        query = query.ilike("full_name", `%${filters.clientName}%`);
+      }
+      
       if (filters?.lifecycleStatus?.length) {
         query = query.in("lifecycle_status", filters.lifecycleStatus);
       }
@@ -522,6 +532,11 @@ export function useBookings(filters?: {
       if (filters?.eventType) {
         query = query.eq("event_type", filters.eventType);
       }
+      
+      // Dynamic ordering
+      const sortBy = filters?.sortBy || 'created_at';
+      const sortOrder = filters?.sortOrder === 'asc' ? true : false;
+      query = query.order(sortBy, { ascending: sortOrder });
       
       const { data, error } = await query;
       if (error) throw error;

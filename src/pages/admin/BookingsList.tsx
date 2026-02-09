@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -84,6 +84,9 @@ export default function BookingsList() {
   const [lifecycleStatus, setLifecycleStatus] = useState<string>("");
   const [paymentStatus, setPaymentStatus] = useState<string>("");
   const [eventType, setEventType] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
+  const [sortBy, setSortBy] = useState<'created_at' | 'full_name'>('created_at');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [showFilters, setShowFilters] = useState(false);
 
   const { data: bookings, isLoading } = useBookings({
@@ -92,7 +95,32 @@ export default function BookingsList() {
     lifecycleStatus: lifecycleStatus && lifecycleStatus !== "all" ? [lifecycleStatus] : undefined,
     paymentStatus: paymentStatus && paymentStatus !== "all" ? paymentStatus : undefined,
     eventType: eventType || undefined,
+    clientName: clientName || undefined,
+    sortBy,
+    sortOrder,
   });
+
+  // Group bookings by lifecycle_status
+  const groupedBookings = useMemo(() => {
+    if (!bookings) return {};
+    
+    const groups: Record<string, typeof bookings> = {};
+    
+    // Initialize all status with empty arrays
+    lifecycleStatuses.forEach(status => {
+      groups[status] = [];
+    });
+    
+    // Group bookings
+    bookings.forEach(booking => {
+      const status = booking.lifecycle_status || 'pending';
+      if (groups[status]) {
+        groups[status].push(booking);
+      }
+    });
+    
+    return groups;
+  }, [bookings]);
 
   const clearFilters = () => {
     setDateFrom(undefined);
@@ -100,9 +128,18 @@ export default function BookingsList() {
     setLifecycleStatus("");
     setPaymentStatus("");
     setEventType("");
+    setClientName("");
+    setSortBy('created_at');
+    setSortOrder('desc');
   };
 
-  const hasFilters = dateFrom || dateTo || (lifecycleStatus && lifecycleStatus !== "all") || (paymentStatus && paymentStatus !== "all") || eventType;
+  const hasFilters = dateFrom || dateTo || 
+    (lifecycleStatus && lifecycleStatus !== "all") || 
+    (paymentStatus && paymentStatus !== "all") || 
+    eventType || 
+    clientName ||
+    sortBy !== 'created_at' ||
+    sortOrder !== 'desc';
 
   return (
     <div className="space-y-6">
@@ -130,10 +167,10 @@ export default function BookingsList() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              {/* Date From */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-4">
+              {/* Booked From */}
               <div>
-                <label className="text-sm font-medium mb-1 block">Date From</label>
+                <label className="text-sm font-medium mb-1 block">Booked From</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left">
@@ -152,9 +189,9 @@ export default function BookingsList() {
                 </Popover>
               </div>
 
-              {/* Date To */}
+              {/* Booked To */}
               <div>
-                <label className="text-sm font-medium mb-1 block">Date To</label>
+                <label className="text-sm font-medium mb-1 block">Booked To</label>
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left">
@@ -218,12 +255,54 @@ export default function BookingsList() {
                   onChange={(e) => setEventType(e.target.value)}
                 />
               </div>
+
+              {/* Client Name Search */}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Client Name</label>
+                <Input
+                  placeholder="Search by client name..."
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                />
+              </div>
+
+              {/* Sort By */}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Sort By</label>
+                <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'created_at' | 'full_name')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_at">Booking Date</SelectItem>
+                    <SelectItem value="full_name">Client Name</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Sort Order */}
+              <div>
+                <label className="text-sm font-medium mb-1 block">Order</label>
+                <Select value={sortOrder} onValueChange={(value) => setSortOrder(value as 'asc' | 'desc')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="desc">
+                      {sortBy === 'created_at' ? 'Most Recent First' : 'Z to A'}
+                    </SelectItem>
+                    <SelectItem value="asc">
+                      {sortBy === 'created_at' ? 'Oldest First' : 'A to Z'}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Bookings Table */}
+      {/* Bookings Grouped by Status */}
       <Card>
         <CardContent className="p-0">
           {isLoading ? (
@@ -231,85 +310,120 @@ export default function BookingsList() {
           ) : bookings?.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">No bookings found</div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Event</TableHead>
-                    <TableHead>Guests</TableHead>
-                    <TableHead>Payment</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Deposit Paid</TableHead>
-                    <TableHead>Balance Paid</TableHead>
-                    <TableHead></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bookings?.map((booking) => {
-                    const lifecycle = lifecycleConfig[booking.lifecycle_status] || { label: booking.lifecycle_status, color: "bg-muted" };
-                    const payment = paymentConfig[booking.payment_status] || { label: booking.payment_status, color: "bg-muted" };
+            <div className="space-y-6 p-6">
+              {/* Render each status group */}
+              {lifecycleStatuses.map((status) => {
+                const statusBookings = groupedBookings[status] || [];
+                const statusConfig = lifecycleConfig[status];
+                
+                // Skip if no bookings for this status
+                if (statusBookings.length === 0) return null;
+                
+                return (
+                  <div key={status} className="space-y-3">
+                    {/* Status Header with Counter */}
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="flex items-center gap-3">
+                        <Badge className={cn("text-sm", statusConfig.color)}>
+                          {statusConfig.label}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">
+                          {statusBookings.length} {statusBookings.length === 1 ? 'booking' : 'bookings'}
+                        </span>
+                      </div>
+                    </div>
                     
-                    return (
-                      <TableRow key={booking.id} className="group">
-                        <TableCell>
-                          <div className="font-medium">{format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {booking.start_time?.slice(0, 5) || "All day"}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="font-medium">{booking.full_name}</div>
-                          <div className="text-xs text-muted-foreground">{booking.email}</div>
-                        </TableCell>
-                        <TableCell>
-                          <div>{booking.event_type}</div>
-                          <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
-                        </TableCell>
-                        <TableCell>{booking.number_of_guests}</TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-xs", payment.color)}>
-                            {payment.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={cn("text-xs", lifecycle.color)}>
-                            {lifecycle.label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${Number(booking.total_amount).toLocaleString()}
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {booking.deposit_paid_at 
-                              ? format(new Date(booking.deposit_paid_at), "MM/dd/yyyy")
-                              : <span className="text-muted-foreground">Pending</span>
-                            }
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm">
-                            {booking.balance_paid_at 
-                              ? format(new Date(booking.balance_paid_at), "MM/dd/yyyy")
-                              : <span className="text-muted-foreground">Pending</span>
-                            }
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Link to={`/admin/bookings/${booking.id}`}>
-                            <Button variant="ghost" size="sm" className="h-7">
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
+                    {/* Bookings Table for this status */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Booked On</TableHead>
+                            <TableHead>Event Date</TableHead>
+                            <TableHead>Client</TableHead>
+                            <TableHead>Event</TableHead>
+                            <TableHead>Guests</TableHead>
+                            <TableHead>Payment</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead>Deposit Paid</TableHead>
+                            <TableHead>Balance Paid</TableHead>
+                            <TableHead></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {statusBookings.map((booking) => {
+                            const payment = paymentConfig[booking.payment_status] || { 
+                              label: booking.payment_status, 
+                              color: "bg-muted" 
+                            };
+                            
+                            return (
+                              <TableRow key={booking.id} className="group">
+                                <TableCell>
+                                  <div className="text-sm font-medium">
+                                    {format(new Date(booking.created_at), "MMM d, yyyy")}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {format(new Date(booking.created_at), "h:mm a")}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="font-medium">
+                                    {format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {booking.start_time?.slice(0, 5) || "All day"}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="font-medium">{booking.full_name}</div>
+                                  <div className="text-xs text-muted-foreground">{booking.email}</div>
+                                </TableCell>
+                                <TableCell>
+                                  <div>{booking.event_type}</div>
+                                  <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
+                                </TableCell>
+                                <TableCell>{booking.number_of_guests}</TableCell>
+                                <TableCell>
+                                  <Badge className={cn("text-xs", payment.color)}>
+                                    {payment.label}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right font-medium">
+                                  ${Number(booking.total_amount).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    {booking.deposit_paid_at 
+                                      ? format(new Date(booking.deposit_paid_at), "MM/dd/yyyy")
+                                      : <span className="text-muted-foreground">Pending</span>
+                                    }
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="text-sm">
+                                    {booking.balance_paid_at 
+                                      ? format(new Date(booking.balance_paid_at), "MM/dd/yyyy")
+                                      : <span className="text-muted-foreground">Pending</span>
+                                    }
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Link to={`/admin/bookings/${booking.id}`}>
+                                    <Button variant="ghost" size="sm" className="h-7">
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                  </Link>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
