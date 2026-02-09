@@ -150,7 +150,7 @@ export function useRevenueData() {
    * Fetch daily generated revenue (full booking amounts by deposit date)
    */
   const fetchDailyGeneratedRevenue = async (startDate: string, endDate: string) => {
-    const { data, error } = await supabase.rpc('get_daily_generated_revenue', {
+    const { data, error } = await (supabase.rpc as any)('get_daily_generated_revenue', {
       p_start_date: startDate,
       p_end_date: endDate
     });

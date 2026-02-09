@@ -1553,6 +1553,20 @@ export type Database = {
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
+      get_daily_generated_revenue: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_generated: number
+          baseline_generated: number
+          booking_count: number
+          cleaning_generated: number
+          discount_generated: number
+          generated_date: string
+          production_generated: number
+          tax_generated: number
+          total_generated: number
+        }[]
+      }
       get_daily_revenue: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
