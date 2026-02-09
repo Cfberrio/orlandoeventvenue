@@ -8,6 +8,7 @@ import { CalendarIcon, DollarSign, Download } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
 import { useRevenueData } from "@/hooks/useRevenueData";
 import DailyRevenueView from "@/components/admin/revenue/DailyRevenueView";
+import DailyTotalsView from "@/components/admin/revenue/DailyTotalsView";
 import MonthlyRevenueView from "@/components/admin/revenue/MonthlyRevenueView";
 import CategoryBreakdown from "@/components/admin/revenue/CategoryBreakdown";
 import SegmentAnalysis from "@/components/admin/revenue/SegmentAnalysis";
@@ -112,8 +113,9 @@ export default function RevenueReports() {
 
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="daily">Daily</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="daily">Daily Received</TabsTrigger>
+          <TabsTrigger value="totals">Daily Totals</TabsTrigger>
           <TabsTrigger value="monthly">Monthly</TabsTrigger>
           <TabsTrigger value="category">By Category</TabsTrigger>
           <TabsTrigger value="segment">By Segment</TabsTrigger>
@@ -121,6 +123,10 @@ export default function RevenueReports() {
 
         <TabsContent value="daily" className="mt-6 space-y-4">
           <DailyRevenueView startDate={startDate} endDate={endDate} />
+        </TabsContent>
+
+        <TabsContent value="totals" className="mt-6 space-y-4">
+          <DailyTotalsView startDate={startDate} endDate={endDate} />
         </TabsContent>
 
         <TabsContent value="monthly" className="mt-6 space-y-4">

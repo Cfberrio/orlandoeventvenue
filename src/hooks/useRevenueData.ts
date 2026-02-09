@@ -45,6 +45,18 @@ export interface SegmentRevenueRecord {
   avg_revenue: number;
 }
 
+export interface DailyGeneratedRevenueRecord {
+  generated_date: string;
+  booking_count: number;
+  total_generated: number;
+  baseline_generated: number;
+  cleaning_generated: number;
+  production_generated: number;
+  addon_generated: number;
+  tax_generated: number;
+  discount_generated: number;
+}
+
 export interface RevenueLineItem {
   reservation_number: string;
   event_date: string;
@@ -135,6 +147,23 @@ export function useRevenueData() {
   };
 
   /**
+   * Fetch daily generated revenue (full booking amounts by deposit date)
+   */
+  const fetchDailyGeneratedRevenue = async (startDate: string, endDate: string) => {
+    const { data, error } = await supabase.rpc('get_daily_generated_revenue', {
+      p_start_date: startDate,
+      p_end_date: endDate
+    });
+    
+    if (error) {
+      console.error('Error fetching daily generated revenue:', error);
+      return { data: null, error };
+    }
+    
+    return { data: data as DailyGeneratedRevenueRecord[], error: null };
+  };
+
+  /**
    * Fetch all line items for export
    */
   const fetchRevenueLineItems = async (startDate: string, endDate: string) => {
@@ -212,6 +241,7 @@ export function useRevenueData() {
 
   return {
     fetchDailyRevenue,
+    fetchDailyGeneratedRevenue,
     fetchMonthlyRevenue,
     fetchRevenueByCategory,
     fetchRevenueBySegment,
