@@ -397,7 +397,7 @@ serve(async (req) => {
 
     // Build the booking snapshot
     console.log("Building snapshot for booking:", booking_id);
-    const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id);
+    const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id, { force_host_report_completed });
 
     // Send to GHL
     console.log("Sending snapshot to GHL:", ghlWebhookUrl);
