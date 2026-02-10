@@ -490,7 +490,7 @@ export default function BookingDetail() {
       
       // Then sync to GHL
       const { error: syncError } = await supabase.functions.invoke("sync-to-ghl", {
-        body: { booking_id: booking.id },
+        body: { booking_id: booking.id, force_host_report_completed: true },
       });
       
       if (syncError) {

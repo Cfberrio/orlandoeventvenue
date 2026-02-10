@@ -248,7 +248,9 @@ async function buildBookingSnapshot(
   const is_deposit_paid = (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") ? "true" : "false";
   const is_fully_paid = booking.payment_status === "fully_paid" ? "true" : "false";
   const cleaning_report_completed = (cleaningReports?.length || 0) > 0 ? "true" : "false";
-  const host_report_completed = (hostReports?.length || 0) > 0 ? "true" : "false";
+  const host_report_completed = force_host_report_completed === true
+    ? "true"
+    : (hostReports?.length || 0) > 0 ? "true" : "false";
   const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
   const pre_event_ready = booking.pre_event_ready || 'false';
 
@@ -329,7 +331,7 @@ serve(async (req) => {
   }
 
   try {
-    const { booking_id } = await req.json();
+    const { booking_id, force_host_report_completed } = await req.json();
 
     if (!booking_id) {
       return new Response(
