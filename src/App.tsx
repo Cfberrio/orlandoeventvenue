@@ -38,6 +38,7 @@ import CleaningReportForm from "./pages/staff/CleaningReportForm";
 import StaffInventory from "./pages/staff/StaffInventory";
 import StaffStandaloneList from "./pages/staff/StaffStandaloneList";
 import StandaloneCleaningReportForm from "./pages/staff/StandaloneCleaningReportForm";
+import StaffPayments from "./pages/staff/StaffPayments";
 // Guest Routes
 import GuestReport from "./pages/guest/GuestReport";
 
@@ -94,6 +95,7 @@ const App = () => (
                 <Route path="inventory" element={<StaffInventory />} />
                 <Route path="standalone" element={<StaffStandaloneList />} />
                 <Route path="standalone/:assignmentId/cleaning-report" element={<StandaloneCleaningReportForm />} />
+                <Route path="payments" element={<StaffPayments />} />
               </Route>
 
               {/* Guest Routes - Public */}
