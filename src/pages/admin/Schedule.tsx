@@ -295,7 +295,7 @@ export default function Schedule() {
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-400">
               <Globe className="h-5 w-5" />
-              Próximos Bookings del Website
+              Upcoming Website Bookings
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -339,7 +339,7 @@ export default function Schedule() {
                           </div>
                           <p className="font-medium text-foreground">{booking.full_name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {booking.event_type} • {booking.number_of_guests} invitados
+                            {booking.event_type} • {booking.number_of_guests} guests
                           </p>
                         </div>
                         <div className="text-right">
@@ -356,7 +356,7 @@ export default function Schedule() {
                 to="/admin/bookings" 
                 className="block mt-4 text-sm text-green-600 hover:underline"
               >
-                Ver todos los bookings →
+                View all bookings →
               </Link>
             )}
           </CardContent>
@@ -406,7 +406,7 @@ export default function Schedule() {
                       isToday ? "border-primary bg-primary/5" : "border-border"
                     }`}
                   >
-                    {/* Badges indicadores */}
+                    {/* Indicator badges */}
                     {(hasWebsiteBookings || hasInternalBookings || hasExternalBookings) && (
                       <div className="flex gap-1 mb-1 flex-wrap">
                         {hasWebsiteBookings && (
