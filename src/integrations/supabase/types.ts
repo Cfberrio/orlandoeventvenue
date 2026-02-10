@@ -1685,6 +1685,29 @@ export type Database = {
           reservation_number: string
         }[]
       }
+      get_staff_payroll_line_items: {
+        Args: { p_end_date: string; p_staff_id: string; p_start_date: string }
+        Returns: {
+          amount: number
+          assignment_date: string
+          assignment_status: string
+          assignment_type: string
+          booking_id: string
+          created_at: string
+          description: string
+          hours: number
+          paid_at: string
+          paid_status: string
+          pay_category: string
+          pay_type: string
+          payroll_item_id: string
+          payroll_type: string
+          rate: number
+          reservation_number: string
+          staff_name: string
+          staff_role: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
