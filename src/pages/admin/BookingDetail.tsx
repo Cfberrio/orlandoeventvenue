@@ -50,7 +50,9 @@ import {
   Building,
   Clock,
   CreditCard,
-  AlertTriangle
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isBefore } from "date-fns";
@@ -125,6 +127,10 @@ export default function BookingDetail() {
   const createAssignment = useCreateStaffAssignment();
   const deleteAssignment = useDeleteStaffAssignment();
   const updateHostReport = useUpdateHostReport();
+
+  // Report expand states
+  const [isGuestReportExpanded, setIsGuestReportExpanded] = useState(false);
+  const [isCleaningReportExpanded, setIsCleaningReportExpanded] = useState(false);
 
   // Form states
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
@@ -799,9 +805,6 @@ export default function BookingDetail() {
           <TabsTrigger value="reports" className="data-[state=active]:bg-background">
             📝 Reports
           </TabsTrigger>
-          <TabsTrigger value="reviews" className="data-[state=active]:bg-background">
-            ⭐ Reviews
-          </TabsTrigger>
         </TabsList>
 
         {/* Review Tab */}
@@ -1447,25 +1450,44 @@ export default function BookingDetail() {
 
           {/* Guest Report Section */}
           <Card>
-            <CardHeader>
+            <CardHeader 
+              className="cursor-pointer hover:bg-accent/30 transition-colors rounded-t-lg"
+              onClick={() => hostReport && setIsGuestReportExpanded(!isGuestReportExpanded)}
+            >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="h-5 w-5" />
                   Guest Post-Event Report
                 </div>
-                <Badge variant={hostReport ? "default" : "secondary"}>
-                  {hostReport ? 'Submitted' : 'Pending'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={hostReport ? "default" : "secondary"}>
+                    {hostReport ? (hostReport.status === 'approved' ? 'Approved' : hostReport.status === 'rejected' ? 'Rejected' : 'Submitted') : 'Pending'}
+                  </Badge>
+                  {hostReport && (
+                    isGuestReportExpanded 
+                      ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> 
+                      : <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
               </CardTitle>
+              {hostReport && !isGuestReportExpanded && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  Submitted {format(new Date(hostReport.submitted_at), "PPp")}
+                  {hostReport.guest_name ? ` by ${hostReport.guest_name}` : ''}
+                  {hostReport.has_issue ? ' — Issue reported' : ''}
+                </p>
+              )}
             </CardHeader>
-            <CardContent>
-              {!hostReport ? (
+            {!hostReport ? (
+              <CardContent>
                 <div className="text-center py-8 bg-muted/30 rounded-lg">
                   <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium">No report submitted yet</p>
                   <p className="text-sm text-muted-foreground">The guest will submit this after their event</p>
                 </div>
-              ) : (
+              </CardContent>
+            ) : isGuestReportExpanded && (
+              <CardContent>
                 <div className="space-y-6">
                   {/* Status and Timing */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1574,31 +1596,50 @@ export default function BookingDetail() {
                     </div>
                   )}
                 </div>
-              )}
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
 
           {/* Cleaning Report Section */}
           <Card>
-            <CardHeader>
+            <CardHeader 
+              className="cursor-pointer hover:bg-accent/30 transition-colors rounded-t-lg"
+              onClick={() => cleaningReport && setIsCleaningReportExpanded(!isCleaningReportExpanded)}
+            >
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
                   Cleaning Report
                 </div>
-                <Badge variant={cleaningReport?.status === 'completed' ? "default" : "secondary"}>
-                  {cleaningReport?.status === 'completed' ? 'Completed' : 'Pending'}
-                </Badge>
+                <div className="flex items-center gap-2">
+                  <Badge variant={cleaningReport?.status === 'completed' ? "default" : "secondary"}>
+                    {cleaningReport?.status === 'completed' ? 'Completed' : 'Pending'}
+                  </Badge>
+                  {cleaningReport && (
+                    isCleaningReportExpanded 
+                      ? <ChevronUp className="h-5 w-5 text-muted-foreground" /> 
+                      : <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
               </CardTitle>
+              {cleaningReport && !isCleaningReportExpanded && (
+                <p className="text-sm text-muted-foreground mt-1">
+                  {cleaningReport.cleaner_name ? `By ${cleaningReport.cleaner_name}` : 'Cleaner not specified'}
+                  {cleaningReport.completed_at ? ` — Completed ${format(new Date(cleaningReport.completed_at), "PPp")}` : ''}
+                  {cleaningReport.clean_issues_notes ? ' — Maintenance issues reported' : ''}
+                </p>
+              )}
             </CardHeader>
-            <CardContent>
-              {!cleaningReport ? (
+            {!cleaningReport ? (
+              <CardContent>
                 <div className="text-center py-8 bg-muted/30 rounded-lg">
                   <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
                   <p className="text-muted-foreground font-medium">No cleaning report submitted yet</p>
                   <p className="text-sm text-muted-foreground">The custodial staff will submit this after the event</p>
                 </div>
-              ) : (
+              </CardContent>
+            ) : isCleaningReportExpanded && (
+              <CardContent>
                 <div className="space-y-6">
                   {/* Cleaner Info & Status */}
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -1656,56 +1697,8 @@ export default function BookingDetail() {
                     </div>
                   )}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        {/* Reviews Tab */}
-        <TabsContent value="reviews">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Star className="h-5 w-5" />
-                ⭐ Reviews
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {reviews?.length === 0 ? (
-                <div className="text-center py-8 bg-muted/30 rounded-lg">
-                  <Star className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground font-medium">No reviews yet</p>
-                  <p className="text-sm text-muted-foreground">Reviews will appear here after the guest submits their post-event report</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {reviews?.map((review) => (
-                    <div key={review.id} className="p-4 border rounded-lg bg-card hover:bg-accent/30 transition-colors">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{review.source}</Badge>
-                          <span className="font-medium">{review.reviewer_name || "Anonymous"}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
-                              key={i}
-                              className={`h-5 w-5 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-muted"}`}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                      {review.comment && (
-                        <p className="text-muted-foreground italic">"{review.comment}"</p>
-                      )}
-                      <p className="text-xs text-muted-foreground mt-3">
-                        {format(new Date(review.created_at), "PPp")}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
+              </CardContent>
+            )}
           </Card>
         </TabsContent>
 
