@@ -8,7 +8,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DollarSign, TrendingUp, Calendar } from "lucide-react";
+import { DollarSign, TrendingUp, Calendar, ChevronDown, ChevronRight } from "lucide-react";
 import { useRevenueData, DailyGeneratedRevenueRecord } from "@/hooks/useRevenueData";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -18,17 +18,40 @@ interface DailyTotalsViewProps {
   endDate: string;
 }
 
+interface BookingDetail {
+  id: string;
+  reservation_number: string | null;
+  full_name: string;
+  email: string;
+  event_date: string;
+  event_type: string;
+  booking_type: string;
+  total_amount: number;
+  base_rental: number;
+  cleaning_fee: number;
+  package_cost: number;
+  optional_services: number;
+  taxes_fees: number;
+  discount_amount: number | null;
+  payment_status: string;
+  status: string;
+  created_at: string;
+}
+
 export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewProps) {
   const [data, setData] = useState<DailyGeneratedRevenueRecord[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedDates, setExpandedDates] = useState<Record<string, BookingDetail[] | null>>({});
+  const [loadingDates, setLoadingDates] = useState<Set<string>>(new Set());
 
-  const { fetchDailyGeneratedRevenue } = useRevenueData();
+  const { fetchDailyGeneratedRevenue, fetchBookingsByCreatedDate } = useRevenueData();
 
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
+      setExpandedDates({});
       
       const result = await fetchDailyGeneratedRevenue(startDate, endDate);
       
@@ -44,6 +67,28 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
 
     loadData();
   }, [startDate, endDate]);
+
+  const toggleDate = async (date: string) => {
+    if (date in expandedDates) {
+      const newExpanded = { ...expandedDates };
+      delete newExpanded[date];
+      setExpandedDates(newExpanded);
+      return;
+    }
+
+    setLoadingDates(prev => new Set(prev).add(date));
+    const result = await fetchBookingsByCreatedDate(date);
+    setLoadingDates(prev => {
+      const next = new Set(prev);
+      next.delete(date);
+      return next;
+    });
+
+    setExpandedDates(prev => ({
+      ...prev,
+      [date]: result.data as BookingDetail[] | null,
+    }));
+  };
 
   const totals = data?.reduce(
     (acc, day) => ({
@@ -112,6 +157,8 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
     );
   }
 
+  const fmtMoney = (v: number) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+
   return (
     <div className="space-y-4">
       {/* Summary Cards */}
@@ -123,7 +170,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${totals?.total_generated.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {fmtMoney(totals?.total_generated || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Full booking value across {totals?.booking_count} bookings
@@ -151,7 +198,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${(totals!.total_generated / data.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {fmtMoney(totals!.total_generated / data.length)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               Average per booking day
@@ -165,7 +212,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
         <CardHeader>
           <CardTitle>Daily Generated Revenue</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Full booking amounts grouped by booking creation date
+            Full booking amounts grouped by booking creation date. Click a date to see individual bookings.
           </p>
         </CardHeader>
         <CardContent>
@@ -173,6 +220,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead></TableHead>
                   <TableHead>Booked On</TableHead>
                   <TableHead className="text-right">Bookings</TableHead>
                   <TableHead className="text-right">Baseline</TableHead>
@@ -185,62 +233,94 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((day) => (
-                  <TableRow key={day.generated_date}>
-                    <TableCell className="font-medium">
-                      {format(new Date(day.generated_date + 'T00:00:00'), "MMM dd, yyyy")}
-                    </TableCell>
-                    <TableCell className="text-right">{day.booking_count}</TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.baseline_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.cleaning_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.production_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.addon_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.tax_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right text-destructive">
-                      {Number(day.discount_generated) !== 0
-                        ? `$${Number(day.discount_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                        : '-'}
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      ${Number(day.total_generated).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {data.map((day) => {
+                  const dateKey = day.generated_date;
+                  const isExpanded = dateKey in expandedDates;
+                  const isLoadingDate = loadingDates.has(dateKey);
+                  const bookings = expandedDates[dateKey];
+
+                  return (
+                    <>
+                      <TableRow
+                        key={dateKey}
+                        className="cursor-pointer hover:bg-muted/50"
+                        onClick={() => toggleDate(dateKey)}
+                      >
+                        <TableCell className="w-8 px-2">
+                          {isLoadingDate ? (
+                            <Skeleton className="h-4 w-4" />
+                          ) : isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          {format(new Date(dateKey + 'T00:00:00'), "MMM dd, yyyy")}
+                        </TableCell>
+                        <TableCell className="text-right">{day.booking_count}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.baseline_generated)}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.cleaning_generated)}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.production_generated)}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.addon_generated)}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.tax_generated)}</TableCell>
+                        <TableCell className="text-right text-destructive">
+                          {Number(day.discount_generated) !== 0
+                            ? fmtMoney(day.discount_generated)
+                            : '-'}
+                        </TableCell>
+                        <TableCell className="text-right font-bold">{fmtMoney(day.total_generated)}</TableCell>
+                      </TableRow>
+                      {isExpanded && bookings && bookings.map((b) => (
+                        <TableRow key={b.id} className="bg-muted/30 text-sm">
+                          <TableCell></TableCell>
+                          <TableCell className="pl-6">
+                            <div className="flex flex-col">
+                              <span className="font-medium">{b.full_name}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {b.reservation_number} · {b.event_type} · {format(new Date(b.event_date + 'T00:00:00'), "MMM dd")}
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right text-xs text-muted-foreground">
+                            {b.booking_type}
+                          </TableCell>
+                          <TableCell className="text-right">{fmtMoney(b.base_rental)}</TableCell>
+                          <TableCell className="text-right">{fmtMoney(b.cleaning_fee)}</TableCell>
+                          <TableCell className="text-right">{fmtMoney(b.package_cost)}</TableCell>
+                          <TableCell className="text-right">{fmtMoney(b.optional_services)}</TableCell>
+                          <TableCell className="text-right">{fmtMoney(b.taxes_fees)}</TableCell>
+                          <TableCell className="text-right text-destructive">
+                            {Number(b.discount_amount || 0) !== 0
+                              ? fmtMoney(-1 * Number(b.discount_amount))
+                              : '-'}
+                          </TableCell>
+                          <TableCell className="text-right font-semibold">{fmtMoney(b.total_amount)}</TableCell>
+                        </TableRow>
+                      ))}
+                      {isExpanded && bookings && bookings.length === 0 && (
+                        <TableRow key={`${dateKey}-empty`} className="bg-muted/30">
+                          <TableCell></TableCell>
+                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-3">
+                            No bookings found for this date
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  );
+                })}
                 {/* Totals Row */}
                 <TableRow className="bg-muted/50 font-bold">
+                  <TableCell></TableCell>
                   <TableCell>TOTAL</TableCell>
                   <TableCell className="text-right">{totals?.booking_count}</TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.baseline_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.cleaning_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.production_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.addon_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.tax_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right text-destructive">
-                    ${totals?.discount_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.total_generated.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.baseline_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.cleaning_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.production_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.addon_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.tax_generated || 0)}</TableCell>
+                  <TableCell className="text-right text-destructive">{fmtMoney(totals?.discount_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.total_generated || 0)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
