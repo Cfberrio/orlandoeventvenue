@@ -137,7 +137,7 @@ async function buildBookingSnapshot(
   supabaseUrl: string,
   supabaseServiceKey: string,
   bookingId: string,
-  options?: { force_host_report_completed?: boolean }
+  options?: { force_host_report_completed?: string }
 ): Promise<BookingSnapshot> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
