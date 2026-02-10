@@ -41,7 +41,7 @@ export function useStaffPayrollData() {
     startDate: string,
     endDate: string
   ) => {
-    const { data, error } = await supabase.rpc("get_staff_payroll_line_items", {
+    const { data, error } = await (supabase.rpc as any)("get_staff_payroll_line_items", {
       p_staff_id: staffId,
       p_start_date: startDate,
       p_end_date: endDate,
@@ -52,7 +52,7 @@ export function useStaffPayrollData() {
       return { data: null, error };
     }
 
-    return { data: data as PayrollLineItem[], error: null };
+    return { data: data as unknown as PayrollLineItem[], error: null };
   };
 
   /**
