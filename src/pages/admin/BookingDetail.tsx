@@ -60,6 +60,7 @@ import {
   useBookingHostReports,
   useBookingReviews,
   useBookingAttachments,
+  useBookingCleaningReports,
   useStaffMembers,
   useUpdateBooking,
   useCreateStaffAssignment,
@@ -115,6 +116,7 @@ export default function BookingDetail() {
   const { data: booking, isLoading } = useBooking(id!);
   const { data: assignments } = useBookingStaffAssignments(id!);
   const { data: hostReports } = useBookingHostReports(id!);
+  const { data: cleaningReports } = useBookingCleaningReports(id!);
   const { data: reviews } = useBookingReviews(id!);
   const { data: attachments } = useBookingAttachments(id!);
   const { data: staffMembers } = useStaffMembers({ isActive: true });
@@ -711,6 +713,7 @@ export default function BookingDetail() {
   };
 
   const hostReport = hostReports?.[0];
+  const cleaningReport = cleaningReports?.[0];
 
   return (
     <div className="space-y-6">
@@ -782,30 +785,27 @@ export default function BookingDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="review" className="space-y-4">
         <TabsList className="bg-muted/50 p-1">
-          <TabsTrigger value="overview" className="data-[state=active]:bg-background">
-            📋 Overview
+          <TabsTrigger value="review" className="data-[state=active]:bg-background">
+            📋 Review
           </TabsTrigger>
           <TabsTrigger value="checklist" className="data-[state=active]:bg-background">
-            ✅ Pre-Event
+            ✅ Checklist
           </TabsTrigger>
           <TabsTrigger value="staff" className="data-[state=active]:bg-background">
             👥 Staff
           </TabsTrigger>
-          <TabsTrigger value="host" className="data-[state=active]:bg-background">
-            📝 Host Report
+          <TabsTrigger value="reports" className="data-[state=active]:bg-background">
+            📝 Reports
           </TabsTrigger>
           <TabsTrigger value="reviews" className="data-[state=active]:bg-background">
             ⭐ Reviews
           </TabsTrigger>
-          <TabsTrigger value="attachments" className="data-[state=active]:bg-background">
-            📎 Files
-          </TabsTrigger>
         </TabsList>
 
-        {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-4">
+        {/* Review Tab */}
+        <TabsContent value="review" className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Contact Information */}
             <Card className="border-l-4 border-l-blue-500">
@@ -1395,15 +1395,15 @@ export default function BookingDetail() {
           </Card>
         </TabsContent>
 
-        {/* Host Report Tab */}
-        <TabsContent value="host" className="space-y-4">
-          {/* Host Report Step Status Card */}
+        {/* Reports Tab */}
+        <TabsContent value="reports" className="space-y-4">
+          {/* GHL Sync Status */}
           <Card className="border-l-4 border-l-orange-500">
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-5 w-5 text-orange-500" />
-                  Host Report Step (GHL Sync)
+                  Report Sync Status
                 </div>
                 <Button 
                   variant="outline" 
@@ -1411,19 +1411,28 @@ export default function BookingDetail() {
                   onClick={handleForceSyncHostReport}
                   className="text-xs"
                 >
-                  🔄 Force Sync
+                  Force Sync
                 </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="flex items-center gap-4">
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Current Step</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Guest Report</p>
                   <Badge 
-                    variant={booking.host_report_step ? "default" : "secondary"}
+                    variant={hostReport ? "default" : "secondary"}
                     className="mt-1"
                   >
-                    {booking.host_report_step || "Not Set"}
+                    {hostReport ? (hostReport.status === 'approved' ? 'Approved' : hostReport.status === 'rejected' ? 'Rejected' : 'Submitted') : 'Pending'}
+                  </Badge>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Cleaning Report</p>
+                  <Badge 
+                    variant={cleaningReport?.status === 'completed' ? "default" : "secondary"}
+                    className="mt-1"
+                  >
+                    {cleaningReport?.status === 'completed' ? 'Completed' : 'Pending'}
                   </Badge>
                 </div>
                 <div>
@@ -1433,19 +1442,20 @@ export default function BookingDetail() {
                   </Badge>
                 </div>
               </div>
-              {!booking.host_report_step && (
-                <p className="text-xs text-muted-foreground mt-2">
-                  Click "Force Sync" to trigger host_report_step calculation and GHL sync
-                </p>
-              )}
             </CardContent>
           </Card>
 
+          {/* Guest Report Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                📝 Guest Post-Event Report
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Guest Post-Event Report
+                </div>
+                <Badge variant={hostReport ? "default" : "secondary"}>
+                  {hostReport ? 'Submitted' : 'Pending'}
+                </Badge>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -1478,9 +1488,9 @@ export default function BookingDetail() {
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="submitted">📥 Submitted</SelectItem>
-                          <SelectItem value="approved">✅ Approved</SelectItem>
-                          <SelectItem value="rejected">❌ Rejected</SelectItem>
+                          <SelectItem value="submitted">Submitted</SelectItem>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="rejected">Rejected</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1549,7 +1559,7 @@ export default function BookingDetail() {
                   {/* Issues */}
                   {hostReport.has_issue && (
                     <div className="border-t pt-4">
-                      <label className="text-sm font-medium text-destructive mb-2 block">⚠️ Issue Reported</label>
+                      <label className="text-sm font-medium text-destructive mb-2 block">Issue Reported</label>
                       <p className="text-sm bg-destructive/10 p-3 rounded-lg border border-destructive/20">
                         {hostReport.issue_description || "No description provided"}
                       </p>
@@ -1568,43 +1578,87 @@ export default function BookingDetail() {
             </CardContent>
           </Card>
 
-          {/* Associated Review */}
-          {reviews && reviews.length > 0 && (
-            <Card className="border-2 border-yellow-200 bg-yellow-50/30">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-yellow-800">
-                  <Star className="h-5 w-5 fill-yellow-500 text-yellow-500" />
-                  ⭐ Guest Review
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {reviews.map((review) => (
-                  <div key={review.id} className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`h-6 w-6 ${i < review.rating ? "fill-yellow-400 text-yellow-400" : "text-muted"}`}
-                          />
-                        ))}
-                      </div>
-                      <Badge className="bg-yellow-100 text-yellow-800">{review.rating}/5</Badge>
+          {/* Cleaning Report Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <CheckCircle className="h-5 w-5" />
+                  Cleaning Report
+                </div>
+                <Badge variant={cleaningReport?.status === 'completed' ? "default" : "secondary"}>
+                  {cleaningReport?.status === 'completed' ? 'Completed' : 'Pending'}
+                </Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {!cleaningReport ? (
+                <div className="text-center py-8 bg-muted/30 rounded-lg">
+                  <CheckCircle className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-muted-foreground font-medium">No cleaning report submitted yet</p>
+                  <p className="text-sm text-muted-foreground">The custodial staff will submit this after the event</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Cleaner Info & Status */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Cleaner</label>
+                      <p className="mt-1 font-medium">{cleaningReport.cleaner_name || 'Not specified'}</p>
                     </div>
-                    {review.comment && (
-                      <p className="text-sm bg-background p-4 rounded-lg italic border">
-                        "{review.comment}"
-                      </p>
+                    <div>
+                      <label className="text-sm font-medium text-muted-foreground">Status</label>
+                      <div className="mt-1">
+                        <Badge variant={cleaningReport.status === 'completed' ? "default" : "secondary"}>
+                          {cleaningReport.status === 'completed' ? 'Completed' : cleaningReport.status}
+                        </Badge>
+                      </div>
+                    </div>
+                    {cleaningReport.completed_at && (
+                      <div>
+                        <label className="text-sm font-medium text-muted-foreground">Completed</label>
+                        <p className="mt-1">{format(new Date(cleaningReport.completed_at), "PPp")}</p>
+                      </div>
                     )}
-                    <p className="text-xs text-muted-foreground">
-                      {review.reviewer_name && `By ${review.reviewer_name} • `}
-                      {format(new Date(review.created_at), "PPp")}
-                    </p>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          )}
+
+                  {/* Cleaning Checklist */}
+                  <div className="border-t pt-4">
+                    <label className="text-sm font-medium text-muted-foreground mb-3 block">Cleaning Checklist</label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {[
+                        { key: 'clean_check_floors', label: 'Floors Swept/Mopped' },
+                        { key: 'clean_check_bathrooms', label: 'Bathrooms Cleaned' },
+                        { key: 'clean_check_kitchen', label: 'Kitchen Cleaned' },
+                        { key: 'clean_check_trash_removed', label: 'Trash Removed' },
+                        { key: 'clean_check_equipment_stored', label: 'Equipment Stored' },
+                        { key: 'clean_check_tables_chairs_positioned', label: 'Tables/Chairs Positioned' },
+                        { key: 'clean_check_lights_off', label: 'Lights Off' },
+                        { key: 'clean_check_office_door_closed', label: 'Office Door Closed' },
+                        { key: 'clean_check_door_locked', label: 'Front Door Locked' },
+                        { key: 'clean_check_deep_cleaning_done', label: 'Deep Cleaning' },
+                      ].map(({ key, label }) => (
+                        <div key={key} className={`flex items-center gap-2 p-2 rounded ${(cleaningReport as any)[key] ? 'bg-green-100' : 'bg-muted'}`}>
+                          <div className={`w-4 h-4 rounded-full flex-shrink-0 ${(cleaningReport as any)[key] ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
+                          <span className="text-sm">{label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Maintenance Issues */}
+                  {cleaningReport.clean_issues_notes && (
+                    <div className="border-t pt-4">
+                      <label className="text-sm font-medium text-destructive mb-2 block">Maintenance Issues</label>
+                      <p className="text-sm bg-destructive/10 p-3 rounded-lg border border-destructive/20">
+                        {cleaningReport.clean_issues_notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Reviews Tab */}
@@ -1655,54 +1709,6 @@ export default function BookingDetail() {
           </Card>
         </TabsContent>
 
-        {/* Attachments Tab */}
-        <TabsContent value="attachments">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Paperclip className="h-5 w-5" />
-                📎 Attachments
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {attachments?.length === 0 ? (
-                <div className="text-center py-8 bg-muted/30 rounded-lg">
-                  <Paperclip className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-muted-foreground font-medium">No attachments yet</p>
-                  <p className="text-sm text-muted-foreground">Files uploaded by guests or staff will appear here</p>
-                </div>
-              ) : (
-                <div className="space-y-6">
-                  {["contract", "host_post_event", "cleaning_before", "cleaning_after", "maintenance", "other"].map(
-                    (category) => {
-                      const categoryAttachments = attachments?.filter((a) => a.category === category);
-                      if (!categoryAttachments?.length) return null;
-                      return (
-                        <div key={category}>
-                          <h4 className="font-medium mb-3 capitalize text-muted-foreground">
-                            {category.replace(/_/g, " ")}
-                          </h4>
-                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            {categoryAttachments.map((attachment) => (
-                              <div
-                                key={attachment.id}
-                                className="p-3 border rounded-lg bg-card hover:bg-accent/50 transition-colors cursor-pointer"
-                                title={attachment.filename}
-                              >
-                                <Paperclip className="h-4 w-4 text-muted-foreground mb-2" />
-                                <p className="text-sm truncate">{attachment.filename}</p>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-                  )}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
 
       {/* Manual Deposit Override Modal */}
