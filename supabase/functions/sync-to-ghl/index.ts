@@ -249,7 +249,7 @@ async function buildBookingSnapshot(
   const is_deposit_paid = (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") ? "true" : "false";
   const is_fully_paid = booking.payment_status === "fully_paid" ? "true" : "false";
   const cleaning_report_completed = (cleaningReports?.length || 0) > 0 ? "true" : "false";
-  const host_report_completed = options?.force_host_report_completed === true
+  const host_report_completed = options?.force_host_report_completed === "true"
     ? "true"
     : (hostReports?.length || 0) > 0 ? "true" : "false";
   const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
