@@ -239,6 +239,31 @@ export function useRevenueData() {
     return { success: true, error: null };
   };
 
+  /**
+   * Fetch individual bookings for a specific creation date (EST)
+   */
+  const fetchBookingsByCreatedDate = async (date: string) => {
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('id, reservation_number, full_name, email, event_date, event_type, booking_type, total_amount, base_rental, cleaning_fee, package_cost, optional_services, taxes_fees, discount_amount, payment_status, status, created_at')
+      .eq('booking_origin', 'website')
+      .not('status', 'in', '("cancelled","declined")')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching bookings by date:', error);
+      return { data: null, error };
+    }
+
+    // Filter by EST date on the client side to match the SQL function
+    const filtered = (data || []).filter(b => {
+      const estDate = new Date(b.created_at).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+      return estDate === date;
+    });
+
+    return { data: filtered, error: null };
+  };
+
   return {
     fetchDailyRevenue,
     fetchDailyGeneratedRevenue,
@@ -248,5 +273,6 @@ export function useRevenueData() {
     fetchRevenueLineItems,
     exportRevenueCsv,
     downloadCsv,
+    fetchBookingsByCreatedDate,
   };
 }
