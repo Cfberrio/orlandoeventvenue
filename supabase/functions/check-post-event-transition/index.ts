@@ -49,14 +49,14 @@ serve(async (req) => {
 
     for (const booking of bookings) {
       // Check if host report is completed
-      const { data: hostReport } = await supabase
+      const { data: hostReports } = await supabase
         .from('booking_host_reports')
         .select('id, status')
         .eq('booking_id', booking.id)
         .eq('status', 'submitted')
-        .maybeSingle();
+        .limit(1);
 
-      const hostReportCompleted = !!hostReport;
+      const hostReportCompleted = (hostReports?.length || 0) > 0;
 
       // Calculate event end time + 24 hours
       let eventEndDateTime: Date;
