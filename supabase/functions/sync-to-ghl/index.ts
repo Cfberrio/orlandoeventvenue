@@ -136,7 +136,8 @@ interface BookingRow {
 async function buildBookingSnapshot(
   supabaseUrl: string,
   supabaseServiceKey: string,
-  bookingId: string
+  bookingId: string,
+  options?: { force_host_report_completed?: boolean }
 ): Promise<BookingSnapshot> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
