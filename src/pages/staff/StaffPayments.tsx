@@ -57,7 +57,7 @@ export default function StaffPayments() {
   const now = new Date();
   const [startDate, setStartDate] = useState(format(startOfMonth(now), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(now), "yyyy-MM-dd"));
-  const [typeFilter, setTypeFilter] = useState<"all" | "cleaning" | "production">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "booking" | "standalone">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
 
   const [lineItems, setLineItems] = useState<PayrollLineItem[]>([]);
@@ -85,18 +85,10 @@ export default function StaffPayments() {
   const filteredItems = useMemo(() => {
     let items = lineItems;
 
-    if (typeFilter !== "all") {
-      if (typeFilter === "cleaning") {
-        items = items.filter(
-          (item) =>
-            item.pay_category === "cleaning_base" ||
-            item.pay_category === "cleaning_surcharge"
-        );
-      } else if (typeFilter === "production") {
-        items = items.filter(
-          (item) => item.pay_category === "hourly_production"
-        );
-      }
+    if (sourceFilter === "booking") {
+      items = items.filter((item) => item.booking_id != null);
+    } else if (sourceFilter === "standalone") {
+      items = items.filter((item) => item.booking_id == null);
     }
 
     if (statusFilter !== "all") {
@@ -104,7 +96,7 @@ export default function StaffPayments() {
     }
 
     return items;
-  }, [lineItems, typeFilter, statusFilter]);
+  }, [lineItems, sourceFilter, statusFilter]);
 
   // Compute totals from filtered items
   const totals = useMemo(() => {
@@ -129,7 +121,7 @@ export default function StaffPayments() {
         endDate,
         {
           paidStatus: statusFilter,
-          assignmentType: typeFilter,
+          sourceFilter,
         }
       );
       if (success) {
@@ -182,7 +174,7 @@ export default function StaffPayments() {
             My Payments
           </CardTitle>
           <CardDescription>
-            View your payment history, pending amounts, and assignment details
+            See what you've earned, what's been paid, and what's still pending. Filter by date and by booking vs standalone.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -241,6 +233,9 @@ export default function StaffPayments() {
           </CardTitle>
         </CardHeader>
         <CardContent>
+          <p className="text-sm text-muted-foreground mb-4">
+            Show: all payments, only event bookings, or only standalone cleanings.
+          </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">From</label>
@@ -259,15 +254,15 @@ export default function StaffPayments() {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground mb-1 block">Assignment Type</label>
-              <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value as "all" | "cleaning" | "production")}>
+              <label className="text-sm font-medium text-muted-foreground mb-1 block">Show</label>
+              <Select value={sourceFilter} onValueChange={(value) => setSourceFilter(value as "all" | "booking" | "standalone")}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Types</SelectItem>
-                  <SelectItem value="cleaning">Cleaning</SelectItem>
-                  <SelectItem value="production">Production</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="booking">Booking (event work)</SelectItem>
+                  <SelectItem value="standalone">Standalone (no reservation)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -311,7 +306,7 @@ export default function StaffPayments() {
               <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground font-medium">No payment records found</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Try adjusting the date range or filters
+                Try a different date range or change the filter (Booking / Standalone).
               </p>
             </div>
           ) : (
@@ -322,9 +317,9 @@ export default function StaffPayments() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date</TableHead>
+                      <TableHead>Source</TableHead>
                       <TableHead>Category</TableHead>
                       <TableHead>Description</TableHead>
-                      <TableHead>Booking</TableHead>
                       <TableHead className="text-right">Amount</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
@@ -336,6 +331,22 @@ export default function StaffPayments() {
                           {item.assignment_date
                             ? format(new Date(item.assignment_date + "T00:00:00"), "MMM d, yyyy")
                             : "—"}
+                        </TableCell>
+                        <TableCell>
+                          {item.booking_id != null ? (
+                            <div className="flex flex-col gap-1">
+                              <Badge variant="secondary" className="w-fit text-xs">
+                                Booking
+                              </Badge>
+                              {item.reservation_number && (
+                                <span className="text-xs text-muted-foreground">{item.reservation_number}</span>
+                              )}
+                            </div>
+                          ) : (
+                            <Badge variant="outline" className="w-fit text-xs">
+                              Standalone
+                            </Badge>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
@@ -357,15 +368,6 @@ export default function StaffPayments() {
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {item.hours}h x ${item.rate}/hr
                             </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {item.reservation_number ? (
-                            <Badge variant="secondary" className="text-xs">
-                              {item.reservation_number}
-                            </Badge>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">Standalone</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
@@ -402,7 +404,21 @@ export default function StaffPayments() {
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="font-medium text-sm">
+                        {item.booking_id != null ? (
+                          <>
+                            <Badge variant="secondary" className="text-xs mb-1">
+                              Booking
+                            </Badge>
+                            {item.reservation_number && (
+                              <p className="text-xs text-muted-foreground font-medium">{item.reservation_number}</p>
+                            )}
+                          </>
+                        ) : (
+                          <Badge variant="outline" className="text-xs mb-1">
+                            Standalone
+                          </Badge>
+                        )}
+                        <p className="font-medium text-sm mt-1">
                           {PAY_CATEGORY_LABELS[item.pay_category] || item.pay_category}
                         </p>
                         {item.pay_type && (
@@ -442,14 +458,6 @@ export default function StaffPayments() {
                           {item.hours}h x ${item.rate}/hr
                         </p>
                       )}
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="h-3.5 w-3.5" />
-                        <span>
-                          {item.reservation_number
-                            ? `Booking ${item.reservation_number}`
-                            : "Standalone Assignment"}
-                        </span>
-                      </div>
                       {item.paid_at && (
                         <p className="text-xs">
                           Paid on {format(new Date(item.paid_at), "MMM d, yyyy")}

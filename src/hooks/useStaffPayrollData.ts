@@ -64,7 +64,7 @@ export function useStaffPayrollData() {
     endDate: string,
     filters?: {
       paidStatus?: "pending" | "paid" | "all";
-      assignmentType?: "cleaning" | "production" | "all";
+      sourceFilter?: "all" | "booking" | "standalone";
     }
   ) => {
     const { data, error } = await fetchStaffPayrollLineItems(
@@ -85,17 +85,11 @@ export function useStaffPayrollData() {
       );
     }
 
-    if (filters?.assignmentType && filters.assignmentType !== "all") {
-      if (filters.assignmentType === "cleaning") {
-        filteredData = filteredData.filter(
-          (item) =>
-            item.pay_category === "cleaning_base" ||
-            item.pay_category === "cleaning_surcharge"
-        );
-      } else if (filters.assignmentType === "production") {
-        filteredData = filteredData.filter(
-          (item) => item.pay_category === "hourly_production"
-        );
+    if (filters?.sourceFilter && filters.sourceFilter !== "all") {
+      if (filters.sourceFilter === "booking") {
+        filteredData = filteredData.filter((item) => item.booking_id != null);
+      } else if (filters.sourceFilter === "standalone") {
+        filteredData = filteredData.filter((item) => item.booking_id == null);
       }
     }
 
