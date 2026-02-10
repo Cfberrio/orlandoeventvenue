@@ -136,7 +136,8 @@ interface BookingRow {
 async function buildBookingSnapshot(
   supabaseUrl: string,
   supabaseServiceKey: string,
-  bookingId: string
+  bookingId: string,
+  options?: { force_host_report_completed?: boolean }
 ): Promise<BookingSnapshot> {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -248,7 +249,7 @@ async function buildBookingSnapshot(
   const is_deposit_paid = (booking.payment_status === "deposit_paid" || booking.payment_status === "fully_paid") ? "true" : "false";
   const is_fully_paid = booking.payment_status === "fully_paid" ? "true" : "false";
   const cleaning_report_completed = (cleaningReports?.length || 0) > 0 ? "true" : "false";
-  const host_report_completed = force_host_report_completed === true
+  const host_report_completed = options?.force_host_report_completed === true
     ? "true"
     : (hostReports?.length || 0) > 0 ? "true" : "false";
   const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
@@ -396,7 +397,7 @@ serve(async (req) => {
 
     // Build the booking snapshot
     console.log("Building snapshot for booking:", booking_id);
-    const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id);
+    const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id, { force_host_report_completed });
 
     // Send to GHL
     console.log("Sending snapshot to GHL:", ghlWebhookUrl);
