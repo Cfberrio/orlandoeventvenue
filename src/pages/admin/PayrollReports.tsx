@@ -73,7 +73,7 @@ export default function PayrollReports() {
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dateFrom, "PPP")}
+                    {format(dateFrom, "MM/dd/yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -97,7 +97,7 @@ export default function PayrollReports() {
                     className="w-full justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(dateTo, "PPP")}
+                    {format(dateTo, "MM/dd/yyyy")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">

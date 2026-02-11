@@ -329,7 +329,7 @@ export default function StaffPayments() {
                       <TableRow key={item.payroll_item_id}>
                         <TableCell className="whitespace-nowrap">
                           {item.assignment_date
-                            ? format(new Date(item.assignment_date + "T00:00:00"), "MMM d, yyyy")
+                            ? format(new Date(item.assignment_date + "T00:00:00"), "MM/dd/yyyy")
                             : "—"}
                         </TableCell>
                         <TableCell>
@@ -385,7 +385,7 @@ export default function StaffPayments() {
                           )}
                           {item.paid_at && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              {format(new Date(item.paid_at), "MMM d")}
+                              {format(new Date(item.paid_at), "MM/dd")}
                             </p>
                           )}
                         </TableCell>
@@ -446,7 +446,7 @@ export default function StaffPayments() {
                         <Calendar className="h-3.5 w-3.5" />
                         <span>
                           {item.assignment_date
-                            ? format(new Date(item.assignment_date + "T00:00:00"), "MMM d, yyyy")
+                            ? format(new Date(item.assignment_date + "T00:00:00"), "MM/dd/yyyy")
                             : "—"}
                         </span>
                       </div>
@@ -460,7 +460,7 @@ export default function StaffPayments() {
                       )}
                       {item.paid_at && (
                         <p className="text-xs">
-                          Paid on {format(new Date(item.paid_at), "MMM d, yyyy")}
+                          Paid on {format(new Date(item.paid_at), "MM/dd/yyyy")}
                         </p>
                       )}
                     </div>

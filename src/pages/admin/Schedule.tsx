@@ -121,7 +121,7 @@ export default function Schedule() {
               ? `${block.start_time.slice(0,5)} - ${block.end_time.slice(0,5)}`
               : isMultiDay
                 ? isStartDate 
-                  ? `Starts → ${format(parseISO(block.end_date), "MMM d")}`
+                  ? `Starts → ${format(parseISO(block.end_date), "MM/dd")}`
                   : isEndDate
                     ? `← Ends`
                     : "Continues"
@@ -333,7 +333,7 @@ export default function Schedule() {
                               {lifecycle.label}
                             </Badge>
                             <span className="text-xs text-muted-foreground">
-                              {format(parseISO(booking.event_date), "MMM d, yyyy")}
+                              {format(parseISO(booking.event_date), "MM/dd/yyyy")}
                               {booking.start_time && ` • ${booking.start_time.slice(0, 5)}`}
                             </span>
                           </div>
@@ -373,7 +373,7 @@ export default function Schedule() {
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
               {viewMode === "week"
-                ? `${format(startOfWeek(currentDate), "MMM d")} - ${format(endOfWeek(currentDate), "MMM d, yyyy")}`
+                ? `${format(startOfWeek(currentDate), "MM/dd")} - ${format(endOfWeek(currentDate), "MM/dd/yyyy")}`
                 : format(currentDate, "MMMM yyyy")}
             </CardTitle>
             <Button variant="ghost" size="icon" onClick={() => navigate("next")}>

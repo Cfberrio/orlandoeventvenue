@@ -189,7 +189,7 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
                 {data.map((day) => (
                   <TableRow key={day.revenue_date}>
                     <TableCell className="font-medium">
-                      {format(new Date(day.revenue_date + 'T00:00:00'), "MMM dd, yyyy")}
+                      {format(new Date(day.revenue_date + 'T00:00:00'), "MM/dd/yyyy")}
                     </TableCell>
                     <TableCell className="text-right">{day.booking_count}</TableCell>
                     <TableCell className="text-right">

@@ -297,7 +297,7 @@ export default function StandaloneCleaningReportForm() {
         <CardHeader>
           <CardTitle>Cleaning Report - Standalone Assignment</CardTitle>
           <CardDescription>
-            Date: {assignment.scheduled_date ? format(new Date(assignment.scheduled_date), 'PPP') : 'N/A'}
+            Date: {assignment.scheduled_date ? format(new Date(assignment.scheduled_date), 'MM/dd/yyyy') : 'N/A'}
             {' • '}
             Type: {cleaningTypeLabel}
           </CardDescription>

@@ -133,7 +133,7 @@ export default function Cleaning() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateFrom ? format(dateFrom, "PP") : "Select"}
+                    {dateFrom ? format(dateFrom, "MM/dd/yyyy") : "Select"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -152,7 +152,7 @@ export default function Cleaning() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {dateTo ? format(dateTo, "PP") : "Select"}
+                    {dateTo ? format(dateTo, "MM/dd/yyyy") : "Select"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0">
@@ -234,7 +234,7 @@ export default function Cleaning() {
                         {booking?.full_name || "Unknown"}
                       </Link>
                       <p className="text-sm text-muted-foreground">
-                        {booking?.event_date ? format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy") : "-"}
+                        {booking?.event_date ? format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy") : "-"}
                       </p>
                     </div>
                     <Badge className={status.color}>
@@ -321,7 +321,7 @@ export default function Cleaning() {
                     <p className="text-xs text-muted-foreground uppercase">Event Date</p>
                     <p className="font-medium">
                       {(selectedReport.bookings as Booking)?.event_date
-                        ? format(new Date((selectedReport.bookings as Booking).event_date + 'T00:00:00'), "PPP")
+                        ? format(new Date((selectedReport.bookings as Booking).event_date + 'T00:00:00'), "MM/dd/yyyy")
                         : "-"}
                     </p>
                   </div>
@@ -333,7 +333,7 @@ export default function Cleaning() {
                     <p className="text-xs text-muted-foreground uppercase">Completed</p>
                     <p className="font-medium">
                       {selectedReport.completed_at 
-                        ? format(new Date(selectedReport.completed_at), "PPp")
+                        ? format(new Date(selectedReport.completed_at), "MM/dd/yyyy h:mm a")
                         : "Not completed"}
                     </p>
                   </div>

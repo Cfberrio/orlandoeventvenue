@@ -235,7 +235,7 @@ export default function StandaloneAssignmentsView({
                             {assignment.staff_members?.full_name || 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(assignment.scheduled_date), "MMM d, yyyy")}
+                            {format(new Date(assignment.scheduled_date), "MM/dd/yyyy")}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {assignment.scheduled_start_time && assignment.scheduled_end_time

@@ -208,7 +208,7 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
                   />
                 </TableCell>
                 <TableCell className="text-sm">
-                  {item.assignment_date ? format(new Date(item.assignment_date), 'MMM dd, yyyy') : '-'}
+                  {item.assignment_date ? format(new Date(item.assignment_date), 'MM/dd/yyyy') : '-'}
                 </TableCell>
                 <TableCell className="text-sm">
                   {item.booking_id ? (

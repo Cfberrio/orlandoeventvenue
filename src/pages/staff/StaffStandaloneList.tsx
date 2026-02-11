@@ -106,7 +106,7 @@ export default function StaffStandaloneList() {
                         <p className="text-sm text-muted-foreground">Date</p>
                         <p className="font-semibold">
                           {assignment.scheduled_date 
-                            ? format(new Date(assignment.scheduled_date), 'PPP')
+                            ? format(new Date(assignment.scheduled_date), 'MM/dd/yyyy')
                             : 'No date'}
                         </p>
                       </div>

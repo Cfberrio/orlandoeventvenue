@@ -741,7 +741,7 @@ export default function BookingDetail() {
           </div>
           <p className="text-muted-foreground flex items-center gap-2">
             <CalendarIcon className="h-4 w-4" />
-            {format(new Date(booking.event_date + 'T00:00:00'), "EEEE, MMMM d, yyyy")}
+            {format(new Date(booking.event_date + 'T00:00:00'), "EEEE, MM/dd/yyyy")}
             <span className="mx-1">•</span>
             {booking.event_type}
           </p>
@@ -856,7 +856,7 @@ export default function BookingDetail() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Date</p>
-                    <p className="font-medium">{format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}</p>
+                    <p className="font-medium">{format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
@@ -1472,7 +1472,7 @@ export default function BookingDetail() {
               </CardTitle>
               {hostReport && !isGuestReportExpanded && (
                 <p className="text-sm text-muted-foreground mt-1">
-                  Submitted {format(new Date(hostReport.submitted_at), "PPp")}
+                  Submitted {format(new Date(hostReport.submitted_at), "MM/dd/yyyy h:mm a")}
                   {hostReport.guest_name ? ` by ${hostReport.guest_name}` : ''}
                   {hostReport.has_issue ? ' — Issue reported' : ''}
                 </p>
@@ -1518,12 +1518,12 @@ export default function BookingDetail() {
                     </div>
                     <div>
                       <label className="text-sm font-medium text-muted-foreground">Submitted</label>
-                      <p className="mt-2 font-medium">{format(new Date(hostReport.submitted_at), "PPp")}</p>
+                      <p className="mt-2 font-medium">{format(new Date(hostReport.submitted_at), "MM/dd/yyyy h:mm a")}</p>
                     </div>
                     {hostReport.reviewed_at && (
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Reviewed</label>
-                        <p className="mt-2">{format(new Date(hostReport.reviewed_at), "PPp")}</p>
+                        <p className="mt-2">{format(new Date(hostReport.reviewed_at), "MM/dd/yyyy h:mm a")}</p>
                       </div>
                     )}
                   </div>
@@ -1625,7 +1625,7 @@ export default function BookingDetail() {
               {cleaningReport && !isCleaningReportExpanded && (
                 <p className="text-sm text-muted-foreground mt-1">
                   {cleaningReport.cleaner_name ? `By ${cleaningReport.cleaner_name}` : 'Cleaner not specified'}
-                  {cleaningReport.completed_at ? ` — Completed ${format(new Date(cleaningReport.completed_at), "PPp")}` : ''}
+                  {cleaningReport.completed_at ? ` — Completed ${format(new Date(cleaningReport.completed_at), "MM/dd/yyyy h:mm a")}` : ''}
                   {cleaningReport.clean_issues_notes ? ' — Maintenance issues reported' : ''}
                 </p>
               )}
@@ -1658,7 +1658,7 @@ export default function BookingDetail() {
                     {cleaningReport.completed_at && (
                       <div>
                         <label className="text-sm font-medium text-muted-foreground">Completed</label>
-                        <p className="mt-1">{format(new Date(cleaningReport.completed_at), "PPp")}</p>
+                        <p className="mt-1">{format(new Date(cleaningReport.completed_at), "MM/dd/yyyy h:mm a")}</p>
                       </div>
                     )}
                   </div>
@@ -1819,7 +1819,7 @@ export default function BookingDetail() {
             <div className="bg-muted/50 p-4 rounded-lg">
               <Label className="text-sm font-medium">Current Booking</Label>
               <div className="text-sm text-muted-foreground mt-2 space-y-1">
-                <div>{format(parseISO(booking.event_date + "T00:00:00"), "PPP")}</div>
+                <div>{format(parseISO(booking.event_date + "T00:00:00"), "MM/dd/yyyy")}</div>
                 {booking.booking_type === "hourly" && booking.start_time && (
                   <div>Time: {booking.start_time} - {booking.end_time}</div>
                 )}

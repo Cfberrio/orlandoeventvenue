@@ -151,7 +151,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       for (const recurringDate of recurringDates) {
         const isAvailable = isTimeRangeAvailable(recurringDate, startTime, endTime, bookedSlots, availabilityBlocks, blackoutDates);
         if (!isAvailable) {
-          toast.error(`This time slot is not available on ${format(recurringDate, "MMM d, yyyy")}. Please choose different times or dates.`);
+          toast.error(`This time slot is not available on ${format(recurringDate, "MM/dd/yyyy")}. Please choose different times or dates.`);
           return;
         }
       }
@@ -292,11 +292,11 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       let successMessage = "";
       if (bookingType === "hourly" && duration !== "1_day") {
         const recurringDates = generateRecurringDates(date, duration);
-        successMessage = `External recurring booking created for ${recurringDates.length} occurrence(s) every ${format(date, "EEEE")} from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`;
+        successMessage = `External recurring booking created for ${recurringDates.length} occurrence(s) every ${format(date, "EEEE")} from ${format(date, "MM/dd")} to ${format(getEndDate()!, "MM/dd/yyyy")}`;
       } else if (bookingType === "daily" && effectiveDuration !== "1_day") {
-        successMessage = `External booking created for ${format(date, "MMM d")} - ${format(new Date(effectiveEndDate), "MMM d, yyyy")}`;
+        successMessage = `External booking created for ${format(date, "MM/dd")} - ${format(new Date(effectiveEndDate), "MM/dd/yyyy")}`;
       } else {
-        successMessage = `External booking created for ${format(date, "MMM d, yyyy")}`;
+        successMessage = `External booking created for ${format(date, "MM/dd/yyyy")}`;
       }
       
       toast.success(successMessage);
@@ -352,7 +352,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
-                  {date ? format(date, "PPP") : "Select date"}
+                  {date ? format(date, "MM/dd/yyyy") : "Select date"}
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
@@ -386,8 +386,8 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
             {date && duration !== "1_day" && (
               <p className="text-sm text-muted-foreground">
                 {bookingType === "hourly" 
-                  ? `Repeats every ${format(date, "EEEE")} from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`
-                  : `Blocks from ${format(date, "MMM d")} to ${format(getEndDate()!, "MMM d, yyyy")}`
+                  ? `Repeats every ${format(date, "EEEE")} from ${format(date, "MM/dd")} to ${format(getEndDate()!, "MM/dd/yyyy")}`
+                  : `Blocks from ${format(date, "MM/dd")} to ${format(getEndDate()!, "MM/dd/yyyy")}`
                 }
               </p>
             )}

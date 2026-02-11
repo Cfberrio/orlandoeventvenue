@@ -154,7 +154,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="h-4 w-4" />
-                  <span>{format(parseISO(booking.event_date), "MMM d, yyyy")}</span>
+                  <span>{format(parseISO(booking.event_date), "MM/dd/yyyy")}</span>
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-4 w-4" />

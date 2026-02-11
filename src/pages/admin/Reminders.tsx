@@ -85,7 +85,7 @@ export default function Reminders() {
                     <TableRow key={booking.id}>
                       <TableCell>
                         <Link to={`/admin/bookings/${booking.id}`} className="hover:underline">
-                          {format(new Date(booking.event_date + 'T00:00:00'), "MMM d")}
+                          {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd")}
                         </Link>
                       </TableCell>
                       <TableCell className="font-medium">
@@ -204,7 +204,7 @@ export default function Reminders() {
                       <TableRow key={booking.id}>
                         <TableCell>
                           <Link to={`/admin/bookings/${booking.id}`} className="hover:underline">
-                            {format(new Date(booking.event_date + 'T00:00:00'), "MMM d")}
+                            {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd")}
                           </Link>
                         </TableCell>
                         <TableCell className="font-medium">

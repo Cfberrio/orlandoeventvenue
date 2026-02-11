@@ -138,7 +138,7 @@ export default function StaffSchedule() {
             <CardTitle className="flex items-center gap-2">
               <CalendarIcon className="h-5 w-5" />
               {viewMode === "week"
-                ? `${format(startOfWeek(currentDate), "MMM d")} - ${format(endOfWeek(currentDate), "MMM d, yyyy")}`
+                ? `${format(startOfWeek(currentDate), "MM/dd")} - ${format(endOfWeek(currentDate), "MM/dd/yyyy")}`
                 : format(currentDate, "MMMM yyyy")}
             </CardTitle>
             <Button variant="ghost" size="icon" onClick={() => navigate("next")}>

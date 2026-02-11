@@ -457,7 +457,7 @@ export default function Inventory() {
               {kpis?.lastUpdate && (
                 <div className="text-sm text-muted-foreground">
                   <span className="font-medium">Last update:</span>{" "}
-                  {format(new Date(kpis.lastUpdate), "MMM d, h:mm a")}
+                  {format(new Date(kpis.lastUpdate), "MM/dd, h:mm a")}
                 </div>
               )}
             </div>

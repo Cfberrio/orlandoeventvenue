@@ -154,7 +154,7 @@ export default function StaffBookingDetail() {
                 <Calendar className="h-4 w-4" />
                 <span>Event Date</span>
               </div>
-              <p className="font-medium">{format(parseISO(booking.event_date), "EEEE, MMMM d, yyyy")}</p>
+              <p className="font-medium">{format(parseISO(booking.event_date), "EEEE, MM/dd/yyyy")}</p>
             </div>
             
             <div className="space-y-1">
@@ -255,7 +255,7 @@ export default function StaffBookingDetail() {
             
             {cleaningReport?.completed_at && (
               <p className="text-sm text-muted-foreground mt-4">
-                Submitted on {format(parseISO(cleaningReport.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                Submitted on {format(parseISO(cleaningReport.completed_at), "MM/dd/yyyy 'at' h:mm a")}
               </p>
             )}
           </CardContent>

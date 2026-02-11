@@ -175,7 +175,7 @@ export default function BookingsList() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left">
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateFrom ? format(dateFrom, "PP") : "Select"}
+                      {dateFrom ? format(dateFrom, "MM/dd/yyyy") : "Select"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -196,7 +196,7 @@ export default function BookingsList() {
                   <PopoverTrigger asChild>
                     <Button variant="outline" className="w-full justify-start text-left">
                       <CalendarIcon className="mr-2 h-4 w-4" />
-                      {dateTo ? format(dateTo, "PP") : "Select"}
+                      {dateTo ? format(dateTo, "MM/dd/yyyy") : "Select"}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0">
@@ -361,7 +361,7 @@ export default function BookingsList() {
                               <TableRow key={booking.id} className="group">
                                 <TableCell>
                                   <div className="text-sm font-medium">
-                                    {format(new Date(booking.created_at), "MMM d, yyyy")}
+                                    {format(new Date(booking.created_at), "MM/dd/yyyy")}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {format(new Date(booking.created_at), "h:mm a")}
@@ -369,7 +369,7 @@ export default function BookingsList() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="font-medium">
-                                    {format(new Date(booking.event_date + 'T00:00:00'), "MMM d, yyyy")}
+                                    {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
                                     {booking.start_time?.slice(0, 5) || "All day"}

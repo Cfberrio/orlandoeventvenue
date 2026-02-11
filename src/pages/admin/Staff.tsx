@@ -240,7 +240,7 @@ export default function Staff() {
                         {staff.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </TableCell>
-                    <TableCell>{format(new Date(staff.created_at), "PP")}</TableCell>
+                    <TableCell>{format(new Date(staff.created_at), "MM/dd/yyyy")}</TableCell>
                     <TableCell>
                       <Dialog open={editingStaff === staff.id} onOpenChange={(open) => !open && setEditingStaff(null)}>
                         <DialogTrigger asChild>

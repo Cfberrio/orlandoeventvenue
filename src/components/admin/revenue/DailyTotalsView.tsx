@@ -256,7 +256,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                           )}
                         </TableCell>
                         <TableCell className="font-medium">
-                          {format(new Date(dateKey + 'T00:00:00'), "MMM dd, yyyy")}
+                          {format(new Date(dateKey + 'T00:00:00'), "MM/dd/yyyy")}
                         </TableCell>
                         <TableCell className="text-right">{day.booking_count}</TableCell>
                         <TableCell className="text-right">{fmtMoney(day.baseline_generated)}</TableCell>
@@ -278,7 +278,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                             <div className="flex flex-col">
                               <span className="font-medium">{b.full_name}</span>
                               <span className="text-xs text-muted-foreground">
-                                {b.reservation_number} · {b.event_type} · {format(new Date(b.event_date + 'T00:00:00'), "MMM dd")}
+                                {b.reservation_number} · {b.event_type} · {format(new Date(b.event_date + 'T00:00:00'), "MM/dd")}
                               </span>
                             </div>
                           </TableCell>
