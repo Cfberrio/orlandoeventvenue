@@ -18,6 +18,9 @@ const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "h
 // Guest feedback job types
 const GUEST_FEEDBACK_JOB_TYPES = ["guest_feedback_post_event"];
 
+// Cleaning report reminder job types
+const CLEANING_REMINDER_JOB_TYPES = ["cleaning_report_reminder"];
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -488,6 +491,51 @@ serve(async (req) => {
                   });
                 }
               }
+
+              // ---- Schedule cleaning_report_reminder (24h after event end, America/New_York) ----
+              const { data: existingCleaningReminderJob } = await supabase
+                .from("scheduled_jobs")
+                .select("id")
+                .eq("booking_id", job.booking_id)
+                .eq("job_type", "cleaning_report_reminder")
+                .in("status", ["pending"]);
+
+              if (!existingCleaningReminderJob || existingCleaningReminderJob.length === 0) {
+                // Build event end time in America/New_York, then add 24 hours
+                const endTimeStr = bookingForPostEvent.end_time || "23:59:00";
+                const eventEndUtcString = `${bookingForPostEvent.event_date}T${endTimeStr}`;
+                // Interpret as America/New_York by converting to a locale string then back
+                const eventEndAsNY = new Date(
+                  new Date(eventEndUtcString).toLocaleString("en-US", { timeZone: "America/New_York" })
+                );
+                const cleaningReminderRunAt = new Date(eventEndAsNY.getTime() + 24 * 60 * 60 * 1000);
+
+                const { error: cleaningReminderJobError } = await supabase
+                  .from("scheduled_jobs")
+                  .insert({
+                    job_type: "cleaning_report_reminder",
+                    booking_id: job.booking_id,
+                    run_at: cleaningReminderRunAt.toISOString(),
+                    status: "pending",
+                  });
+
+                if (cleaningReminderJobError) {
+                  console.error(`Failed to schedule cleaning_report_reminder:`, cleaningReminderJobError);
+                } else {
+                  console.log(`Scheduled cleaning_report_reminder for booking ${job.booking_id} at ${cleaningReminderRunAt.toISOString()}`);
+
+                  await supabase.from("booking_events").insert({
+                    booking_id: job.booking_id,
+                    event_type: "cleaning_report_reminder_scheduled",
+                    channel: "system",
+                    metadata: {
+                      job_type: "cleaning_report_reminder",
+                      scheduled_for: cleaningReminderRunAt.toISOString(),
+                      event_end: eventEndUtcString,
+                    },
+                  });
+                }
+              }
             }
 
             results.succeeded++;
@@ -712,6 +760,48 @@ serve(async (req) => {
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
             console.log(`Job ${job.id} completed - booking ${job.booking_id} transitioned to post_event`);
           }
+
+        // ===============================
+        // CLEANING REPORT REMINDER JOBS
+        // ===============================
+        } else if (CLEANING_REMINDER_JOB_TYPES.includes(job.job_type)) {
+          console.log(`Processing cleaning_report_reminder for booking ${job.booking_id}`);
+
+          try {
+            const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+            const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+            const reminderResponse = await fetch(
+              `${supabaseUrl}/functions/v1/send-booking-cleaning-reminder`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({ booking_id: job.booking_id }),
+              }
+            );
+
+            const reminderResult = await reminderResponse.json();
+            console.log(`send-booking-cleaning-reminder result for ${job.booking_id}:`, JSON.stringify(reminderResult));
+          } catch (reminderError) {
+            console.error(`Error calling send-booking-cleaning-reminder for ${job.booking_id}:`, reminderError);
+          }
+
+          // Mark job as completed regardless of email result (avoid retrying forever)
+          await supabase
+            .from("scheduled_jobs")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.id);
+
+          results.succeeded++;
+          results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+          console.log(`Job ${job.id} completed - cleaning_report_reminder processed for booking ${job.booking_id}`);
 
         // ===============================
         // HOST REPORT REMINDER JOBS
