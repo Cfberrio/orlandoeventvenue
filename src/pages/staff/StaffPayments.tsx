@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -19,10 +18,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   DollarSign,
   Download,
   Calendar,
+  CalendarIcon,
   Filter,
   CheckCircle2,
   Clock,
@@ -31,7 +33,7 @@ import {
 import { useStaffSession } from "@/hooks/useStaffSession";
 import { useStaffPayrollData } from "@/hooks/useStaffPayrollData";
 import { PayrollLineItem } from "@/hooks/usePayrollData";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 const PAY_TYPE_LABELS: Record<string, string> = {
@@ -239,19 +241,43 @@ export default function StaffPayments() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">From</label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(parseISO(startDate + "T00:00:00"), "MM/dd/yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={parseISO(startDate + "T00:00:00")}
+                    onSelect={(d) => d && setStartDate(format(d, "yyyy-MM-dd"))}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">To</label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-left font-normal">
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {format(parseISO(endDate + "T00:00:00"), "MM/dd/yyyy")}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="single"
+                    selected={parseISO(endDate + "T00:00:00")}
+                    onSelect={(d) => d && setEndDate(format(d, "yyyy-MM-dd"))}
+                    initialFocus
+                    className="pointer-events-auto"
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div>
               <label className="text-sm font-medium text-muted-foreground mb-1 block">Show</label>

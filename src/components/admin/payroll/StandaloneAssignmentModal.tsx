@@ -16,8 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2 } from "lucide-react";
+import { Loader2, CalendarIcon } from "lucide-react";
+import { format, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 import { usePayrollData } from "@/hooks/usePayrollData";
 import { supabase } from "@/integrations/supabase/client";
@@ -157,11 +160,25 @@ export default function StandaloneAssignmentModal({
           {/* Date */}
           <div className="grid gap-1.5">
             <Label>Date *</Label>
-            <Input
-              type="date"
-              value={formData.scheduled_date}
-              onChange={(e) => update("scheduled_date", e.target.value)}
-            />
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" className="w-full justify-start text-left font-normal">
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {formData.scheduled_date
+                    ? format(parseISO(formData.scheduled_date + "T00:00:00"), "MM/dd/yyyy")
+                    : "Select date"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={formData.scheduled_date ? parseISO(formData.scheduled_date + "T00:00:00") : undefined}
+                  onSelect={(d) => d && update("scheduled_date", format(d, "yyyy-MM-dd"))}
+                  initialFocus
+                  className="pointer-events-auto"
+                />
+              </PopoverContent>
+            </Popover>
           </div>
 
           {/* Time Range */}
