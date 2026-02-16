@@ -1025,30 +1025,12 @@ export default function BookingDetail() {
                     <span className="text-green-600">${Number(booking.total_amount).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    {booking.deposit_paid_at ? (
-                      <>
-                        <span className="text-green-600 font-medium">Deposit Paid</span>
-                        <span className="text-green-600">${Number(booking.deposit_amount).toLocaleString()}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-amber-600 font-medium">Deposit Due</span>
-                        <span className="text-amber-600">${Number(booking.deposit_amount).toLocaleString()}</span>
-                      </>
-                    )}
+                    <span className="text-muted-foreground">Deposit</span>
+                    <span className="font-medium">${Number(booking.deposit_amount).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    {booking.balance_paid_at ? (
-                      <>
-                        <span className="text-green-600 font-medium">Balance Paid</span>
-                        <span className="text-green-600">${Number(booking.balance_amount).toLocaleString()}</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-muted-foreground">Balance Due</span>
-                        <span className="font-medium">${Number(booking.balance_amount).toLocaleString()}</span>
-                      </>
-                    )}
+                    <span className="text-muted-foreground">Balance</span>
+                    <span className="font-medium">${Number(booking.balance_amount).toLocaleString()}</span>
                   </div>
                 </div>
 
