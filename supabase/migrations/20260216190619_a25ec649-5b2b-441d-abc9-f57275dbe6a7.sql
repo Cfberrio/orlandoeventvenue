@@ -1,0 +1,1 @@
+ALTER TABLE public.bookings ADD COLUMN beer_wine_service boolean NOT NULL DEFAULT false;

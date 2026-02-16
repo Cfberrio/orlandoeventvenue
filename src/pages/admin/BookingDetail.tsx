@@ -917,6 +917,20 @@ export default function BookingDetail() {
                     {booking.tablecloths ? `✓ ${booking.tablecloth_quantity} cloths` : "Not included"}
                   </Badge>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Beer & Wine Service</span>
+                  <Badge variant={booking.beer_wine_service ? "default" : "secondary"}>
+                    {booking.beer_wine_service ? "🍷 Yes — Prep Required" : "No"}
+                  </Badge>
+                </div>
+                {booking.beer_wine_service && (
+                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-md p-3">
+                    <p className="text-sm text-amber-800 dark:text-amber-300 font-medium">⚠️ Beer & Wine Preparation Required</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                      Client requires beer/wine service. OEV staff must set up and serve. Coordinate bartender assignment and supplies before the event.
+                    </p>
+                  </div>
+                )}
                 {booking.client_notes && (
                   <div className="pt-2 border-t">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Client Notes</p>

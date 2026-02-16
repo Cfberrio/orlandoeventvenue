@@ -59,6 +59,7 @@ export interface Booking {
   created_at: string;
   booking_origin: "website" | "internal" | "external";
   policy_id: string;
+  beer_wine_service: boolean;
 }
 
 export interface StaffMember {

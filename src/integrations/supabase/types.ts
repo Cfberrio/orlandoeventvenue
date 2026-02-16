@@ -707,6 +707,7 @@ export type Database = {
           balance_paid_at: string | null
           balance_payment_url: string | null
           base_rental: number
+          beer_wine_service: boolean
           booking_origin: Database["public"]["Enums"]["booking_origin"]
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at: string | null
@@ -774,6 +775,7 @@ export type Database = {
           balance_paid_at?: string | null
           balance_payment_url?: string | null
           base_rental: number
+          beer_wine_service?: boolean
           booking_origin?: Database["public"]["Enums"]["booking_origin"]
           booking_type: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null
@@ -841,6 +843,7 @@ export type Database = {
           balance_paid_at?: string | null
           balance_payment_url?: string | null
           base_rental?: number
+          beer_wine_service?: boolean
           booking_origin?: Database["public"]["Enums"]["booking_origin"]
           booking_type?: Database["public"]["Enums"]["booking_type"]
           cancelled_at?: string | null

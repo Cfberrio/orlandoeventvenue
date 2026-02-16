@@ -6,6 +6,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Switch } from "@/components/ui/switch";
 import { BookingFormData } from "@/pages/Book";
 import { useState, useRef, useEffect } from "react";
 
@@ -34,6 +35,7 @@ const formSchema = z.object({
   agreeToSms: z.boolean().refine((val) => val === true, {
     message: "You must agree to receive SMS messages",
   }),
+  beerWineService: z.boolean().default(false),
   initials: z.string().trim().min(2, "Initials must be at least 2 characters").max(4, "Initials must be 4 characters or less"),
   signerName: z.string().trim().min(2, "Name is required"),
   signature: z.string().min(2, "Signature is required"),
@@ -66,6 +68,7 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
       company: data.company || "",
       agreeToRules: data.agreeToRules || false,
       agreeToSms: data.agreeToSms || false,
+      beerWineService: data.beerWineService || false,
       initials: data.initials || "",
       signerName: data.signerName || data.fullName || "",
       signature: data.signature || "",
@@ -341,6 +344,37 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           <FormMessage>
             {form.formState.errors.agreeToSms?.message}
           </FormMessage>
+
+          {/* Beer & Wine Service */}
+          <div className="pt-4">
+            <h3 className="text-lg font-semibold mb-2">Beer & Wine Service</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Will your event include beer or wine?
+            </p>
+          </div>
+
+          <FormField
+            control={form.control}
+            name="beerWineService"
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-start space-x-3 space-y-0 border rounded-lg p-4 bg-background">
+                <FormControl>
+                  <Checkbox
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                  />
+                </FormControl>
+                <div className="space-y-1 leading-none">
+                  <FormLabel className="text-sm font-medium cursor-pointer">
+                    Yes, we will be having beer and/or wine at our event.
+                  </FormLabel>
+                  <FormDescription className="text-xs text-muted-foreground">
+                    Beer and wine must be served by Orlando Event Venue staff. You can select one of our production packages above, or our bartenders can be hired directly through us. We'll coordinate the details after your booking is confirmed.
+                  </FormDescription>
+                </div>
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="space-y-4 pt-6">

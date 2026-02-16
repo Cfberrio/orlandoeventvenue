@@ -51,6 +51,7 @@ export interface BookingFormData {
   company?: string;
   agreeToRules: boolean;
   agreeToSms: boolean;
+  beerWineService: boolean;
   initials: string;
   signerName: string;
   signature: string;
@@ -75,6 +76,7 @@ const Book = () => {
     tableclothQuantity: 0,
     agreeToRules: false,
     agreeToSms: false,
+    beerWineService: false,
   });
 
   const totalSteps = 6;
