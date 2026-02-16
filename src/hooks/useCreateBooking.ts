@@ -224,6 +224,7 @@ export const useCreateBooking = () => {
         phone: formData.phone,
         company: formData.company || null,
         agree_to_rules: formData.agreeToRules || false,
+        beer_wine_service: formData.beerWineService || false,
         initials: formData.initials,
         signer_name: formData.signerName,
         signature: formData.signature,
