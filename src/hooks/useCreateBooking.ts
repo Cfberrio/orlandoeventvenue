@@ -179,12 +179,22 @@ export const useCreateBooking = () => {
         }
       }
 
-      // Generate unique reservation number
-      const reservationNumber = generateReservationNumber();
+      // Check for existing pending booking with same email + event_date to prevent duplicates
+      const { data: existingPendingBookings } = await supabase
+        .from("bookings")
+        .select("id, reservation_number")
+        .eq("email", formData.email!)
+        .eq("event_date", eventDateStr)
+        .eq("payment_status", "pending")
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      const existingPendingBooking = existingPendingBookings?.[0] || null;
 
       // Map form data to database columns
       // Daily bookings default to 01:00 - 23:00 range
-      const bookingData = {
+      const bookingFields = {
         booking_type: bookingType,
         event_date: eventDateStr,
         start_time: formData.bookingType === "hourly" ? formData.startTime : "01:00",
@@ -218,23 +228,54 @@ export const useCreateBooking = () => {
         signer_name: formData.signerName,
         signature: formData.signature,
         signature_date: format(new Date(), "yyyy-MM-dd"),
+        policy_id: policyData.id,
+      };
+
+      // If a pending booking already exists for this email+date, update it instead of creating a duplicate
+      if (existingPendingBooking) {
+        console.log("Found existing pending booking, updating instead of creating duplicate:", existingPendingBooking.id);
+
+        const { data: updatedData, error: updateError } = await supabase
+          .from("bookings")
+          .update(bookingFields)
+          .eq("id", existingPendingBooking.id)
+          .select("id, reservation_number")
+          .single();
+
+        if (updateError) {
+          console.error("Error updating existing booking:", updateError);
+          throw new Error(updateError.message);
+        }
+
+        if (!updatedData) {
+          throw new Error("No data returned from booking update");
+        }
+
+        console.log("Existing booking updated successfully:", updatedData.id, updatedData.reservation_number);
+        return { bookingId: updatedData.id, reservationNumber: updatedData.reservation_number || existingPendingBooking.reservation_number || "" };
+      }
+
+      // No existing pending booking found — create a new one
+      const reservationNumber = generateReservationNumber();
+
+      const newBookingData = {
+        ...bookingFields,
         status: "pending_review" as const,
         payment_status: "pending" as const,
         lifecycle_status: "pending",
         lead_source: "direct_site",
         reservation_number: reservationNumber,
         booking_origin: "website" as const,
-        policy_id: policyData.id,
       };
 
       console.log("Creating booking with data:", { 
-        ...bookingData, 
-        signature: "[SIGNATURE_DATA]" // Don't log signature data
+        ...newBookingData, 
+        signature: "[SIGNATURE_DATA]"
       });
 
       const { data, error } = await supabase
         .from("bookings")
-        .insert(bookingData)
+        .insert(newBookingData)
         .select("id, reservation_number")
         .single();
 

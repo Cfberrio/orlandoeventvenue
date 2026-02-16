@@ -745,6 +745,12 @@ export default function BookingDetail() {
             <span className="mx-1">•</span>
             {booking.event_type}
           </p>
+          {booking.payment_status === "pending" && (
+            <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md w-fit">
+              <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
+              <span className="text-sm font-semibold text-red-700 dark:text-red-400">LEAD - No Deposit Received</span>
+            </div>
+          )}
         </div>
         
         {/* Status Selector with visual styling */}
@@ -1019,12 +1025,30 @@ export default function BookingDetail() {
                     <span className="text-green-600">${Number(booking.total_amount).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Deposit Paid</span>
-                    <span className="text-green-600">${Number(booking.deposit_amount).toLocaleString()}</span>
+                    {booking.deposit_paid_at ? (
+                      <>
+                        <span className="text-green-600 font-medium">Deposit Paid</span>
+                        <span className="text-green-600">${Number(booking.deposit_amount).toLocaleString()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-amber-600 font-medium">Deposit Due</span>
+                        <span className="text-amber-600">${Number(booking.deposit_amount).toLocaleString()}</span>
+                      </>
+                    )}
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Balance Due</span>
-                    <span className="font-medium">${Number(booking.balance_amount).toLocaleString()}</span>
+                    {booking.balance_paid_at ? (
+                      <>
+                        <span className="text-green-600 font-medium">Balance Paid</span>
+                        <span className="text-green-600">${Number(booking.balance_amount).toLocaleString()}</span>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-muted-foreground">Balance Due</span>
+                        <span className="font-medium">${Number(booking.balance_amount).toLocaleString()}</span>
+                      </>
+                    )}
                   </div>
                 </div>
 

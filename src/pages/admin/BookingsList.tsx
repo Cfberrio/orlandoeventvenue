@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Filter, X, Eye } from "lucide-react";
+import { CalendarIcon, Filter, X, Eye, AlertTriangle } from "lucide-react";
 import { useBookings } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -140,6 +140,103 @@ export default function BookingsList() {
     clientName ||
     sortBy !== 'created_at' ||
     sortOrder !== 'desc';
+
+  const renderBookingsTable = (bookingsList: NonNullable<typeof bookings>, isLeadGroup: boolean) => (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Booked On</TableHead>
+            <TableHead>Event Date</TableHead>
+            <TableHead>Client</TableHead>
+            <TableHead>Event</TableHead>
+            <TableHead>Guests</TableHead>
+            <TableHead>Payment</TableHead>
+            <TableHead className="text-right">Total</TableHead>
+            <TableHead>Deposit Paid</TableHead>
+            <TableHead>Balance Paid</TableHead>
+            <TableHead></TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {bookingsList.map((booking) => {
+            const payment = paymentConfig[booking.payment_status] || { 
+              label: booking.payment_status, 
+              color: "bg-muted" 
+            };
+            
+            return (
+              <TableRow key={booking.id} className={cn("group", isLeadGroup && "bg-red-50/50 dark:bg-red-950/10")}>
+                <TableCell>
+                  <div className="text-sm font-medium">
+                    {format(new Date(booking.created_at), "MM/dd/yyyy")}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {format(new Date(booking.created_at), "h:mm a")}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">
+                    {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {booking.start_time?.slice(0, 5) || "All day"}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="font-medium">{booking.full_name}</div>
+                  <div className="text-xs text-muted-foreground">{booking.email}</div>
+                </TableCell>
+                <TableCell>
+                  <div>{booking.event_type}</div>
+                  <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
+                </TableCell>
+                <TableCell>{booking.number_of_guests}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <Badge className={cn("text-xs", payment.color)}>
+                      {payment.label}
+                    </Badge>
+                    {isLeadGroup && (
+                      <Badge className="text-xs bg-red-600 text-white dark:bg-red-700">
+                        LEAD
+                      </Badge>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell className="text-right font-medium">
+                  ${Number(booking.total_amount).toLocaleString()}
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">
+                    {booking.deposit_paid_at 
+                      ? format(new Date(booking.deposit_paid_at), "MM/dd/yyyy")
+                      : <span className="text-muted-foreground">Pending</span>
+                    }
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="text-sm">
+                    {booking.balance_paid_at 
+                      ? format(new Date(booking.balance_paid_at), "MM/dd/yyyy")
+                      : <span className="text-muted-foreground">Pending</span>
+                    }
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Link to={`/admin/bookings/${booking.id}`}>
+                    <Button variant="ghost" size="sm" className="h-7">
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -318,6 +415,51 @@ export default function BookingsList() {
                 
                 // Skip if no bookings for this status
                 if (statusBookings.length === 0) return null;
+
+                // For "pending" status, split into Leads (no deposit) and Pending Review (deposit paid)
+                if (status === "pending") {
+                  const leadBookings = statusBookings.filter(b => b.payment_status === "pending");
+                  const paidPendingBookings = statusBookings.filter(b => b.payment_status !== "pending");
+
+                  return (
+                    <div key={status} className="space-y-6">
+                      {/* Leads Sub-group */}
+                      {leadBookings.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <div className="flex items-center gap-3">
+                              <Badge className="text-sm bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                <AlertTriangle className="h-3.5 w-3.5 mr-1.5" />
+                                Leads - No Deposit
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">
+                                {leadBookings.length} {leadBookings.length === 1 ? 'lead' : 'leads'}
+                              </span>
+                            </div>
+                          </div>
+                          {renderBookingsTable(leadBookings, true)}
+                        </div>
+                      )}
+
+                      {/* Paid Pending Review Sub-group */}
+                      {paidPendingBookings.length > 0 && (
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <div className="flex items-center gap-3">
+                              <Badge className={cn("text-sm", statusConfig.color)}>
+                                {statusConfig.label}
+                              </Badge>
+                              <span className="text-sm text-muted-foreground">
+                                {paidPendingBookings.length} {paidPendingBookings.length === 1 ? 'booking' : 'bookings'}
+                              </span>
+                            </div>
+                          </div>
+                          {renderBookingsTable(paidPendingBookings, false)}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
                 
                 return (
                   <div key={status} className="space-y-3">
@@ -332,95 +474,7 @@ export default function BookingsList() {
                         </span>
                       </div>
                     </div>
-                    
-                    {/* Bookings Table for this status */}
-                    <div className="overflow-x-auto">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Booked On</TableHead>
-                            <TableHead>Event Date</TableHead>
-                            <TableHead>Client</TableHead>
-                            <TableHead>Event</TableHead>
-                            <TableHead>Guests</TableHead>
-                            <TableHead>Payment</TableHead>
-                            <TableHead className="text-right">Total</TableHead>
-                            <TableHead>Deposit Paid</TableHead>
-                            <TableHead>Balance Paid</TableHead>
-                            <TableHead></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {statusBookings.map((booking) => {
-                            const payment = paymentConfig[booking.payment_status] || { 
-                              label: booking.payment_status, 
-                              color: "bg-muted" 
-                            };
-                            
-                            return (
-                              <TableRow key={booking.id} className="group">
-                                <TableCell>
-                                  <div className="text-sm font-medium">
-                                    {format(new Date(booking.created_at), "MM/dd/yyyy")}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {format(new Date(booking.created_at), "h:mm a")}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="font-medium">
-                                    {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {booking.start_time?.slice(0, 5) || "All day"}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="font-medium">{booking.full_name}</div>
-                                  <div className="text-xs text-muted-foreground">{booking.email}</div>
-                                </TableCell>
-                                <TableCell>
-                                  <div>{booking.event_type}</div>
-                                  <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
-                                </TableCell>
-                                <TableCell>{booking.number_of_guests}</TableCell>
-                                <TableCell>
-                                  <Badge className={cn("text-xs", payment.color)}>
-                                    {payment.label}
-                                  </Badge>
-                                </TableCell>
-                                <TableCell className="text-right font-medium">
-                                  ${Number(booking.total_amount).toLocaleString()}
-                                </TableCell>
-                                <TableCell>
-                                  <div className="text-sm">
-                                    {booking.deposit_paid_at 
-                                      ? format(new Date(booking.deposit_paid_at), "MM/dd/yyyy")
-                                      : <span className="text-muted-foreground">Pending</span>
-                                    }
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="text-sm">
-                                    {booking.balance_paid_at 
-                                      ? format(new Date(booking.balance_paid_at), "MM/dd/yyyy")
-                                      : <span className="text-muted-foreground">Pending</span>
-                                    }
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <Link to={`/admin/bookings/${booking.id}`}>
-                                    <Button variant="ghost" size="sm" className="h-7">
-                                      <Eye className="h-4 w-4" />
-                                    </Button>
-                                  </Link>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })}
-                        </TableBody>
-                      </Table>
-                    </div>
+                    {renderBookingsTable(statusBookings, false)}
                   </div>
                 );
               })}
