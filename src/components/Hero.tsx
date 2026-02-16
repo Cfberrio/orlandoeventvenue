@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Armchair, Table2, ChefHat, MapPin } from "lucide-react";
+import { Armchair, BadgePercent, ChefHat, MapPin } from "lucide-react";
 import heroBg from "@/assets/hero-bg-new.jpg";
 
 const Hero = () => {
@@ -44,8 +44,8 @@ const Hero = () => {
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.2s' }}>
-                <Table2 size={48} strokeWidth={2.5} className="text-primary" />
-                <div className="text-sm text-foreground/70 text-center font-medium">10 tables</div>
+                <BadgePercent size={48} strokeWidth={2.5} className="text-primary" />
+                <div className="text-sm text-foreground/70 text-center font-medium">No deposit</div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.4s' }}>
