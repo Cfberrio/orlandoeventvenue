@@ -75,17 +75,6 @@ const SpaceHighlights = () => {
             ))}
           </div>
 
-          <div className="bg-gradient-to-br from-card via-card to-accent border border-border rounded-lg p-8 shadow-lg">
-            <h3 className="text-2xl font-bold mb-6 text-center text-foreground">What's Included</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              {included.map((item, index) => (
-                <div key={index} className="text-center">
-                  <item.icon className="w-6 h-6 mx-auto mb-2 text-primary" />
-                  <p className="text-sm text-muted">{item.label}</p>
-                </div>
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     </section>
