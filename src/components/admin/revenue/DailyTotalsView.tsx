@@ -8,10 +8,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { DollarSign, TrendingUp, Calendar, ChevronDown, ChevronRight } from "lucide-react";
+import { DollarSign, TrendingUp, Calendar, ChevronDown, ChevronRight, ChevronsUpDown, ChevronsDownUp } from "lucide-react";
 import { useRevenueData, DailyGeneratedRevenueRecord } from "@/hooks/useRevenueData";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
 
 interface DailyTotalsViewProps {
   startDate: string;
@@ -88,6 +89,40 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
       ...prev,
       [date]: result.data as BookingDetail[] | null,
     }));
+  };
+
+  const expandAllDates = async () => {
+    if (!data) return;
+
+    const allExpanded = Object.keys(expandedDates).length === data.length;
+    if (allExpanded) {
+      setExpandedDates({});
+      return;
+    }
+
+    const datesToFetch = data
+      .map(d => d.generated_date)
+      .filter(date => !(date in expandedDates));
+
+    if (datesToFetch.length === 0) {
+      setExpandedDates({});
+      return;
+    }
+
+    setLoadingDates(new Set(datesToFetch));
+    const results = await Promise.all(
+      datesToFetch.map(async (date) => {
+        const result = await fetchBookingsByCreatedDate(date);
+        return { date, bookings: result.data as BookingDetail[] | null };
+      })
+    );
+    setLoadingDates(new Set());
+
+    const newExpanded = { ...expandedDates };
+    results.forEach(({ date, bookings }) => {
+      newExpanded[date] = bookings;
+    });
+    setExpandedDates(newExpanded);
   };
 
   const totals = data?.reduce(
@@ -210,10 +245,32 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
       {/* Daily Breakdown Table */}
       <Card>
         <CardHeader>
-          <CardTitle>Daily Generated Revenue</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Full booking amounts grouped by booking creation date. Click a date to see individual bookings.
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle>Daily Generated Revenue</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Full booking amounts grouped by booking creation date. Click a date to see individual bookings.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={expandAllDates}
+              disabled={loadingDates.size > 0}
+            >
+              {data && Object.keys(expandedDates).length === data.length ? (
+                <>
+                  <ChevronsDownUp className="h-4 w-4 mr-1.5" />
+                  Collapse All
+                </>
+              ) : (
+                <>
+                  <ChevronsUpDown className="h-4 w-4 mr-1.5" />
+                  Expand All
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
