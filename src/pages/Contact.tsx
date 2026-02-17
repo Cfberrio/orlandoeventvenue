@@ -6,8 +6,28 @@ const Contact = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Redirect to home page with #contact anchor
-    navigate("/#contact", { replace: true });
+    navigate("/", { replace: true });
+
+    const scrollToContact = () => {
+      const contactSection = document.getElementById("contact");
+      if (contactSection) {
+        contactSection.scrollIntoView({ behavior: "smooth" });
+        return true;
+      }
+      return false;
+    };
+
+    if (!scrollToContact()) {
+      const observer = new MutationObserver(() => {
+        if (scrollToContact()) {
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      const OBSERVER_TIMEOUT_MS = 3000;
+      setTimeout(() => observer.disconnect(), OBSERVER_TIMEOUT_MS);
+    }
   }, [navigate]);
 
   return (

@@ -64,7 +64,7 @@ const Navigation = () => {
               FAQ
             </button>
             <button
-              onClick={() => window.location.href = "/contact"}
+              onClick={() => scrollToSection("contact")}
               className="text-muted hover:text-foreground transition-all duration-300 hover:scale-105 relative after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-0 after:bg-primary after:transition-all after:duration-300 hover:after:w-full"
             >
               Contact
@@ -118,7 +118,7 @@ const Navigation = () => {
                 FAQ
               </button>
               <button
-                onClick={() => window.location.href = "/contact"}
+                onClick={() => scrollToSection("contact")}
                 className="text-left text-muted hover:text-foreground transition-colors py-2 hover:translate-x-2 transition-all duration-300"
               >
                 Contact
