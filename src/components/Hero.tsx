@@ -19,10 +19,10 @@ const Hero = () => {
   return (
     <section className="relative pt-32 md:pt-48 pb-12 md:pb-16 overflow-hidden">
       {/* Background Image with Overlay */}
-      <div 
+      <div
         className="absolute inset-0 bg-cover bg-center"
-        style={{ backgroundImage: `url(${heroBg})` }}
-      />
+        style={{ backgroundImage: `url(${heroBg})` }} />
+
       <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.15),transparent_50%)]" />
       
@@ -40,7 +40,10 @@ const Hero = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-border/30">
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0s' }}>
                 <Armchair size={48} strokeWidth={2.5} className="text-primary" />
-                <div className="text-sm text-foreground/70 text-center font-medium">90 chairs</div>
+                <div className="text-sm text-foreground/70 text-center font-medium">90 chairs 
+10 tables
+
+                </div>
               </div>
               
               <div className="flex flex-col items-center justify-center gap-3 p-8 h-40 animate-wave" style={{ animationDelay: '0.2s' }}>
@@ -69,11 +72,8 @@ const Hero = () => {
               <Badge variant="secondary" className="px-4 py-2 text-sm">
                 No catering restrictions
               </Badge>
-              <Badge 
-                variant="secondary" 
-                className="px-4 py-2 text-sm cursor-pointer hover:scale-105 transition-all duration-300" 
-                onClick={() => scrollToSection("pricing")}
-              >
+              <Badge variant="secondary" className="px-4 py-2 text-sm cursor-pointer hover:scale-105 transition-all duration-300" onClick={() => scrollToSection("pricing")}>
+
                 See Pricing
               </Badge>
             </div>
@@ -84,8 +84,8 @@ const Hero = () => {
           </p>
         </div>
       </div>
-    </section>
-  );
+    </section>);
+
 };
 
 export default Hero;
