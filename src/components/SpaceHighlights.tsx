@@ -21,7 +21,7 @@ const SpaceHighlights = () => {
   ];
 
   const included = [
-    { icon: Users, label: "90 Guest Capacity" },
+    { icon: Users, label: "90 Chairs + 10 Tables" },
     { icon: KeyRound, label: "24/7 Access" },
     { icon: MapPin, label: "Near Downtown Orlando" },
     { icon: Sparkles, label: "High Level Production A/V" },
