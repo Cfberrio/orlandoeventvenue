@@ -1138,6 +1138,33 @@ export type Database = {
           },
         ]
       }
+      popup_leads: {
+        Row: {
+          coupon_code: string | null
+          created_at: string | null
+          email: string
+          full_name: string
+          id: string
+          preferred_event_date: string | null
+        }
+        Insert: {
+          coupon_code?: string | null
+          created_at?: string | null
+          email: string
+          full_name: string
+          id?: string
+          preferred_event_date?: string | null
+        }
+        Update: {
+          coupon_code?: string | null
+          created_at?: string | null
+          email?: string
+          full_name?: string
+          id?: string
+          preferred_event_date?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
