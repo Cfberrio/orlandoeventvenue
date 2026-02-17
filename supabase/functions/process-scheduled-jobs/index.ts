@@ -1131,6 +1131,33 @@ serve(async (req) => {
       console.error("Exception calling standalone reminders:", reminderError);
     }
 
+    // ===============================
+    // DISCOUNT DRIP EMAILS
+    // ===============================
+    console.log("Triggering discount drip email processing...");
+    try {
+      const discountDripResponse = await fetch(
+        `${supabaseUrl}/functions/v1/process-discount-drip`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (discountDripResponse.ok) {
+        const dripResult = await discountDripResponse.json();
+        console.log("Discount drip result:", dripResult);
+      } else {
+        const dripError = await discountDripResponse.text();
+        console.error("Discount drip failed:", dripError);
+      }
+    } catch (dripError) {
+      console.error("Exception calling discount drip:", dripError);
+    }
+
     return new Response(JSON.stringify({ 
       success: true, 
       ...results

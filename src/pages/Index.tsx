@@ -9,9 +9,11 @@ import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
 import ContactForm from "@/components/ContactForm";
 import Footer from "@/components/Footer";
+import DiscountPopup from "@/components/DiscountPopup";
 const Index = () => {
   return (
     <div className="min-h-screen">
+      <DiscountPopup />
       <Navigation />
       <Hero />
       <SpaceHighlights />

@@ -253,6 +253,17 @@ export const useCreateBooking = () => {
         }
 
         console.log("Existing booking updated successfully:", updatedData.id, updatedData.reservation_number);
+
+        // Mark matching popup leads as converted to stop drip emails
+        supabase
+          .from("popup_leads" as any)
+          .update({ is_converted: true })
+          .eq("email", formData.email.trim().toLowerCase())
+          .eq("is_converted", false)
+          .then(({ error: conversionError }) => {
+            if (conversionError) console.error("Error marking popup lead as converted:", conversionError);
+          });
+
         return { bookingId: updatedData.id, reservationNumber: updatedData.reservation_number || existingPendingBooking.reservation_number || "" };
       }
 
@@ -290,6 +301,17 @@ export const useCreateBooking = () => {
       }
 
       console.log("Booking created successfully:", data.id, data.reservation_number);
+
+      // Mark matching popup leads as converted to stop drip emails
+      supabase
+        .from("popup_leads" as any)
+        .update({ is_converted: true })
+        .eq("email", formData.email.trim().toLowerCase())
+        .eq("is_converted", false)
+        .then(({ error: conversionError }) => {
+          if (conversionError) console.error("Error marking popup lead as converted:", conversionError);
+        });
+
       return { bookingId: data.id, reservationNumber: data.reservation_number || reservationNumber };
     },
   });
