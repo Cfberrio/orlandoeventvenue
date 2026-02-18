@@ -1143,24 +1143,36 @@ export type Database = {
           coupon_code: string | null
           created_at: string | null
           email: string
+          email_1_sent_at: string | null
+          email_2_sent_at: string | null
+          email_3_sent_at: string | null
           full_name: string
           id: string
+          is_converted: boolean | null
           preferred_event_date: string | null
         }
         Insert: {
           coupon_code?: string | null
           created_at?: string | null
           email: string
+          email_1_sent_at?: string | null
+          email_2_sent_at?: string | null
+          email_3_sent_at?: string | null
           full_name: string
           id?: string
+          is_converted?: boolean | null
           preferred_event_date?: string | null
         }
         Update: {
           coupon_code?: string | null
           created_at?: string | null
           email?: string
+          email_1_sent_at?: string | null
+          email_2_sent_at?: string | null
+          email_3_sent_at?: string | null
           full_name?: string
           id?: string
+          is_converted?: boolean | null
           preferred_event_date?: string | null
         }
         Relationships: []

@@ -111,3 +111,9 @@ verify_jwt = false
 
 [functions.send-standalone-cleaning-reminder]
 verify_jwt = false
+
+[functions.send-discount-email]
+verify_jwt = false
+
+[functions.process-discount-drip]
+verify_jwt = false
