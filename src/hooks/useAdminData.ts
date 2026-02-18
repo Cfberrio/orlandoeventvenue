@@ -676,6 +676,22 @@ export function useBookingAttachments(bookingId: string) {
   });
 }
 
+export function useBookingAddonInvoices(bookingId: string) {
+  return useQuery({
+    queryKey: ["booking-addon-invoices", bookingId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_addon_invoices" as any)
+        .select("*")
+        .eq("booking_id", bookingId)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as any[];
+    },
+    enabled: !!bookingId,
+  });
+}
+
 // Staff hooks
 export function useStaffMembers(filters?: { role?: string; isActive?: boolean }) {
   return useQuery({

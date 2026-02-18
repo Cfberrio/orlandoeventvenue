@@ -63,12 +63,14 @@ import {
   useBookingReviews,
   useBookingAttachments,
   useBookingCleaningReports,
+  useBookingAddonInvoices,
   useStaffMembers,
   useUpdateBooking,
   useCreateStaffAssignment,
   useDeleteStaffAssignment,
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
+import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
 
 const lifecycleStatuses = [
   "pending",
@@ -121,6 +123,7 @@ export default function BookingDetail() {
   const { data: cleaningReports } = useBookingCleaningReports(id!);
   const { data: reviews } = useBookingReviews(id!);
   const { data: attachments } = useBookingAttachments(id!);
+  const { data: addonInvoices, refetch: refetchAddonInvoices } = useBookingAddonInvoices(id!);
   const { data: staffMembers } = useStaffMembers({ isActive: true });
 
   const updateBooking = useUpdateBooking();
@@ -161,6 +164,7 @@ export default function BookingDetail() {
 
   // Manual deposit override modal state
   const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showAddonInvoiceDialog, setShowAddonInvoiceDialog] = useState(false);
   const [depositOverrideLoading, setDepositOverrideLoading] = useState(false);
   const [manualPaymentIntentId, setManualPaymentIntentId] = useState("");
 
@@ -1070,6 +1074,87 @@ export default function BookingDetail() {
                     </Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+
+            {/* Add-On Invoices */}
+            <Card className="border-l-4 border-l-purple-500">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-lg">
+                  <div className="flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-purple-500" />
+                    Add-On Invoices
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowAddonInvoiceDialog(true)}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Create Invoice
+                  </Button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {addonInvoices && addonInvoices.length > 0 ? (
+                  <div className="space-y-3">
+                    {addonInvoices.map((invoice: any) => {
+                      const packageLabels: Record<string, string> = {
+                        none: "Services Only",
+                        basic: "Basic Package",
+                        led: "LED Package",
+                        workshop: "Workshop Package",
+                      };
+                      const statusColors: Record<string, string> = {
+                        pending: "bg-yellow-100 text-yellow-800",
+                        paid: "bg-green-100 text-green-800",
+                        expired: "bg-gray-100 text-gray-600",
+                      };
+
+                      const invoiceItems: string[] = [];
+                      if (invoice.package !== "none" && invoice.package_start_time && invoice.package_end_time) {
+                        const start = new Date(`2000-01-01T${invoice.package_start_time}`);
+                        const end = new Date(`2000-01-01T${invoice.package_end_time}`);
+                        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+                        invoiceItems.push(`${packageLabels[invoice.package] || invoice.package} (${hours}h)`);
+                      }
+                      if (invoice.setup_breakdown) invoiceItems.push("Setup & Breakdown");
+                      if (invoice.tablecloths) invoiceItems.push(`Tablecloths (${invoice.tablecloth_quantity})`);
+
+                      return (
+                        <div key={invoice.id} className="flex items-center justify-between border rounded-lg p-3">
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium">
+                              {invoiceItems.length > 0 ? invoiceItems.join(" + ") : "Add-On Invoice"}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {format(new Date(invoice.created_at), "MMM d, yyyy h:mm a")}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-semibold">${Number(invoice.total_amount).toFixed(2)}</span>
+                            <Badge className={statusColors[invoice.payment_status] || ""}>
+                              {invoice.payment_status}
+                            </Badge>
+                            {invoice.payment_status === "pending" && invoice.payment_url && (
+                              <a
+                                href={invoice.payment_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-primary underline"
+                              >
+                                Payment Link
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-4">
+                    No add-on invoices yet
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -2140,6 +2225,18 @@ export default function BookingDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Add-On Invoice Dialog */}
+      <CreateAddonInvoiceDialog
+        open={showAddonInvoiceDialog}
+        onOpenChange={setShowAddonInvoiceDialog}
+        bookingId={booking.id}
+        customerEmail={booking.email}
+        customerName={booking.full_name}
+        eventDate={booking.event_date}
+        reservationNumber={booking.reservation_number || ""}
+        onInvoiceCreated={() => refetchAddonInvoices()}
+      />
     </div>
   );
 }

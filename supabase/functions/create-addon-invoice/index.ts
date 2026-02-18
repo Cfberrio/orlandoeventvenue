@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
-import Stripe from "https://esm.sh/stripe@14.21.0";
+import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,141 +9,322 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+const PACKAGE_LABELS: Record<string, string> = {
+  none: "Services Only",
+  basic: "Basic Package",
+  led: "LED Package",
+  workshop: "Workshop Package",
+};
+
+interface AddonInvoiceRequest {
+  invoice_id: string;
+  customer_email: string;
+  customer_name: string;
+  event_date: string;
+  reservation_number: string;
+}
+
+function buildInvoiceEmailHTML(
+  customerName: string,
+  reservationNumber: string,
+  eventDate: string,
+  lineItems: { label: string; amount: string }[],
+  totalAmount: string,
+  paymentUrl: string
+): string {
+  const firstName = customerName.split(" ")[0];
+  const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const itemRows = lineItems
+    .map(
+      (item) =>
+        `<tr><td style="padding:8px 0;color:#374151;">${item.label}</td><td style="padding:8px 0;text-align:right;font-weight:600;">${item.amount}</td></tr>`
+    )
+    .join("");
+
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
+<div style="max-width:600px;margin:20px auto;background:white;">
+
+<div style="background:#7c3aed;padding:30px;color:white;text-align:center;">
+<h1 style="margin:0;font-size:24px;">Additional Services Invoice</h1>
+<p style="margin:10px 0 0;font-size:14px;">Reservation ${reservationNumber}</p>
+</div>
+
+<div style="padding:30px;">
+<p style="font-size:16px;color:#374151;">Hi ${firstName},</p>
+<p style="font-size:14px;color:#6b7280;line-height:1.6;">
+Additional services have been added to your upcoming event on <strong>${formattedDate}</strong>.
+Please review the details below and complete payment to confirm these add-ons.
+</p>
+
+<table width="100%" style="margin:20px 0;border-collapse:collapse;">
+<thead>
+<tr style="border-bottom:2px solid #e5e7eb;">
+<th style="padding:10px 0;text-align:left;color:#6b7280;font-size:13px;">SERVICE</th>
+<th style="padding:10px 0;text-align:right;color:#6b7280;font-size:13px;">AMOUNT</th>
+</tr>
+</thead>
+<tbody>
+${itemRows}
+</tbody>
+<tfoot>
+<tr style="border-top:2px solid #7c3aed;">
+<td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td>
+<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:16px;color:#7c3aed;">${totalAmount}</td>
+</tr>
+</tfoot>
+</table>
+
+<div style="text-align:center;margin:30px 0;">
+<a href="${paymentUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:16px 40px;text-decoration:none;font-weight:bold;font-size:16px;border-radius:8px;">
+Pay Now
+</a>
+</div>
+
+<p style="font-size:12px;color:#9ca3af;text-align:center;line-height:1.5;">
+If the button above doesn't work, copy and paste this link into your browser:<br/>
+<a href="${paymentUrl}" style="color:#7c3aed;word-break:break-all;">${paymentUrl}</a>
+</p>
+</div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;text-align:center;">
+<p style="margin:0;">Orlando Event Venue &mdash; 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">Questions? Reply to this email or call (689) 305-3535</p>
+</div>
+
+</div>
+</body>
+</html>`;
+}
+
+serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const stripeSecretKey = Deno.env.get("Stripe_Secret_Key")!;
+    const { invoice_id, customer_email, customer_name, event_date, reservation_number }: AddonInvoiceRequest =
+      await req.json();
 
-    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    const body = await req.json();
-    const {
-      bookingId,
-      package: pkg,
-      packageStartTime,
-      packageEndTime,
-      packageCost,
-      setupBreakdown,
-      tablecloths,
-      tableclothQuantity,
-      optionalServicesCost,
-      totalAmount,
-      customerEmail,
-      customerName,
-      eventDate,
-      successUrl,
-      cancelUrl,
-    } = body;
-
-    if (!bookingId || !totalAmount || totalAmount <= 0) {
+    if (!invoice_id) {
       return new Response(
-        JSON.stringify({ error: "bookingId and totalAmount are required" }),
+        JSON.stringify({ error: "invoice_id is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Fetch booking for context
-    const { data: booking, error: bookingError } = await supabase
-      .from("bookings")
-      .select("id, reservation_number, full_name, email, event_date, event_type")
-      .eq("id", bookingId)
+    console.log("Processing addon invoice:", invoice_id);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: invoice, error: invoiceError } = await supabase
+      .from("booking_addon_invoices")
+      .select("*")
+      .eq("id", invoice_id)
       .single();
 
-    if (bookingError || !booking) {
-      console.error("Booking not found:", bookingError);
+    if (invoiceError || !invoice) {
+      console.error("Invoice not found:", invoiceError);
       return new Response(
-        JSON.stringify({ error: "Booking not found" }),
+        JSON.stringify({ error: "Invoice not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Create the addon invoice record first (pending)
-    const { data: invoice, error: invoiceError } = await supabase
-      .from("booking_addon_invoices")
-      .insert({
-        booking_id: bookingId,
-        package: pkg || "none",
-        package_start_time: packageStartTime || null,
-        package_end_time: packageEndTime || null,
-        package_cost: packageCost || 0,
-        setup_breakdown: setupBreakdown || false,
-        tablecloths: tablecloths || false,
-        tablecloth_quantity: tableclothQuantity || 0,
-        optional_services_cost: optionalServicesCost || 0,
-        total_amount: totalAmount,
-        payment_status: "pending",
-      })
-      .select()
-      .single();
+    const stripeSecretKey = Deno.env.get("Stripe_Secret_Key");
+    if (!stripeSecretKey) {
+      throw new Error("Stripe secret key not configured");
+    }
 
-    if (invoiceError || !invoice) {
-      console.error("Failed to create addon invoice:", invoiceError);
+    const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
+
+    const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
+    const emailLineItems: { label: string; amount: string }[] = [];
+
+    if (invoice.package !== "none" && Number(invoice.package_cost) > 0) {
+      const packageLabel = PACKAGE_LABELS[invoice.package] || invoice.package;
+      let hours = 0;
+      if (invoice.package_start_time && invoice.package_end_time) {
+        const start = new Date(`2000-01-01T${invoice.package_start_time}`);
+        const end = new Date(`2000-01-01T${invoice.package_end_time}`);
+        hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      }
+      const description = hours > 0 ? `${packageLabel} (${hours}h)` : packageLabel;
+
+      stripeLineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: description,
+            description: `Production package for event on ${event_date}`,
+          },
+          unit_amount: Math.round(Number(invoice.package_cost) * 100),
+        },
+        quantity: 1,
+      });
+      emailLineItems.push({ label: description, amount: `$${Number(invoice.package_cost).toFixed(2)}` });
+    }
+
+    if (invoice.setup_breakdown) {
+      stripeLineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: { name: "Setup & Breakdown of Chairs/Tables" },
+          unit_amount: 10000,
+        },
+        quantity: 1,
+      });
+      emailLineItems.push({ label: "Setup & Breakdown", amount: "$100.00" });
+    }
+
+    if (invoice.tablecloths && Number(invoice.tablecloth_quantity) > 0) {
+      const tableclothTotal = Number(invoice.tablecloth_quantity) * 5 + 25;
+      stripeLineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `Tablecloth Rental (${invoice.tablecloth_quantity} tablecloths)`,
+            description: `${invoice.tablecloth_quantity} x $5 + $25 cleaning fee`,
+          },
+          unit_amount: Math.round(tableclothTotal * 100),
+        },
+        quantity: 1,
+      });
+      emailLineItems.push({
+        label: `Tablecloths (${invoice.tablecloth_quantity} x $5 + $25 cleaning)`,
+        amount: `$${tableclothTotal.toFixed(2)}`,
+      });
+    }
+
+    if (stripeLineItems.length === 0) {
       return new Response(
-        JSON.stringify({ error: "Failed to create addon invoice" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "No items to charge" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Addon invoice created:", invoice.id);
+    const customers = await stripe.customers.list({ email: customer_email, limit: 1 });
+    let customerId: string;
+    if (customers.data.length > 0) {
+      customerId = customers.data[0].id;
+    } else {
+      const newCustomer = await stripe.customers.create({
+        email: customer_email,
+        name: customer_name,
+        metadata: { booking_id: invoice.booking_id },
+      });
+      customerId = newCustomer.id;
+    }
 
-    // Create Stripe Checkout session
+    const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
+
     const session = await stripe.checkout.sessions.create({
+      customer: customerId,
       payment_method_types: ["card"],
+      line_items: stripeLineItems,
       mode: "payment",
-      customer_email: customerEmail || booking.email,
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `Add-on Invoice — ${booking.reservation_number || bookingId.slice(0, 8).toUpperCase()}`,
-              description: `Additional services for your event on ${eventDate || booking.event_date}`,
-            },
-            unit_amount: Math.round(totalAmount * 100),
-          },
-          quantity: 1,
-        },
-      ],
+      success_url: `${origin}/booking-confirmation?session_id={CHECKOUT_SESSION_ID}&booking_id=${invoice.booking_id}&type=addon`,
+      cancel_url: `${origin}/booking-confirmation?cancelled=true&booking_id=${invoice.booking_id}&type=addon`,
       metadata: {
-        booking_id: bookingId,
+        booking_id: invoice.booking_id,
         invoice_id: invoice.id,
         payment_type: "addon_invoice",
-        reservation_number: booking.reservation_number || "",
+        reservation_number: reservation_number || "",
       },
-      client_reference_id: bookingId,
-      success_url: successUrl || `${Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "lovable.app")}/booking-confirmation`,
-      cancel_url: cancelUrl || `${Deno.env.get("SUPABASE_URL")?.replace("supabase.co", "lovable.app")}/admin/bookings/${bookingId}`,
     });
 
-    // Update invoice with Stripe session ID and payment URL
-    await supabase
+    console.log("Stripe checkout session created:", session.id, "URL:", session.url);
+
+    const { error: updateError } = await supabase
       .from("booking_addon_invoices")
       .update({
-        stripe_session_id: session.id,
         payment_url: session.url,
+        stripe_session_id: session.id,
       })
       .eq("id", invoice.id);
 
-    console.log("Stripe session created:", session.id, "for invoice:", invoice.id);
+    if (updateError) {
+      console.error("Error updating invoice with payment URL:", updateError);
+    }
+
+    // Send email with payment link
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+
+    if (gmailUser && gmailPassword && session.url) {
+      try {
+        const client = new SMTPClient({
+          connection: {
+            hostname: "smtp.gmail.com",
+            port: 465,
+            tls: true,
+            auth: { username: gmailUser, password: gmailPassword },
+          },
+        });
+
+        const totalFormatted = `$${Number(invoice.total_amount).toFixed(2)}`;
+        const emailHTML = buildInvoiceEmailHTML(
+          customer_name,
+          reservation_number,
+          event_date,
+          emailLineItems,
+          totalFormatted,
+          session.url
+        );
+
+        await client.send({
+          from: gmailUser,
+          to: customer_email,
+          subject: `Additional Services Invoice – ${reservation_number} | Orlando Event Venue`,
+          content: `You have a new invoice of ${totalFormatted} for additional services. Pay here: ${session.url}`,
+          html: emailHTML,
+        });
+
+        await client.close();
+        console.log("Invoice email sent to:", customer_email);
+      } catch (emailError) {
+        console.error("Error sending invoice email:", emailError);
+      }
+    } else {
+      console.warn("Gmail credentials not configured, skipping invoice email");
+    }
+
+    // Log the event
+    await supabase.from("booking_events").insert({
+      booking_id: invoice.booking_id,
+      event_type: "addon_invoice_created",
+      channel: "admin",
+      metadata: {
+        invoice_id: invoice.id,
+        total_amount: invoice.total_amount,
+        stripe_session_id: session.id,
+        payment_url: session.url,
+      },
+    });
 
     return new Response(
       JSON.stringify({
-        invoiceId: invoice.id,
-        sessionId: session.id,
-        url: session.url,
+        success: true,
+        payment_url: session.url,
+        session_id: session.id,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-  } catch (error) {
-    console.error("Error creating addon invoice:", error);
+  } catch (error: unknown) {
+    console.error("Error in create-addon-invoice:", error);
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : "Internal server error" }),
+      JSON.stringify({ error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
