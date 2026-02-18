@@ -385,7 +385,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 {appliedDiscount.code} applied
                 {appliedDiscount.type === "cleaning_fee" 
                   ? " (Free cleaning)" 
-                  : ` (${appliedDiscount.percentage}% off)`
+                  : appliedDiscount.percentage != null
+                    ? ` (${appliedDiscount.percentage}% off)`
+                    : ` (-$${appliedDiscount.amount} off)`
                 }
               </span>
             </div>
