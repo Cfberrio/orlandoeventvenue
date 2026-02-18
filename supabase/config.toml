@@ -117,3 +117,6 @@ verify_jwt = false
 
 [functions.process-discount-drip]
 verify_jwt = false
+
+[functions.create-addon-invoice]
+verify_jwt = false

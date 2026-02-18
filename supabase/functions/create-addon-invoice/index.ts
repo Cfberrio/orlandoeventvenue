@@ -43,7 +43,10 @@ function buildInvoiceEmailHTML(
   const itemRows = lineItems
     .map(
       (item) =>
-        `<tr><td style="padding:8px 0;color:#374151;">${item.label}</td><td style="padding:8px 0;text-align:right;font-weight:600;">${item.amount}</td></tr>`
+        `<tr>
+<td style="padding:8px 0;color:#666;">${item.label}</td>
+<td style="padding:8px 0;text-align:right;"><strong>${item.amount}</strong></td>
+</tr>`
     )
     .join("");
 
@@ -51,53 +54,58 @@ function buildInvoiceEmailHTML(
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
 
-<div style="background:#7c3aed;padding:30px;color:white;text-align:center;">
-<h1 style="margin:0;font-size:24px;">Additional Services Invoice</h1>
-<p style="margin:10px 0 0;font-size:14px;">Reservation ${reservationNumber}</p>
+<div style="background:#111827;padding:30px;color:white;">
+<h1 style="margin:0;font-size:24px;">Additional Services</h1>
+<p style="margin:10px 0 0;">We've added new services to your upcoming event.</p>
+<p style="margin:10px 0 0;font-size:12px;">Reservation ${reservationNumber}</p>
 </div>
 
 <div style="padding:30px;">
-<p style="font-size:16px;color:#374151;">Hi ${firstName},</p>
-<p style="font-size:14px;color:#6b7280;line-height:1.6;">
-Additional services have been added to your upcoming event on <strong>${formattedDate}</strong>.
-Please review the details below and complete payment to confirm these add-ons.
+
+<p style="margin:0;">Hi <strong>${firstName}</strong>,</p>
+
+<p style="margin:15px 0;font-size:15px;line-height:1.6;">
+Great news! Additional services have been added to your event on <strong>${formattedDate}</strong>. Here's a quick breakdown of what's been included:
 </p>
 
 <table width="100%" style="margin:20px 0;border-collapse:collapse;">
-<thead>
-<tr style="border-bottom:2px solid #e5e7eb;">
-<th style="padding:10px 0;text-align:left;color:#6b7280;font-size:13px;">SERVICE</th>
-<th style="padding:10px 0;text-align:right;color:#6b7280;font-size:13px;">AMOUNT</th>
+<tr style="border-bottom:1px solid #ddd;">
+<td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
+<td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
 </tr>
-</thead>
-<tbody>
 ${itemRows}
-</tbody>
-<tfoot>
-<tr style="border-top:2px solid #7c3aed;">
-<td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td>
-<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:16px;color:#7c3aed;">${totalAmount}</td>
+<tr style="border-top:2px solid #111827;">
+<td style="padding:12px 0;font-weight:bold;font-size:16px;">Total Due</td>
+<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:16px;">${totalAmount}</td>
 </tr>
-</tfoot>
 </table>
 
-<div style="text-align:center;margin:30px 0;">
-<a href="${paymentUrl}" style="display:inline-block;background:#7c3aed;color:white;padding:16px 40px;text-decoration:none;font-weight:bold;font-size:16px;border-radius:8px;">
-Pay Now
-</a>
-</div>
-
-<p style="font-size:12px;color:#9ca3af;text-align:center;line-height:1.5;">
-If the button above doesn't work, copy and paste this link into your browser:<br/>
-<a href="${paymentUrl}" style="color:#7c3aed;word-break:break-all;">${paymentUrl}</a>
+<p style="margin:20px 0;font-size:15px;line-height:1.6;">
+To confirm these add-ons, please complete payment using the button below. Once paid, everything will be set for your event day!
 </p>
+
+<div style="text-align:center;margin:30px 0;">
+<a href="${paymentUrl}" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Complete Payment</a>
 </div>
 
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;text-align:center;">
-<p style="margin:0;">Orlando Event Venue &mdash; 3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Questions? Reply to this email or call (689) 305-3535</p>
+<p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">
+If the button doesn't work, copy and paste this link:<br/>
+<a href="${paymentUrl}" style="color:#d97706;word-break:break-all;">${paymentUrl}</a>
+</p>
+
+<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
+If you have any questions about these services, just reply to this email and we'll be happy to help.
+</p>
+
+<p style="margin:10px 0 0;"><strong>Orlando Event Venue Team</strong></p>
+
+</div>
+
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
+<p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">This is an automated email - please keep it for your records.</p>
 </div>
 
 </div>
