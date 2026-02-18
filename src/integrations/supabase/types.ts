@@ -145,6 +145,77 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_addon_invoices: {
+        Row: {
+          booking_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          optional_services_cost: number
+          package: string
+          package_cost: number
+          package_end_time: string | null
+          package_start_time: string | null
+          paid_at: string | null
+          payment_status: string
+          payment_url: string | null
+          setup_breakdown: boolean
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          tablecloth_quantity: number
+          tablecloths: boolean
+          total_amount: number
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          optional_services_cost?: number
+          package?: string
+          package_cost?: number
+          package_end_time?: string | null
+          package_start_time?: string | null
+          paid_at?: string | null
+          payment_status?: string
+          payment_url?: string | null
+          setup_breakdown?: boolean
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tablecloth_quantity?: number
+          tablecloths?: boolean
+          total_amount: number
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          optional_services_cost?: number
+          package?: string
+          package_cost?: number
+          package_end_time?: string | null
+          package_start_time?: string | null
+          paid_at?: string | null
+          payment_status?: string
+          payment_url?: string | null
+          setup_breakdown?: boolean
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          tablecloth_quantity?: number
+          tablecloths?: boolean
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_addon_invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       booking_attachments: {
         Row: {
           booking_id: string

@@ -374,7 +374,69 @@ serve(async (req) => {
         );
       }
 
-      if (paymentType === "balance") {
+      if (paymentType === "addon_invoice") {
+        // Handle addon invoice payment
+        const invoiceId = session.metadata?.invoice_id;
+        if (!invoiceId) {
+          console.error("MISSING_INVOICE_ID in addon_invoice payment metadata");
+          return new Response("No invoice_id", { status: 400 });
+        }
+
+        // Idempotency check
+        const { data: existingInvoice } = await supabase
+          .from("booking_addon_invoices")
+          .select("id, paid_at, payment_status")
+          .eq("id", invoiceId)
+          .maybeSingle();
+
+        if (existingInvoice?.paid_at) {
+          console.log("Addon invoice already paid, skipping duplicate:", invoiceId);
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
+
+        const { error: invoiceUpdateError } = await supabase
+          .from("booking_addon_invoices")
+          .update({
+            payment_status: "paid",
+            paid_at: new Date().toISOString(),
+            stripe_session_id: sessionId,
+            stripe_payment_intent_id: paymentIntentId,
+          })
+          .eq("id", invoiceId);
+
+        if (invoiceUpdateError) {
+          console.error("Error updating addon invoice:", invoiceUpdateError);
+          return new Response("Database error", { status: 500 });
+        }
+
+        console.log("Addon invoice marked as paid:", invoiceId, "for booking:", bookingId);
+
+        // Log event
+        await supabase.from("booking_events").insert({
+          booking_id: bookingId,
+          event_type: "addon_invoice_paid",
+          channel: "stripe",
+          metadata: {
+            invoice_id: invoiceId,
+            session_id: sessionId,
+            payment_intent: paymentIntentId,
+            amount: amountPaid,
+          },
+        });
+
+        // Log Stripe event
+        await supabase.from("stripe_event_log").insert({
+          event_id: event.id,
+          event_type: event.type,
+          booking_id: bookingId,
+          metadata: { payment_type: "addon_invoice", invoice_id: invoiceId, amount_cents: session.amount_total }
+        });
+        console.log(`[STRIPE_EVENT_LOGGED] addon_invoice ${event.id} for invoice ${invoiceId}`);
+
+      } else if (paymentType === "balance") {
         // Check if already processed (idempotency)
         const { data: existingBooking } = await supabase
           .from("bookings")
