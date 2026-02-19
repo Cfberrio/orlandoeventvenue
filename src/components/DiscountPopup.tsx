@@ -4,8 +4,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+  DialogDescription } from
+"@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -64,14 +64,14 @@ export default function DiscountPopup() {
     setSubmitting(true);
 
     try {
-      const { error: insertError } = await supabase
-        .from("popup_leads" as any)
-        .insert({
-          full_name: fullName.trim(),
-          email: email.trim().toLowerCase(),
-          preferred_event_date: preferredDate || null,
-          coupon_code: COUPON_CODE,
-        });
+      const { error: insertError } = await supabase.
+      from("popup_leads" as any).
+      insert({
+        full_name: fullName.trim(),
+        email: email.trim().toLowerCase(),
+        preferred_event_date: preferredDate || null,
+        coupon_code: COUPON_CODE
+      });
 
       if (insertError) {
         console.error("Error saving lead:", insertError);
@@ -80,20 +80,20 @@ export default function DiscountPopup() {
       }
 
       // Send Email 1 immediately (fire-and-forget, don't block the UI)
-      supabase.functions
-        .invoke("send-discount-email", {
-          body: {
-            full_name: fullName.trim(),
-            email: email.trim().toLowerCase(),
-            coupon_code: COUPON_CODE,
-            email_number: 1,
-          },
-        })
-        .then(({ error: emailError }) => {
-          if (emailError) {
-            console.error("Error sending discount email #1:", emailError);
-          }
-        });
+      supabase.functions.
+      invoke("send-discount-email", {
+        body: {
+          full_name: fullName.trim(),
+          email: email.trim().toLowerCase(),
+          coupon_code: COUPON_CODE,
+          email_number: 1
+        }
+      }).
+      then(({ error: emailError }) => {
+        if (emailError) {
+          console.error("Error sending discount email #1:", emailError);
+        }
+      });
 
       setSubmitted(true);
       localStorage.setItem(LOCAL_STORAGE_KEY, "true");
@@ -108,8 +108,8 @@ export default function DiscountPopup() {
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-md bg-card border-border">
-        {!submitted ? (
-          <>
+        {!submitted ?
+        <>
             <DialogHeader className="text-center space-y-3">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
                 <Gift className="h-7 w-7 text-primary" />
@@ -126,46 +126,46 @@ export default function DiscountPopup() {
               <div className="space-y-2">
                 <Label htmlFor="popup-name">Name</Label>
                 <Input
-                  id="popup-name"
-                  placeholder="Your full name"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  disabled={submitting}
-                />
+                id="popup-name"
+                placeholder="Your full name"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                disabled={submitting} />
+
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="popup-email">Email</Label>
                 <Input
-                  id="popup-email"
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  disabled={submitting}
-                />
+                id="popup-email"
+                type="email"
+                placeholder="your@email.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting} />
+
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="popup-date">Preferred Event Date</Label>
                 <Input
-                  id="popup-date"
-                  type="date"
-                  value={preferredDate}
-                  onChange={(e) => setPreferredDate(e.target.value)}
-                  disabled={submitting}
-                />
+                id="popup-date"
+                type="date"
+                value={preferredDate}
+                onChange={(e) => setPreferredDate(e.target.value)}
+                disabled={submitting} />
+
               </div>
 
               {/* Consent Checkboxes */}
               <div className="space-y-3">
                 <div className="flex items-start space-x-3">
                   <Checkbox
-                    id="popup-transactional"
-                    checked={transactionalConsent}
-                    onCheckedChange={(checked) => setTransactionalConsent(checked as boolean)}
-                    disabled={submitting}
-                  />
+                  id="popup-transactional"
+                  checked={transactionalConsent}
+                  onCheckedChange={(checked) => setTransactionalConsent(checked as boolean)}
+                  disabled={submitting} />
+
                   <Label htmlFor="popup-transactional" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
                     By checking this box, I consent to receive SMS messages from Orlando Event Venue related to my booking, including payment confirmations, booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
@@ -173,35 +173,35 @@ export default function DiscountPopup() {
 
                 <div className="flex items-start space-x-3">
                   <Checkbox
-                    id="popup-marketing"
-                    checked={marketingConsent}
-                    onCheckedChange={(checked) => setMarketingConsent(checked as boolean)}
-                    disabled={submitting}
-                  />
+                  id="popup-marketing"
+                  checked={marketingConsent}
+                  onCheckedChange={(checked) => setMarketingConsent(checked as boolean)}
+                  disabled={submitting} />
+
                   <Label htmlFor="popup-marketing" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
                     By checking this box, I consent to receive marketing SMS messages from Orlando Event Venue, including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
 
-              <p className="text-xs text-muted-foreground text-center">
-                We'll email you a $50 discount code to use for your booking.
-              </p>
+              <p className="text-xs text-muted-foreground text-center">We'll email you a $50 discount code to use for your booking
+
+            </p>
 
               <Button type="submit" className="w-full" size="lg" disabled={submitting}>
-                {submitting ? (
-                  <>
+                {submitting ?
+              <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Sending...
-                  </>
-                ) : (
-                  "Get My $50 Off"
-                )}
+                  </> :
+
+              "Get My $50 Off"
+              }
               </Button>
             </form>
-          </>
-        ) : (
-          <div className="text-center py-6 space-y-4">
+          </> :
+
+        <div className="text-center py-6 space-y-4">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
               <CheckCircle2 className="h-7 w-7 text-green-500" />
             </div>
@@ -215,15 +215,15 @@ export default function DiscountPopup() {
               <p className="text-2xl font-bold tracking-widest">{COUPON_CODE}</p>
             </div>
             <Button
-              onClick={() => handleOpenChange(false)}
-              variant="outline"
-              className="mt-2"
-            >
+            onClick={() => handleOpenChange(false)}
+            variant="outline"
+            className="mt-2">
+
               Close
             </Button>
           </div>
-        )}
+        }
       </DialogContent>
-    </Dialog>
-  );
+    </Dialog>);
+
 }
