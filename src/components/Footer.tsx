@@ -1,4 +1,5 @@
 import { MapPin, Phone } from "lucide-react";
+import { Link } from "react-router-dom";
 import oevLogoFull from "@/assets/oev-logo-full.png";
 const Footer = () => {
   return <footer className="bg-black text-white py-12">
@@ -34,7 +35,16 @@ const Footer = () => {
             </div>
           </div>
 
-          <div className="border-t border-white/20 pt-8 text-center text-sm opacity-75">
+          <div className="border-t border-white/20 pt-8 text-center text-sm opacity-75 space-y-2">
+            <div className="flex items-center justify-center gap-4">
+              <Link to="/privacy-policy" className="hover:underline hover:opacity-100 transition-opacity">
+                Privacy Policy
+              </Link>
+              <span>|</span>
+              <Link to="/terms-of-use" className="hover:underline hover:opacity-100 transition-opacity">
+                Terms of Use
+              </Link>
+            </div>
             <p>Copyright © 2026 Orlando Event Venue. All rights reserved.</p>
           </div>
         </div>
