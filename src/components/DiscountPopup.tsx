@@ -179,7 +179,7 @@ export default function DiscountPopup() {
                   disabled={submitting} />
 
                   <Label htmlFor="popup-marketing" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
-                    By checking this box, I consent to receive marketing SMS messages from Orlando Event Venue, including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
+                    By checking this box, I consent to receive marketing SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue), including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
