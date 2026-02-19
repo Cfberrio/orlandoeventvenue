@@ -167,7 +167,7 @@ export default function DiscountPopup() {
                   disabled={submitting} />
 
                   <Label htmlFor="popup-transactional" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
-                    By checking this box, I consent to receive SMS messages from Orlando Event Venue related to my booking, including payment confirmations, booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
+                    By checking this box, I consent to receive SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue) related to my venue booking, including payment confirmations (deposit/balance), booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
 
