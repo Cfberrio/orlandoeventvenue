@@ -118,7 +118,7 @@ export default function DiscountPopup() {
                 Get $50 Off!
               </DialogTitle>
               <DialogDescription className="text-center text-base">
-                Planning an event? Get $50 sent to your email now.
+                Planning an event? Get $50 sent to your email now{"\n"}
               </DialogDescription>
             </DialogHeader>
 
