@@ -15,7 +15,7 @@ interface DiscountEmailData {
   email_number: 1 | 2 | 3;
 }
 
-const WEBSITE_URL = "https://orlandoeventvenue.com";
+const WEBSITE_URL = "https://orlandoeventvenue.org";
 
 const SUBJECT_LINES: Record<number, string> = {
   1: "Here's Your $50 Discount Code! | Orlando Event Venue",
