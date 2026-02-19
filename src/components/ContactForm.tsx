@@ -199,7 +199,7 @@ const ContactForm = () => {
                 />
                 <div className="flex-1">
                   <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive SMS messages from Orlando Event Venue  related to my booking, including payment confirmations, booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
+                    By checking this box, I consent to receive SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue) related to my venue booking, including payment confirmations (deposit/balance), booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
@@ -215,7 +215,7 @@ const ContactForm = () => {
                 />
                 <div className="flex-1">
                   <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive marketing SMS messages from Orlando Event Venue , including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
+                    By checking this box, I consent to receive marketing SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue), including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
                   </Label>
                 </div>
               </div>
