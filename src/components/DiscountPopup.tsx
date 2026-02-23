@@ -210,14 +210,13 @@ export default function DiscountPopup() {
               We've sent your <strong>$50 discount code</strong> to{" "}
               <strong>{email}</strong>.
             </p>
-            <div className="bg-muted/50 border border-border rounded-lg p-4">
-              <p className="text-xs text-muted-foreground mb-1">Your Code</p>
-              <p className="text-2xl font-bold tracking-widest">{COUPON_CODE}</p>
-            </div>
+            <p className="text-sm text-muted-foreground mt-4">
+              Check your inbox for your exclusive discount code. Don't forget to check your spam folder if you don't see it.
+            </p>
             <Button
             onClick={() => handleOpenChange(false)}
             variant="outline"
-            className="mt-2">
+            className="mt-4">
 
               Close
             </Button>

@@ -8,6 +8,7 @@ import HowItWorks from "@/components/HowItWorks";
 import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
 import ContactForm from "@/components/ContactForm";
+import ScheduleTourCTA from "@/components/ScheduleTourCTA";
 import Footer from "@/components/Footer";
 import DiscountPopup from "@/components/DiscountPopup";
 const Index = () => {
@@ -17,10 +18,11 @@ const Index = () => {
       <Navigation />
       <Hero />
       <SpaceHighlights />
-      <Gallery />
       <Pricing />
-      <Production />
+      <Gallery />
+      <ScheduleTourCTA />
       <HowItWorks />
+      <Production />
       <FAQ />
       <FinalCTA />
       <ContactForm />
