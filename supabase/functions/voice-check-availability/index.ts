@@ -650,6 +650,8 @@ async function fetchBookingsFromDB(
     .select('*')
     .eq('event_date', date)
     .neq('status', 'cancelled')
+    .neq('status', 'declined')
+    .in('payment_status', ['deposit_paid', 'fully_paid', 'invoiced'])
     .order('start_time');
   
   if (error) {
@@ -662,11 +664,13 @@ async function fetchBookingsFromDB(
   // Filter for overlaps based on booking type
   const bookings = (data || []).filter(booking => {
     if (bookingType === 'daily') {
-      // Daily bookings always conflict with entire day
       return true;
     }
     
-    // For hourly bookings, check time overlap
+    if (booking.booking_type === 'daily') {
+      return true;
+    }
+    
     if (!startTime || !endTime || !booking.start_time || !booking.end_time) {
       return false;
     }
@@ -704,6 +708,95 @@ async function fetchBookingsFromDB(
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+// ============= DATABASE QUERY FOR AVAILABILITY BLOCKS =============
+
+async function fetchAvailabilityBlocksFromDB(
+  date: string,
+  bookingType: string,
+  startTime?: string,
+  endTime?: string
+): Promise<BookingConflict[]> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  console.log(`[DB_BLOCKS] Checking availability_blocks for date: ${date}, type: ${bookingType}`);
+
+  const { data, error } = await supabase
+    .from('availability_blocks')
+    .select('id, source, block_type, start_date, end_date, start_time, end_time, notes')
+    .lte('start_date', date)
+    .gte('end_date', date);
+
+  if (error) {
+    console.error('[DB_BLOCKS] Error:', error);
+    throw new Error(`Availability blocks query error: ${error.message}`);
+  }
+
+  console.log(`[DB_BLOCKS] Found ${(data || []).length} blocks covering ${date}`);
+
+  const blocks = (data || []).filter(block => {
+    if (bookingType === 'daily') {
+      return true;
+    }
+
+    if (block.block_type === 'daily') {
+      return true;
+    }
+
+    if (block.block_type === 'hourly' && startTime && endTime && block.start_time && block.end_time) {
+      const requestStart = timeToMinutes(startTime);
+      const requestEnd = timeToMinutes(endTime);
+      const blockStart = timeToMinutes(block.start_time);
+      const blockEnd = timeToMinutes(block.end_time);
+      const hasOverlap = requestStart < blockEnd && requestEnd > blockStart;
+      if (hasOverlap) {
+        console.log(`[DB_BLOCKS] Overlap: ${startTime}-${endTime} with block ${block.start_time}-${block.end_time}`);
+      }
+      return hasOverlap;
+    }
+
+    return false;
+  });
+
+  console.log(`[DB_BLOCKS] ${blocks.length} conflicting blocks after filter`);
+
+  return blocks.map(b => ({
+    type: 'availability_block',
+    title: `Blocked: ${b.notes || b.source || 'unavailable'}`,
+    start: `${b.start_date}T${b.start_time || '00:00'}:00.000Z`,
+    end: `${b.end_date}T${b.end_time || '23:59'}:59.000Z`,
+    source: b.source || 'system',
+    booking_type: b.block_type,
+  }));
+}
+
+// ============= DATABASE QUERY FOR BLACKOUT DATES =============
+
+async function fetchBlackoutDatesFromDB(date: string): Promise<boolean> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, supabaseKey);
+
+  console.log(`[DB_BLACKOUT] Checking blackout_dates for date: ${date}`);
+
+  const { data, error } = await supabase
+    .from('blackout_dates')
+    .select('id')
+    .lte('start_date', date)
+    .gte('end_date', date)
+    .limit(1);
+
+  if (error) {
+    console.error('[DB_BLACKOUT] Error:', error);
+    return false;
+  }
+
+  const isBlackedOut = (data || []).length > 0;
+  console.log(`[DB_BLACKOUT] Date ${date} blacked out: ${isBlackedOut}`);
+  return isBlackedOut;
 }
 
 // ============= GHL CONFIG WITH FALLBACKS =============
@@ -1130,6 +1223,22 @@ serve(async (req) => {
   const missingFields: string[] = [];
   if (!normalized.booking_type) missingFields.push("booking_type");
   if (!normalized.date) missingFields.push("date");
+
+  // Special handling: hourly without times — ask for times explicitly instead of generic error
+  if (normalized.booking_type === "hourly" && normalized.date && (!normalized.start_time || !normalized.end_time)) {
+    console.log("[VALIDATION] Hourly booking missing times — returning actionable prompt");
+    const dateAvailMsg = "I can check that date for you. What time would you like to start and end your booking?";
+    if (isVoiceAgent) {
+      return buildPlainTextResponse(dateAvailMsg);
+    }
+    return buildOkFalseResponse({
+      error: "missing_hourly_times",
+      missing_fields: ["start_time", "end_time"],
+      normalized,
+      mapping,
+    }, dateAvailMsg, isVoiceAgent);
+  }
+
   if (normalized.booking_type === "hourly") {
     if (!normalized.start_time) missingFields.push("start_time");
     if (!normalized.end_time) missingFields.push("end_time");
@@ -1174,19 +1283,39 @@ serve(async (req) => {
 
   console.log(`[QUERY_WINDOW] ${dateRange.start} to ${dateRange.end} (${windowStartMs} - ${windowEndMs})`);
 
-  // Fetch bookings from database
-  let conflicts: BookingConflict[] = [];
-
+  // 1. Check blackout dates first (fast exit)
   try {
-    conflicts = await fetchBookingsFromDB(
+    const isBlackedOut = await fetchBlackoutDatesFromDB(normalized.date!);
+    if (isBlackedOut) {
+      const msg = "That date is blocked and not available for bookings";
+      console.log(`[RESULT] blackout=true`);
+      if (isVoiceAgent) return buildPlainTextResponse(msg);
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          available: false,
+          say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
+          assistant_instruction: "That date is NOT available. It is a blackout date.",
+          debug: { query_date: normalized.date, reason: "blackout_date", normalized },
+        }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+  } catch (err) {
+    console.error('[DB_BLACKOUT] Check failed:', err);
+  }
+
+  // 2. Fetch bookings from database (filtered by payment_status + status)
+  let bookingConflicts: BookingConflict[] = [];
+  try {
+    bookingConflicts = await fetchBookingsFromDB(
       normalized.date!,
       normalized.booking_type!,
       normalized.start_time,
       normalized.end_time,
       normalized.timezone
     );
-    
-    console.log(`[DB_BOOKINGS] Found ${conflicts.length} conflicting bookings`);
+    console.log(`[DB_BOOKINGS] Found ${bookingConflicts.length} conflicting bookings`);
   } catch (err) {
     console.error('[DB_BOOKINGS] Fetch failed:', err);
     return buildOkFalseResponse({
@@ -1196,15 +1325,29 @@ serve(async (req) => {
     }, "System error, please try again", isVoiceAgent);
   }
 
-  // Determine availability
-  const hasConflicts = conflicts.length > 0;
-  const available = !hasConflicts;
+  // 3. Fetch availability blocks
+  let blockConflicts: BookingConflict[] = [];
+  try {
+    blockConflicts = await fetchAvailabilityBlocksFromDB(
+      normalized.date!,
+      normalized.booking_type!,
+      normalized.start_time,
+      normalized.end_time
+    );
+    console.log(`[DB_BLOCKS] Found ${blockConflicts.length} conflicting blocks`);
+  } catch (err) {
+    console.error('[DB_BLOCKS] Fetch failed:', err);
+  }
+
+  // 4. Combine all conflict sources
+  const allConflicts = [...bookingConflicts, ...blockConflicts];
+  const available = allConflicts.length === 0;
 
   const messageText = available 
     ? "That date looks available" 
     : "That date is already booked";
 
-  console.log(`[RESULT] available=${available}, conflicts=${conflicts.length}`);
+  console.log(`[RESULT] available=${available}, bookings=${bookingConflicts.length}, blocks=${blockConflicts.length}, total=${allConflicts.length}`);
 
   // Voice Agent mode: return plain text
   if (isVoiceAgent) {
@@ -1212,7 +1355,7 @@ serve(async (req) => {
     return buildPlainTextResponse(messageText);
   }
 
-  // Normal mode: return full JSON (existing behavior)
+  // Normal mode: return full JSON
   const response = {
     ok: true,
     available,
@@ -1225,14 +1368,16 @@ serve(async (req) => {
     assistant_instruction: available 
       ? "Great news! That date IS available. You may proceed with the booking." 
       : "That date is NOT available. A booking already exists.",
-    conflicts: hasConflicts ? conflicts : undefined,
+    conflicts: allConflicts.length > 0 ? allConflicts : undefined,
     debug: {
       query_date: normalized.date,
       query_type: normalized.booking_type,
       query_time: normalized.start_time && normalized.end_time 
         ? `${normalized.start_time}-${normalized.end_time}` 
         : 'full_day',
-      bookings_count: conflicts.length,
+      bookings_count: bookingConflicts.length,
+      blocks_count: blockConflicts.length,
+      total_conflicts: allConflicts.length,
       window_start_iso: dateRange.start,
       window_end_iso: dateRange.end,
       normalized,
