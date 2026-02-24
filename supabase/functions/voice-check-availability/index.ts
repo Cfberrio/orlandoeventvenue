@@ -360,7 +360,7 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
   const messageText = "I need more information to check availability";
   
   const base = {
-    ok: "success",
+    ok: true,
     available: "unknown",
     say: messageText,
     message: messageText,
@@ -432,7 +432,7 @@ function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: bool
   if (isVoiceAgent || isGhl) {
     return new Response(
       JSON.stringify({
-        ok: "success",
+        ok: true,
         available: "unknown",
         say: messageText,
         message: messageText,
@@ -1314,7 +1314,7 @@ serve(async (req) => {
       const msg = "That date is blocked and not available for bookings";
       console.log(`[RESULT] blackout=true`);
       const blackoutResponse: Record<string, unknown> = {
-        ok: isGhlRequest ? "success" : true,
+        ok: true,
         available: isGhlRequest ? "no" : false,
         say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
         assistant_instruction: "That date is NOT available. It is a blackout date.",
@@ -1377,9 +1377,9 @@ serve(async (req) => {
 
   if (isGhlRequest) {
     const availStr = available ? "yes" : "no";
-    console.log(`[GHL_RESPONSE] ok=success, available=${availStr}, message="${messageText}"`);
+    console.log(`[GHL_RESPONSE] ok=true, available=${availStr}, message="${messageText}"`);
     const ghlResponse = {
-      ok: "success",
+      ok: true,
       available: availStr,
       say: messageText,
       message: messageText,
