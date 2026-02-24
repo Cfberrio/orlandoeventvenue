@@ -356,30 +356,37 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
 
 // ============= NEW: MISSING PAYLOAD RESPONSE =============
 
-function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord, isVoiceAgent: boolean) {
-  const url = new URL(req.url);
+function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord, isVoiceAgent: boolean, isGhl?: boolean) {
+  const messageText = "I need more information to check availability";
+  
+  const base = {
+    ok: false,
+    available: null as null,
+    say: messageText,
+    message: messageText,
+    text: messageText,
+    response: messageText,
+    result: messageText,
+    status_message: messageText,
+    assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
+  };
+
+  if (isVoiceAgent || isGhl) {
+    return new Response(
+      JSON.stringify(base),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const localUrl = new URL(req.url);
   const queryKeys = Object.keys(queryParams);
   const topLevelKeys = isPlainObject(parsed.body) ? Object.keys(parsed.body).slice(0, 20) : [];
   
-  const messageText = "I need more information to check availability";
-  
-  if (isVoiceAgent) {
-    return buildPlainTextResponse(messageText);
-  }
-  
   return new Response(
     JSON.stringify({
-      ok: false,
-      available: null,
-      say: messageText,
-      message: messageText,
-      text: messageText,
-      response: messageText,
-      result: messageText,
-      status_message: messageText,
+      ...base,
       error: "missing_payload",
       error_message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
-      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
       debug: {
         received: {
           has_raw_text: rawText.length > 0,
@@ -392,7 +399,7 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
           content_type: req.headers.get('content-type'),
           content_length: req.headers.get('content-length'),
           method: req.method,
-          path: url.pathname,
+          path: localUrl.pathname,
         },
         hint: [
           "Ensure Custom Action variables are mapped and the agent only calls the action AFTER collecting booking_type and date.",
@@ -419,26 +426,30 @@ function buildPlainTextResponse(message: string): Response {
 
 // ============= NEW: OK FALSE VALIDATION RESPONSE =============
 
-function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: boolean) {
+function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: boolean, isGhl?: boolean) {
   const messageText = say || "I need more information";
   
-  if (isVoiceAgent) {
-    return buildPlainTextResponse(messageText);
+  const base = {
+    ok: false,
+    available: null as null,
+    say: messageText,
+    message: messageText,
+    text: messageText,
+    response: messageText,
+    result: messageText,
+    status_message: messageText,
+    assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
+  };
+
+  if (isVoiceAgent || isGhl) {
+    return new Response(
+      JSON.stringify(base),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
   
   return new Response(
-    JSON.stringify({
-      ok: false,
-      available: null,  // NEVER true when ok:false
-      say: messageText,
-      message: messageText,
-      text: messageText,
-      response: messageText,
-      result: messageText,
-      status_message: messageText,
-      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
-      ...data,
-    }),
+    JSON.stringify({ ...base, ...data }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
@@ -693,15 +704,18 @@ async function fetchBookingsFromDB(
   
   console.log(`[DB_QUERY] ${bookings.length} conflicting bookings after overlap check`);
   
-  // Map to conflict format
-  return bookings.map(b => ({
-    type: 'booking',
-    title: `${b.full_name} - ${b.event_type || 'Event'}`,
-    start: `${b.event_date}T${b.start_time || '00:00'}:00.000Z`,
-    end: `${b.event_date}T${b.end_time || '23:59'}:59.000Z`,
-    source: b.source || 'website',
-    booking_type: b.booking_type
-  }));
+  return bookings.map(b => {
+    const st = (b.start_time || '00:00').substring(0, 5);
+    const et = (b.end_time || '23:59').substring(0, 5);
+    return {
+      type: 'booking',
+      title: `${b.full_name} - ${b.event_type || 'Event'}`,
+      start: `${b.event_date}T${st}:00.000Z`,
+      end: `${b.event_date}T${et}:00.000Z`,
+      source: b.source || 'website',
+      booking_type: b.booking_type,
+    };
+  });
 }
 
 // Helper function to convert "HH:MM" to minutes since midnight
@@ -1143,12 +1157,13 @@ serve(async (req) => {
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   }
   
-  if (isVoiceAgent) {
-    console.log('[VOICE_AGENT_MODE] Detected - will return plain text');
-  }
-
   // ENV diagnostic mode (header OR query param) - CHECK BEFORE parsing body
   const url = new URL(req.url);
+  const isGhlRequest = isVoiceAgent || url.searchParams.get('mode') === 'db';
+
+  if (isGhlRequest) {
+    console.log(`[GHL_MODE] Detected — responses will be simplified JSON (voice_header=${isVoiceAgent}, mode_param=${url.searchParams.get('mode')})`);
+  }
   const debugEnvHeader = req.headers.get('x-debug-env');
   const debugEnvQuery = url.searchParams.get('debug_env');
   const debugEnv = debugEnvHeader === 'true' || debugEnvQuery === '1' || debugEnvQuery === 'true';
@@ -1209,7 +1224,7 @@ serve(async (req) => {
       } else {
         // Truly empty - cannot proceed
         console.log("[MISSING_PAYLOAD] No body, no query params, no header payload");
-        return buildMissingPayloadResponse(req, rawText, parsed, queryParams, isVoiceAgent);
+        return buildMissingPayloadResponse(req, rawText, parsed, queryParams, isVoiceAgent, isGhlRequest);
       }
     }
   }
@@ -1236,7 +1251,7 @@ serve(async (req) => {
       missing_fields: ["start_time", "end_time"],
       normalized,
       mapping,
-    }, dateAvailMsg, isVoiceAgent);
+    }, dateAvailMsg, isVoiceAgent, isGhlRequest);
   }
 
   if (normalized.booking_type === "hourly") {
@@ -1258,7 +1273,7 @@ serve(async (req) => {
       mapping,
       parse_mode: parsed.mode,
       query_keys: queryKeys,
-    }, "I need more information to check availability", isVoiceAgent);
+    }, "I need more information to check availability", isVoiceAgent, isGhlRequest);
   }
 
   console.log(`[DB_MODE] Using Supabase DB for availability checking`);
@@ -1275,7 +1290,7 @@ serve(async (req) => {
     return buildOkFalseResponse({ 
       error: "date_parse_error", 
       message: "Could not build date range" 
-    }, "Invalid date format", isVoiceAgent);
+    }, "Invalid date format", isVoiceAgent, isGhlRequest);
   }
 
   const windowStartMs = Date.parse(dateRange.start);
@@ -1289,15 +1304,17 @@ serve(async (req) => {
     if (isBlackedOut) {
       const msg = "That date is blocked and not available for bookings";
       console.log(`[RESULT] blackout=true`);
-      if (isVoiceAgent) return buildPlainTextResponse(msg);
+      const blackoutResponse: Record<string, unknown> = {
+        ok: true,
+        available: false,
+        say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
+        assistant_instruction: "That date is NOT available. It is a blackout date.",
+      };
+      if (!isGhlRequest) {
+        blackoutResponse.debug = { query_date: normalized.date, reason: "blackout_date", normalized };
+      }
       return new Response(
-        JSON.stringify({
-          ok: true,
-          available: false,
-          say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
-          assistant_instruction: "That date is NOT available. It is a blackout date.",
-          debug: { query_date: normalized.date, reason: "blackout_date", normalized },
-        }),
+        JSON.stringify(blackoutResponse),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -1322,7 +1339,7 @@ serve(async (req) => {
       error: "db_fetch_error", 
       message: "Could not fetch bookings from database", 
       detail: String(err) 
-    }, "System error, please try again", isVoiceAgent);
+    }, "System error, please try again", isVoiceAgent, isGhlRequest);
   }
 
   // 3. Fetch availability blocks
@@ -1349,13 +1366,28 @@ serve(async (req) => {
 
   console.log(`[RESULT] available=${available}, bookings=${bookingConflicts.length}, blocks=${blockConflicts.length}, total=${allConflicts.length}`);
 
-  // Voice Agent mode: return plain text
-  if (isVoiceAgent) {
-    console.log(`[VOICE_AGENT_RESPONSE] ${messageText}`);
-    return buildPlainTextResponse(messageText);
+  if (isGhlRequest) {
+    console.log(`[GHL_RESPONSE] ok=true, available=${available}, message="${messageText}"`);
+    const ghlResponse = {
+      ok: true,
+      available,
+      say: messageText,
+      message: messageText,
+      text: messageText,
+      response: messageText,
+      result: messageText,
+      status_message: messageText,
+      assistant_instruction: available 
+        ? "Great news! That date IS available. You may proceed with the booking." 
+        : "That date is NOT available. A booking already exists.",
+    };
+    return new Response(
+      JSON.stringify(ghlResponse),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
-  // Normal mode: return full JSON
+  // Full JSON for non-GHL callers (curl debugging, etc.)
   const response = {
     ok: true,
     available,
