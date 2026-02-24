@@ -359,23 +359,11 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
 function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord, isVoiceAgent: boolean, isGhl?: boolean) {
   const messageText = "I need more information to check availability";
   
-  const ghlBase = {
-    ok: true,
-    available: true,
-    say: messageText,
-    message: messageText,
-    text: messageText,
-    response: messageText,
-    result: messageText,
-    status_message: messageText,
-    assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
-  };
-
   if (isVoiceAgent || isGhl) {
-    return new Response(
-      JSON.stringify(ghlBase),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(messageText, {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 
   const localUrl = new URL(req.url);
@@ -392,7 +380,7 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
       response: messageText,
       result: messageText,
       status_message: messageText,
-      assistant_instruction: ghlBase.assistant_instruction,
+      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. The system could not receive booking details. Ask the customer for booking type (hourly or daily), date, and times if hourly.",
       error: "missing_payload",
       error_message: "Empty request body. Voice Agent did not send variables yet. Do not confirm availability.",
       debug: {
@@ -438,20 +426,10 @@ function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: bool
   const messageText = say || "I need more information";
   
   if (isVoiceAgent || isGhl) {
-    return new Response(
-      JSON.stringify({
-        ok: true,
-        available: true,
-        say: messageText,
-        message: messageText,
-        text: messageText,
-        response: messageText,
-        result: messageText,
-        status_message: messageText,
-        assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
-      }),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    return new Response(messageText, {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
   
   return new Response(
@@ -1321,17 +1299,20 @@ serve(async (req) => {
     if (isBlackedOut) {
       const msg = "That date is blocked and not available for bookings";
       console.log(`[RESULT] blackout=true`);
-      const blackoutResponse: Record<string, unknown> = {
-        ok: true,
-        ...(isGhlRequest ? { available: true } : { available: false }),
-        say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
-        assistant_instruction: "That date is NOT available. It is a blackout date.",
-      };
-      if (!isGhlRequest) {
-        blackoutResponse.debug = { query_date: normalized.date, reason: "blackout_date", normalized };
+      if (isGhlRequest) {
+        return new Response(msg, {
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+        });
       }
       return new Response(
-        JSON.stringify(blackoutResponse),
+        JSON.stringify({
+          ok: true,
+          available: false,
+          say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
+          assistant_instruction: "That date is NOT available. It is a blackout date.",
+          debug: { query_date: normalized.date, reason: "blackout_date", normalized },
+        }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -1384,24 +1365,11 @@ serve(async (req) => {
   console.log(`[RESULT] available=${available}, bookings=${bookingConflicts.length}, blocks=${blockConflicts.length}, total=${allConflicts.length}`);
 
   if (isGhlRequest) {
-    console.log(`[GHL_RESPONSE] ok=true, available=true, message="${messageText}"`);
-    const ghlResponse = {
-      ok: true,
-      available: true,
-      message: messageText,
-      say: messageText,
-      text: messageText,
-      response: messageText,
-      result: messageText,
-      status_message: messageText,
-      assistant_instruction: available 
-        ? "Great news! That date IS available. You may proceed with the booking." 
-        : "That date is NOT available. A booking already exists.",
-    };
-    return new Response(
-      JSON.stringify(ghlResponse),
-      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    );
+    console.log(`[GHL_RESPONSE] plain_text="${messageText}"`);
+    return new Response(messageText, {
+      status: 200,
+      headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+    });
   }
 
   // Full JSON for non-GHL callers (curl debugging, etc.)
