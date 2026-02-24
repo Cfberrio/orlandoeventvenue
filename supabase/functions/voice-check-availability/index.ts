@@ -360,8 +360,8 @@ function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { bo
   const messageText = "I need more information to check availability";
   
   const base = {
-    ok: false,
-    available: null as null,
+    ok: "success",
+    available: "unknown",
     say: messageText,
     message: messageText,
     text: messageText,
@@ -429,27 +429,36 @@ function buildPlainTextResponse(message: string): Response {
 function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: boolean, isGhl?: boolean) {
   const messageText = say || "I need more information";
   
-  const base = {
-    ok: false,
-    available: null as null,
-    say: messageText,
-    message: messageText,
-    text: messageText,
-    response: messageText,
-    result: messageText,
-    status_message: messageText,
-    assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
-  };
-
   if (isVoiceAgent || isGhl) {
     return new Response(
-      JSON.stringify(base),
+      JSON.stringify({
+        ok: "success",
+        available: "unknown",
+        say: messageText,
+        message: messageText,
+        text: messageText,
+        response: messageText,
+        result: messageText,
+        status_message: messageText,
+        assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
   
   return new Response(
-    JSON.stringify({ ...base, ...data }),
+    JSON.stringify({
+      ok: false,
+      available: null,
+      say: messageText,
+      message: messageText,
+      text: messageText,
+      response: messageText,
+      result: messageText,
+      status_message: messageText,
+      assistant_instruction: "DO NOT CONFIRM AVAILABILITY. Ask for booking type + date (+ times if hourly).",
+      ...data,
+    }),
     { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
   );
 }
@@ -1305,8 +1314,8 @@ serve(async (req) => {
       const msg = "That date is blocked and not available for bookings";
       console.log(`[RESULT] blackout=true`);
       const blackoutResponse: Record<string, unknown> = {
-        ok: true,
-        available: false,
+        ok: isGhlRequest ? "success" : true,
+        available: isGhlRequest ? "no" : false,
         say: msg, message: msg, text: msg, response: msg, result: msg, status_message: msg,
         assistant_instruction: "That date is NOT available. It is a blackout date.",
       };
@@ -1367,10 +1376,11 @@ serve(async (req) => {
   console.log(`[RESULT] available=${available}, bookings=${bookingConflicts.length}, blocks=${blockConflicts.length}, total=${allConflicts.length}`);
 
   if (isGhlRequest) {
-    console.log(`[GHL_RESPONSE] ok=true, available=${available}, message="${messageText}"`);
+    const availStr = available ? "yes" : "no";
+    console.log(`[GHL_RESPONSE] ok=success, available=${availStr}, message="${messageText}"`);
     const ghlResponse = {
-      ok: true,
-      available,
+      ok: "success",
+      available: availStr,
       say: messageText,
       message: messageText,
       text: messageText,
