@@ -1156,6 +1156,60 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount: number
+          created_at: string
+          created_by: string | null
+          customer_email: string
+          customer_name: string | null
+          description: string | null
+          id: string
+          invoice_number: string
+          paid_at: string | null
+          payment_status: string
+          payment_url: string | null
+          stripe_payment_intent_id: string | null
+          stripe_session_id: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          created_by?: string | null
+          customer_email: string
+          customer_name?: string | null
+          description?: string | null
+          id?: string
+          invoice_number?: string
+          paid_at?: string | null
+          payment_status?: string
+          payment_url?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          created_by?: string | null
+          customer_email?: string
+          customer_name?: string | null
+          description?: string | null
+          id?: string
+          invoice_number?: string
+          paid_at?: string | null
+          payment_status?: string
+          payment_url?: string | null
+          stripe_payment_intent_id?: string | null
+          stripe_session_id?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       maintenance_tickets: {
         Row: {
           booking_id: string | null

@@ -61,7 +61,7 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
 
     try {
       const { data: invoice, error: insertError } = await supabase
-        .from("invoices")
+        .from("invoices" as any)
         .insert({
           title: title.trim(),
           description: description.trim() || null,
@@ -74,12 +74,13 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
         .single();
 
       if (insertError) throw insertError;
+      const invoiceData = invoice as any;
 
       const { data: fnResult, error: fnError } = await supabase.functions.invoke(
         "create-invoice",
         {
           body: {
-            invoice_id: invoice.id,
+            invoice_id: invoiceData.id,
             customer_email: customerEmail.trim().toLowerCase(),
             customer_name: customerName.trim() || undefined,
           },
