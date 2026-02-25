@@ -13,7 +13,8 @@ import {
   Package,
   Tag,
   DollarSign,
-  Wallet
+  Wallet,
+  FileText
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -30,6 +31,7 @@ const navItems = [
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },
   { to: "/admin/inventory", icon: Package, label: "Inventory" },
   { to: "/admin/discounts", icon: Tag, label: "Discounts" },
+  { to: "/admin/invoices", icon: FileText, label: "Invoices" },
 ];
 
 export default function AdminLayout() {
