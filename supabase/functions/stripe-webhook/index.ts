@@ -531,19 +531,29 @@ serve(async (req) => {
               content: `Invoice ${inv.invoice_number} (${inv.title}) has been paid by ${inv.customer_email}. Amount: ${amtFormatted}.`,
               html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
-<div style="background:#059669;padding:30px;color:white;">
-<h1 style="margin:0;font-size:24px;">Invoice Paid</h1>
-<p style="margin:10px 0 0;">A standalone invoice payment has been received.</p>
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<div style="background:#059669;padding:40px 30px;text-align:center;color:white;">
+<h1 style="margin:0;font-size:28px;letter-spacing:1px;">INVOICE PAID</h1>
+<p style="margin:12px 0 0;font-size:16px;color:#d1fae5;">A standalone invoice payment has been received.</p>
 </div>
 <div style="padding:30px;">
+<div style="background:#ecfdf5;border:2px solid #10b981;padding:20px;text-align:center;margin:0 0 25px;border-radius:8px;">
+<p style="margin:0;font-size:12px;color:#065f46;text-transform:uppercase;letter-spacing:1px;">Amount Received</p>
+<p style="margin:5px 0;font-size:32px;font-weight:bold;color:#059669;">${amtFormatted}</p>
+</div>
+<p style="margin:0 0 15px;font-weight:bold;font-size:15px;color:#111827;">Invoice Details:</p>
 <table width="100%" style="border-collapse:collapse;font-size:14px;">
-<tr><td style="padding:8px 0;color:#666;">Invoice</td><td style="padding:8px 0;font-weight:bold;">${inv.invoice_number}</td></tr>
-<tr><td style="padding:8px 0;color:#666;">Title</td><td style="padding:8px 0;">${inv.title}</td></tr>
-<tr><td style="padding:8px 0;color:#666;">Customer</td><td style="padding:8px 0;">${inv.customer_email}</td></tr>
-<tr><td style="padding:8px 0;color:#666;">Amount</td><td style="padding:8px 0;font-weight:bold;color:#059669;">${amtFormatted}</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;width:40%;">Invoice</td><td style="padding:10px 0;font-weight:bold;color:#111827;">${inv.invoice_number}</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;">Title</td><td style="padding:10px 0;color:#111827;">${inv.title}</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;">Customer Email</td><td style="padding:10px 0;color:#111827;">${inv.customer_email}</td></tr>
+<tr><td style="padding:10px 0;color:#666;">Amount</td><td style="padding:10px 0;font-weight:bold;color:#059669;">${amtFormatted}</td></tr>
 </table>
-</div></div></body></html>`,
+</div>
+<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
+<p style="margin:0;">This is an internal notification. Do not forward to customers.</p>
+<p style="margin:5px 0 0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+</div>
+</div></body></html>`,
             });
 
             // Customer receipt
@@ -555,23 +565,32 @@ serve(async (req) => {
               content: `Thank you for your payment of ${amtFormatted} for "${inv.title}". Invoice ${inv.invoice_number} is now paid.`,
               html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
-<div style="background:#111827;padding:30px;color:white;">
-<h1 style="margin:0;font-size:24px;">Payment Confirmation</h1>
-<p style="margin:10px 0 0;font-size:14px;color:#d4d4d8;">${inv.invoice_number}</p>
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
+<h1 style="margin:0;font-size:28px;letter-spacing:1px;">PAYMENT CONFIRMATION</h1>
+<p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
+<p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">${inv.invoice_number}</p>
 </div>
 <div style="padding:30px;">
-<p style="margin:0;">Hi <strong>${custName}</strong>,</p>
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">Thank you! Your payment of <strong>${amtFormatted}</strong> for <strong>${inv.title}</strong> has been received and processed successfully.</p>
-<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:20px;text-align:center;margin:20px 0;">
-<p style="margin:0;font-size:18px;font-weight:bold;color:#059669;">Payment Complete</p>
+<p style="margin:0;font-size:16px;">Hi <strong>${custName}</strong>,</p>
+<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Thank you for your payment! Here's a summary of the transaction:</p>
+<div style="background:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
+<p style="margin:0 0 6px;font-size:12px;color:#065f46;text-transform:uppercase;letter-spacing:1px;">Payment Complete</p>
+<p style="margin:0;font-size:32px;font-weight:bold;color:#059669;">${amtFormatted}</p>
 </div>
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">If you have any questions, just reply to this email.</p>
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue Team</strong></p>
+<table width="100%" style="border-collapse:collapse;font-size:14px;margin:20px 0;">
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;width:40%;">Invoice</td><td style="padding:10px 0;font-weight:bold;color:#111827;">${inv.invoice_number}</td></tr>
+<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;">Description</td><td style="padding:10px 0;color:#111827;">${inv.title}</td></tr>
+<tr><td style="padding:10px 0;color:#666;">Status</td><td style="padding:10px 0;font-weight:bold;color:#059669;">Paid</td></tr>
+</table>
+<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">Please keep this email as your receipt. If you have any questions, simply reply to this email and we'll be happy to help.</p>
+<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
 </div>
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
 <p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
-</div></div></body></html>`,
+<p style="margin:5px 0 0;">This is an automated email. Please keep it for your records.</p>
+</div>
+</div></body></html>`,
             });
 
             await smtpClient.close();

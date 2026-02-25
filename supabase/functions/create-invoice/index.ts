@@ -32,32 +32,38 @@ function buildInvoiceEmailHTML(
 <html>
 <head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
 
-<div style="background:#111827;padding:30px;color:white;">
-<h1 style="margin:0;font-size:24px;">Invoice</h1>
-<p style="margin:10px 0 0;font-size:14px;color:#d4d4d8;">Reference: ${invoiceNumber}</p>
+<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
+  <h1 style="margin:0;font-size:28px;letter-spacing:1px;">INVOICE</h1>
+  <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
+  <p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">Reference: ${invoiceNumber}</p>
 </div>
 
 <div style="padding:30px;">
 
-<p style="margin:0;">Hi <strong>${firstName}</strong>,</p>
+<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
 
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-You have a new invoice from Orlando Event Venue. Please review the details below and complete your payment.
+<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">
+You have a new invoice from Orlando Event Venue. Please review the details below and complete your payment at your earliest convenience.
 </p>
 
-<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:20px;margin:20px 0;">
-<h2 style="margin:0 0 8px;font-size:18px;color:#111827;">${title}</h2>
-${descBlock}
-<div style="border-top:2px solid #111827;margin-top:15px;padding-top:15px;display:flex;justify-content:space-between;">
-<span style="font-size:14px;color:#666;">Amount Due</span>
-<span style="font-size:22px;font-weight:bold;color:#111827;">${amount}</span>
-</div>
+<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
+  <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;">Description</p>
+  <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${title}</h2>
+  ${descBlock}
+  <div style="border-top:2px solid #111827;margin-top:16px;padding-top:16px;">
+    <table width="100%" style="border-collapse:collapse;">
+      <tr>
+        <td style="font-size:14px;color:#666;">Amount Due</td>
+        <td style="text-align:right;font-size:28px;font-weight:bold;color:#111827;">${amount}</td>
+      </tr>
+    </table>
+  </div>
 </div>
 
 <div style="text-align:center;margin:30px 0;">
-<a href="${paymentUrl}" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Now</a>
+  <a href="${paymentUrl}" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Now</a>
 </div>
 
 <p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">
@@ -65,17 +71,17 @@ If the button doesn't work, copy and paste this link:<br/>
 <a href="${paymentUrl}" style="color:#d97706;word-break:break-all;">${paymentUrl}</a>
 </p>
 
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
-If you have any questions about this invoice, just reply to this email and we'll be happy to help.
+<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">
+If you have any questions about this invoice, simply reply to this email and we'll be happy to help.
 </p>
 
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue Team</strong></p>
+<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
 
 </div>
 
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
 <p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">This is an automated email - please keep it for your records.</p>
+<p style="margin:5px 0 0;">This is an automated email. Please keep it for your records.</p>
 </div>
 
 </div>
