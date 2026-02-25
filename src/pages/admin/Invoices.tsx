@@ -46,12 +46,12 @@ export default function Invoices() {
     queryKey: ["admin-invoices"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("invoices")
+        .from("invoices" as any)
         .select("*")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data as Invoice[];
+      return data as unknown as Invoice[];
     },
   });
 
