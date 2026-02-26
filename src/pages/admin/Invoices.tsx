@@ -29,6 +29,7 @@ interface Invoice {
   payment_url: string | null;
   paid_at: string | null;
   created_at: string;
+  line_items: { label: string; amount: number }[] | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -147,8 +148,13 @@ export default function Invoices() {
                         <TableCell className="font-mono text-xs">
                           {inv.invoice_number}
                         </TableCell>
-                        <TableCell className="font-medium max-w-[200px] truncate">
-                          {inv.title}
+                        <TableCell className="max-w-[200px]">
+                          <div className="font-medium truncate">{inv.title}</div>
+                          {inv.line_items && inv.line_items.length > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              {inv.line_items.length} item{inv.line_items.length !== 1 ? "s" : ""}
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <div className="text-sm">{inv.customer_email}</div>

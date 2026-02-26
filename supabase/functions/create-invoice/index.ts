@@ -15,18 +15,34 @@ interface CreateInvoiceRequest {
   customer_name?: string;
 }
 
+interface InvoiceLineItem {
+  label: string;
+  amount: number;
+}
+
 function buildInvoiceEmailHTML(
   customerName: string,
   invoiceNumber: string,
   title: string,
   description: string | null,
-  amount: string,
+  lineItems: InvoiceLineItem[],
+  totalAmount: string,
   paymentUrl: string
 ): string {
   const firstName = customerName ? customerName.split(" ")[0] : "Customer";
   const descBlock = description
-    ? `<p style="margin:15px 0;font-size:14px;color:#666;line-height:1.6;">${description}</p>`
+    ? `<p style="margin:15px 0 0;font-size:14px;color:#666;line-height:1.6;">${description}</p>`
     : "";
+
+  const itemRows = lineItems
+    .map(
+      (item) =>
+        `<tr>
+<td style="padding:8px 0;color:#374151;font-size:14px;">${item.label}</td>
+<td style="padding:8px 0;text-align:right;font-size:14px;"><strong>$${Number(item.amount).toFixed(2)}</strong></td>
+</tr>`
+    )
+    .join("");
 
   return `<!DOCTYPE html>
 <html>
@@ -49,17 +65,20 @@ You have a new invoice from Orlando Event Venue. Please review the details below
 </p>
 
 <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
-  <p style="margin:0 0 4px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;">Description</p>
-  <h2 style="margin:0 0 8px;font-size:20px;color:#111827;">${title}</h2>
+  <h2 style="margin:0 0 4px;font-size:20px;color:#111827;">${title}</h2>
   ${descBlock}
-  <div style="border-top:2px solid #111827;margin-top:16px;padding-top:16px;">
-    <table width="100%" style="border-collapse:collapse;">
-      <tr>
-        <td style="font-size:14px;color:#666;">Amount Due</td>
-        <td style="text-align:right;font-size:28px;font-weight:bold;color:#111827;">${amount}</td>
-      </tr>
-    </table>
-  </div>
+
+  <table width="100%" style="margin:16px 0 0;border-collapse:collapse;">
+    <tr style="border-bottom:1px solid #e5e7eb;">
+      <td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
+      <td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
+    </tr>
+    ${itemRows}
+    <tr style="border-top:2px solid #111827;">
+      <td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td>
+      <td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#111827;">${totalAmount}</td>
+    </tr>
+  </table>
 </div>
 
 <div style="text-align:center;margin:30px 0;">
@@ -146,10 +165,24 @@ serve(async (req: Request) => {
 
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ["card"],
-      line_items: [
+    const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
+    const invoiceAmountCents = Math.round(Number(invoice.amount) * 100);
+
+    // Build Stripe line items from line_items JSON or fall back to single item
+    const rawLineItems: InvoiceLineItem[] | null = invoice.line_items;
+    let stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
+
+    if (rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0) {
+      stripeLineItems = rawLineItems.map((item: InvoiceLineItem) => ({
+        price_data: {
+          currency: "usd",
+          product_data: { name: item.label },
+          unit_amount: Math.round(Number(item.amount) * 100),
+        },
+        quantity: 1,
+      }));
+    } else {
+      stripeLineItems = [
         {
           price_data: {
             currency: "usd",
@@ -157,11 +190,17 @@ serve(async (req: Request) => {
               name: invoice.title,
               description: invoice.description || undefined,
             },
-            unit_amount: Math.round(Number(invoice.amount) * 100),
+            unit_amount: invoiceAmountCents,
           },
           quantity: 1,
         },
-      ],
+      ];
+    }
+
+    const session = await stripe.checkout.sessions.create({
+      customer: customerId,
+      payment_method_types: ["card"],
+      line_items: stripeLineItems,
       mode: "payment",
       success_url: `${origin}/invoice-paid?session_id={CHECKOUT_SESSION_ID}&invoice_id=${invoice.id}`,
       cancel_url: `${origin}/invoice-cancelled?invoice_id=${invoice.id}`,
@@ -170,6 +209,12 @@ serve(async (req: Request) => {
         payment_type: "standalone_invoice",
         invoice_number: invoice.invoice_number,
       },
+      ...(connectedAccountId ? {
+        transfer_data: {
+          destination: connectedAccountId,
+          amount: Math.round(invoiceAmountCents * 0.20),
+        },
+      } : {}),
     });
 
     console.log("Stripe checkout session created:", session.id, "URL:", session.url);
@@ -201,11 +246,19 @@ serve(async (req: Request) => {
         });
 
         const amountFormatted = `$${Number(invoice.amount).toFixed(2)}`;
+
+        // Build email line items for the breakdown
+        const emailLineItems: InvoiceLineItem[] =
+          rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0
+            ? rawLineItems
+            : [{ label: invoice.title, amount: Number(invoice.amount) }];
+
         const emailHTML = buildInvoiceEmailHTML(
           customer_name || invoice.customer_name || "Customer",
           invoice.invoice_number,
           invoice.title,
           invoice.description,
+          emailLineItems,
           amountFormatted,
           session.url
         );
