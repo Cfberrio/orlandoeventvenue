@@ -1166,6 +1166,7 @@ export type Database = {
           description: string | null
           id: string
           invoice_number: string
+          line_items: Json | null
           paid_at: string | null
           payment_status: string
           payment_url: string | null
@@ -1183,6 +1184,7 @@ export type Database = {
           description?: string | null
           id?: string
           invoice_number?: string
+          line_items?: Json | null
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
@@ -1200,6 +1202,7 @@ export type Database = {
           description?: string | null
           id?: string
           invoice_number?: string
+          line_items?: Json | null
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
