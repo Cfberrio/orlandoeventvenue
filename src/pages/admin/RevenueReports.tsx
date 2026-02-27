@@ -13,6 +13,7 @@ import MonthlyRevenueView from "@/components/admin/revenue/MonthlyRevenueView";
 import CategoryBreakdown from "@/components/admin/revenue/CategoryBreakdown";
 import SegmentAnalysis from "@/components/admin/revenue/SegmentAnalysis";
 import ExportButton from "@/components/admin/revenue/ExportButton";
+import InvoiceRevenueView from "@/components/admin/revenue/InvoiceRevenueView";
 
 export default function RevenueReports() {
   const [dateFrom, setDateFrom] = useState<Date>(subMonths(startOfMonth(new Date()), 1));
@@ -141,6 +142,9 @@ export default function RevenueReports() {
           <SegmentAnalysis startDate={startDate} endDate={endDate} />
         </TabsContent>
       </Tabs>
+
+      {/* Standalone Invoice Revenue - separate section */}
+      <InvoiceRevenueView startDate={startDate} endDate={endDate} />
     </div>
   );
 }

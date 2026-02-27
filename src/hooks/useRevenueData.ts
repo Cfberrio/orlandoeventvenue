@@ -57,6 +57,17 @@ export interface DailyGeneratedRevenueRecord {
   discount_generated: number;
 }
 
+export interface PaidInvoiceRecord {
+  id: string;
+  invoice_number: string;
+  title: string;
+  amount: number;
+  customer_email: string;
+  customer_name: string | null;
+  paid_at: string;
+  line_items: { label: string; amount: number }[] | null;
+}
+
 export interface RevenueLineItem {
   reservation_number: string;
   event_date: string;
@@ -264,6 +275,23 @@ export function useRevenueData() {
     return { data: filtered, error: null };
   };
 
+  const fetchPaidInvoices = async (startDate: string, endDate: string) => {
+    const { data, error } = await (supabase as any)
+      .from("invoices")
+      .select("id, invoice_number, title, amount, customer_email, customer_name, paid_at, line_items")
+      .eq("payment_status", "paid")
+      .gte("paid_at", `${startDate}T00:00:00`)
+      .lte("paid_at", `${endDate}T23:59:59`)
+      .order("paid_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching paid invoices:", error);
+      return { data: null, error };
+    }
+
+    return { data: data as PaidInvoiceRecord[], error: null };
+  };
+
   return {
     fetchDailyRevenue,
     fetchDailyGeneratedRevenue,
@@ -274,5 +302,6 @@ export function useRevenueData() {
     exportRevenueCsv,
     downloadCsv,
     fetchBookingsByCreatedDate,
+    fetchPaidInvoices,
   };
 }

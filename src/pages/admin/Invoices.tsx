@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Plus, ExternalLink, Copy } from "lucide-react";
+import { FileText, Plus, ExternalLink, Copy, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import CreateInvoiceDialog from "@/components/admin/CreateInvoiceDialog";
@@ -59,6 +59,24 @@ export default function Invoices() {
   const copyLink = (url: string) => {
     navigator.clipboard.writeText(url);
     toast({ title: "Payment link copied to clipboard" });
+  };
+
+  const deleteInvoice = async (id: string, invoiceNumber: string) => {
+    if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}? This cannot be undone.`)) {
+      return;
+    }
+
+    const { error } = await (supabase as any)
+      .from("invoices")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Failed to delete invoice", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Invoice ${invoiceNumber} deleted` });
+      refetch();
+    }
   };
 
   const totalPending = invoices?.filter((i) => i.payment_status === "pending").length ?? 0;
@@ -205,6 +223,17 @@ export default function Invoices() {
                                   </a>
                                 </Button>
                               </>
+                            )}
+                            {inv.payment_status !== "paid" && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => deleteInvoice(inv.id, inv.invoice_number)}
+                                title="Delete invoice"
+                                className="text-destructive hover:text-destructive"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
                         </TableCell>
