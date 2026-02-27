@@ -477,7 +477,7 @@ serve(async (req) => {
 
         const { data: existingStandaloneInvoice } = await supabase
           .from("invoices")
-          .select("paid_at, customer_email, customer_name, title, amount, invoice_number")
+          .select("paid_at, customer_email, customer_name, title, description, amount, invoice_number, line_items")
           .eq("id", standaloneInvoiceId)
           .single();
 
@@ -558,6 +558,19 @@ serve(async (req) => {
 
             // Customer receipt
             const custName = inv.customer_name ? inv.customer_name.split(" ")[0] : "Customer";
+            const receiptLineItems = inv.line_items && Array.isArray(inv.line_items) && inv.line_items.length > 0
+              ? inv.line_items
+              : [{ label: inv.title, amount: Number(inv.amount) }];
+            const receiptItemRows = receiptLineItems.map((item: { label: string; amount: number }) =>
+              `<tr>
+<td style="padding:8px 0;color:#374151;font-size:14px;">${item.label}</td>
+<td style="padding:8px 0;text-align:right;font-size:14px;"><strong>$${Number(item.amount).toFixed(2)}</strong></td>
+</tr>`
+            ).join("");
+            const descBlock = inv.description
+              ? `<p style="margin:15px 0 0;font-size:14px;color:#666;line-height:1.6;">${inv.description}</p>`
+              : "";
+
             await smtpClient.send({
               from: gmailUser,
               to: inv.customer_email,
@@ -569,20 +582,30 @@ serve(async (req) => {
 <div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
 <h1 style="margin:0;font-size:28px;letter-spacing:1px;">PAYMENT CONFIRMATION</h1>
 <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-<p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">${inv.invoice_number}</p>
+<p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">Reference: ${inv.invoice_number}</p>
 </div>
 <div style="padding:30px;">
 <p style="margin:0;font-size:16px;">Hi <strong>${custName}</strong>,</p>
-<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Thank you for your payment! Here's a summary of the transaction:</p>
+<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Thank you for your payment! Your invoice has been successfully processed. Here's a summary of your transaction:</p>
 <div style="background:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
 <p style="margin:0 0 6px;font-size:12px;color:#065f46;text-transform:uppercase;letter-spacing:1px;">Payment Complete</p>
 <p style="margin:0;font-size:32px;font-weight:bold;color:#059669;">${amtFormatted}</p>
 </div>
-<table width="100%" style="border-collapse:collapse;font-size:14px;margin:20px 0;">
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;width:40%;">Invoice</td><td style="padding:10px 0;font-weight:bold;color:#111827;">${inv.invoice_number}</td></tr>
-<tr style="border-bottom:1px solid #f3f4f6;"><td style="padding:10px 0;color:#666;">Description</td><td style="padding:10px 0;color:#111827;">${inv.title}</td></tr>
-<tr><td style="padding:10px 0;color:#666;">Status</td><td style="padding:10px 0;font-weight:bold;color:#059669;">Paid</td></tr>
+<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
+<h2 style="margin:0 0 4px;font-size:20px;color:#111827;">${inv.title}</h2>
+${descBlock}
+<table width="100%" style="margin:16px 0 0;border-collapse:collapse;">
+<tr style="border-bottom:1px solid #e5e7eb;">
+<td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
+<td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
+</tr>
+${receiptItemRows}
+<tr style="border-top:2px solid #111827;">
+<td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Paid</td>
+<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#059669;">${amtFormatted}</td>
+</tr>
 </table>
+</div>
 <p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">Please keep this email as your receipt. If you have any questions, simply reply to this email and we'll be happy to help.</p>
 <p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
 </div>
