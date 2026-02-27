@@ -236,6 +236,11 @@ serve(async (req: Request) => {
 
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
+    const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
+    const totalAmountCents = stripeLineItems.reduce(
+      (sum, item) => sum + (item.price_data?.unit_amount || 0), 0
+    );
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
@@ -249,6 +254,14 @@ serve(async (req: Request) => {
         payment_type: "addon_invoice",
         reservation_number: reservation_number || "",
       },
+      ...(connectedAccountId ? {
+        payment_intent_data: {
+          transfer_data: {
+            destination: connectedAccountId,
+            amount: Math.round(totalAmountCents * 0.20),
+          },
+        },
+      } : {}),
     });
 
     console.log("Stripe checkout session created:", session.id, "URL:", session.url);

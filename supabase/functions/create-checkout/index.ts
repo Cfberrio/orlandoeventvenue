@@ -71,6 +71,9 @@ serve(async (req: Request) => {
       console.log("Created new customer:", customerId);
     }
 
+    const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
+    const depositAmountCents = Math.round(depositAmount * 100);
+
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -102,7 +105,13 @@ serve(async (req: Request) => {
           booking_id: bookingId,
           payment_type: "deposit",
         },
-        setup_future_usage: "off_session", // Save card for balance payment
+        setup_future_usage: "off_session",
+        ...(connectedAccountId ? {
+          transfer_data: {
+            destination: connectedAccountId,
+            amount: Math.round(depositAmountCents * 0.20),
+          },
+        } : {}),
       },
     });
 
