@@ -175,14 +175,6 @@ serve(async (req) => {
         reservation_number: booking.reservation_number || "",
         payment_type: "balance",
       },
-      ...(connectedAccountId ? {
-        payment_intent_data: {
-          transfer_data: {
-            destination: connectedAccountId,
-            amount: Math.round(balanceAmountCents * 0.20),
-          },
-        },
-      } : {}),
     });
 
     console.log("Created Stripe Checkout Session:", session.id);

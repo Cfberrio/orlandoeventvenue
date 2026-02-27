@@ -254,14 +254,6 @@ serve(async (req: Request) => {
         payment_type: "addon_invoice",
         reservation_number: reservation_number || "",
       },
-      ...(connectedAccountId ? {
-        payment_intent_data: {
-          transfer_data: {
-            destination: connectedAccountId,
-            amount: Math.round(totalAmountCents * 0.20),
-          },
-        },
-      } : {}),
     });
 
     console.log("Stripe checkout session created:", session.id, "URL:", session.url);
