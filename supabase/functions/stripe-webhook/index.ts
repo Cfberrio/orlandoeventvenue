@@ -898,6 +898,29 @@ serve(async (req) => {
       }
     }
 
+    if (event.type === "checkout.session.expired") {
+      const session = event.data.object;
+      const paymentType = session.metadata?.payment_type;
+
+      if (paymentType === "standalone_invoice") {
+        const invoiceId = session.metadata?.invoice_id;
+        if (invoiceId) {
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
+          const { error: expireError } = await supabase
+            .from("invoices")
+            .update({ payment_status: "expired" })
+            .eq("id", invoiceId)
+            .eq("payment_status", "pending");
+
+          if (expireError) {
+            console.error("Error expiring standalone invoice:", expireError);
+          } else {
+            console.log("Standalone invoice expired:", invoiceId);
+          }
+        }
+      }
+    }
+
     return new Response(JSON.stringify({ received: true }), {
       headers: { "Content-Type": "application/json" },
       status: 200,
