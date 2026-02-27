@@ -72,9 +72,6 @@ serve(async (req: Request) => {
     }
 
     // Create checkout session
-    const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
-    const depositAmountCents = Math.round(depositAmount * 100);
-
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       client_reference_id: bookingId, // Fallback for webhook
@@ -88,7 +85,7 @@ serve(async (req: Request) => {
               name: `Event Venue Deposit - ${eventType}`,
               description: `50% deposit for event on ${eventDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
             },
-            unit_amount: depositAmountCents,
+            unit_amount: Math.round(depositAmount * 100), // Convert to cents
           },
           quantity: 1,
         },
@@ -107,12 +104,6 @@ serve(async (req: Request) => {
         },
         setup_future_usage: "off_session", // Save card for balance payment
       },
-      ...(connectedAccountId ? {
-        transfer_data: {
-          destination: connectedAccountId,
-          amount: Math.round(depositAmountCents * 0.20),
-        },
-      } : {}),
     });
 
     console.log("Checkout session created:", session.id);

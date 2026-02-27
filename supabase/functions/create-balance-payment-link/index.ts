@@ -149,8 +149,6 @@ serve(async (req) => {
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
     // Create Checkout Session for balance payment
-    const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
-
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
@@ -175,12 +173,8 @@ serve(async (req) => {
         reservation_number: booking.reservation_number || "",
         payment_type: "balance",
       },
-      ...(connectedAccountId ? {
-        transfer_data: {
-          destination: connectedAccountId,
-          amount: Math.round(balanceAmountCents * 0.20),
-        },
-      } : {}),
+      // Note: Stripe Checkout Sessions expire automatically after 24 hours max
+      // Removed custom expires_at since Stripe doesn't allow > 24h
     });
 
     console.log("Created Stripe Checkout Session:", session.id);
