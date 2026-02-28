@@ -174,6 +174,9 @@ export default function BookingDetail() {
   const [manualCustomerId, setManualCustomerId] = useState("");
   const [manualSessionId, setManualSessionId] = useState("");
 
+  // Send balance payment state
+  const [sendingBalancePayment, setSendingBalancePayment] = useState(false);
+
   // Production configuration state (for external bookings)
   const [showProductionDialog, setShowProductionDialog] = useState(false);
   const [productionPackage, setProductionPackage] = useState<string>("none");
@@ -231,6 +234,39 @@ export default function BookingDetail() {
       });
     } finally {
       setDepositOverrideLoading(false);
+    }
+  };
+
+  const handleSendBalancePayment = async () => {
+    if (!booking) return;
+    setSendingBalancePayment(true);
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "create-balance-payment-link",
+        { body: { booking_id: booking.id, send_email: true } }
+      );
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: "Balance payment link sent",
+        description: `Email sent to ${data.customer_email || booking.email}`,
+      });
+
+      if (data?.payment_url) {
+        await navigator.clipboard.writeText(data.payment_url);
+        toast({ title: "Payment link copied to clipboard" });
+      }
+    } catch (error) {
+      console.error("Failed to send balance payment:", error);
+      toast({
+        title: "Failed to send balance payment",
+        description: String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSendingBalancePayment(false);
     }
   };
 
@@ -1071,6 +1107,19 @@ export default function BookingDetail() {
                     >
                       <AlertTriangle className="h-4 w-4 mr-2" />
                       Manual: Mark Deposit Paid
+                    </Button>
+                  )}
+
+                  {booking.payment_status === "deposit_paid" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-blue-600 border-blue-300 hover:bg-blue-50"
+                      onClick={handleSendBalancePayment}
+                      disabled={sendingBalancePayment}
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      {sendingBalancePayment ? "Sending..." : "Send Balance Payment Link"}
                     </Button>
                   )}
                 </div>
