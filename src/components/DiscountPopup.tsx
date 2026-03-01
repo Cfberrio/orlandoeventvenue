@@ -7,7 +7,7 @@ import {
   DialogDescription } from
 "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, Gift, CheckCircle2 } from "lucide-react";
@@ -23,8 +23,6 @@ export default function DiscountPopup() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
-  const [transactionalConsent, setTransactionalConsent] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -157,32 +155,9 @@ export default function DiscountPopup() {
 
               </div>
 
-              {/* Consent Checkboxes */}
-              <div className="space-y-3">
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                  id="popup-transactional"
-                  checked={transactionalConsent}
-                  onCheckedChange={(checked) => setTransactionalConsent(checked as boolean)}
-                  disabled={submitting} />
-
-                  <Label htmlFor="popup-transactional" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
-                    By checking this box, I consent to receive SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue) related to my venue booking, including payment confirmations (deposit/balance), booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
-                  </Label>
-                </div>
-
-                <div className="flex items-start space-x-3">
-                  <Checkbox
-                  id="popup-marketing"
-                  checked={marketingConsent}
-                  onCheckedChange={(checked) => setMarketingConsent(checked as boolean)}
-                  disabled={submitting} />
-
-                  <Label htmlFor="popup-marketing" className="text-xs font-normal cursor-pointer leading-relaxed text-muted-foreground">
-                    By checking this box, I consent to receive marketing SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue), including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
-                  </Label>
-                </div>
-              </div>
+              <p className="text-[11px] text-muted-foreground leading-snug">
+                By submitting, you agree to receive SMS & email messages from Orlando Event Venue regarding your booking and promotions. Msg & data rates may apply. Reply STOP to opt-out.
+              </p>
 
               <p className="text-xs text-muted-foreground text-center">We'll email you a $50 discount code to use for your booking
 
