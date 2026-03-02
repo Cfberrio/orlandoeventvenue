@@ -86,12 +86,11 @@ const ContactForm = () => {
     <section id="contact" className="py-24 relative overflow-hidden">
       {/* Background images side by side */}
       <div className="absolute inset-0 flex">
-        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg1})` }} />
-        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg3})` }} />
+        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg1})` }} />
+        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg3})` }} />
       </div>
-      {/* Blur + fade overlay */}
-      <div className="absolute inset-0 backdrop-blur-sm" />
-      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
+      {/* Fade overlay only - no blur */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/55 to-background/70" />
 
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto">
