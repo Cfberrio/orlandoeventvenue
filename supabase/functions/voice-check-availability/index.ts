@@ -359,11 +359,17 @@ function isPayloadEmpty(parsed: { body: AnyRecord; mode: string }): boolean {
 function buildMissingPayloadResponse(req: Request, rawText: string, parsed: { body: AnyRecord; mode: string; error?: string }, queryParams: AnyRecord, isVoiceAgent: boolean, isGhl?: boolean) {
   const messageText = "I need more information to check availability";
   
-  if (isVoiceAgent || isGhl) {
+  if (isVoiceAgent) {
     return new Response(messageText, {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
     });
+  }
+  if (isGhl) {
+    return new Response(
+      JSON.stringify({ available: null, message: messageText }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   const localUrl = new URL(req.url);
@@ -425,11 +431,18 @@ function buildPlainTextResponse(message: string): Response {
 function buildOkFalseResponse(data: AnyRecord, say?: string, isVoiceAgent?: boolean, isGhl?: boolean) {
   const messageText = say || "I need more information";
   
-  if (isVoiceAgent || isGhl) {
+  if (isVoiceAgent) {
     return new Response(messageText, {
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
     });
+  }
+
+  if (isGhl) {
+    return new Response(
+      JSON.stringify({ available: null, message: messageText }),
+      { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
   
   return new Response(
@@ -1122,11 +1135,16 @@ serve(async (req) => {
   const secretFromApiKeyHeader = req.headers.get('x-api-key') ?? req.headers.get('x-api_key');
   const providedSecret = (secretFromCustomHeader?.trim()) || (secretFromApiKeyHeader?.trim()) || (secretFromBearer) || null;
 
-  // Detect Voice Agent mode BEFORE auth (need for auth error response)
+  // Detect Voice Agent mode and GHL mode BEFORE auth
   const isVoiceAgent = req.headers.get('x-voice-agent') === 'true';
+  const url = new URL(req.url);
+  const isGhlRequest = isVoiceAgent || url.searchParams.get('mode') === 'db';
   
   if (isVoiceAgent) {
     console.log('[VOICE_AGENT_MODE] Detected - will return plain text');
+  }
+  if (isGhlRequest) {
+    console.log(`[GHL_MODE] Detected — responses will be simplified JSON (voice_header=${isVoiceAgent}, mode_param=${url.searchParams.get('mode')})`);
   }
 
   if (!providedSecret || voiceSecret.length === 0 || providedSecret !== voiceSecret) {
@@ -1135,6 +1153,12 @@ serve(async (req) => {
     
     if (isVoiceAgent) {
       return buildPlainTextResponse(messageText);
+    }
+    if (isGhlRequest) {
+      return new Response(
+        JSON.stringify({ available: null, message: messageText }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
     
     return new Response(JSON.stringify({ 
@@ -1150,14 +1174,6 @@ serve(async (req) => {
       error_message: "Invalid or missing authentication",
       assistant_instruction: "DO NOT CONFIRM AVAILABILITY"
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
-  }
-  
-  // ENV diagnostic mode (header OR query param) - CHECK BEFORE parsing body
-  const url = new URL(req.url);
-  const isGhlRequest = isVoiceAgent || url.searchParams.get('mode') === 'db';
-
-  if (isGhlRequest) {
-    console.log(`[GHL_MODE] Detected — responses will be simplified JSON (voice_header=${isVoiceAgent}, mode_param=${url.searchParams.get('mode')})`);
   }
   const debugEnvHeader = req.headers.get('x-debug-env');
   const debugEnvQuery = url.searchParams.get('debug_env');
@@ -1241,6 +1257,12 @@ serve(async (req) => {
     if (isVoiceAgent) {
       return buildPlainTextResponse(dateAvailMsg);
     }
+    if (isGhlRequest) {
+      return new Response(
+        JSON.stringify({ available: null, message: dateAvailMsg }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
     return buildOkFalseResponse({
       error: "missing_hourly_times",
       missing_fields: ["start_time", "end_time"],
@@ -1300,9 +1322,11 @@ serve(async (req) => {
       const msg = "That date is blocked and not available for bookings";
       console.log(`[RESULT] blackout=true`);
       if (isGhlRequest) {
-        return new Response(msg, {
+        const ghlJson = { available: false, message: msg };
+        console.log(`[GHL_RESPONSE] ${JSON.stringify(ghlJson)}`);
+        return new Response(JSON.stringify(ghlJson), {
           status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
       return new Response(
@@ -1365,10 +1389,11 @@ serve(async (req) => {
   console.log(`[RESULT] available=${available}, bookings=${bookingConflicts.length}, blocks=${blockConflicts.length}, total=${allConflicts.length}`);
 
   if (isGhlRequest) {
-    console.log(`[GHL_RESPONSE] plain_text="${messageText}"`);
-    return new Response(messageText, {
+    const ghlJson = { available, message: messageText };
+    console.log(`[GHL_RESPONSE] ${JSON.stringify(ghlJson)}`);
+    return new Response(JSON.stringify(ghlJson), {
       status: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'text/plain; charset=utf-8' },
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 
