@@ -7,6 +7,7 @@ import {
   DialogDescription } from
 "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -155,9 +156,12 @@ export default function DiscountPopup() {
 
               </div>
 
-              <p className="text-[11px] text-muted-foreground leading-snug">
-                By submitting, you agree to receive SMS & email messages from Orlando Event Venue regarding your booking and promotions. Msg & data rates may apply. Reply STOP to opt-out.
-              </p>
+              <div className="flex items-start space-x-2">
+                <Checkbox id="popup-sms-consent" className="mt-0.5" />
+                <Label htmlFor="popup-sms-consent" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
+                  By submitting, you agree to receive SMS & email messages from Orlando Event Venue regarding your booking and promotions. Msg & data rates may apply. Reply STOP to opt-out.
+                </Label>
+              </div>
 
               <p className="text-xs text-muted-foreground text-center">We'll email you a $50 discount code to use for your booking
 
