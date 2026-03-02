@@ -87,7 +87,6 @@ const ContactForm = () => {
       {/* Background images side by side */}
       <div className="absolute inset-0 flex">
         <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg1})` }} />
-        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg2})` }} />
         <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg3})` }} />
       </div>
       {/* Blur + fade overlay */}
