@@ -941,9 +941,26 @@ export default function BookingDetail() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Package</span>
-                  <Badge>{booking.package || "None"}</Badge>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Package</span>
+                    <Badge variant={booking.package && booking.package !== "none" ? "default" : "secondary"}>
+                      {booking.package === "none" || !booking.package ? "No Package" :
+                       booking.package === "basic" ? "Basic Package — $79/hr" :
+                       booking.package === "led" ? "LED Package — $99/hr" :
+                       booking.package === "workshop" ? "Workshop Package — $149/hr" :
+                       booking.package}
+                    </Badge>
+                  </div>
+                  {booking.package && booking.package !== "none" && booking.package_start_time && booking.package_end_time && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-muted-foreground text-sm">Package Hours</span>
+                      <Badge className="bg-purple-600 text-white flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {booking.package_start_time.slice(0, 5)} - {booking.package_end_time.slice(0, 5)}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Setup & Breakdown</span>
@@ -1045,7 +1062,12 @@ export default function BookingDetail() {
                   </div>
                   {Number(booking.package_cost) > 0 && (
                     <div className="flex justify-between">
-                      <span className="text-muted-foreground">Package</span>
+                      <span className="text-muted-foreground">
+                        {booking.package === "basic" ? "Basic Package" :
+                         booking.package === "led" ? "LED Package" :
+                         booking.package === "workshop" ? "Workshop Package" :
+                         "Package"}
+                      </span>
                       <span>${Number(booking.package_cost).toLocaleString()}</span>
                     </div>
                   )}
