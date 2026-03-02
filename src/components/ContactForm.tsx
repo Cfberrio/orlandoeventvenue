@@ -7,6 +7,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2, Send, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import contactBg1 from "@/assets/contact-bg-1.jpg";
+import contactBg2 from "@/assets/contact-bg-2.jpg";
+import contactBg3 from "@/assets/contact-bg-3.jpg";
 
 const ContactForm = () => {
   const [formData, setFormData] = useState({
@@ -80,8 +83,18 @@ const ContactForm = () => {
   };
 
   return (
-    <section id="contact" className="py-24 bg-muted/30">
-      <div className="container mx-auto px-4">
+    <section id="contact" className="py-24 relative overflow-hidden">
+      {/* Background images side by side */}
+      <div className="absolute inset-0 flex">
+        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg1})` }} />
+        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg2})` }} />
+        <div className="flex-1 bg-cover bg-center" style={{ backgroundImage: `url(${contactBg3})` }} />
+      </div>
+      {/* Blur + fade overlay */}
+      <div className="absolute inset-0 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
+
+      <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Send us a message</h2>
