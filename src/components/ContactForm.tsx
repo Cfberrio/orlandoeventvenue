@@ -198,9 +198,8 @@ const ContactForm = () => {
             </div>
 
             {/* Consent Checkboxes */}
-            <div className="space-y-4 pt-4">
-              {/* Transactional Consent */}
-              <div className="flex items-start space-x-3 border rounded-lg p-4 bg-background">
+            <div className="space-y-3 pt-4">
+              <div className="flex items-start space-x-3 border rounded-lg p-3 bg-background">
                 <Checkbox
                   id="transactional"
                   checked={formData.transactionalConsent}
@@ -208,15 +207,12 @@ const ContactForm = () => {
                     setFormData({ ...formData, transactionalConsent: checked as boolean })
                   }
                 />
-                <div className="flex-1">
-                  <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue) related to my venue booking, including payment confirmations (deposit/balance), booking status updates, reminders, access/arrival instructions, and day-of-event notifications. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
-                  </Label>
-                </div>
+                <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-snug">
+                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out.
+                </Label>
               </div>
 
-              {/* Marketing Consent */}
-              <div className="flex items-start space-x-3 border rounded-lg p-4 bg-background">
+              <div className="flex items-start space-x-3 border rounded-lg p-3 bg-background">
                 <Checkbox
                   id="marketing"
                   checked={formData.marketingConsent}
@@ -224,11 +220,9 @@ const ContactForm = () => {
                     setFormData({ ...formData, marketingConsent: checked as boolean })
                   }
                 />
-                <div className="flex-1">
-                  <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-relaxed">
-                    By checking this box, I consent to receive marketing SMS messages from Global Ministries Orlando Inc (d/b/a Orlando Event Venue), including special offers, discounts, last-minute availability, and updates on packages or add-ons. Message frequency may vary. Message & data rates may apply. Reply HELP for help or STOP to opt-out.
-                  </Label>
-                </div>
+                <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-snug">
+                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out.
+                </Label>
               </div>
             </div>
 

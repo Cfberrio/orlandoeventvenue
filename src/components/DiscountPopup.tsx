@@ -24,6 +24,7 @@ export default function DiscountPopup() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
+  const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -157,17 +158,19 @@ export default function DiscountPopup() {
               </div>
 
               <div className="flex items-start space-x-2">
-                <Checkbox id="popup-sms-consent" className="mt-0.5" />
-                <Label htmlFor="popup-sms-consent" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
-                  By submitting, you agree to receive SMS & email messages from Orlando Event Venue regarding your booking and promotions. Msg & data rates may apply. Reply STOP to opt-out.
+                <Checkbox
+                  id="popup-consent"
+                  checked={consent}
+                  onCheckedChange={(checked) => setConsent(checked as boolean)}
+                  className="mt-0.5"
+                  required
+                />
+                <Label htmlFor="popup-consent" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
+                  I agree to receive booking-related and promotional SMS & emails from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
                 </Label>
               </div>
 
-              <p className="text-xs text-muted-foreground text-center">We'll email you a $50 discount code to use for your booking
-
-            </p>
-
-              <Button type="submit" className="w-full" size="lg" disabled={submitting}>
+              <Button type="submit" className="w-full" size="lg" disabled={submitting || !consent}>
                 {submitting ?
               <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
