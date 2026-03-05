@@ -43,45 +43,7 @@ serve(async (req: Request) => {
 
     console.log(`[auto-payroll] Orlando date=${todayOrlando}, time=${currentTimeOrlando}`);
 
-    // Query assignments that need payroll generation
-    // We need to join bookings to check event date/time and status
-    // and left join staff_payroll_items to find those without payroll
-    let query = `
-      SELECT 
-        bsa.id AS assignment_id,
-        bsa.staff_id,
-        bsa.booking_id,
-        bsa.status AS assignment_status,
-        b.event_date,
-        b.start_time,
-        b.end_time,
-        b.booking_type,
-        b.status AS booking_status,
-        b.payment_status
-      FROM booking_staff_assignments bsa
-      JOIN bookings b ON b.id = bsa.booking_id
-      LEFT JOIN staff_payroll_items spi ON spi.assignment_id = bsa.id
-      WHERE bsa.booking_id IS NOT NULL
-        AND bsa.status != 'cancelled'
-        AND b.status NOT IN ('cancelled', 'declined')
-        AND b.payment_status IN ('deposit_paid', 'fully_paid')
-        AND (
-          (b.booking_type = 'daily' AND b.event_date < '${todayOrlando}'::date)
-          OR
-          (b.booking_type = 'hourly' AND (
-            b.event_date < '${todayOrlando}'::date
-            OR (b.event_date = '${todayOrlando}'::date AND b.end_time <= '${currentTimeOrlando}'::time)
-          ))
-        )
-    `;
-
-    if (!backfill) {
-      query += ` AND spi.id IS NULL`;
-    }
-
-    query += ` GROUP BY bsa.id, bsa.staff_id, bsa.booking_id, bsa.status, b.event_date, b.start_time, b.end_time, b.booking_type, b.status, b.payment_status`;
-
-    // Query via postgrest: get assignments with bookings
+    // Query via postgrest: get assignments with bookings where event may have passed
     const { data: rawAssignments, error: assignmentError } = await supabase
       .from("booking_staff_assignments")
       .select(`
