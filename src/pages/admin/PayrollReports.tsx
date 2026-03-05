@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,25 +20,8 @@ export default function PayrollReports() {
   const startDate = format(dateFrom, "yyyy-MM-dd");
   const endDate = format(dateTo, "yyyy-MM-dd");
 
-  // Generate last 6 months for quick buttons
-  const monthButtons = useMemo(() => {
-    const months: Date[] = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      months.push(startOfMonth(subMonths(now, i)));
-    }
-    return months;
-  }, []);
-
   const goToPrevMonth = () => setSelectedMonth(prev => startOfMonth(subMonths(prev, 1)));
-  const goToNextMonth = () => {
-    const next = startOfMonth(addMonths(selectedMonth, 1));
-    if (next <= startOfMonth(new Date())) {
-      setSelectedMonth(next);
-    }
-  };
-
-  const isCurrentMonth = format(selectedMonth, "yyyy-MM") === format(new Date(), "yyyy-MM");
+  const goToNextMonth = () => setSelectedMonth(prev => startOfMonth(addMonths(prev, 1)));
 
   useEffect(() => {
     const loadSummary = async () => {
@@ -75,38 +58,21 @@ export default function PayrollReports() {
       {/* Month Selector */}
       <Card>
         <CardContent className="pt-5 pb-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Button variant="ghost" size="icon" onClick={goToPrevMonth} className="h-8 w-8">
+          <div className="flex items-center justify-center gap-3">
+            <Button variant="outline" size="icon" onClick={goToPrevMonth} className="h-9 w-9">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-lg font-semibold min-w-[160px] text-center">
-              {format(selectedMonth, "MMMM yyyy")}
+            <span className="text-lg font-semibold min-w-[180px] text-center">
+              📅 {format(selectedMonth, "MMMM yyyy")}
             </span>
             <Button 
-              variant="ghost" 
+              variant="outline" 
               size="icon" 
-              onClick={goToNextMonth} 
-              disabled={isCurrentMonth}
-              className="h-8 w-8"
+              onClick={goToNextMonth}
+              className="h-9 w-9"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {monthButtons.map((month) => {
-              const isSelected = format(month, "yyyy-MM") === format(selectedMonth, "yyyy-MM");
-              return (
-                <Button
-                  key={month.toISOString()}
-                  variant={isSelected ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setSelectedMonth(month)}
-                  className="min-w-[80px]"
-                >
-                  {format(month, "MMM yyyy")}
-                </Button>
-              );
-            })}
           </div>
         </CardContent>
       </Card>
