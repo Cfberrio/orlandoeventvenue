@@ -1166,10 +1166,15 @@ export type Database = {
           description: string | null
           id: string
           invoice_number: string
+          is_recurring: boolean
           line_items: Json | null
           paid_at: string | null
           payment_status: string
           payment_url: string | null
+          recurring_active: boolean
+          recurring_interval_days: number | null
+          recurring_next_send_at: string | null
+          recurring_parent_id: string | null
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           title: string
@@ -1184,10 +1189,15 @@ export type Database = {
           description?: string | null
           id?: string
           invoice_number?: string
+          is_recurring?: boolean
           line_items?: Json | null
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          recurring_active?: boolean
+          recurring_interval_days?: number | null
+          recurring_next_send_at?: string | null
+          recurring_parent_id?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           title: string
@@ -1202,16 +1212,29 @@ export type Database = {
           description?: string | null
           id?: string
           invoice_number?: string
+          is_recurring?: boolean
           line_items?: Json | null
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          recurring_active?: boolean
+          recurring_interval_days?: number | null
+          recurring_next_send_at?: string | null
+          recurring_parent_id?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "invoices_recurring_parent_id_fkey"
+            columns: ["recurring_parent_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       maintenance_tickets: {
         Row: {
@@ -1718,6 +1741,10 @@ export type Database = {
     Functions: {
       add_internal_note: {
         Args: { _author_id: string; _booking_id: string; _note: string }
+        Returns: undefined
+      }
+      bump_recurring_next_send: {
+        Args: { p_invoice_id: string }
         Returns: undefined
       }
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
