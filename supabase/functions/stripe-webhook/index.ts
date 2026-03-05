@@ -732,6 +732,16 @@ ${receiptItemRows}
               deposit_amount: data.deposit_amount,
               balance_amount: data.balance_amount,
               amount_paid: amountPaid,
+              base_rental: data.base_rental,
+              cleaning_fee: data.cleaning_fee,
+              package: data.package,
+              package_cost: data.package_cost,
+              package_start_time: data.package_start_time,
+              package_end_time: data.package_end_time,
+              setup_breakdown: data.setup_breakdown,
+              tablecloths: data.tablecloths,
+              tablecloth_quantity: data.tablecloth_quantity,
+              optional_services: data.optional_services,
             }),
           });
 
