@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -11,14 +11,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Plus, X } from "lucide-react";
+import { Loader2, Plus, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+
+export interface InvoiceInitialData {
+  title: string;
+  description: string | null;
+  lineItems: { label: string; amount: number }[];
+  customerEmail: string;
+  customerName: string | null;
+}
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  initialData?: InvoiceInitialData | null;
 }
 
 interface LineItem {
@@ -26,7 +36,54 @@ interface LineItem {
   amount: string;
 }
 
-export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: Props) {
+type FrequencyPreset = "weekly" | "biweekly" | "monthly" | "custom";
+
+const PRESETS: { key: FrequencyPreset; label: string; days: number | null }[] = [
+  { key: "weekly", label: "Weekly", days: 7 },
+  { key: "biweekly", label: "Bi-weekly", days: 14 },
+  { key: "monthly", label: "Monthly", days: 30 },
+  { key: "custom", label: "Custom", days: null },
+];
+
+function computeNextSendUtc(intervalDays: number): string {
+  const now = new Date();
+  const orlandoParts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (t: string) => orlandoParts.find((p) => p.type === t)?.value ?? "0";
+  const todayOrlando = new Date(
+    Date.UTC(+get("year"), +get("month") - 1, +get("day"))
+  );
+  todayOrlando.setUTCDate(todayOrlando.getUTCDate() + intervalDays);
+
+  // Probe 20:00 UTC on the target date to detect EST vs EDT
+  const probe = new Date(Date.UTC(
+    todayOrlando.getUTCFullYear(),
+    todayOrlando.getUTCMonth(),
+    todayOrlando.getUTCDate(),
+    20, 0, 0
+  ));
+  const probeHour = +new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    hour: "numeric",
+    hour12: false,
+  }).format(probe);
+
+  // 20:00 UTC → 15 in EST (offset 5h) or 16 in EDT (offset 4h)
+  const utcHour = 15 + (20 - probeHour);
+
+  return new Date(Date.UTC(
+    todayOrlando.getUTCFullYear(),
+    todayOrlando.getUTCMonth(),
+    todayOrlando.getUTCDate(),
+    utcHour, 0, 0
+  )).toISOString();
+}
+
+export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, initialData }: Props) {
   const { toast } = useToast();
   const { user } = useAuth();
 
@@ -37,12 +94,42 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
   const [customerName, setCustomerName] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [frequencyPreset, setFrequencyPreset] = useState<FrequencyPreset>("monthly");
+  const [customDays, setCustomDays] = useState("");
+
+  const isDuplicate = !!initialData;
+
+  const intervalDays =
+    frequencyPreset === "custom"
+      ? parseInt(customDays, 10) || 0
+      : PRESETS.find((p) => p.key === frequencyPreset)?.days ?? 0;
+
+  useEffect(() => {
+    if (open && initialData) {
+      setTitle(initialData.title);
+      setDescription(initialData.description ?? "");
+      setLineItems(
+        initialData.lineItems.length > 0
+          ? initialData.lineItems.map((i) => ({ label: i.label, amount: String(i.amount) }))
+          : [{ label: "", amount: "" }]
+      );
+      setCustomerEmail(initialData.customerEmail);
+      setCustomerName(initialData.customerName ?? "");
+    } else if (open && !initialData) {
+      resetForm();
+    }
+  }, [open, initialData]);
+
   const resetForm = () => {
     setTitle("");
     setDescription("");
     setLineItems([{ label: "", amount: "" }]);
     setCustomerEmail("");
     setCustomerName("");
+    setIsRecurring(false);
+    setFrequencyPreset("monthly");
+    setCustomDays("");
   };
 
   const addItem = () => {
@@ -87,6 +174,11 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
       return;
     }
 
+    if (isRecurring && intervalDays < 1) {
+      toast({ title: "Recurring frequency must be at least 1 day", variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -95,17 +187,26 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
         amount: parseFloat(item.amount),
       }));
 
+      const insertPayload: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim() || null,
+        amount: total,
+        line_items: itemsPayload,
+        customer_email: customerEmail.trim().toLowerCase(),
+        customer_name: customerName.trim() || null,
+        created_by: user?.id || null,
+      };
+
+      if (isRecurring) {
+        insertPayload.is_recurring = true;
+        insertPayload.recurring_interval_days = intervalDays;
+        insertPayload.recurring_active = true;
+        insertPayload.recurring_next_send_at = computeNextSendUtc(intervalDays);
+      }
+
       const { data: invoice, error: insertError } = await supabase
         .from("invoices" as any)
-        .insert({
-          title: title.trim(),
-          description: description.trim() || null,
-          amount: total,
-          line_items: itemsPayload,
-          customer_email: customerEmail.trim().toLowerCase(),
-          customer_name: customerName.trim() || null,
-          created_by: user?.id || null,
-        })
+        .insert(insertPayload)
         .select()
         .single();
 
@@ -125,9 +226,13 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
 
       if (fnError) throw fnError;
 
+      const recurringNote = isRecurring
+        ? ` Recurring every ${intervalDays} day${intervalDays !== 1 ? "s" : ""}.`
+        : "";
+
       toast({
         title: "Invoice created & sent",
-        description: `Payment link emailed to ${customerEmail.trim()}`,
+        description: `Payment link emailed to ${customerEmail.trim()}.${recurringNote}`,
       });
 
       resetForm();
@@ -141,11 +246,17 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
     }
   };
 
+  const dialogTitle = isDuplicate
+    ? "Duplicate Invoice"
+    : isRecurring
+    ? "Create Recurring Invoice"
+    : "Create New Invoice";
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[560px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Create New Invoice</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
@@ -253,6 +364,75 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
               disabled={loading}
             />
           </div>
+
+          {/* Recurring invoice section */}
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                <Label htmlFor="recurring-toggle" className="cursor-pointer">
+                  Recurring Invoice
+                </Label>
+              </div>
+              <Switch
+                id="recurring-toggle"
+                checked={isRecurring}
+                onCheckedChange={setIsRecurring}
+                disabled={loading}
+              />
+            </div>
+
+            {isRecurring && (
+              <div className="space-y-3 pl-6 border-l-2 border-amber-200">
+                <Label className="text-sm text-muted-foreground">
+                  How often should this invoice be sent?
+                </Label>
+                <div className="flex flex-wrap gap-2">
+                  {PRESETS.map((preset) => (
+                    <Button
+                      key={preset.key}
+                      type="button"
+                      size="sm"
+                      variant={frequencyPreset === preset.key ? "default" : "outline"}
+                      onClick={() => setFrequencyPreset(preset.key)}
+                      disabled={loading}
+                    >
+                      {preset.label}
+                    </Button>
+                  ))}
+                </div>
+
+                {frequencyPreset === "custom" && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Every</span>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="365"
+                      placeholder="30"
+                      value={customDays}
+                      onChange={(e) => setCustomDays(e.target.value)}
+                      disabled={loading}
+                      className="w-20"
+                    />
+                    <span className="text-sm text-muted-foreground">days</span>
+                  </div>
+                )}
+
+                {intervalDays > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    First invoice sent now. Next one on{" "}
+                    {new Date(computeNextSendUtc(intervalDays)).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })}{" "}
+                    at 3:00 PM ET, then every {intervalDays} day{intervalDays !== 1 ? "s" : ""}.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
@@ -261,7 +441,7 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess }: P
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Create & Send Invoice
+            {isRecurring ? "Create & Send Recurring Invoice" : "Create & Send Invoice"}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -12,10 +12,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { FileText, Plus, ExternalLink, Copy, Trash2 } from "lucide-react";
+import {
+  FileText,
+  Plus,
+  ExternalLink,
+  Copy,
+  CopyPlus,
+  Trash2,
+  RefreshCw,
+  Square,
+  Zap,
+} from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import CreateInvoiceDialog from "@/components/admin/CreateInvoiceDialog";
+import CreateInvoiceDialog, { type InvoiceInitialData } from "@/components/admin/CreateInvoiceDialog";
 
 interface Invoice {
   id: string;
@@ -30,6 +40,11 @@ interface Invoice {
   paid_at: string | null;
   created_at: string;
   line_items: { label: string; amount: number }[] | null;
+  is_recurring: boolean;
+  recurring_active: boolean;
+  recurring_interval_days: number | null;
+  recurring_next_send_at: string | null;
+  recurring_parent_id: string | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -39,9 +54,18 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   cancelled: { label: "Cancelled", variant: "outline" },
 };
 
+function frequencyLabel(days: number | null): string {
+  if (!days) return "";
+  if (days === 7) return "Weekly";
+  if (days === 14) return "Bi-weekly";
+  if (days === 30) return "Monthly";
+  return `Every ${days}d`;
+}
+
 export default function Invoices() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [duplicateData, setDuplicateData] = useState<InvoiceInitialData | null>(null);
 
   const { data: invoices, isLoading, refetch } = useQuery({
     queryKey: ["admin-invoices"],
@@ -79,12 +103,42 @@ export default function Invoices() {
     }
   };
 
+  const stopRecurring = async (id: string, invoiceNumber: string) => {
+    if (!confirm(`Stop recurring for invoice ${invoiceNumber}? No more automatic invoices will be sent.`)) {
+      return;
+    }
+
+    const { error } = await (supabase as any)
+      .from("invoices")
+      .update({ recurring_active: false })
+      .eq("id", id);
+
+    if (error) {
+      toast({ title: "Failed to stop recurring", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: `Recurring stopped for ${invoiceNumber}` });
+      refetch();
+    }
+  };
+
+  const duplicateInvoice = (inv: Invoice) => {
+    setDuplicateData({
+      title: inv.title,
+      description: inv.description,
+      lineItems: inv.line_items ?? [],
+      customerEmail: inv.customer_email,
+      customerName: inv.customer_name,
+    });
+    setDialogOpen(true);
+  };
+
   const totalPending = invoices?.filter((i) => i.payment_status === "pending").length ?? 0;
   const totalPaid = invoices?.filter((i) => i.payment_status === "paid").length ?? 0;
   const totalRevenue =
     invoices
       ?.filter((i) => i.payment_status === "paid")
       .reduce((sum, i) => sum + Number(i.amount), 0) ?? 0;
+  const activeRecurring = invoices?.filter((i) => i.recurring_active).length ?? 0;
 
   return (
     <div className="space-y-6">
@@ -101,7 +155,7 @@ export default function Invoices() {
         </Button>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Pending</CardTitle>
@@ -129,6 +183,15 @@ export default function Invoices() {
             <div className="text-2xl font-bold text-green-600">
               ${totalRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}
             </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Recurring</CardTitle>
+            <RefreshCw className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">{activeRecurring}</div>
           </CardContent>
         </Card>
       </div>
@@ -161,6 +224,8 @@ export default function Invoices() {
                 <TableBody>
                   {invoices.map((inv) => {
                     const status = statusConfig[inv.payment_status] ?? statusConfig.pending;
+                    const isParentRecurring = inv.is_recurring && !inv.recurring_parent_id;
+                    const isChild = !!inv.recurring_parent_id;
                     return (
                       <TableRow key={inv.id}>
                         <TableCell className="font-mono text-xs">
@@ -172,6 +237,29 @@ export default function Invoices() {
                             <div className="text-xs text-muted-foreground">
                               {inv.line_items.length} item{inv.line_items.length !== 1 ? "s" : ""}
                             </div>
+                          )}
+                          {isParentRecurring && (
+                            <div className="mt-1 flex flex-col gap-0.5">
+                              <Badge
+                                variant={inv.recurring_active ? "default" : "outline"}
+                                className="text-[10px] px-1.5 py-0 w-fit"
+                              >
+                                <RefreshCw className="h-3 w-3 mr-1" />
+                                {inv.recurring_active ? "Recurring" : "Stopped"}{" "}
+                                {frequencyLabel(inv.recurring_interval_days)}
+                              </Badge>
+                              {inv.recurring_active && inv.recurring_next_send_at && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  Next: {format(new Date(inv.recurring_next_send_at), "MMM d, yyyy")} 3 PM ET
+                                </span>
+                              )}
+                            </div>
+                          )}
+                          {isChild && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit mt-1">
+                              <Zap className="h-3 w-3 mr-1" />
+                              Auto-sent
+                            </Badge>
                           )}
                         </TableCell>
                         <TableCell>
@@ -224,7 +312,26 @@ export default function Invoices() {
                                 </Button>
                               </>
                             )}
-                            {inv.payment_status !== "paid" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => duplicateInvoice(inv)}
+                              title="Duplicate invoice"
+                            >
+                              <CopyPlus className="h-4 w-4" />
+                            </Button>
+                            {inv.recurring_active && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => stopRecurring(inv.id, inv.invoice_number)}
+                                title="Stop recurring"
+                                className="text-amber-600 hover:text-amber-700"
+                              >
+                                <Square className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {inv.payment_status !== "paid" && !inv.recurring_active && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -249,11 +356,16 @@ export default function Invoices() {
 
       <CreateInvoiceDialog
         open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setDuplicateData(null);
+        }}
         onSuccess={() => {
           refetch();
           setDialogOpen(false);
+          setDuplicateData(null);
         }}
+        initialData={duplicateData}
       />
     </div>
   );
