@@ -127,6 +127,13 @@ verify_jwt = false
 [functions.process-recurring-invoices]
 verify_jwt = false
 
+[functions.auto-generate-payroll]
+verify_jwt = false
+
+# Cron job: Run every hour to auto-generate payroll for past events
+[functions.auto-generate-payroll.cron]
+schedule = "0 * * * *"
+
 # Cron job: Run at 19:00 and 20:00 UTC daily to cover both EDT and EST
 # Processes recurring invoices due at 3 PM Orlando time
 [functions.process-recurring-invoices.cron]
