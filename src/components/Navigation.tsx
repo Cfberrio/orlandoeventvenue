@@ -19,6 +19,8 @@ const Navigation = () => {
     if (element) {
       element.scrollIntoView({ behavior: "smooth" });
       setIsMenuOpen(false);
+    } else {
+      window.location.href = `/#${id}`;
     }
   };
 

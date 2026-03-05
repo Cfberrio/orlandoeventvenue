@@ -5,7 +5,7 @@ import scheduleTourBg from "@/assets/schedule-tour-bg.jpg";
 
 const ScheduleTourCTA = () => {
   return (
-    <section id="tour" className="py-12 md:py-16 relative overflow-hidden">
+    <section id="tour" className="scroll-mt-24 py-12 md:py-16 relative overflow-hidden">
       {/* Background Image */}
       <div
         className="absolute inset-0 bg-cover bg-center"

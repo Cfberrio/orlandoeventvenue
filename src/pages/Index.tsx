@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import Hero from "@/components/Hero";
 import SpaceHighlights from "@/components/SpaceHighlights";
@@ -11,7 +12,20 @@ import ContactForm from "@/components/ContactForm";
 import ScheduleTourCTA from "@/components/ScheduleTourCTA";
 import Footer from "@/components/Footer";
 import DiscountPopup from "@/components/DiscountPopup";
+
 const Index = () => {
+  useEffect(() => {
+    const hash = window.location.hash.replace("#", "");
+    if (hash) {
+      setTimeout(() => {
+        const el = document.getElementById(hash);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 100);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen">
       <DiscountPopup />

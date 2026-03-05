@@ -83,7 +83,7 @@ const ContactForm = () => {
   };
 
   return (
-    <section id="contact" className="py-24 relative overflow-hidden">
+    <section id="contact" className="scroll-mt-24 py-24 relative overflow-hidden">
       {/* Background images side by side */}
       <div className="absolute inset-0 flex">
         <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg1})` }} />
