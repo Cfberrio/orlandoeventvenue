@@ -81,12 +81,7 @@ serve(async (req: Request) => {
 
     query += ` GROUP BY bsa.id, bsa.staff_id, bsa.booking_id, bsa.status, b.event_date, b.start_time, b.end_time, b.booking_type, b.status, b.payment_status`;
 
-    const { data: assignments, error: queryError } = await supabase.rpc(
-      // Can't use rpc for raw SQL, use rest approach instead
-    ).catch(() => ({ data: null, error: { message: "rpc not available" } }));
-
-    // Use a different approach: query via postgrest
-    // First get assignments with bookings where event has passed
+    // Query via postgrest: get assignments with bookings
     const { data: rawAssignments, error: assignmentError } = await supabase
       .from("booking_staff_assignments")
       .select(`
