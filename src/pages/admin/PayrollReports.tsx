@@ -6,6 +6,7 @@ import { DollarSign, Clock, Users, ChevronLeft, ChevronRight } from "lucide-reac
 import { format, startOfMonth, endOfMonth, subMonths, addMonths } from "date-fns";
 import { usePayrollData } from "@/hooks/usePayrollData";
 import PayrollOverviewView from "@/components/admin/payroll/PayrollOverviewView";
+import StandaloneAssignmentsView from "@/components/admin/payroll/StandaloneAssignmentsView";
 
 export default function PayrollReports() {
   const [selectedMonth, setSelectedMonth] = useState<Date>(startOfMonth(new Date()));
