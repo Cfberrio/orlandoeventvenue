@@ -185,7 +185,10 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
             <tr>
               <td style="padding:14px 22px; background:#f1f5f9;" class="px">
                 <div style="font-family:Arial, Helvetica, sans-serif; font-size:12px; color:#64748b; line-height:1.5;">
-                  Orlando Event Venue – 3847 E Colonial Dr, Orlando, FL 32803
+                  <strong>Orlando Event Venue Team</strong><br>
+                  3847 E Colonial Dr, Orlando, FL 32803<br>
+                  Orlandoeventvenue@gmail.com<br>
+                  (407) 974-5979
                 </div>
               </td>
             </tr>

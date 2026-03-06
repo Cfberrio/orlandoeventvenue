@@ -186,8 +186,10 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
           <!-- Footer -->
           <tr>
             <td class="px" style="padding:16px 24px;background:#0b1220;color:#cbd5e1;font-size:11px;line-height:16px;">
-              <div>This message is for staff only. Please do not forward to clients.</div>
-              <div style="margin-top:8px;color:#94a3b8;">© 2025 Orlando Event Venue. All rights reserved.</div>
+              <div><strong>Orlando Event Venue Team</strong></div>
+              <div style="margin-top:4px;">3847 E Colonial Dr, Orlando, FL 32803</div>
+              <div>Orlandoeventvenue@gmail.com | (407) 974-5979</div>
+              <div style="margin-top:8px;color:#94a3b8;">This message is for staff only. Please do not forward to clients.</div>
             </td>
           </tr>
         </table>

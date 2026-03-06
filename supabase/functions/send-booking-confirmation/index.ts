@@ -314,9 +314,11 @@ If you need to update anything, just reply to this email and we will adjust it w
 </div>
 
 <div style="padding:20px 30px;background:#1a1a2e;font-size:11px;color:#999;">
-<p style="margin:0;color:#C6A96C;">Orlando Event Venue</p>
+<p style="margin:0;color:#C6A96C;font-weight:bold;">Orlando Event Venue Team</p>
 <p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">This is an automated email — please keep it for your records.</p>
+<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
+<p style="margin:5px 0 0;">(407) 974-5979</p>
+<p style="margin:8px 0 0;">This is an automated email — please keep it for your records.</p>
 </div>
 
 </div>

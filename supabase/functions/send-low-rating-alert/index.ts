@@ -113,7 +113,10 @@ Please review this feedback and consider reaching out to the guest to address an
 <!-- Footer -->
 <tr>
 <td style="background-color:#f8fafc;padding:16px 32px;text-align:center;">
-<p style="color:#94a3b8;margin:0;font-size:11px;">
+<p style="color:#64748b;margin:0;font-size:11px;font-weight:bold;">Orlando Event Venue Team</p>
+<p style="color:#94a3b8;margin:4px 0 0;font-size:11px;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="color:#94a3b8;margin:2px 0 0;font-size:11px;">Orlandoeventvenue@gmail.com | (407) 974-5979</p>
+<p style="color:#94a3b8;margin:8px 0 0;font-size:11px;">
 This is an automated alert from Orlando Event Venue booking system.
 </p>
 </td>

@@ -747,10 +747,12 @@ ${issuesHTML}
 <p style="margin:5px 0 0;">4. The auto-repair system runs hourly at :15 to fix missing jobs</p>
 </div>
 
-<p style="margin:30px 0 0;color:#666;font-size:12px;border-top:1px solid #ddd;padding-top:15px;">
-Automated health check - sent only when issues detected.<br>
-Checked at: ${now} EST
-</p>
+<div style="margin:30px 0 0;color:#666;font-size:12px;border-top:1px solid #ddd;padding-top:15px;">
+<p style="margin:0;font-weight:bold;">Orlando Event Venue Team</p>
+<p style="margin:4px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:2px 0 0;">Orlandoeventvenue@gmail.com | (407) 974-5979</p>
+<p style="margin:8px 0 0;color:#999;">Automated health check — sent only when issues detected. Checked at: ${now} EST</p>
+</div>
 
 </div>
 </body>

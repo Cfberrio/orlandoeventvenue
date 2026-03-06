@@ -220,8 +220,10 @@ View Booking in Admin
 </div>
 
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;">This is an internal notification. Do not forward to customers.</p>
-<p style="margin:5px 0 0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
+<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com | (407) 974-5979</p>
+<p style="margin:8px 0 0;">This is an internal notification. Do not forward to customers.</p>
 </div>
 
 </div>
@@ -392,8 +394,10 @@ serve(async (req) => {
 </table>
 </div>
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;">This is an internal notification. Do not forward to customers.</p>
-<p style="margin:5px 0 0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
+<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com | (407) 974-5979</p>
+<p style="margin:8px 0 0;">This is an internal notification. Do not forward to customers.</p>
 </div>
 </div></body></html>`,
             });
@@ -451,8 +455,11 @@ ${receiptItemRows}
 <p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
 </div>
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">This is an automated email. Please keep it for your records.</p>
+<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
+<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
+<p style="margin:5px 0 0;">(407) 974-5979</p>
+<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
 </div>
 </div></body></html>`,
             });

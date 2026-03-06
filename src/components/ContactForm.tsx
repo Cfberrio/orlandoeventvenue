@@ -30,7 +30,7 @@ const ContactForm = () => {
     e.preventDefault();
 
     // Client-side validation
-    if (!formData.name || !formData.email || !formData.subject || !formData.message) {
+    if (!formData.name || !formData.email || !formData.phone || !formData.subject || !formData.message || !formData.transactionalConsent || !formData.marketingConsent) {
       return;
     }
 
@@ -148,10 +148,13 @@ const ContactForm = () => {
             <div className="grid md:grid-cols-2 gap-6">
               {/* Phone */}
               <div className="space-y-2">
-                <Label htmlFor="phone">Phone number</Label>
+                <Label htmlFor="phone">
+                  Phone number <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="phone"
                   type="tel"
+                  required
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   placeholder="(407) 123-4567"
@@ -208,7 +211,7 @@ const ContactForm = () => {
                   }
                 />
                 <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-snug">
-                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out.
+                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
                 </Label>
               </div>
 
@@ -221,7 +224,7 @@ const ContactForm = () => {
                   }
                 />
                 <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-snug">
-                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out.
+                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out. <span className="text-destructive">*</span>
                 </Label>
               </div>
             </div>
@@ -231,7 +234,7 @@ const ContactForm = () => {
               <Button
                 type="submit"
                 size="lg"
-                disabled={isSubmitting || submitStatus === "success"}
+                disabled={isSubmitting || submitStatus === "success" || !formData.transactionalConsent || !formData.marketingConsent}
                 className="w-full md:w-auto min-w-[200px]"
               >
                 {isSubmitting ? (

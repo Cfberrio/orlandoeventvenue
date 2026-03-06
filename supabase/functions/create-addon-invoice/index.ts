@@ -104,8 +104,11 @@ If you have any questions about these services, just reply to this email and we'
 </div>
 
 <div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;">Orlando Event Venue - 3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">This is an automated email - please keep it for your records.</p>
+<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
+<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
+<p style="margin:5px 0 0;">(407) 974-5979</p>
+<p style="margin:8px 0 0;">This is an automated email — please keep it for your records.</p>
 </div>
 
 </div>

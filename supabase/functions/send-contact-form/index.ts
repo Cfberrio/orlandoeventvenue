@@ -76,8 +76,10 @@ ${phoneSection}
 <div class="field"><span class="label">Message:</span><div class="value" style="white-space:pre-wrap">${data.message}</div></div>
 <div class="field"><span class="label">Consent Preferences:</span>${consentSection}</div>
 <div class="footer">
-<p>Submitted on ${formatDate(data.timestamp)}</p>
-<p>This message was sent from the contact form at orlandoeventvenue.org</p>
+<p><strong>Orlando Event Venue Team</strong></p>
+<p>3847 E Colonial Dr, Orlando, FL 32803</p>
+<p>Orlandoeventvenue@gmail.com | (407) 974-5979</p>
+<p style="margin-top:8px;">Submitted on ${formatDate(data.timestamp)}</p>
 </div>
 </div>
 </div>
