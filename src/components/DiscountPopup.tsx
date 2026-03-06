@@ -23,8 +23,16 @@ export default function DiscountPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
   const [consent, setConsent] = useState(false);
+
+  const formatPhoneNumber = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -148,6 +156,20 @@ export default function DiscountPopup() {
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                disabled={submitting} />
+
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="popup-phone">Phone Number</Label>
+                <Input
+                id="popup-phone"
+                type="tel"
+                placeholder="(407) 123-4567"
+                value={phone}
+                onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+                maxLength={14}
+                inputMode="numeric"
                 disabled={submitting} />
 
               </div>

@@ -34,6 +34,13 @@ const ContactForm = () => {
     return digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
   };
 
+  const formatPhoneNumber = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 10);
+    if (digits.length <= 3) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -188,10 +195,13 @@ const ContactForm = () => {
                   required
                   value={formData.phone}
                   onChange={(e) => {
-                    setFormData({ ...formData, phone: e.target.value });
+                    const formattedPhone = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, phone: formattedPhone });
                     if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
                   }}
                   placeholder="(407) 123-4567"
+                  maxLength={14}
+                  inputMode="numeric"
                   className={fieldErrors.phone ? "border-destructive" : ""}
                 />
                 {fieldErrors.phone && (
