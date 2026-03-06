@@ -25,12 +25,36 @@ const ContactForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  const isValidPhone = (value: string): boolean => {
+    const digits = value.replace(/\D/g, "");
+    return digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Client-side validation
-    if (!formData.name || !formData.email || !formData.phone || !formData.subject || !formData.message || !formData.transactionalConsent || !formData.marketingConsent) {
+    const errors: { email?: string; phone?: string } = {};
+
+    if (!formData.email || !emailRegex.test(formData.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!formData.phone || !isValidPhone(formData.phone)) {
+      errors.phone = "Please enter a valid US phone number (10 digits)";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+
+    if (!formData.name || !formData.subject || !formData.message) {
       return;
     }
 
@@ -57,7 +81,7 @@ const ContactForm = () => {
         setSubmitStatus("error");
       } else {
         setSubmitStatus("success");
-        // Clear form
+        setFieldErrors({});
         setFormData({
           name: "",
           email: "",
@@ -139,9 +163,16 @@ const ContactForm = () => {
                   type="email"
                   required
                   value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
                   placeholder="john@example.com"
+                  className={fieldErrors.email ? "border-destructive" : ""}
                 />
+                {fieldErrors.email && (
+                  <p className="text-sm text-destructive">{fieldErrors.email}</p>
+                )}
               </div>
             </div>
 
@@ -156,9 +187,16 @@ const ContactForm = () => {
                   type="tel"
                   required
                   value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  onChange={(e) => {
+                    setFormData({ ...formData, phone: e.target.value });
+                    if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                  }}
                   placeholder="(407) 123-4567"
+                  className={fieldErrors.phone ? "border-destructive" : ""}
                 />
+                {fieldErrors.phone && (
+                  <p className="text-sm text-destructive">{fieldErrors.phone}</p>
+                )}
               </div>
 
               {/* Subject */}
@@ -211,7 +249,7 @@ const ContactForm = () => {
                   }
                 />
                 <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-snug">
-                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
+                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out.
                 </Label>
               </div>
 
@@ -224,7 +262,7 @@ const ContactForm = () => {
                   }
                 />
                 <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-snug">
-                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out. <span className="text-destructive">*</span>
+                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out.
                 </Label>
               </div>
             </div>
@@ -234,7 +272,7 @@ const ContactForm = () => {
               <Button
                 type="submit"
                 size="lg"
-                disabled={isSubmitting || submitStatus === "success" || !formData.transactionalConsent || !formData.marketingConsent}
+                disabled={isSubmitting || submitStatus === "success"}
                 className="w-full md:w-auto min-w-[200px]"
               >
                 {isSubmitting ? (

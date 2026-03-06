@@ -23,10 +23,8 @@ export default function DiscountPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
-  const [transactionalConsent, setTransactionalConsent] = useState(false);
-  const [marketingConsent, setMarketingConsent] = useState(false);
+  const [consent, setConsent] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -52,14 +50,20 @@ export default function DiscountPopup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !email.trim() || !phone.trim() || !transactionalConsent || !marketingConsent) {
-      toast({ title: "Please fill in all required fields and accept both consents", variant: "destructive" });
+    if (!fullName.trim() || !email.trim() || !phone.trim()) {
+      toast({ title: "Please fill in all required fields", variant: "destructive" });
       return;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email.trim())) {
       toast({ title: "Please enter a valid email address", variant: "destructive" });
+      return;
+    }
+
+    const phoneDigits = phone.replace(/\D/g, "");
+    if (phoneDigits.length !== 10 && !(phoneDigits.length === 11 && phoneDigits.startsWith("1"))) {
+      toast({ title: "Please enter a valid US phone number (10 digits)", variant: "destructive" });
       return;
     }
 
@@ -71,11 +75,8 @@ export default function DiscountPopup() {
       insert({
         full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone.trim(),
         preferred_event_date: preferredDate || null,
-        coupon_code: COUPON_CODE,
-        transactional_consent: transactionalConsent,
-        marketing_consent: marketingConsent
+        coupon_code: COUPON_CODE
       });
 
       if (insertError) {
@@ -129,38 +130,26 @@ export default function DiscountPopup() {
 
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div className="space-y-2">
-                <Label htmlFor="popup-name">Name <span className="text-destructive">*</span></Label>
+                <Label htmlFor="popup-name">Name</Label>
                 <Input
                 id="popup-name"
                 placeholder="Your full name"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
-                required
                 disabled={submitting} />
+
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-email">Email <span className="text-destructive">*</span></Label>
+                <Label htmlFor="popup-email">Email</Label>
                 <Input
                 id="popup-email"
                 type="email"
                 placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                required
                 disabled={submitting} />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="popup-phone">Phone number <span className="text-destructive">*</span></Label>
-                <Input
-                id="popup-phone"
-                type="tel"
-                placeholder="(407) 123-4567"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                required
-                disabled={submitting} />
               </div>
 
               <div className="space-y-2">
@@ -171,40 +160,29 @@ export default function DiscountPopup() {
                 value={preferredDate}
                 onChange={(e) => setPreferredDate(e.target.value)}
                 disabled={submitting} />
+
               </div>
 
-              <div className="space-y-3">
-                <div className="flex items-start space-x-2">
-                  <Checkbox
-                    id="popup-transactional"
-                    checked={transactionalConsent}
-                    onCheckedChange={(checked) => setTransactionalConsent(checked as boolean)}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="popup-transactional" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
-                    I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
-                  </Label>
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Checkbox
-                    id="popup-marketing"
-                    checked={marketingConsent}
-                    onCheckedChange={(checked) => setMarketingConsent(checked as boolean)}
-                    className="mt-0.5"
-                  />
-                  <Label htmlFor="popup-marketing" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
-                    I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out. <span className="text-destructive">*</span>
-                  </Label>
-                </div>
+              <div className="flex items-start space-x-2">
+                <Checkbox
+                  id="popup-consent"
+                  checked={consent}
+                  onCheckedChange={(checked) => setConsent(checked as boolean)}
+                  className="mt-0.5"
+                  required
+                />
+                <Label htmlFor="popup-consent" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
+                  I agree to receive booking-related and promotional SMS & emails from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
+                </Label>
               </div>
 
-              <Button type="submit" className="w-full" size="lg" disabled={submitting || !transactionalConsent || !marketingConsent}>
+              <Button type="submit" className="w-full" size="lg" disabled={submitting || !consent}>
                 {submitting ?
               <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Sending...
                   </> :
+
               "Get My $50 Off"
               }
               </Button>
