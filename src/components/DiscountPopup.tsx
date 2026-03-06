@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, Gift, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const POPUP_DELAY_MS = 5000;
 const LOCAL_STORAGE_KEY = "popup_discount_shown";
@@ -26,13 +27,7 @@ export default function DiscountPopup() {
   const [phone, setPhone] = useState("");
   const [preferredDate, setPreferredDate] = useState("");
   const [consent, setConsent] = useState(false);
-
-  const formatPhoneNumber = (value: string): string => {
-    const digits = value.replace(/\D/g, "").slice(0, 10);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  };
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
@@ -58,20 +53,25 @@ export default function DiscountPopup() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fullName.trim() || !email.trim() || !phone.trim()) {
-      toast({ title: "Please fill in all required fields", variant: "destructive" });
+    const errors: { email?: string; phone?: string } = {};
+
+    if (!email.trim() || !EMAIL_REGEX.test(email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!phone.trim() || !isValidPhone(phone)) {
+      errors.phone = "Please enter a valid US phone number (10 digits)";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
       return;
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      toast({ title: "Please enter a valid email address", variant: "destructive" });
-      return;
-    }
+    setFieldErrors({});
 
-    const phoneDigits = phone.replace(/\D/g, "");
-    if (phoneDigits.length !== 10 && !(phoneDigits.length === 11 && phoneDigits.startsWith("1"))) {
-      toast({ title: "Please enter a valid US phone number (10 digits)", variant: "destructive" });
+    if (!fullName.trim()) {
+      toast({ title: "Please enter your name", variant: "destructive" });
       return;
     }
 
@@ -155,9 +155,15 @@ export default function DiscountPopup() {
                 type="email"
                 placeholder="your@email.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={submitting} />
-
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                disabled={submitting}
+                className={fieldErrors.email ? "border-destructive" : ""} />
+                {fieldErrors.email && (
+                  <p className="text-sm text-destructive">{fieldErrors.email}</p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -167,11 +173,17 @@ export default function DiscountPopup() {
                 type="tel"
                 placeholder="(407) 123-4567"
                 value={phone}
-                onChange={(e) => setPhone(formatPhoneNumber(e.target.value))}
+                onChange={(e) => {
+                  setPhone(formatPhoneNumber(e.target.value));
+                  if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                }}
                 maxLength={14}
                 inputMode="numeric"
-                disabled={submitting} />
-
+                disabled={submitting}
+                className={fieldErrors.phone ? "border-destructive" : ""} />
+                {fieldErrors.phone && (
+                  <p className="text-sm text-destructive">{fieldErrors.phone}</p>
+                )}
               </div>
 
               <div className="space-y-2">

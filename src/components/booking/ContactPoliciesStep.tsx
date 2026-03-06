@@ -9,6 +9,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { BookingFormData } from "@/pages/Book";
 import { useState, useRef, useEffect } from "react";
+import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const venueRules = [
   "No Alcoholic Drinks (only beer & wine allowed) — $250 fee",
@@ -27,7 +28,9 @@ const venueRules = [
 const formSchema = z.object({
   fullName: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
   email: z.string().trim().email("Invalid email address").max(255),
-  phone: z.string().trim().min(10, "Phone number must be at least 10 digits").max(20),
+  phone: z.string().trim().refine(isValidPhone, {
+    message: "Please enter a valid US phone number (10 digits)",
+  }),
   company: z.string().max(100).optional(),
   agreeToRules: z.boolean().refine((val) => val === true, {
     message: "You must agree to the Venue Rules & Fee Schedule",
@@ -240,7 +243,14 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
               <FormItem>
                 <FormLabel>Phone *</FormLabel>
                 <FormControl>
-                  <Input type="tel" placeholder="(555) 123-4567" {...field} />
+                  <Input
+                    type="tel"
+                    placeholder="(407) 123-4567"
+                    inputMode="numeric"
+                    maxLength={14}
+                    {...field}
+                    onChange={(e) => field.onChange(formatPhoneNumber(e.target.value))}
+                  />
                 </FormControl>
                 <FormMessage />
               </FormItem>

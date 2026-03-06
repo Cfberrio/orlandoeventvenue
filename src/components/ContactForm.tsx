@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Loader2, Send, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import contactBg1 from "@/assets/contact-bg-1.jpg";
 import contactBg2 from "@/assets/contact-bg-2.jpg";
 import contactBg3 from "@/assets/contact-bg-3.jpg";
@@ -27,26 +28,13 @@ const ContactForm = () => {
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-  const isValidPhone = (value: string): boolean => {
-    const digits = value.replace(/\D/g, "");
-    return digits.length === 10 || (digits.length === 11 && digits.startsWith("1"));
-  };
-
-  const formatPhoneNumber = (value: string): string => {
-    const digits = value.replace(/\D/g, "").slice(0, 10);
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const errors: { email?: string; phone?: string } = {};
 
-    if (!formData.email || !emailRegex.test(formData.email.trim())) {
+    if (!formData.email || !EMAIL_REGEX.test(formData.email.trim())) {
       errors.email = "Please enter a valid email address";
     }
 
