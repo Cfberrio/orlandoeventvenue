@@ -111,8 +111,9 @@ export default function BookingsList() {
       groups[status] = [];
     });
     
-    // Group bookings
+    // Group bookings (exclude internal bookings from lifecycle groups)
     bookings.forEach(booking => {
+      if (booking.booking_origin === "internal") return;
       const status = booking.lifecycle_status || 'pending';
       if (groups[status]) {
         groups[status].push(booking);
@@ -120,6 +121,11 @@ export default function BookingsList() {
     });
     
     return groups;
+  }, [bookings]);
+
+  const internalBookings = useMemo(() => {
+    if (!bookings) return [];
+    return bookings.filter(b => b.booking_origin === "internal");
   }, [bookings]);
 
   const clearFilters = () => {
@@ -408,7 +414,6 @@ export default function BookingsList() {
             <div className="p-8 text-center text-muted-foreground">No bookings found</div>
           ) : (
             <div className="space-y-6 p-6">
-              {/* Render each status group */}
               {lifecycleStatuses.map((status) => {
                 const statusBookings = groupedBookings[status] || [];
                 const statusConfig = lifecycleConfig[status];
@@ -478,6 +483,23 @@ export default function BookingsList() {
                   </div>
                 );
               })}
+
+              {/* Internal bookings section */}
+              {internalBookings.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div className="flex items-center gap-3">
+                      <Badge className="text-sm bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                        Internal
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {internalBookings.length} {internalBookings.length === 1 ? 'booking' : 'bookings'}
+                      </span>
+                    </div>
+                  </div>
+                  {renderBookingsTable(internalBookings, false)}
+                </div>
+              )}
             </div>
           )}
         </CardContent>
