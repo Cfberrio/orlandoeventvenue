@@ -80,9 +80,16 @@ export default function Invoices() {
     },
   });
 
-  const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast({ title: "Payment link copied to clipboard" });
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast({ title: "Payment link copied to clipboard" });
+    } catch {
+      toast({
+        title: "Payment link ready",
+        description: url,
+      });
+    }
   };
 
   const deleteInvoice = async (id: string, invoiceNumber: string) => {

@@ -255,8 +255,15 @@ export default function BookingDetail() {
       });
 
       if (data?.payment_url) {
-        await navigator.clipboard.writeText(data.payment_url);
-        toast({ title: "Payment link copied to clipboard" });
+        try {
+          await navigator.clipboard.writeText(data.payment_url);
+          toast({ title: "Payment link copied to clipboard" });
+        } catch {
+          toast({
+            title: "Payment link ready",
+            description: data.payment_url,
+          });
+        }
       }
     } catch (error) {
       console.error("Failed to send balance payment:", error);

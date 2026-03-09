@@ -26,13 +26,13 @@ const ContactForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string }>({});
 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors: { email?: string; phone?: string } = {};
+    const errors: { email?: string; phone?: string; consent?: string } = {};
 
     if (!formData.email || !EMAIL_REGEX.test(formData.email.trim())) {
       errors.email = "Please enter a valid email address";
@@ -40,6 +40,10 @@ const ContactForm = () => {
 
     if (!formData.phone || !isValidPhone(formData.phone)) {
       errors.phone = "Please enter a valid US phone number (10 digits)";
+    }
+
+    if (!formData.transactionalConsent || !formData.marketingConsent) {
+      errors.consent = "You must agree to both checkboxes to proceed";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -238,20 +242,24 @@ const ContactForm = () => {
 
             {/* Consent Checkboxes */}
             <div className="space-y-3 pt-4">
-              <div className="flex items-start space-x-3 border rounded-lg p-3 bg-background">
+              <div className={`flex items-start space-x-3 border rounded-lg p-3 bg-background ${fieldErrors.consent ? "border-destructive" : ""}`}>
                 <Checkbox
                   id="transactional"
                   checked={formData.transactionalConsent}
-                  onCheckedChange={(checked) =>
-                    setFormData({ ...formData, transactionalConsent: checked as boolean })
-                  }
+                  onCheckedChange={(checked) => {
+                    setFormData({ ...formData, transactionalConsent: checked as boolean });
+                    if (fieldErrors.consent) setFieldErrors((prev) => ({ ...prev, consent: undefined }));
+                  }}
                 />
                 <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-snug">
-                  I agree to receive booking-related SMS (confirmations, reminders, updates). Msg & data rates may apply. Reply STOP to opt out.
+                  I agree to receive booking-related SMS (confirmations, reminders, updates) from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
                 </Label>
               </div>
+              {fieldErrors.consent && (
+                <p className="text-sm text-destructive">{fieldErrors.consent}</p>
+              )}
 
-              <div className="flex items-start space-x-3 border rounded-lg p-3 bg-background">
+              <div className={`flex items-start space-x-3 border rounded-lg p-3 bg-background ${!formData.marketingConsent && fieldErrors.consent !== undefined ? "border-destructive" : ""}`}>
                 <Checkbox
                   id="marketing"
                   checked={formData.marketingConsent}
@@ -260,7 +268,7 @@ const ContactForm = () => {
                   }
                 />
                 <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-snug">
-                  I'd like to receive offers, discounts, and availability updates via SMS. Reply STOP to opt out.
+                  I'd like to receive offers, discounts, and availability updates via SMS from Orlando Event Venue. Reply STOP to opt out. <span className="text-destructive">*</span>
                 </Label>
               </div>
             </div>
@@ -270,7 +278,7 @@ const ContactForm = () => {
               <Button
                 type="submit"
                 size="lg"
-                disabled={isSubmitting || submitStatus === "success"}
+                disabled={isSubmitting || submitStatus === "success" || !formData.transactionalConsent || !formData.marketingConsent}
                 className="w-full md:w-auto min-w-[200px]"
               >
                 {isSubmitting ? (

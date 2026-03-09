@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Car, Star, Clock, MapPin, Users, KeyRound, Sparkles } from "lucide-react";
+import { Car, Star, ChefHat, MapPin, Users, KeyRound, Sparkles } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const SpaceHighlights = () => {
@@ -12,7 +12,7 @@ const SpaceHighlights = () => {
       label: "⭐️ See our 5-star reviews",
       link: "https://g.page/r/CU-yUA0El90UEAE/review",
     },
-    { icon: Clock, label: "Day + Night Events", link: null },
+    { icon: ChefHat, label: "Prep Kitchen", link: null },
     {
       icon: MapPin,
       label: "3847 E Colonial Dr, Orlando, FL 32803",
