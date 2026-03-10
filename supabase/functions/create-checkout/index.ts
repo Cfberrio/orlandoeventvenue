@@ -106,6 +106,12 @@ serve(async (req: Request) => {
           payment_type: "deposit",
         },
         setup_future_usage: "off_session",
+        ...(connectedAccountId ? {
+          transfer_data: {
+            destination: connectedAccountId,
+            amount: Math.round(depositAmountCents * 0.20),
+          },
+        } : {}),
       },
     });
 
