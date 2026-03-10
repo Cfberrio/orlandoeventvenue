@@ -41,12 +41,14 @@ const PAY_TYPE_LABELS: Record<string, string> = {
   regular: "Regular",
   deep: "Deep",
   production: "Production",
+  fixed: "Flat Rate",
 };
 
 const PAY_CATEGORY_LABELS: Record<string, string> = {
   hourly_production: "Hourly (Production)",
   cleaning_base: "Cleaning Fee",
   cleaning_surcharge: "Celebration Surcharge",
+  base_pay: "Assistant Fee",
   bonus: "Bonus",
   deduction: "Deduction",
 };
