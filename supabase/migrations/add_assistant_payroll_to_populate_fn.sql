@@ -1,0 +1,52 @@
+-- ============================================================
+-- STEP 1: Inspect the current function body
+-- Run this first in Supabase SQL Editor, then apply Step 2.
+-- ============================================================
+-- SELECT pg_get_functiondef(oid)
+-- FROM pg_proc
+-- WHERE proname = 'populate_staff_payroll_items';
+
+-- ============================================================
+-- STEP 2: Add Assistant $80 flat rate to populate_staff_payroll_items
+--
+-- Find the block inside the function that handles cleaning_type
+-- (e.g., something like: IF v_assignment.cleaning_type IS NOT NULL THEN ...)
+-- and INSERT the following ELSIF block BEFORE the cleaning_type check:
+--
+-- ELSIF v_assignment.assignment_role = 'Assistant' THEN
+--   INSERT INTO staff_payroll_items (
+--     assignment_id,
+--     staff_id,
+--     pay_category,
+--     pay_type,
+--     amount,
+--     description,
+--     is_historical
+--   ) VALUES (
+--     p_assignment_id,
+--     v_assignment.staff_id,
+--     'base_pay',
+--     'fixed',
+--     80.00,
+--     'Assistant Assignment – Flat Rate ($80)',
+--     COALESCE(p_is_historical, false)
+--   );
+-- ============================================================
+
+-- ============================================================
+-- If the function uses a CASE or IF on assignment_role directly,
+-- you can also run a standalone INSERT as a safe alternative:
+-- (Only use this if modifying the function body is not feasible)
+-- ============================================================
+-- INSERT INTO staff_payroll_items (assignment_id, staff_id, pay_category, pay_type, amount, description, is_historical)
+-- SELECT
+--   bsa.id,
+--   bsa.staff_id,
+--   'base_pay',
+--   'fixed',
+--   80.00,
+--   'Assistant Assignment – Flat Rate ($80)',
+--   false
+-- FROM booking_staff_assignments bsa
+-- WHERE bsa.assignment_role = 'Assistant'
+--   AND bsa.id = '<assignment_id>';  -- replace with actual id for backfill

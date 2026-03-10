@@ -842,6 +842,7 @@ export function useCreateStaffAssignment() {
       assignment_type?: string;
       cleaning_type?: string;
       celebration_surcharge?: number;
+      tasks?: Array<{ id: string; name: string; completed: boolean }>;
     }) => {
       // Validate that staff member has an email before creating assignment
       const { data: staffMember, error: staffError } = await supabase
@@ -864,8 +865,19 @@ export function useCreateStaffAssignment() {
       if (error) throw error;
       return data;
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (createdAssignment, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", variables.booking_id] });
+
+      // Populate payroll items for Assistant ($80 flat) and Custodial (cleaning rates)
+      if (
+        (variables.assignment_role === 'Assistant' || variables.assignment_type === 'cleaning') &&
+        createdAssignment?.id
+      ) {
+        await supabase.rpc('populate_staff_payroll_items', {
+          p_assignment_id: createdAssignment.id,
+          p_is_historical: false,
+        });
+      }
       
       // Sync to GHL after staff assignment created
       syncToGHL(variables.booking_id);

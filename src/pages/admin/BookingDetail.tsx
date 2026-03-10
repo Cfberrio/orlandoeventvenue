@@ -439,6 +439,8 @@ export default function BookingDetail() {
     }
   };
 
+  const ASSISTANT_PAYROLL_RATE = 80;
+
   const calculatePayrollPreview = () => {
     if (!newAssignmentCleaningType) return 0;
     
@@ -1576,6 +1578,12 @@ export default function BookingDetail() {
                               <Plus className="h-4 w-4 mr-2" />
                               Add Staff
                             </Button>
+                          </div>
+                          <div className="bg-muted/50 p-3 rounded-lg border">
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-medium">Estimated Payroll:</span>
+                              <span className="text-2xl font-bold">${ASSISTANT_PAYROLL_RATE}.00</span>
+                            </div>
                           </div>
                         </div>
                       )}
