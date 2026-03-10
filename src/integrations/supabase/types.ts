@@ -704,7 +704,7 @@ export type Database = {
           staff_id: string
           started_at: string | null
           status: string | null
-          tasks: Array<{ id: string; name: string; completed: boolean }>
+          tasks: Json
           updated_at: string
         }
         Insert: {
@@ -725,7 +725,7 @@ export type Database = {
           staff_id: string
           started_at?: string | null
           status?: string | null
-          tasks?: Array<{ id: string; name: string; completed: boolean }> | null
+          tasks?: Json
           updated_at?: string
         }
         Update: {
@@ -746,7 +746,7 @@ export type Database = {
           staff_id?: string
           started_at?: string | null
           status?: string | null
-          tasks?: Array<{ id: string; name: string; completed: boolean }> | null
+          tasks?: Json
           updated_at?: string
         }
         Relationships: [
