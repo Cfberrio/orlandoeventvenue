@@ -1,16 +1,11 @@
-import {
-  assertEquals,
-  assertStringIncludes,
-} from "https://deno.land/std@0.190.0/testing/asserts.ts";
+import { describe, it, expect } from "vitest";
+import { readFileSync } from "fs";
 
 /**
  * Verify 80/20 Stripe split is correctly configured in all payment edge functions.
- *
- * Run:
- *   deno test --allow-read supabase/functions/_tests/split-payment.test.ts
  */
 
-const FUNCTIONS_TO_CHECK: { name: string; path: string }[] = [
+const FUNCTIONS_TO_CHECK = [
   {
     name: "create-checkout (deposit)",
     path: "supabase/functions/create-checkout/index.ts",
@@ -29,64 +24,38 @@ const FUNCTIONS_TO_CHECK: { name: string; path: string }[] = [
   },
 ];
 
-for (const fn of FUNCTIONS_TO_CHECK) {
-  Deno.test(`[${fn.name}] contains transfer_data with 20% split`, async () => {
-    const src = await Deno.readTextFile(fn.path);
+describe("Stripe 80/20 split payment configuration", () => {
+  for (const fn of FUNCTIONS_TO_CHECK) {
+    describe(fn.name, () => {
+      const src = readFileSync(fn.path, "utf-8");
 
-    // 1. Must reference transfer_data
-    assertStringIncludes(
-      src,
-      "transfer_data",
-      `${fn.name}: missing 'transfer_data'`
-    );
+      it("contains transfer_data", () => {
+        expect(src).toContain("transfer_data");
+      });
 
-    // 2. Must use the 0.20 multiplier (20% split)
-    assertStringIncludes(
-      src,
-      "* 0.20",
-      `${fn.name}: missing '* 0.20' multiplier for 20% split`
-    );
+      it("uses 0.20 multiplier for 20% split", () => {
+        expect(src).toContain("* 0.20");
+      });
 
-    // 3. Must use STRIPE_CONNECTED_ACCOUNT_ID as destination
-    assertStringIncludes(
-      src,
-      "STRIPE_CONNECTED_ACCOUNT_ID",
-      `${fn.name}: missing 'STRIPE_CONNECTED_ACCOUNT_ID' reference`
-    );
+      it("references STRIPE_CONNECTED_ACCOUNT_ID", () => {
+        expect(src).toContain("STRIPE_CONNECTED_ACCOUNT_ID");
+      });
 
-    // 4. Must use connectedAccountId as destination value
-    assertStringIncludes(
-      src,
-      "destination: connectedAccountId",
-      `${fn.name}: missing 'destination: connectedAccountId'`
-    );
+      it("sets destination: connectedAccountId", () => {
+        expect(src).toContain("destination: connectedAccountId");
+      });
 
-    // 5. transfer_data MUST be nested inside payment_intent_data (not top-level)
-    //    Check that "payment_intent_data" appears AND that "transfer_data" only
-    //    shows up after "payment_intent_data" (i.e. nested inside it).
-    assertStringIncludes(
-      src,
-      "payment_intent_data",
-      `${fn.name}: missing 'payment_intent_data' wrapper — transfer_data must be nested`
-    );
+      it("wraps transfer_data inside payment_intent_data", () => {
+        expect(src).toContain("payment_intent_data");
 
-    // 6. Ensure transfer_data is NOT at the Stripe session top level.
-    //    Top-level would look like: checkout.sessions.create({ ... transfer_data ... })
-    //    without being inside payment_intent_data. We verify by checking that every
-    //    occurrence of "transfer_data" is preceded by "payment_intent_data" within
-    //    the same block (within ~200 chars before it).
-    const transferMatches = [...src.matchAll(/transfer_data/g)];
-    for (const m of transferMatches) {
-      const idx = m.index!;
-      const preceding = src.substring(Math.max(0, idx - 300), idx);
-      const hasWrapper = preceding.includes("payment_intent_data");
-      assertEquals(
-        hasWrapper,
-        true,
-        `${fn.name}: 'transfer_data' found WITHOUT preceding 'payment_intent_data' — it may be at the top level`
-      );
-    }
-
-    console.log(`✅ ${fn.name} — split payment correctly configured`);
-  });
-}
+        // Every occurrence of transfer_data must be preceded by payment_intent_data
+        const matches = [...src.matchAll(/transfer_data/g)];
+        for (const m of matches) {
+          const idx = m.index!;
+          const preceding = src.substring(Math.max(0, idx - 300), idx);
+          expect(preceding).toContain("payment_intent_data");
+        }
+      });
+    });
+  }
+});
