@@ -169,6 +169,12 @@ export interface MaintenanceTicket {
   resolved_at: string | null;
 }
 
+export interface AssignmentTask {
+  id: string;
+  name: string;
+  completed: boolean;
+}
+
 export interface StaffAssignment {
   id: string;
   booking_id: string;
@@ -178,6 +184,7 @@ export interface StaffAssignment {
   assignment_type?: string | null;
   cleaning_type?: string | null;
   celebration_surcharge?: number | null;
+  tasks?: AssignmentTask[] | null;
   created_at: string;
   updated_at: string;
   staff_member?: StaffMember;

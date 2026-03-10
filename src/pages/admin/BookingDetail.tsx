@@ -142,6 +142,13 @@ export default function BookingDetail() {
   const [hasCelebrationSurcharge, setHasCelebrationSurcharge] = useState(false);
   const [celebrationSurchargeAmount, setCelebrationSurchargeAmount] = useState<string>("");
 
+  // Assistant task states
+  const DEFAULT_ASSISTANT_TASK = { id: crypto.randomUUID(), name: "Set Up & Break Down Tables and Chairs", completed: false };
+  const [assistantTasks, setAssistantTasks] = useState<Array<{ id: string; name: string; completed: boolean }>>([
+    DEFAULT_ASSISTANT_TASK,
+  ]);
+  const [newTaskName, setNewTaskName] = useState("");
+
   // Reschedule state
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleData, setRescheduleData] = useState({
@@ -453,13 +460,14 @@ export default function BookingDetail() {
       return;
     }
     
-    // Validate cleaning type for Custodial/Assistant
+    // Validate cleaning type for Custodial only
     const selectedStaff = staffMembers?.find(s => s.id === newAssignmentStaff);
-    const isCustodialOrAssistant = selectedStaff?.role === 'Custodial' || selectedStaff?.role === 'Assistant';
+    const isAssistantRole = selectedStaff?.role === 'Assistant';
+    const isCustodialRole = selectedStaff?.role === 'Custodial';
     
-    if (isCustodialOrAssistant && !newAssignmentCleaningType) {
+    if (isCustodialRole && !newAssignmentCleaningType) {
       toast({ 
-        title: "Cleaning Type required for Custodial/Assistant staff", 
+        title: "Cleaning Type required for Custodial staff", 
         variant: "destructive" 
       });
       return;
@@ -484,13 +492,18 @@ export default function BookingDetail() {
         assignment_role: newAssignmentRole,
       };
       
-      // Add cleaning fields if Custodial/Assistant
-      if (isCustodialOrAssistant) {
+      // Add cleaning fields if Custodial
+      if (isCustodialRole) {
         assignmentData.assignment_type = 'cleaning';
         assignmentData.cleaning_type = newAssignmentCleaningType;
         assignmentData.celebration_surcharge = hasCelebrationSurcharge 
           ? parseFloat(celebrationSurchargeAmount) 
           : 0;
+      }
+
+      // Add tasks if Assistant
+      if (isAssistantRole) {
+        assignmentData.tasks = assistantTasks;
       }
       
       await createAssignment.mutateAsync(assignmentData);
@@ -501,6 +514,8 @@ export default function BookingDetail() {
       setNewAssignmentCleaningType("");
       setHasCelebrationSurcharge(false);
       setCelebrationSurchargeAmount("");
+      setAssistantTasks([{ id: crypto.randomUUID(), name: "Set Up & Break Down Tables and Chairs", completed: false }]);
+      setNewTaskName("");
       
       toast({ title: "Staff assigned and notification sent" });
     } catch (error: any) {
@@ -1421,7 +1436,15 @@ export default function BookingDetail() {
                             )}
                           </TableCell>
                           <TableCell>
-                            {assignment.cleaning_type ? (
+                            {assignment.staff_member?.role === 'Assistant' && assignment.tasks && assignment.tasks.length > 0 ? (
+                              <div className="flex flex-wrap gap-1">
+                                {(assignment.tasks as Array<{ id: string; name: string; completed: boolean }>).map((task) => (
+                                  <Badge key={task.id} className="text-xs bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400 dark:border-orange-700">
+                                    📋 {task.name}
+                                  </Badge>
+                                ))}
+                              </div>
+                            ) : assignment.cleaning_type ? (
                               <div className="flex flex-col gap-1">
                                 <Badge variant="secondary" className="w-fit">
                                   {assignment.cleaning_type === 'touch_up' ? 'Touch-Up ($40)' :
@@ -1458,7 +1481,8 @@ export default function BookingDetail() {
                 <p className="text-sm font-medium mb-3">Add New Assignment</p>
                 {(() => {
                   const selectedStaffMember = staffMembers?.find(s => s.id === newAssignmentStaff);
-                  const isCustodialOrAssistant = selectedStaffMember?.role === 'Custodial' || selectedStaffMember?.role === 'Assistant';
+                  const isCustodialRole = selectedStaffMember?.role === 'Custodial';
+                  const isAssistantRole = selectedStaffMember?.role === 'Assistant';
                   
                   return (
                     <div className="space-y-4">
@@ -1496,9 +1520,68 @@ export default function BookingDetail() {
                           </SelectContent>
                         </Select>
                       </div>
-                      
-                      {/* Fila 2: Cleaning Type + Celebration + Button (solo si Custodial/Assistant) */}
-                      {isCustodialOrAssistant ? (
+
+                      {/* Panel de tareas — solo para Assistant */}
+                      {isAssistantRole && (
+                        <div className="rounded-lg border border-orange-200 bg-orange-50 dark:bg-orange-950/20 dark:border-orange-800 p-4 space-y-3">
+                          <p className="text-sm font-semibold text-orange-700 dark:text-orange-400 flex items-center gap-2">
+                            📋 Tasks for this Assignment
+                          </p>
+                          <div className="space-y-2">
+                            {assistantTasks.map((task) => (
+                              <div key={task.id} className="flex items-center justify-between bg-white dark:bg-orange-950/40 rounded-md px-3 py-2 border border-orange-100 dark:border-orange-800">
+                                <span className="text-sm">{task.name}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-destructive hover:bg-destructive/10"
+                                  onClick={() => setAssistantTasks(prev => prev.filter(t => t.id !== task.id))}
+                                  disabled={assistantTasks.length === 1}
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="New task name..."
+                              value={newTaskName}
+                              onChange={(e) => setNewTaskName(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && newTaskName.trim()) {
+                                  setAssistantTasks(prev => [...prev, { id: crypto.randomUUID(), name: newTaskName.trim(), completed: false }]);
+                                  setNewTaskName("");
+                                }
+                              }}
+                              className="bg-white dark:bg-background"
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="shrink-0 border-orange-300 text-orange-700 hover:bg-orange-100 dark:border-orange-700 dark:text-orange-400"
+                              onClick={() => {
+                                if (newTaskName.trim()) {
+                                  setAssistantTasks(prev => [...prev, { id: crypto.randomUUID(), name: newTaskName.trim(), completed: false }]);
+                                  setNewTaskName("");
+                                }
+                              }}
+                            >
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add Task
+                            </Button>
+                          </div>
+                          <div className="flex justify-end pt-1">
+                            <Button onClick={handleAddAssignment} className="bg-orange-600 hover:bg-orange-700 text-white">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Add Staff
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fila 2: Cleaning Type + Celebration + Button (solo si Custodial) */}
+                      {isCustodialRole && (
                         <>
                           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
@@ -1564,8 +1647,10 @@ export default function BookingDetail() {
                             </div>
                           )}
                         </>
-                      ) : (
-                        /* Si NO es Custodial/Assistant: Solo botón en fila 2 */
+                      )}
+
+                      {/* Si NO es Custodial ni Assistant: Solo botón */}
+                      {!isCustodialRole && !isAssistantRole && (
                         <div className="flex justify-end">
                           <Button onClick={handleAddAssignment}>
                             <Plus className="h-4 w-4 mr-2" />

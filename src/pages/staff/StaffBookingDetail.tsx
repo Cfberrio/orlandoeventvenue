@@ -229,6 +229,49 @@ export default function StaffBookingDetail() {
         </Card>
       )}
 
+      {/* Assistant Tasks Card - Only for Assistant role */}
+      {booking.assignment_role === "Assistant" && (
+        <Card className="border-l-4 border-l-orange-500 bg-orange-500/5">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <span>📋</span>
+              <span>Your Assigned Tasks</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-orange-100/60 dark:bg-orange-950/40 border border-orange-200 dark:border-orange-800">
+                <Clock className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                <div>
+                  <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Working Hours</p>
+                  <p className="font-semibold text-orange-700 dark:text-orange-300">
+                    {booking.start_time?.slice(0, 5)} – {booking.end_time?.slice(0, 5)}
+                  </p>
+                </div>
+              </div>
+
+              {booking.assignment_tasks && booking.assignment_tasks.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-foreground">Tasks to complete:</p>
+                  <ul className="space-y-2">
+                    {(booking.assignment_tasks as Array<{ id: string; name: string; completed: boolean }>).map((task, index) => (
+                      <li key={task.id} className="flex items-start gap-3 p-3 rounded-lg bg-white dark:bg-background border border-orange-200 dark:border-orange-800">
+                        <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500 text-white text-xs flex items-center justify-center font-bold mt-0.5">
+                          {index + 1}
+                        </span>
+                        <span className="text-sm font-medium">{task.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground italic">No specific tasks assigned. Check with your supervisor.</p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Cleaning Report Card - Hidden for Production and Assistant roles */}
       {staffMember?.role !== 'Production' && staffMember?.role !== 'Assistant' && (
         <Card>

@@ -123,17 +123,18 @@ export function useStaffBookingDetail(bookingId: string) {
       // Get assignment role and id for this staff member
       const { data: assignmentData, error: assignmentError } = await supabase
         .from("booking_staff_assignments")
-        .select("id, assignment_role")
+        .select("id, assignment_role, tasks")
         .eq("booking_id", bookingId)
         .eq("staff_id", staffMember.id)
         .maybeSingle();
-      
+
       if (assignmentError) throw assignmentError;
-      
+
       return {
         ...bookingData,
         assignment_role: assignmentData?.assignment_role || null,
         assignment_id: assignmentData?.id || null,
+        assignment_tasks: (assignmentData?.tasks as Array<{ id: string; name: string; completed: boolean }>) || [],
       };
     },
     enabled: !!bookingId && !!staffMember?.id,
