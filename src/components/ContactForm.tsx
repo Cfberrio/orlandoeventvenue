@@ -24,6 +24,7 @@ const ContactForm = () => {
     phone: "",
     subject: "",
     message: "",
+    eventDate: undefined as Date | undefined,
     website: "", // Honeypot field
     transactionalConsent: false,
     marketingConsent: false,
