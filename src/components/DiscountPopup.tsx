@@ -93,6 +93,19 @@ export default function DiscountPopup() {
         return;
       }
 
+      // Send to GHL with tag "popup" (fire-and-forget)
+      supabase.functions
+        .invoke("send-popup-lead", {
+          body: {
+            fullName: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            phone: phone.trim(),
+          },
+        })
+        .then(({ error }) => {
+          if (error) console.error("GHL popup lead error:", error);
+        });
+
       // Send Email 1 immediately (fire-and-forget, don't block the UI)
       supabase.functions.
       invoke("send-discount-email", {
