@@ -29,7 +29,7 @@ const SENT_AT_COLUMNS: Record<number, string> = {
   3: "email_3_sent_at",
 };
 
-function generateEmail1HTML(firstName: string, couponCode: string): string {
+function generateEmail1HTML(firstName: string, _couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -37,11 +37,8 @@ function generateEmail1HTML(firstName: string, couponCode: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Your $100 Event Booking Credit Is Here | Orlando Event Venue</title>
 </head>
-
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-
-    <!-- HEADER -->
     <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
       <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
         Your <span style="color:#14ADE6;">$100</span> Event Booking Credit Is Here
@@ -50,59 +47,46 @@ function generateEmail1HTML(firstName: string, couponCode: string): string {
         Orlando Event Venue
       </p>
     </div>
-
-    <!-- BODY -->
     <div style="padding:28px;">
-
       <p style="margin:0;font-size:16px;">
         Hi <strong>${firstName}</strong>,
       </p>
-
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         As promised, here is your <strong>$100 Event Booking Credit</strong> for Orlando Event Venue.
       </p>
-
-      <!-- CODE BLOCK -->
       <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
         <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
           Your Booking Credit Code
         </p>
         <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
-          ${couponCode}
+          SAVE100
         </p>
         <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
           $100 off your base rental
         </p>
       </div>
-
       <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
         You can apply this credit when you reserve your event date.
       </p>
-
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         If you already know your date, the next step is simple:
         <strong>Reserve your venue here:</strong>
       </p>
-
-      <!-- CTA -->
       <div style="text-align:center;margin:18px 0 8px;">
-        <a href="${WEBSITE_URL}/book"
+        <a href="https://orlandoeventvenue.org/book"
            style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
           Reserve Your Date
         </a>
       </div>
-
       <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
         If the button doesn't work, copy and paste this link into your browser:<br>
-        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+        <span style="word-break:break-all;color:#14ADE6;">https://orlandoeventvenue.org/book</span>
       </p>
-
       <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
         <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
           We can't hold dates without a reservation, so if you have a date in mind, reserve it now and apply your credit at booking.
         </p>
       </div>
-
       <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
         Orlando Event Venue Team<br>
         <strong>407-974-5979</strong><br>
@@ -110,10 +94,7 @@ function generateEmail1HTML(firstName: string, couponCode: string): string {
         orlandoeventvenue@gmail.com<br>
         3847 E Colonial Dr, Orlando, FL 32803
       </p>
-
     </div>
-
-    <!-- FOOTER -->
     <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
       <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
       <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
@@ -121,13 +102,12 @@ function generateEmail1HTML(firstName: string, couponCode: string): string {
       <p style="margin:6px 0 0;">(407) 974-5979</p>
       <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
     </div>
-
   </div>
 </body>
 </html>`;
 }
 
-function generateEmail2HTML(firstName: string, couponCode: string): string {
+function generateEmail2HTML(firstName: string, _couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -135,11 +115,8 @@ function generateEmail2HTML(firstName: string, couponCode: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Your $100 Event Booking Credit Is Still Available | Orlando Event Venue</title>
 </head>
-
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-
-    <!-- HEADER -->
     <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
       <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
         Your <span style="color:#14ADE6;">$100</span> Credit Is Still Available
@@ -148,62 +125,48 @@ function generateEmail2HTML(firstName: string, couponCode: string): string {
         Orlando Event Venue
       </p>
     </div>
-
-    <!-- BODY -->
     <div style="padding:28px;">
-
       <p style="margin:0;font-size:16px;">
         Hi <strong>${firstName}</strong>,
       </p>
-
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         We noticed you haven't reserved your date yet.
       </p>
-
       <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         Your <strong>$100 Event Booking Credit</strong> is still available, and if you already have a date in mind, the best next step is to book now.
       </p>
-
-      <!-- CODE BLOCK -->
       <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
         <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
           Your Booking Credit Code
         </p>
         <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
-          ${couponCode}
+          SAVE100
         </p>
         <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
           $100 off your base rental
         </p>
       </div>
-
       <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
         We can't hold dates without a reservation, and our calendar continues to fill.
       </p>
-
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         <strong>Reserve your date here:</strong>
       </p>
-
-      <!-- CTA -->
       <div style="text-align:center;margin:18px 0 8px;">
-        <a href="${WEBSITE_URL}/book"
+        <a href="https://orlandoeventvenue.org/book"
            style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
           Reserve Your Date
         </a>
       </div>
-
       <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
         If the button doesn't work, copy and paste this link into your browser:<br>
-        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+        <span style="word-break:break-all;color:#14ADE6;">https://orlandoeventvenue.org/book</span>
       </p>
-
       <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
         <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
           If you're ready to move forward, reserve now and apply your credit at booking.
         </p>
       </div>
-
       <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
         Orlando Event Venue Team<br>
         <strong>407-974-5979</strong><br>
@@ -211,10 +174,7 @@ function generateEmail2HTML(firstName: string, couponCode: string): string {
         orlandoeventvenue@gmail.com<br>
         3847 E Colonial Dr, Orlando, FL 32803
       </p>
-
     </div>
-
-    <!-- FOOTER -->
     <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
       <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
       <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
@@ -222,13 +182,12 @@ function generateEmail2HTML(firstName: string, couponCode: string): string {
       <p style="margin:6px 0 0;">(407) 974-5979</p>
       <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
     </div>
-
   </div>
 </body>
 </html>`;
 }
 
-function generateEmail3HTML(firstName: string, couponCode: string): string {
+function generateEmail3HTML(firstName: string, _couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -236,11 +195,8 @@ function generateEmail3HTML(firstName: string, couponCode: string): string {
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Final Reminder: Use Your $100 Event Booking Credit | Orlando Event Venue</title>
 </head>
-
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-
-    <!-- HEADER -->
     <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
       <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
         Final Reminder: <span style="color:#14ADE6;">$100</span> Booking Credit
@@ -249,54 +205,42 @@ function generateEmail3HTML(firstName: string, couponCode: string): string {
         Orlando Event Venue
       </p>
     </div>
-
-    <!-- BODY -->
     <div style="padding:28px;">
-
       <p style="margin:0;font-size:16px;">
         Hi <strong>${firstName}</strong>,
       </p>
-
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         This is your final reminder to reserve your date and apply your <strong>$100 Event Booking Credit</strong> at booking.
       </p>
-
-      <!-- CODE BLOCK -->
       <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
         <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
           Your Booking Credit Code
         </p>
         <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
-          ${couponCode}
+          SAVE100
         </p>
         <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
           $100 off your base rental
         </p>
       </div>
-
       <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
         If you're ready to move forward, reserve your event date now:
       </p>
-
-      <!-- CTA -->
       <div style="text-align:center;margin:18px 0 8px;">
-        <a href="${WEBSITE_URL}/book"
+        <a href="https://orlandoeventvenue.org/book"
            style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
           Reserve Your Date
         </a>
       </div>
-
       <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
         If the button doesn't work, copy and paste this link into your browser:<br>
-        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+        <span style="word-break:break-all;color:#14ADE6;">https://orlandoeventvenue.org/book</span>
       </p>
-
       <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
         <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
           If you already have your date in mind, don't wait. We can't hold dates without a reservation.
         </p>
       </div>
-
       <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
         Orlando Event Venue Team<br>
         <strong>407-974-5979</strong><br>
@@ -304,10 +248,7 @@ function generateEmail3HTML(firstName: string, couponCode: string): string {
         orlandoeventvenue@gmail.com<br>
         3847 E Colonial Dr, Orlando, FL 32803
       </p>
-
     </div>
-
-    <!-- FOOTER -->
     <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
       <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
       <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
@@ -315,7 +256,6 @@ function generateEmail3HTML(firstName: string, couponCode: string): string {
       <p style="margin:6px 0 0;">(407) 974-5979</p>
       <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
     </div>
-
   </div>
 </body>
 </html>`;
