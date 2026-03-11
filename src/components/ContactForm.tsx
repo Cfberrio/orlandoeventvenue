@@ -32,7 +32,7 @@ const ContactForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string; eventDate?: string }>({});
 
 
   const handleSubmit = async (e: React.FormEvent) => {
