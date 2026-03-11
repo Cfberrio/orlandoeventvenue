@@ -73,6 +73,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333}
 <div class="field"><span class="label">From:</span><div class="value">${data.name}</div></div>
 <div class="field"><span class="label">Email:</span><div class="value"><a href="mailto:${data.email}">${data.email}</a></div></div>
 ${phoneSection}
+${eventDateSection}
 <div class="field"><span class="label">Subject:</span><div class="value">${data.subject}</div></div>
 <div class="field"><span class="label">Message:</span><div class="value" style="white-space:pre-wrap">${data.message}</div></div>
 <div class="field"><span class="label">Consent Preferences:</span>${consentSection}</div>
