@@ -168,6 +168,46 @@ serve(async (req) => {
 
     console.log("Contact form email sent successfully to:", gmailUser);
 
+    // Create GHL contact — fire-and-forget after email success
+    const ghlApiKey = Deno.env.get("GHL_PRIVATE_API_KEY");
+    const ghlLocationId = Deno.env.get("GHL_LOCATION_ID");
+
+    if (ghlApiKey && ghlLocationId) {
+      try {
+        const nameParts = data.name.trim().split(" ");
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(" ") || "";
+
+        const rawDigits = data.phone?.replace(/\D/g, "") || "";
+        const formattedPhone = rawDigits.length === 10
+          ? `+1${rawDigits}`
+          : rawDigits.length === 11 && rawDigits.startsWith("1")
+            ? `+${rawDigits}`
+            : rawDigits;
+
+        const ghlRes = await fetch("https://services.leadconnectorhq.com/contacts/", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${ghlApiKey}`,
+            "Version": "2021-07-28",
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            locationId: ghlLocationId,
+            firstName,
+            lastName,
+            email: data.email,
+            phone: formattedPhone,
+            tags: ["contactForm"],
+          }),
+        });
+
+        console.log("GHL contact creation status:", ghlRes.status);
+      } catch (ghlError) {
+        console.error("GHL contact creation failed (non-blocking):", ghlError);
+      }
+    }
+
     return new Response(
       JSON.stringify({ ok: true, message: "Message sent successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
