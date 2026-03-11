@@ -38,8 +38,11 @@ const ContactForm = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors: { email?: string; phone?: string; consent?: string } = {};
+    const errors: { email?: string; phone?: string; consent?: string; eventDate?: string } = {};
 
+    if (!formData.eventDate) {
+      errors.eventDate = "Please select an event date";
+    }
     if (!formData.email || !EMAIL_REGEX.test(formData.email.trim())) {
       errors.email = "Please enter a valid email address";
     }
