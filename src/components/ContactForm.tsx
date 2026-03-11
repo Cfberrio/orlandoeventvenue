@@ -97,6 +97,7 @@ const ContactForm = () => {
           phone: "",
           subject: "",
           message: "",
+          eventDate: undefined,
           website: "",
           transactionalConsent: false,
           marketingConsent: false,
