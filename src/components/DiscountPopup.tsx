@@ -18,7 +18,7 @@ import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const POPUP_DELAY_MS = 5000;
 const LOCAL_STORAGE_KEY = "popup_discount_shown";
-const COUPON_CODE = "SAVE50";
+const COUPON_CODE = "SAVE100";
 
 export default function DiscountPopup() {
   const [isOpen, setIsOpen] = useState(false);
@@ -142,10 +142,10 @@ export default function DiscountPopup() {
                 <Gift className="h-7 w-7 text-primary" />
               </div>
               <DialogTitle className="text-2xl font-bold text-center">
-                Get $50 Off!
+                Get a $100 Event Booking Credit
               </DialogTitle>
               <DialogDescription className="text-center text-base">
-                Planning an event? Get $50 sent to your email now{"\n"}
+                Still planning your event? Enter your info and we'll send your $100 Event Booking Credit instantly by email and text so you can apply it when you reserve your date.
               </DialogDescription>
             </DialogHeader>
 
@@ -230,7 +230,7 @@ export default function DiscountPopup() {
                     Sending...
                   </> :
 
-              "Get My $50 Off"
+              "Send My $100 Credit"
               }
               </Button>
             </form>
@@ -240,13 +240,13 @@ export default function DiscountPopup() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
               <CheckCircle2 className="h-7 w-7 text-green-500" />
             </div>
-            <h3 className="text-xl font-bold">Check Your Email!</h3>
+            <h3 className="text-xl font-bold">Check Your Email</h3>
             <p className="text-muted-foreground">
-              We've sent your <strong>$50 discount code</strong> to{" "}
+              Your <strong>$100 Event Booking Credit</strong> has been sent to{" "}
               <strong>{email}</strong>.
             </p>
             <p className="text-sm text-muted-foreground mt-4">
-              Check your inbox for your exclusive discount code. Don't forget to check your spam folder if you don't see it.
+              Questions? Call or text 407-974-5979
             </p>
             <Button
             onClick={() => handleOpenChange(false)}
