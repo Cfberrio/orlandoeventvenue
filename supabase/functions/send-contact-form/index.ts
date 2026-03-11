@@ -12,6 +12,7 @@ interface ContactFormData {
   phone?: string;
   subject: string;
   message: string;
+  eventDate?: string;
   website?: string; // Honeypot
   transactionalConsent: boolean;
   marketingConsent: boolean;
