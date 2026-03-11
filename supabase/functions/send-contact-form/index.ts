@@ -168,7 +168,8 @@ serve(async (req) => {
 
     console.log("Contact form email sent successfully to:", gmailUser);
 
-    // Create GHL contact — fire-and-forget after email success
+    // Upsert GHL contact — fire-and-forget after email success
+    // Uses /contacts/upsert to create or update by email; avoids 400 when contact exists
     const ghlApiKey = Deno.env.get("GHL_PRIVATE_API_KEY");
     const ghlLocationId = Deno.env.get("GHL_LOCATION_ID");
 
@@ -185,7 +186,7 @@ serve(async (req) => {
             ? `+${rawDigits}`
             : rawDigits;
 
-        const ghlRes = await fetch("https://services.leadconnectorhq.com/contacts/", {
+        const ghlRes = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
           method: "POST",
           headers: {
             "Authorization": `Bearer ${ghlApiKey}`,
@@ -202,9 +203,13 @@ serve(async (req) => {
           }),
         });
 
-        console.log("GHL contact creation status:", ghlRes.status);
+        if (ghlRes.ok) {
+          console.log("GHL contact upserted successfully");
+        } else {
+          console.warn("GHL contact upsert status:", ghlRes.status, await ghlRes.text());
+        }
       } catch (ghlError) {
-        console.error("GHL contact creation failed (non-blocking):", ghlError);
+        console.error("GHL contact upsert failed (non-blocking):", ghlError);
       }
     }
 
