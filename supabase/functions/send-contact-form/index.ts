@@ -160,7 +160,8 @@ serve(async (req) => {
 
     await client.send({
       from: gmailUser,
-      to: gmailUser, // Send to same email (orlandoglobalministries@gmail.com)
+      replyTo: data.email,
+      to: gmailUser,
       subject: `Contact Form - ${data.subject}`,
       content: `New contact form submission from ${data.name} (${data.email})`,
       html: emailHTML,

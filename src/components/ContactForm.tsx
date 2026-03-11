@@ -235,7 +235,44 @@ const ContactForm = () => {
               </div>
             </div>
 
-            {/* Message */}
+            {/* Event Date */}
+            <div className="space-y-2">
+              <Label>
+                Event Date <span className="text-destructive">*</span>
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.eventDate && "text-muted-foreground",
+                      fieldErrors.eventDate && "border-destructive"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.eventDate ? format(formData.eventDate, "PPP") : <span>Select your event date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.eventDate}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, eventDate: date });
+                      if (fieldErrors.eventDate) setFieldErrors((prev) => ({ ...prev, eventDate: undefined }));
+                    }}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {fieldErrors.eventDate && (
+                <p className="text-sm text-destructive">{fieldErrors.eventDate}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="message">
                 Message <span className="text-destructive">*</span>
