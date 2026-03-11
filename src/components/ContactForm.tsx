@@ -1,12 +1,17 @@
 import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Loader2, Send, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import contactBg1 from "@/assets/contact-bg-1.jpg";
 import contactBg2 from "@/assets/contact-bg-2.jpg";
@@ -19,6 +24,7 @@ const ContactForm = () => {
     phone: "",
     subject: "",
     message: "",
+    eventDate: undefined as Date | undefined,
     website: "", // Honeypot field
     transactionalConsent: false,
     marketingConsent: false,
@@ -26,14 +32,17 @@ const ContactForm = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string; eventDate?: string }>({});
 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors: { email?: string; phone?: string; consent?: string } = {};
+    const errors: { email?: string; phone?: string; consent?: string; eventDate?: string } = {};
 
+    if (!formData.eventDate) {
+      errors.eventDate = "Please select an event date";
+    }
     if (!formData.email || !EMAIL_REGEX.test(formData.email.trim())) {
       errors.email = "Please enter a valid email address";
     }
@@ -68,6 +77,7 @@ const ContactForm = () => {
           phone: formData.phone,
           subject: formData.subject,
           message: formData.message,
+          eventDate: formData.eventDate ? format(formData.eventDate, "yyyy-MM-dd") : undefined,
           website: formData.website, // Honeypot
           transactionalConsent: formData.transactionalConsent,
           marketingConsent: formData.marketingConsent,
@@ -87,6 +97,7 @@ const ContactForm = () => {
           phone: "",
           subject: "",
           message: "",
+          eventDate: undefined,
           website: "",
           transactionalConsent: false,
           marketingConsent: false,
@@ -224,7 +235,44 @@ const ContactForm = () => {
               </div>
             </div>
 
-            {/* Message */}
+            {/* Event Date */}
+            <div className="space-y-2">
+              <Label>
+                Event Date <span className="text-destructive">*</span>
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.eventDate && "text-muted-foreground",
+                      fieldErrors.eventDate && "border-destructive"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.eventDate ? format(formData.eventDate, "PPP") : <span>Select your event date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.eventDate}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, eventDate: date });
+                      if (fieldErrors.eventDate) setFieldErrors((prev) => ({ ...prev, eventDate: undefined }));
+                    }}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {fieldErrors.eventDate && (
+                <p className="text-sm text-destructive">{fieldErrors.eventDate}</p>
+              )}
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="message">
                 Message <span className="text-destructive">*</span>

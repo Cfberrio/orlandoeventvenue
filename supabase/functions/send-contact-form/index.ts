@@ -12,6 +12,7 @@ interface ContactFormData {
   phone?: string;
   subject: string;
   message: string;
+  eventDate?: string;
   website?: string; // Honeypot
   transactionalConsent: boolean;
   marketingConsent: boolean;
@@ -38,7 +39,7 @@ function generateEmailHTML(data: ContactFormData): string {
   };
 
   const phoneSection = data.phone ? `<div class="field"><span class="label">Phone:</span><div class="value"><a href="tel:${data.phone}">${data.phone}</a></div></div>` : "";
-  
+  const eventDateSection = data.eventDate ? `<div class="field"><span class="label">Event Date:</span><div class="value">${data.eventDate}</div></div>` : "";
   const consentSection = data.transactionalConsent || data.marketingConsent 
     ? (data.transactionalConsent ? '<div class="consent">✅ <strong>Transactional messages:</strong> Agreed</div>' : '') +
       (data.marketingConsent ? '<div class="consent">✅ <strong>Marketing messages:</strong> Agreed</div>' : '')
@@ -72,6 +73,7 @@ body{font-family:Arial,sans-serif;line-height:1.6;color:#333}
 <div class="field"><span class="label">From:</span><div class="value">${data.name}</div></div>
 <div class="field"><span class="label">Email:</span><div class="value"><a href="mailto:${data.email}">${data.email}</a></div></div>
 ${phoneSection}
+${eventDateSection}
 <div class="field"><span class="label">Subject:</span><div class="value">${data.subject}</div></div>
 <div class="field"><span class="label">Message:</span><div class="value" style="white-space:pre-wrap">${data.message}</div></div>
 <div class="field"><span class="label">Consent Preferences:</span>${consentSection}</div>
@@ -158,7 +160,8 @@ serve(async (req) => {
 
     await client.send({
       from: gmailUser,
-      to: gmailUser, // Send to same email (orlandoglobalministries@gmail.com)
+      replyTo: data.email,
+      to: gmailUser,
       subject: `Contact Form - ${data.subject}`,
       content: `New contact form submission from ${data.name} (${data.email})`,
       html: emailHTML,
