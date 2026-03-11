@@ -39,7 +39,7 @@ function generateEmailHTML(data: ContactFormData): string {
   };
 
   const phoneSection = data.phone ? `<div class="field"><span class="label">Phone:</span><div class="value"><a href="tel:${data.phone}">${data.phone}</a></div></div>` : "";
-  
+  const eventDateSection = data.eventDate ? `<div class="field"><span class="label">Event Date:</span><div class="value">${data.eventDate}</div></div>` : "";
   const consentSection = data.transactionalConsent || data.marketingConsent 
     ? (data.transactionalConsent ? '<div class="consent">✅ <strong>Transactional messages:</strong> Agreed</div>' : '') +
       (data.marketingConsent ? '<div class="consent">✅ <strong>Marketing messages:</strong> Agreed</div>' : '')
