@@ -18,9 +18,9 @@ interface DiscountEmailData {
 const WEBSITE_URL = "https://orlandoeventvenue.org";
 
 const SUBJECT_LINES: Record<number, string> = {
-  1: "Here's Your $50 Discount Code! | Orlando Event Venue",
-  2: "Dates Are Booking Quickly! | Orlando Event Venue",
-  3: "Last Chance to Use Your $50 Discount! | Orlando Event Venue",
+  1: "Your $100 Event Booking Credit Is Here | Orlando Event Venue",
+  2: "Reserve Your Date + Use Your $100 Booking Credit | Orlando Event Venue",
+  3: "Final Reminder: Reserve Your Date + Apply Your $100 Credit | Orlando Event Venue",
 };
 
 const SENT_AT_COLUMNS: Record<number, string> = {
@@ -32,54 +32,97 @@ const SENT_AT_COLUMNS: Record<number, string> = {
 function generateEmail1HTML(firstName: string, couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Your $100 Event Booking Credit Is Here | Orlando Event Venue</title>
+</head>
 
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-  <h1 style="margin:0;font-size:28px;letter-spacing:1px;">YOUR $50 DISCOUNT</h1>
-  <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-</div>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
 
-<div style="padding:30px;">
+    <!-- HEADER -->
+    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
+      <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
+        Your <span style="color:#14ADE6;">$100</span> Event Booking Credit Is Here
+      </h1>
+      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
+        Orlando Event Venue
+      </p>
+    </div>
 
-<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
+    <!-- BODY -->
+    <div style="padding:28px;">
 
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-As promised, here's your <strong>$50 discount code</strong>:
-</p>
+      <p style="margin:0;font-size:16px;">
+        Hi <strong>${firstName}</strong>,
+      </p>
 
-<div style="background:#f9fafb;border:2px dashed #d97706;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
-  <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p>
-  <p style="margin:0;font-size:32px;font-weight:bold;color:#111827;letter-spacing:3px;">${couponCode}</p>
-  <p style="margin:8px 0 0;font-size:13px;color:#666;">$50 off your base rental</p>
-</div>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        As promised, here is your <strong>$100 Event Booking Credit</strong> for Orlando Event Venue.
+      </p>
 
-<p style="margin:20px 0;font-size:15px;line-height:1.6;">
-Use this code at checkout to save $50 on your reservation. Don't wait too long — our calendar is filling up fast! We cannot reserve dates for you.
-</p>
+      <!-- CODE BLOCK -->
+      <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
+        <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
+          Your Booking Credit Code
+        </p>
+        <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
+          ${couponCode}
+        </p>
+        <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
+          $100 off your base rental
+        </p>
+      </div>
 
-<div style="text-align:center;margin:30px 0;">
-  <a href="${WEBSITE_URL}/book" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Book Now</a>
-</div>
+      <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
+        You can apply this credit when you reserve your event date.
+      </p>
 
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
-Best regards,
-</p>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        If you already know your date, the next step is simple:
+        <strong>Reserve your venue here:</strong>
+      </p>
 
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
+      <!-- CTA -->
+      <div style="text-align:center;margin:18px 0 8px;">
+        <a href="${WEBSITE_URL}/book"
+           style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
+          Reserve Your Date
+        </a>
+      </div>
 
-</div>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
+        If the button doesn't work, copy and paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+      </p>
 
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
+      <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
+        <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
+          We can't hold dates without a reservation, so if you have a date in mind, reserve it now and apply your credit at booking.
+        </p>
+      </div>
 
-</div>
+      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
+        Orlando Event Venue Team<br>
+        <strong>407-974-5979</strong><br>
+        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
+        orlandoeventvenue@gmail.com<br>
+        3847 E Colonial Dr, Orlando, FL 32803
+      </p>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
+      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
+      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
+      <p style="margin:6px 0 0;">(407) 974-5979</p>
+      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
+    </div>
+
+  </div>
 </body>
 </html>`;
 }
@@ -87,58 +130,100 @@ Best regards,
 function generateEmail2HTML(firstName: string, couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Your $100 Event Booking Credit Is Still Available | Orlando Event Venue</title>
+</head>
 
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-  <h1 style="margin:0;font-size:28px;letter-spacing:1px;">DON'T MISS OUT</h1>
-  <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-</div>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
 
-<div style="padding:30px;">
+    <!-- HEADER -->
+    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
+      <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
+        Your <span style="color:#14ADE6;">$100</span> Credit Is Still Available
+      </h1>
+      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
+        Orlando Event Venue
+      </p>
+    </div>
 
-<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
+    <!-- BODY -->
+    <div style="padding:28px;">
 
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-We noticed you haven't used your <strong>$50 discount code</strong> yet. Just a friendly reminder that our event dates are filling up fast!
-</p>
+      <p style="margin:0;font-size:16px;">
+        Hi <strong>${firstName}</strong>,
+      </p>
 
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-Use your code soon to lock in your preferred date:
-</p>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        We noticed you haven't reserved your date yet.
+      </p>
 
-<div style="background:#f9fafb;border:2px dashed #d97706;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
-  <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p>
-  <p style="margin:0;font-size:32px;font-weight:bold;color:#111827;letter-spacing:3px;">${couponCode}</p>
-  <p style="margin:8px 0 0;font-size:13px;color:#666;">$50 off your base rental</p>
-</div>
+      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        Your <strong>$100 Event Booking Credit</strong> is still available, and if you already have a date in mind, the best next step is to book now.
+      </p>
 
-<p style="margin:20px 0;font-size:15px;line-height:1.6;">
-We'd love to help make your event unforgettable.
-</p>
+      <!-- CODE BLOCK -->
+      <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
+        <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
+          Your Booking Credit Code
+        </p>
+        <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
+          ${couponCode}
+        </p>
+        <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
+          $100 off your base rental
+        </p>
+      </div>
 
-<div style="text-align:center;margin:30px 0;">
-  <a href="${WEBSITE_URL}/book" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Secure Your Date</a>
-</div>
+      <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
+        We can't hold dates without a reservation, and our calendar continues to fill.
+      </p>
 
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
-Best,
-</p>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        <strong>Reserve your date here:</strong>
+      </p>
 
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
+      <!-- CTA -->
+      <div style="text-align:center;margin:18px 0 8px;">
+        <a href="${WEBSITE_URL}/book"
+           style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
+          Reserve Your Date
+        </a>
+      </div>
 
-</div>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
+        If the button doesn't work, copy and paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+      </p>
 
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
+      <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
+        <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
+          If you're ready to move forward, reserve now and apply your credit at booking.
+        </p>
+      </div>
 
-</div>
+      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
+        Orlando Event Venue Team<br>
+        <strong>407-974-5979</strong><br>
+        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
+        orlandoeventvenue@gmail.com<br>
+        3847 E Colonial Dr, Orlando, FL 32803
+      </p>
+
+    </div>
+
+    <!-- FOOTER -->
+    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
+      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
+      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
+      <p style="margin:6px 0 0;">(407) 974-5979</p>
+      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
+    </div>
+
+  </div>
 </body>
 </html>`;
 }
@@ -146,54 +231,92 @@ Best,
 function generateEmail3HTML(firstName: string, couponCode: string): string {
   return `<!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Final Reminder: Use Your $100 Event Booking Credit | Orlando Event Venue</title>
+</head>
 
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-  <h1 style="margin:0;font-size:28px;letter-spacing:1px;">LAST CHANCE</h1>
-  <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-</div>
+<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
 
-<div style="padding:30px;">
+    <!-- HEADER -->
+    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
+      <h1 style="margin:0;font-size:24px;letter-spacing:.3px;line-height:1.25;">
+        Final Reminder: <span style="color:#14ADE6;">$100</span> Booking Credit
+      </h1>
+      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
+        Orlando Event Venue
+      </p>
+    </div>
 
-<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
+    <!-- BODY -->
+    <div style="padding:28px;">
 
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-This is your final reminder to use your <strong>$50 discount code</strong> before it expires.
-</p>
+      <p style="margin:0;font-size:16px;">
+        Hi <strong>${firstName}</strong>,
+      </p>
 
-<div style="background:#f9fafb;border:2px dashed #d97706;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
-  <p style="margin:0 0 8px;font-size:13px;color:#666;text-transform:uppercase;letter-spacing:1px;">Your Discount Code</p>
-  <p style="margin:0;font-size:32px;font-weight:bold;color:#111827;letter-spacing:3px;">${couponCode}</p>
-  <p style="margin:8px 0 0;font-size:13px;color:#666;">$50 off your base rental</p>
-</div>
+      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
+        This is your final reminder to reserve your date and apply your <strong>$100 Event Booking Credit</strong> at booking.
+      </p>
 
-<p style="margin:20px 0;font-size:15px;line-height:1.6;">
-Don't miss out on securing your event date and saving $50 in your pocket.
-</p>
+      <!-- CODE BLOCK -->
+      <div style="background:#FFFFFF;border:1px dashed rgba(20,173,230,.55);border-radius:12px;padding:18px;text-align:center;margin:18px 0;">
+        <p style="margin:0 0 8px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
+          Your Booking Credit Code
+        </p>
+        <p style="margin:0;font-size:34px;font-weight:800;color:#0B0F19;letter-spacing:3px;">
+          ${couponCode}
+        </p>
+        <p style="margin:8px 0 0;font-size:13px;color:#6B7280;">
+          $100 off your base rental
+        </p>
+      </div>
 
-<div style="text-align:center;margin:30px 0;">
-  <a href="${WEBSITE_URL}/book" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Book Now & Save $50</a>
-</div>
+      <p style="margin:0;font-size:15px;line-height:1.65;color:#374151;">
+        If you're ready to move forward, reserve your event date now:
+      </p>
 
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
-Looking forward to hosting you,
-</p>
+      <!-- CTA -->
+      <div style="text-align:center;margin:18px 0 8px;">
+        <a href="${WEBSITE_URL}/book"
+           style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 34px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
+          Reserve Your Date
+        </a>
+      </div>
 
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
+      <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
+        If the button doesn't work, copy and paste this link into your browser:<br>
+        <span style="word-break:break-all;color:#14ADE6;">${WEBSITE_URL}/book</span>
+      </p>
 
-</div>
+      <div style="margin-top:18px;padding-top:18px;border-top:1px solid #E5E7EB;">
+        <p style="margin:0;font-size:14px;line-height:1.6;color:#374151;">
+          If you already have your date in mind, don't wait. We can't hold dates without a reservation.
+        </p>
+      </div>
 
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
+      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
+        Orlando Event Venue Team<br>
+        <strong>407-974-5979</strong><br>
+        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
+        orlandoeventvenue@gmail.com<br>
+        3847 E Colonial Dr, Orlando, FL 32803
+      </p>
 
-</div>
+    </div>
+
+    <!-- FOOTER -->
+    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
+      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
+      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
+      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
+      <p style="margin:6px 0 0;">(407) 974-5979</p>
+      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
+    </div>
+
+  </div>
 </body>
 </html>`;
 }
