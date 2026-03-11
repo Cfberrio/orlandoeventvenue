@@ -77,6 +77,7 @@ const ContactForm = () => {
           phone: formData.phone,
           subject: formData.subject,
           message: formData.message,
+          eventDate: formData.eventDate ? format(formData.eventDate, "yyyy-MM-dd") : undefined,
           website: formData.website, // Honeypot
           transactionalConsent: formData.transactionalConsent,
           marketingConsent: formData.marketingConsent,
