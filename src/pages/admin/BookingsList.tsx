@@ -1,5 +1,7 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,10 +23,35 @@ import {
 } from "@/components/ui/table";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, Filter, X, Eye, AlertTriangle } from "lucide-react";
+import { CalendarIcon, Filter, X, Eye, AlertTriangle, RefreshCw } from "lucide-react";
 import { useBookings } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+
+interface RecurringInvoice {
+  id: string;
+  invoice_number: string;
+  title: string;
+  description: string | null;
+  amount: number;
+  customer_email: string;
+  customer_name: string | null;
+  payment_status: string;
+  created_at: string;
+  is_recurring: boolean;
+  recurring_active: boolean;
+  recurring_interval_days: number | null;
+  recurring_next_send_at: string | null;
+  recurring_parent_id: string | null;
+}
+
+function frequencyLabel(days: number | null): string {
+  if (!days) return "";
+  if (days === 7) return "Weekly";
+  if (days === 14) return "Bi-weekly";
+  if (days === 30) return "Monthly";
+  return `Every ${days}d`;
+}
 
 const lifecycleStatuses = [
   "pending",
@@ -127,6 +154,90 @@ export default function BookingsList() {
     if (!bookings) return [];
     return bookings.filter(b => b.booking_origin === "internal");
   }, [bookings]);
+
+  const { data: recurringInvoices } = useQuery({
+    queryKey: ["recurring-invoices-active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("invoices" as any)
+        .select("*")
+        .eq("is_recurring", true)
+        .eq("recurring_active", true)
+        .is("recurring_parent_id", null)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data as RecurringInvoice[];
+    },
+  });
+
+  const renderRecurringInvoicesTable = (invoicesList: RecurringInvoice[]) => (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Invoice #</TableHead>
+            <TableHead>Customer</TableHead>
+            <TableHead>Title</TableHead>
+            <TableHead className="text-right">Amount</TableHead>
+            <TableHead>Frequency</TableHead>
+            <TableHead>Next Send</TableHead>
+            <TableHead>Status</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {invoicesList.map((invoice) => (
+            <TableRow key={invoice.id} className="group">
+              <TableCell>
+                <div className="text-sm font-medium">{invoice.invoice_number}</div>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(invoice.created_at), "MM/dd/yyyy")}
+                </div>
+              </TableCell>
+              <TableCell>
+                <div className="font-medium">{invoice.customer_name || "—"}</div>
+                <div className="text-xs text-muted-foreground">{invoice.customer_email}</div>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm">{invoice.title}</div>
+                {invoice.description && (
+                  <div className="text-xs text-muted-foreground truncate max-w-[180px]">
+                    {invoice.description}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell className="text-right font-medium">
+                ${Number(invoice.amount).toLocaleString()}
+              </TableCell>
+              <TableCell>
+                <Badge className="text-xs bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400">
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  {frequencyLabel(invoice.recurring_interval_days)}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <div className="text-sm">
+                  {invoice.recurring_next_send_at
+                    ? format(new Date(invoice.recurring_next_send_at), "MM/dd/yyyy")
+                    : <span className="text-muted-foreground">—</span>
+                  }
+                </div>
+              </TableCell>
+              <TableCell>
+                <Badge className={cn(
+                  "text-xs",
+                  invoice.recurring_active
+                    ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
+                    : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                )}>
+                  {invoice.recurring_active ? "Active" : "Paused"}
+                </Badge>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
 
   const clearFilters = () => {
     setDateFrom(undefined);
@@ -498,6 +609,24 @@ export default function BookingsList() {
                     </div>
                   </div>
                   {renderBookingsTable(internalBookings, false)}
+                </div>
+              )}
+
+              {/* Recurring / Internal Invoices section */}
+              {recurringInvoices && recurringInvoices.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between border-b pb-2">
+                    <div className="flex items-center gap-3">
+                      <Badge className="text-sm bg-violet-100 text-violet-800 dark:bg-violet-900/30 dark:text-violet-400">
+                        <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                        Internal Invoices
+                      </Badge>
+                      <span className="text-sm text-muted-foreground">
+                        {recurringInvoices.length} {recurringInvoices.length === 1 ? 'active invoice' : 'active invoices'}
+                      </span>
+                    </div>
+                  </div>
+                  {renderRecurringInvoicesTable(recurringInvoices)}
                 </div>
               )}
             </div>

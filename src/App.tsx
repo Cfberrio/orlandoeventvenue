@@ -30,6 +30,7 @@ import Cleaning from "./pages/admin/Cleaning";
 import Inventory from "./pages/admin/Inventory";
 import Discounts from "./pages/admin/Discounts";
 import Invoices from "./pages/admin/Invoices";
+import Analytics from "./pages/admin/Analytics";
 // Staff Dashboard imports
 import StaffLayout from "./components/staff/StaffLayout";
 import StaffProtectedRoute from "./components/staff/StaffProtectedRoute";
@@ -85,6 +86,7 @@ const App = () => (
                 <Route path="inventory" element={<Inventory />} />
                 <Route path="discounts" element={<Discounts />} />
                 <Route path="invoices" element={<Invoices />} />
+                <Route path="analytics" element={<Analytics />} />
               </Route>
 
               {/* Staff Routes */}

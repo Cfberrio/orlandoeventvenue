@@ -1346,3 +1346,40 @@ export function useDeleteDiscountCoupon() {
     },
   });
 }
+
+// --------------- Popup Leads Analytics ---------------
+
+export function usePopupLeads() {
+  return useQuery({
+    queryKey: ["popup-leads-all"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("popup_leads")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function usePopupAnalytics() {
+  return useQuery({
+    queryKey: ["popup-analytics"],
+    queryFn: async () => {
+      const { data: leads, error: leadsError } = await supabase
+        .from("popup_leads")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (leadsError) throw leadsError;
+
+      const { data: bookings, error: bookingsError } = await supabase
+        .from("bookings")
+        .select("id, email, total_amount, discount_code, created_at, reservation_number")
+        .or("discount_code.eq.SAVE100,discount_code.eq.SAVE50");
+      if (bookingsError) throw bookingsError;
+
+      return { leads: leads ?? [], bookings: bookings ?? [] };
+    },
+  });
+}

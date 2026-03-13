@@ -14,7 +14,8 @@ import {
   Tag,
   DollarSign,
   Wallet,
-  FileText
+  FileText,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -32,6 +33,7 @@ const navItems = [
   { to: "/admin/inventory", icon: Package, label: "Inventory" },
   { to: "/admin/discounts", icon: Tag, label: "Discounts" },
   { to: "/admin/invoices", icon: FileText, label: "Invoices" },
+  { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
 ];
 
 export default function AdminLayout() {
