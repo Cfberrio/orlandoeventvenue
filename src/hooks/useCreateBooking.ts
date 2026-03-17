@@ -215,7 +215,7 @@ export const useCreateBooking = () => {
         optional_services: formData.pricing.optionalServices,
         discount_amount: formData.pricing.discount || 0,
         discount_code: formData.pricing.discountCode || null,
-        taxes_fees: formData.pricing.processingFee,
+        taxes_fees: 0,
         total_amount: formData.pricing.total,
         deposit_amount: formData.pricing.deposit,
         balance_amount: formData.pricing.balance,

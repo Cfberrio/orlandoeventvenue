@@ -1115,7 +1115,7 @@ export default function BookingDetail() {
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Processing Fee (3.5%)</span>
-                    <span>${Number(booking.taxes_fees).toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground italic">Applied per transaction</span>
                   </div>
                 </div>
                 

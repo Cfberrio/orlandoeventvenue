@@ -204,7 +204,7 @@ ${formatCurrency(amountPaid)} ${currency.toUpperCase()}
 </tr>
 <tr>
 <td style="padding:5px 0;color:#666;">Processing Fee (3.5%):</td>
-<td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.taxes_fees) || 0)}</strong></td>
+<td style="padding:5px 0;"><strong>Applied per transaction</strong></td>
 </tr>
 </table>
 

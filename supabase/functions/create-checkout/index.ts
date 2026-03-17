@@ -74,10 +74,10 @@ serve(async (req: Request) => {
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
     const PROCESSING_FEE_RATE = 0.035;
     const depositAmountCents = Math.round(depositAmount * 100);
-    const baseAmountCents = Math.round(depositAmountCents / (1 + PROCESSING_FEE_RATE));
-    const feeCents = depositAmountCents - baseAmountCents;
+    const feeCents = Math.round(depositAmountCents * PROCESSING_FEE_RATE);
+    const totalChargeCents = depositAmountCents + feeCents;
 
-    console.log(`Deposit split: base=${baseAmountCents}c, fee=${feeCents}c, total=${depositAmountCents}c`);
+    console.log(`Deposit: base=${depositAmountCents}c, fee=${feeCents}c, total=${totalChargeCents}c`);
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -93,7 +93,7 @@ serve(async (req: Request) => {
               name: `Event Venue Deposit - ${eventType}`,
               description: `50% deposit for event on ${eventDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
             },
-            unit_amount: baseAmountCents,
+            unit_amount: depositAmountCents,
           },
           quantity: 1,
         },

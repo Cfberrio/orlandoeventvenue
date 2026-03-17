@@ -15,12 +15,21 @@ interface PaymentStepProps {
   onBack: () => void;
 }
 
+const PROCESSING_FEE_RATE = 0.035;
+
 const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
   const [isPaid, setIsPaid] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const createBooking = useCreateBooking();
   const [searchParams] = useSearchParams();
+
+  const depositBase = data.pricing?.deposit ?? 0;
+  const balanceBase = data.pricing?.balance ?? 0;
+  const depositFee = Math.round(depositBase * PROCESSING_FEE_RATE * 100) / 100;
+  const balanceFee = Math.round(balanceBase * PROCESSING_FEE_RATE * 100) / 100;
+  const depositTotal = depositBase + depositFee;
+  const balanceTotal = balanceBase + balanceFee;
 
   // Check if returning from successful Stripe payment
   useEffect(() => {
@@ -109,18 +118,25 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
         <Card className="p-6 bg-accent/30 text-left max-w-2xl mx-auto">
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">You paid (50% Deposit)</p>
+              <p className="text-sm text-muted-foreground">You paid (50% Deposit + Processing Fee)</p>
               <p className="text-2xl font-bold text-green-600">
-                ${data.pricing?.deposit.toFixed(2)}
+                ${depositTotal.toFixed(2)}
               </p>
+              <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
+                <p>Base deposit: ${depositBase.toFixed(2)}</p>
+                <p>Processing Fee (3.5%): ${depositFee.toFixed(2)}</p>
+              </div>
             </div>
 
             <div>
               <p className="text-sm text-muted-foreground">Balance Due</p>
               <p className="text-xl font-semibold">
-                ${data.pricing?.balance.toFixed(2)}
+                ${balanceTotal.toFixed(2)}
               </p>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs text-muted-foreground">
+                ${balanceBase.toFixed(2)} + ${balanceFee.toFixed(2)} processing fee (3.5%)
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">
                 Due on {format(balanceDueDate, "PPP")} (15 days before your event)
               </p>
             </div>
@@ -158,13 +174,27 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
           <div className="flex justify-between items-center">
             <span className="font-semibold">Deposit Due Today (50%)</span>
             <span className="text-2xl font-bold text-primary">
-              ${data.pricing?.deposit.toFixed(2)}
+              ${depositTotal.toFixed(2)}
             </span>
           </div>
+
+          <div className="ml-4 space-y-1 text-sm text-muted-foreground">
+            <div className="flex justify-between">
+              <span>Base amount</span>
+              <span>${depositBase.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Processing Fee (3.5%)</span>
+              <span>${depositFee.toFixed(2)}</span>
+            </div>
+          </div>
           
-          <div className="flex justify-between items-center text-sm">
-            <span className="text-muted-foreground">Remaining Balance</span>
-            <span>${data.pricing?.balance.toFixed(2)}</span>
+          <div className="flex justify-between items-center text-sm pt-2 border-t">
+            <span className="text-muted-foreground">Remaining Balance (due later)</span>
+            <span>${balanceTotal.toFixed(2)}</span>
+          </div>
+          <div className="ml-4 text-xs text-muted-foreground">
+            <span>${balanceBase.toFixed(2)} + 3.5% fee at payment</span>
           </div>
 
           <div className="text-sm text-muted-foreground pt-2 border-t">
@@ -213,7 +243,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
           ) : (
             <>
               <CreditCard className="mr-2 h-4 w-4" />
-              Pay ${data.pricing?.deposit.toFixed(2)} Now
+              Pay ${depositTotal.toFixed(2)} Now
             </>
           )}
         </Button>

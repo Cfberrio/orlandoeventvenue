@@ -214,10 +214,10 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       }
 
       const subtotal = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
-      const processingFee = Math.round(subtotal * 0.035 * 100) / 100;
-      const total = subtotal + processingFee;
-      const deposit = Math.round(total * 0.5);
-      const balance = total - deposit;
+      const total = subtotal;
+      const deposit = Math.round(subtotal * 0.5);
+      const balance = subtotal - deposit;
+      const processingFee = Math.round(deposit * 0.035 * 100) / 100;
 
       updateData({
         pricing: {
@@ -443,26 +443,38 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 <span>-${data.pricing.discount.toFixed(2)}</span>
               </div>
             )}
-            <div className="flex justify-between text-muted-foreground">
-              <span>Processing Fee (3.5%)</span>
-              <span>${data.pricing.processingFee.toFixed(2)}</span>
-            </div>
           </div>
 
           <Separator className="my-4" />
 
           <div className="space-y-2 font-semibold">
             <div className="flex justify-between text-lg">
-              <span>Grand Total</span>
+              <span>Subtotal</span>
               <span>${data.pricing.total.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-primary">
+          </div>
+
+          <Separator className="my-4" />
+
+          <div className="space-y-2">
+            <div className="flex justify-between font-semibold text-primary">
               <span>Deposit Due Today (50%)</span>
+              <span>${(data.pricing.deposit + data.pricing.processingFee).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm text-muted-foreground ml-4">
+              <span>Base amount</span>
               <span>${data.pricing.deposit.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between text-muted-foreground text-sm font-normal">
+            <div className="flex justify-between text-sm text-muted-foreground ml-4">
+              <span>Processing Fee (3.5%)</span>
+              <span>${data.pricing.processingFee.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground text-sm font-normal pt-2">
               <span>Balance Due (15 days before event)</span>
-              <span>${data.pricing.balance.toFixed(2)}</span>
+              <span>${(data.pricing.balance + Math.round(data.pricing.balance * 0.035 * 100) / 100).toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground ml-4">
+              <span>${data.pricing.balance.toFixed(2)} + 3.5% fee at payment</span>
             </div>
           </div>
         </div>

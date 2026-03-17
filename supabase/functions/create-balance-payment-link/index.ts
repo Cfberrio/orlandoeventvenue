@@ -116,13 +116,13 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // Calculate balance amount in cents + processing fee
+    // Calculate balance amount in cents + processing fee (fee on top)
     const PROCESSING_FEE_RATE = 0.035;
     const balanceAmountCents = Math.round(Number(booking.balance_amount) * 100);
-    const baseAmountCents = Math.round(balanceAmountCents / (1 + PROCESSING_FEE_RATE));
-    const feeCents = balanceAmountCents - baseAmountCents;
+    const feeCents = Math.round(balanceAmountCents * PROCESSING_FEE_RATE);
+    const totalChargeCents = balanceAmountCents + feeCents;
 
-    console.log(`Balance split: base=${baseAmountCents}c, fee=${feeCents}c, total=${balanceAmountCents}c`);
+    console.log(`Balance: base=${balanceAmountCents}c, fee=${feeCents}c, total=${totalChargeCents}c`);
 
     if (balanceAmountCents <= 0) {
       return new Response(JSON.stringify({ error: "Invalid balance amount" }), {
@@ -172,7 +172,7 @@ serve(async (req) => {
               name: `Balance Payment - ${booking.reservation_number || "Event Booking"}`,
               description: `Remaining balance for ${booking.event_type} on ${booking.event_date}`,
             },
-            unit_amount: baseAmountCents,
+            unit_amount: balanceAmountCents,
           },
           quantity: 1,
         },
@@ -262,7 +262,8 @@ serve(async (req) => {
             ? `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}`
             : "All Day";
           const fmtCurrency = (n: number) => `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          const balanceFormatted = fmtCurrency(booking.balance_amount);
+          const balanceBaseFormatted = fmtCurrency(booking.balance_amount);
+          const balanceTotalFormatted = fmtCurrency((balanceAmountCents + feeCents) / 100);
           const totalFormatted = fmtCurrency(booking.total_amount);
           const depositFormatted = fmtCurrency(booking.deposit_amount);
           const processingFeeFormatted = fmtCurrency(feeCents / 100);
@@ -281,7 +282,7 @@ serve(async (req) => {
 <p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Your remaining balance for your upcoming event is ready for payment. Please complete your payment at your earliest convenience to confirm your reservation.</p>
 <div style="background:#fffbeb;border:2px solid #d97706;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
 <p style="margin:0 0 6px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:1px;">Remaining Balance Due</p>
-<p style="margin:0;font-size:32px;font-weight:bold;color:#d97706;">${balanceFormatted}</p>
+<p style="margin:0;font-size:32px;font-weight:bold;color:#d97706;">${balanceTotalFormatted}</p>
 </div>
 <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
 <p style="margin:0 0 12px;font-weight:bold;font-size:15px;color:#111827;">Event Details</p>
@@ -297,8 +298,9 @@ serve(async (req) => {
 <table width="100%" style="border-collapse:collapse;font-size:14px;">
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Total Amount</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${totalFormatted}</td></tr>
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Deposit Paid</td><td style="padding:8px 0;text-align:right;color:#059669;font-weight:bold;">${depositFormatted}</td></tr>
+<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Remaining Balance</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${balanceBaseFormatted}</td></tr>
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Processing Fee (3.5%)</td><td style="padding:8px 0;text-align:right;color:#111827;">${processingFeeFormatted}</td></tr>
-<tr style="border-top:2px solid #111827;"><td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Balance Due</td><td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#d97706;">${balanceFormatted}</td></tr>
+<tr style="border-top:2px solid #111827;"><td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td><td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#d97706;">${balanceTotalFormatted}</td></tr>
 </table>
 </div>
 <div style="text-align:center;margin:30px 0;">
@@ -330,7 +332,7 @@ serve(async (req) => {
             from: gmailUser,
             to: booking.email,
             subject: `Balance Payment Due – ${booking.reservation_number || "Event Booking"} | Orlando Event Venue`,
-            content: `Your remaining balance of ${balanceFormatted} is due. Pay here: ${paymentUrl}`,
+            content: `Your remaining balance of ${balanceTotalFormatted} is due. Pay here: ${paymentUrl}`,
             html: emailHTML,
           });
 

@@ -100,6 +100,8 @@ function generateEmailHTML(booking: BalanceEmailData): string {
   const timeRange = booking.start_time && booking.end_time
     ? `${formatTime(booking.start_time)} – ${formatTime(booking.end_time)}`
     : "All Day";
+  const balanceFee = Math.round(Number(booking.balance_amount) * 0.035 * 100) / 100;
+  const depositFee = Math.round(Number(booking.deposit_amount) * 0.035 * 100) / 100;
 
   return `<!DOCTYPE html>
 <html>
@@ -195,26 +197,20 @@ function generateEmailHTML(booking: BalanceEmailData): string {
         <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
           <tr>
             <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Total Amount</span><br>
+              <span style="font-size:12px;color:#6B7280;">Event Total</span><br>
               <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.total_amount)}</span>
             </td>
           </tr>
           <tr>
             <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Deposit Paid</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.deposit_amount)}</span>
+              <span style="font-size:12px;color:#6B7280;">Deposit Paid (+ ${formatCurrency(depositFee)} fee)</span><br>
+              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(Number(booking.deposit_amount) + depositFee)}</span>
             </td>
           </tr>
           <tr>
             <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Balance Paid</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.balance_amount)}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Processing Fee (3.5%)</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.taxes_fees || 0)}</span>
+              <span style="font-size:12px;color:#6B7280;">Balance Paid (+ ${formatCurrency(balanceFee)} fee)</span><br>
+              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(Number(booking.balance_amount) + balanceFee)}</span>
             </td>
           </tr>
           <tr>
