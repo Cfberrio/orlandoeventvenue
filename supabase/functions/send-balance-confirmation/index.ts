@@ -30,6 +30,7 @@ interface BalanceEmailData {
   tablecloths?: boolean;
   tablecloth_quantity?: number;
   optional_services?: number;
+  taxes_fees?: number;
 }
 
 function formatDate(dateString: string): string {
@@ -208,6 +209,12 @@ function generateEmailHTML(booking: BalanceEmailData): string {
             <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
               <span style="font-size:12px;color:#6B7280;">Balance Paid</span><br>
               <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.balance_amount)}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
+              <span style="font-size:12px;color:#6B7280;">Processing Fee (3.5%)</span><br>
+              <span style="font-size:14px;color:#111827;font-weight:bold;">${formatCurrency(booking.taxes_fees || 0)}</span>
             </td>
           </tr>
           <tr>

@@ -72,12 +72,17 @@ serve(async (req: Request) => {
     }
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
+    const PROCESSING_FEE_RATE = 0.035;
     const depositAmountCents = Math.round(depositAmount * 100);
+    const baseAmountCents = Math.round(depositAmountCents / (1 + PROCESSING_FEE_RATE));
+    const feeCents = depositAmountCents - baseAmountCents;
+
+    console.log(`Deposit split: base=${baseAmountCents}c, fee=${feeCents}c, total=${depositAmountCents}c`);
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
-      client_reference_id: bookingId, // Fallback for webhook
+      client_reference_id: bookingId,
       payment_method_types: ["card"],
       mode: "payment",
       line_items: [
@@ -88,7 +93,17 @@ serve(async (req: Request) => {
               name: `Event Venue Deposit - ${eventType}`,
               description: `50% deposit for event on ${eventDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
             },
-            unit_amount: Math.round(depositAmount * 100), // Convert to cents
+            unit_amount: baseAmountCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Processing Fee (3.5%)",
+            },
+            unit_amount: feeCents,
           },
           quantity: 1,
         },
@@ -97,7 +112,7 @@ serve(async (req: Request) => {
       cancel_url: `${cancelUrl}?cancelled=true&booking_id=${bookingId}`,
       metadata: {
         booking_id: bookingId,
-        bookingId: bookingId, // Redundant for safety
+        bookingId: bookingId,
         payment_type: "deposit",
       },
       payment_intent_data: {

@@ -213,7 +213,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         optionalServices += data.tableclothQuantity * 5 + 25;
       }
 
-      const total = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
+      const subtotal = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
+      const processingFee = Math.round(subtotal * 0.035 * 100) / 100;
+      const total = subtotal + processingFee;
       const deposit = Math.round(total * 0.5);
       const balance = total - deposit;
 
@@ -225,6 +227,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           optionalServices,
           discount: appliedDiscount ? appliedDiscount.amount : 0,
           discountCode: appliedDiscount?.code,
+          processingFee,
           total,
           deposit,
           balance,
@@ -440,6 +443,10 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 <span>-${data.pricing.discount.toFixed(2)}</span>
               </div>
             )}
+            <div className="flex justify-between text-muted-foreground">
+              <span>Processing Fee (3.5%)</span>
+              <span>${data.pricing.processingFee.toFixed(2)}</span>
+            </div>
           </div>
 
           <Separator className="my-4" />

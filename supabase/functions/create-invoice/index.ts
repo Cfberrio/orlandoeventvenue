@@ -169,7 +169,12 @@ serve(async (req: Request) => {
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
+    const PROCESSING_FEE_RATE = 0.035;
     const invoiceAmountCents = Math.round(Number(invoice.amount) * 100);
+    const feeCents = Math.round(invoiceAmountCents * PROCESSING_FEE_RATE);
+    const totalWithFeeCents = invoiceAmountCents + feeCents;
+
+    console.log(`Invoice fee: base=${invoiceAmountCents}c, fee=${feeCents}c, total=${totalWithFeeCents}c`);
 
     // Build Stripe line items from line_items JSON or fall back to single item
     const rawLineItems: InvoiceLineItem[] | null = invoice.line_items;
@@ -200,6 +205,16 @@ serve(async (req: Request) => {
       ];
     }
 
+    // Add processing fee as separate line item
+    stripeLineItems.push({
+      price_data: {
+        currency: "usd",
+        product_data: { name: "Processing Fee (3.5%)" },
+        unit_amount: feeCents,
+      },
+      quantity: 1,
+    });
+
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       payment_method_types: ["card"],
@@ -216,7 +231,7 @@ serve(async (req: Request) => {
         payment_intent_data: {
           transfer_data: {
             destination: connectedAccountId,
-            amount: Math.round(invoiceAmountCents * 0.20),
+            amount: Math.round(totalWithFeeCents * 0.20),
           },
         },
       } : {}),
@@ -250,13 +265,13 @@ serve(async (req: Request) => {
           },
         });
 
-        const amountFormatted = `$${Number(invoice.amount).toFixed(2)}`;
+        const totalWithFeeFormatted = `$${(totalWithFeeCents / 100).toFixed(2)}`;
 
-        // Build email line items for the breakdown
+        // Build email line items for the breakdown (include processing fee)
         const emailLineItems: InvoiceLineItem[] =
           rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0
-            ? rawLineItems
-            : [{ label: invoice.title, amount: Number(invoice.amount) }];
+            ? [...rawLineItems, { label: "Processing Fee (3.5%)", amount: feeCents / 100 }]
+            : [{ label: invoice.title, amount: Number(invoice.amount) }, { label: "Processing Fee (3.5%)", amount: feeCents / 100 }];
 
         const emailHTML = buildInvoiceEmailHTML(
           customer_name || invoice.customer_name || "Customer",
@@ -264,15 +279,15 @@ serve(async (req: Request) => {
           invoice.title,
           invoice.description,
           emailLineItems,
-          amountFormatted,
+          totalWithFeeFormatted,
           session.url
         );
 
         await client.send({
           from: gmailUser,
           to: customer_email,
-          subject: `Invoice ${invoice.invoice_number} – ${amountFormatted} | Orlando Event Venue`,
-          content: `You have a new invoice of ${amountFormatted} from Orlando Event Venue. Pay here: ${session.url}`,
+          subject: `Invoice ${invoice.invoice_number} – ${totalWithFeeFormatted} | Orlando Event Venue`,
+          content: `You have a new invoice of ${totalWithFeeFormatted} from Orlando Event Venue. Pay here: ${session.url}`,
           html: emailHTML,
         });
 

@@ -152,6 +152,10 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     return sum + (isNaN(val) ? 0 : val);
   }, 0);
 
+  const PROCESSING_FEE_RATE = 0.035;
+  const processingFee = Math.round(total * PROCESSING_FEE_RATE * 100) / 100;
+  const totalWithFee = total + processingFee;
+
   const handleSubmit = async () => {
     if (!title.trim()) {
       toast({ title: "Title is required", variant: "destructive" });
@@ -334,11 +338,25 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
               Add Item
             </Button>
 
-            <div className="flex items-center justify-between pt-3 border-t">
-              <span className="text-sm font-medium">Total</span>
-              <span className="text-lg font-bold">
-                ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
+            <div className="pt-3 border-t space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Subtotal</span>
+                <span className="text-sm">
+                  ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Processing Fee (3.5%)</span>
+                <span className="text-sm">
+                  ${processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Total (client pays)</span>
+                <span className="text-lg font-bold">
+                  ${totalWithFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
             </div>
           </div>
 

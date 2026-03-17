@@ -224,6 +224,24 @@ serve(async (req: Request) => {
       );
     }
 
+    // Calculate and add processing fee
+    const PROCESSING_FEE_RATE = 0.035;
+    const baseAmountCents = stripeLineItems.reduce(
+      (sum, item) => sum + (item.price_data?.unit_amount || 0), 0
+    );
+    const feeCents = Math.round(baseAmountCents * PROCESSING_FEE_RATE);
+    console.log(`Addon invoice fee: base=${baseAmountCents}c, fee=${feeCents}c`);
+
+    stripeLineItems.push({
+      price_data: {
+        currency: "usd",
+        product_data: { name: "Processing Fee (3.5%)" },
+        unit_amount: feeCents,
+      },
+      quantity: 1,
+    });
+    emailLineItems.push({ label: "Processing Fee (3.5%)", amount: `$${(feeCents / 100).toFixed(2)}` });
+
     const customers = await stripe.customers.list({ email: customer_email, limit: 1 });
     let customerId: string;
     if (customers.data.length > 0) {
@@ -240,7 +258,7 @@ serve(async (req: Request) => {
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
-    const totalAmountCents = stripeLineItems.reduce(
+    const totalAmountCentsWithFee = stripeLineItems.reduce(
       (sum, item) => sum + (item.price_data?.unit_amount || 0), 0
     );
 
@@ -261,7 +279,7 @@ serve(async (req: Request) => {
         payment_intent_data: {
           transfer_data: {
             destination: connectedAccountId,
-            amount: Math.round(totalAmountCents * 0.20),
+            amount: Math.round(totalAmountCentsWithFee * 0.20),
           },
         },
       } : {}),
@@ -296,7 +314,8 @@ serve(async (req: Request) => {
           },
         });
 
-        const totalFormatted = `$${Number(invoice.total_amount).toFixed(2)}`;
+        const totalWithFeeCents = baseAmountCents + feeCents;
+        const totalFormatted = `$${(totalWithFeeCents / 100).toFixed(2)}`;
         const emailHTML = buildInvoiceEmailHTML(
           customer_name,
           reservation_number,

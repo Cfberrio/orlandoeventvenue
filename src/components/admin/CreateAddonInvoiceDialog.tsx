@@ -89,6 +89,9 @@ export default function CreateAddonInvoiceDialog({
   }, [setupBreakdown, tablecloths, tableclothQuantity]);
 
   const totalAmount = packageCost + optionalServicesCost;
+  const PROCESSING_FEE_RATE = 0.035;
+  const processingFee = Math.round(totalAmount * PROCESSING_FEE_RATE * 100) / 100;
+  const totalWithFee = totalAmount + processingFee;
 
   const validationError = useMemo(() => {
     if (selectedPackage === "none" && !setupBreakdown && !tablecloths) {
@@ -329,9 +332,17 @@ export default function CreateAddonInvoiceDialog({
                 </div>
               )}
               <Separator className="my-2" />
-              <div className="flex justify-between font-bold text-base">
-                <span>Total</span>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Subtotal</span>
                 <span>${totalAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Processing Fee (3.5%)</span>
+                <span>${processingFee.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-base">
+                <span>Total (client pays)</span>
+                <span>${totalWithFee.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -354,7 +365,7 @@ export default function CreateAddonInvoiceDialog({
             ) : (
               <>
                 <Send className="h-4 w-4 mr-2" />
-                Send Invoice (${totalAmount.toFixed(2)})
+                Send Invoice (${totalWithFee.toFixed(2)})
               </>
             )}
           </Button>

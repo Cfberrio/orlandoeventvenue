@@ -39,6 +39,7 @@ export interface BookingFormData {
     optionalServices: number;
     discount?: number;
     discountCode?: string;
+    processingFee: number;
     total: number;
     deposit: number;
     balance: number;

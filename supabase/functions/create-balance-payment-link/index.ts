@@ -116,8 +116,13 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // Calculate balance amount in cents
+    // Calculate balance amount in cents + processing fee
+    const PROCESSING_FEE_RATE = 0.035;
     const balanceAmountCents = Math.round(Number(booking.balance_amount) * 100);
+    const baseAmountCents = Math.round(balanceAmountCents / (1 + PROCESSING_FEE_RATE));
+    const feeCents = balanceAmountCents - baseAmountCents;
+
+    console.log(`Balance split: base=${baseAmountCents}c, fee=${feeCents}c, total=${balanceAmountCents}c`);
 
     if (balanceAmountCents <= 0) {
       return new Response(JSON.stringify({ error: "Invalid balance amount" }), {
@@ -167,7 +172,17 @@ serve(async (req) => {
               name: `Balance Payment - ${booking.reservation_number || "Event Booking"}`,
               description: `Remaining balance for ${booking.event_type} on ${booking.event_date}`,
             },
-            unit_amount: balanceAmountCents,
+            unit_amount: baseAmountCents,
+          },
+          quantity: 1,
+        },
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: "Processing Fee (3.5%)",
+            },
+            unit_amount: feeCents,
           },
           quantity: 1,
         },
@@ -250,6 +265,7 @@ serve(async (req) => {
           const balanceFormatted = fmtCurrency(booking.balance_amount);
           const totalFormatted = fmtCurrency(booking.total_amount);
           const depositFormatted = fmtCurrency(booking.deposit_amount);
+          const processingFeeFormatted = fmtCurrency(feeCents / 100);
           const paymentUrl = session.url;
 
           const emailHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
@@ -281,6 +297,7 @@ serve(async (req) => {
 <table width="100%" style="border-collapse:collapse;font-size:14px;">
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Total Amount</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${totalFormatted}</td></tr>
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Deposit Paid</td><td style="padding:8px 0;text-align:right;color:#059669;font-weight:bold;">${depositFormatted}</td></tr>
+<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Processing Fee (3.5%)</td><td style="padding:8px 0;text-align:right;color:#111827;">${processingFeeFormatted}</td></tr>
 <tr style="border-top:2px solid #111827;"><td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Balance Due</td><td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#d97706;">${balanceFormatted}</td></tr>
 </table>
 </div>

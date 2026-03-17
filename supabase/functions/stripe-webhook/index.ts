@@ -202,6 +202,10 @@ ${formatCurrency(amountPaid)} ${currency.toUpperCase()}
 <td style="padding:5px 0;color:#666;">Balance Amount:</td>
 <td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.balance_amount) || 0)}</strong></td>
 </tr>
+<tr>
+<td style="padding:5px 0;color:#666;">Processing Fee (3.5%):</td>
+<td style="padding:5px 0;"><strong>${formatCurrency(Number(booking.taxes_fees) || 0)}</strong></td>
+</tr>
 </table>
 
 <div style="text-align:center;margin:20px 0;">
@@ -749,6 +753,7 @@ ${receiptItemRows}
               tablecloths: data.tablecloths,
               tablecloth_quantity: data.tablecloth_quantity,
               optional_services: data.optional_services,
+              taxes_fees: data.taxes_fees,
             }),
           });
 
