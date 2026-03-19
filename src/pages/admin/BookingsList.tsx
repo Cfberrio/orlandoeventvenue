@@ -166,7 +166,7 @@ export default function BookingsList() {
         .is("recurring_parent_id", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return data as RecurringInvoice[];
+      return data as unknown as RecurringInvoice[];
     },
   });
 
