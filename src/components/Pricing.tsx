@@ -46,7 +46,7 @@ const Pricing = () => {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="mb-4">
-                  <span className="text-4xl font-bold text-foreground">$140</span>
+                  <span className="text-4xl font-bold text-foreground">{isLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : `$${p.hourly_rate}`}</span>
                   <span className="text-muted">/hour</span>
                 </div>
                 <p className="text-sm text-muted mb-4">4-hour minimum</p>
