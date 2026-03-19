@@ -4,8 +4,9 @@ import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { BookingFormData } from "@/pages/Book";
 import { format } from "date-fns";
-import { Edit, Tag, Check, X } from "lucide-react";
+import { Edit, Tag, Check, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { usePricing } from "@/hooks/usePricing";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -16,6 +17,7 @@ interface SummaryStepProps {
 }
 
 const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStepProps) => {
+  const { pricing: p, isLoading: pricingLoading } = usePricing();
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
@@ -73,9 +75,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         const start = new Date(`2000-01-01T${data.startTime}`);
         const end = new Date(`2000-01-01T${data.endTime}`);
         const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = 140 * hours;
+        baseRental = p.hourly_rate * hours;
       } else if (data.bookingType === "daily") {
-        baseRental = 899;
+        baseRental = p.daily_rate;
       }
 
       const discountAmount = Math.round((baseRental * percentage) / 100);
@@ -129,9 +131,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         const start = new Date(`2000-01-01T${data.startTime}`);
         const end = new Date(`2000-01-01T${data.endTime}`);
         const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = 140 * hours;
+        baseRental = p.hourly_rate * hours;
       } else if (data.bookingType === "daily") {
-        baseRental = 899;
+        baseRental = p.daily_rate;
       }
 
       // Calculate discount based on type
@@ -163,7 +165,8 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   };
 
   useEffect(() => {
-    // Calculate pricing
+    if (pricingLoading) return;
+
     const calculatePricing = () => {
       let baseRental = 0;
       let hours = 0;
@@ -172,31 +175,28 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         const start = new Date(`2000-01-01T${data.startTime}`);
         const end = new Date(`2000-01-01T${data.endTime}`);
         hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = 140 * hours;
+        baseRental = p.hourly_rate * hours;
       } else if (data.bookingType === "daily") {
         hours = 24;
-        baseRental = 899;
+        baseRental = p.daily_rate;
       }
 
-      let cleaningFee = 199;
+      let cleaningFee = p.cleaning_fee;
       let rentalDiscount = 0;
 
-      // Apply discounts
       if (appliedDiscount) {
         if (appliedDiscount.type === "cleaning_fee") {
-          // Discount applied to cleaning fee
           cleaningFee = Math.max(0, cleaningFee - appliedDiscount.amount);
         } else {
-          // Discount applied to base rental (hourly or daily, depending on code)
           rentalDiscount = appliedDiscount.amount;
         }
       }
 
       const packageRates: Record<string, number> = {
         none: 0,
-        basic: 79,
-        led: 99,
-        workshop: 149,
+        basic: p.package_basic,
+        led: p.package_led,
+        workshop: p.package_workshop,
       };
       
       let packageHours = 0;
@@ -208,16 +208,19 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       const packageCost = (packageRates[data.package || "none"] || 0) * packageHours;
 
       let optionalServices = 0;
-      if (data.setupBreakdown) optionalServices += 100;
+      if (data.setupBreakdown) optionalServices += p.setup_breakdown;
       if (data.tablecloths && data.tableclothQuantity) {
-        optionalServices += data.tableclothQuantity * 5 + 25;
+        optionalServices += data.tableclothQuantity * p.tablecloth_rental + p.tablecloth_cleaning_fee;
       }
+
+      const depositRate = p.deposit_percentage / 100;
+      const feeRate = p.processing_fee / 100;
 
       const subtotal = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
       const total = subtotal;
-      const deposit = Math.round(subtotal * 0.5);
+      const deposit = Math.round(subtotal * depositRate);
       const balance = subtotal - deposit;
-      const processingFee = Math.round(deposit * 0.035 * 100) / 100;
+      const processingFee = Math.round(deposit * feeRate * 100) / 100;
 
       updateData({
         pricing: {
@@ -236,7 +239,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
     };
 
     calculatePricing();
-  }, [data, updateData, appliedDiscount]);
+  }, [data, updateData, appliedDiscount, p, pricingLoading]);
 
   const packageNames: Record<string, string> = {
     none: "No Package",
@@ -254,6 +257,14 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
     "brand-launch": "Brand Launch/Showcase",
     other: data.eventTypeOther || "Other",
   };
+
+  if (pricingLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -458,7 +469,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
 
           <div className="space-y-2">
             <div className="flex justify-between font-semibold text-primary">
-              <span>Deposit Due Today (50%)</span>
+              <span>Deposit Due Today ({p.deposit_percentage}%)</span>
               <span>${(data.pricing.deposit + data.pricing.processingFee).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground ml-4">
@@ -466,15 +477,15 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <span>${data.pricing.deposit.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm text-muted-foreground ml-4">
-              <span>Processing Fee (3.5%)</span>
+              <span>Processing Fee ({p.processing_fee}%)</span>
               <span>${data.pricing.processingFee.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-muted-foreground text-sm font-normal pt-2">
               <span>Balance Due (15 days before event)</span>
-              <span>${(data.pricing.balance + Math.round(data.pricing.balance * 0.035 * 100) / 100).toFixed(2)}</span>
+              <span>${(data.pricing.balance + Math.round(data.pricing.balance * (p.processing_fee / 100) * 100) / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground ml-4">
-              <span>${data.pricing.balance.toFixed(2)} + 3.5% fee at payment</span>
+              <span>${data.pricing.balance.toFixed(2)} + {p.processing_fee}% fee at payment</span>
             </div>
           </div>
         </div>

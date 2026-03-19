@@ -7,6 +7,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { BookingFormData } from "@/pages/Book";
+import { usePricing } from "@/hooks/usePricing";
+import { Loader2 } from "lucide-react";
 
 interface AddOnsStepProps {
   data: Partial<BookingFormData>;
@@ -16,6 +18,7 @@ interface AddOnsStepProps {
 }
 
 const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
+  const { pricing: p, isLoading: pricingLoading } = usePricing();
   // Get booking time constraints
   const getTimeConstraints = () => {
     if (data.bookingType === "daily") {
@@ -90,6 +93,14 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
     onNext();
   };
 
+  if (pricingLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
@@ -126,7 +137,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                   <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors">
                     <RadioGroupItem value="basic" id="basic" className="mt-1" />
                     <label htmlFor="basic" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">Basic Package — $79/hr</div>
+                      <div className="font-semibold">Basic Package — ${p.package_basic}/hr</div>
                       <div className="text-sm text-muted-foreground mt-1">
                         Includes: AV System, Microphones, Speakers, Projectors, Tech Assistant
                       </div>
@@ -136,7 +147,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                   <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors">
                     <RadioGroupItem value="led" id="led" className="mt-1" />
                     <label htmlFor="led" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">LED Package — $99/hr</div>
+                      <div className="font-semibold">LED Package — ${p.package_led}/hr</div>
                       <div className="text-sm text-muted-foreground mt-1">
                         Includes Basic + Stage LED Wall (for presentations/immersive experiences)
                       </div>
@@ -146,7 +157,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                   <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors">
                     <RadioGroupItem value="workshop" id="workshop" className="mt-1" />
                     <label htmlFor="workshop" className="flex-1 cursor-pointer">
-                      <div className="font-semibold">Workshop Package — $149/hr</div>
+                      <div className="font-semibold">Workshop Package — ${p.package_workshop}/hr</div>
                       <div className="text-sm text-muted-foreground mt-1">
                         Includes LED + Streaming Equipment + Streaming Tech (for streaming/recording/VC)
                       </div>
@@ -221,7 +232,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                 </FormControl>
                 <div className="flex-1">
                   <FormLabel className="font-semibold cursor-pointer">
-                    Setup & Breakdown of Chairs/Tables — $100
+                    Setup & Breakdown of Chairs/Tables — ${p.setup_breakdown}
                   </FormLabel>
                   <FormDescription>
                     We'll handle all furniture setup and breakdown for your event
@@ -244,7 +255,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                 </FormControl>
                 <div className="flex-1">
                   <FormLabel className="font-semibold cursor-pointer">
-                    Tablecloth Rental — $5 each + $25 cleaning fee
+                    Tablecloth Rental — ${p.tablecloth_rental} each + ${p.tablecloth_cleaning_fee} cleaning fee
                   </FormLabel>
                   <FormDescription>
                     Professional tablecloths for your event (max 10)

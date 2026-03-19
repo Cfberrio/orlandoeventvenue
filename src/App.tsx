@@ -31,6 +31,7 @@ import Inventory from "./pages/admin/Inventory";
 import Discounts from "./pages/admin/Discounts";
 import Invoices from "./pages/admin/Invoices";
 import Analytics from "./pages/admin/Analytics";
+import Pricing from "./pages/admin/Pricing";
 // Staff Dashboard imports
 import StaffLayout from "./components/staff/StaffLayout";
 import StaffProtectedRoute from "./components/staff/StaffProtectedRoute";
@@ -87,6 +88,7 @@ const App = () => (
                 <Route path="discounts" element={<Discounts />} />
                 <Route path="invoices" element={<Invoices />} />
                 <Route path="analytics" element={<Analytics />} />
+                <Route path="pricing" element={<Pricing />} />
               </Route>
 
               {/* Staff Routes */}

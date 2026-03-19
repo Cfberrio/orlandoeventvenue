@@ -138,6 +138,22 @@ serve(async (req: Request) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Fetch dynamic pricing from venue_pricing table
+    const { data: pricingRows } = await supabase
+      .from("venue_pricing")
+      .select("item_key, price, extra_fee")
+      .eq("is_active", true);
+
+    const pricingMap: Record<string, { price: number; extra_fee: number }> = {};
+    for (const row of pricingRows ?? []) {
+      pricingMap[row.item_key] = { price: Number(row.price), extra_fee: Number(row.extra_fee ?? 0) };
+    }
+
+    const SETUP_PRICE = pricingMap["setup_breakdown"]?.price ?? 100;
+    const TABLECLOTH_UNIT_PRICE = pricingMap["tablecloth_rental"]?.price ?? 5;
+    const TABLECLOTH_CLEANING = pricingMap["tablecloth_rental"]?.extra_fee ?? 25;
+    const PROCESSING_FEE_PCT = pricingMap["processing_fee"]?.price ?? 3.5;
+
     const { data: invoice, error: invoiceError } = await supabase
       .from("booking_addon_invoices")
       .select("*")
@@ -187,32 +203,33 @@ serve(async (req: Request) => {
     }
 
     if (invoice.setup_breakdown) {
+      const setupCents = Math.round(SETUP_PRICE * 100);
       stripeLineItems.push({
         price_data: {
           currency: "usd",
           product_data: { name: "Setup & Breakdown of Chairs/Tables" },
-          unit_amount: 10000,
+          unit_amount: setupCents,
         },
         quantity: 1,
       });
-      emailLineItems.push({ label: "Setup & Breakdown", amount: "$100.00" });
+      emailLineItems.push({ label: "Setup & Breakdown", amount: `$${SETUP_PRICE.toFixed(2)}` });
     }
 
     if (invoice.tablecloths && Number(invoice.tablecloth_quantity) > 0) {
-      const tableclothTotal = Number(invoice.tablecloth_quantity) * 5 + 25;
+      const tableclothTotal = Number(invoice.tablecloth_quantity) * TABLECLOTH_UNIT_PRICE + TABLECLOTH_CLEANING;
       stripeLineItems.push({
         price_data: {
           currency: "usd",
           product_data: {
             name: `Tablecloth Rental (${invoice.tablecloth_quantity} tablecloths)`,
-            description: `${invoice.tablecloth_quantity} x $5 + $25 cleaning fee`,
+            description: `${invoice.tablecloth_quantity} x $${TABLECLOTH_UNIT_PRICE} + $${TABLECLOTH_CLEANING} cleaning fee`,
           },
           unit_amount: Math.round(tableclothTotal * 100),
         },
         quantity: 1,
       });
       emailLineItems.push({
-        label: `Tablecloths (${invoice.tablecloth_quantity} x $5 + $25 cleaning)`,
+        label: `Tablecloths (${invoice.tablecloth_quantity} x $${TABLECLOTH_UNIT_PRICE} + $${TABLECLOTH_CLEANING} cleaning)`,
         amount: `$${tableclothTotal.toFixed(2)}`,
       });
     }
@@ -224,23 +241,23 @@ serve(async (req: Request) => {
       );
     }
 
-    // Calculate and add processing fee
-    const PROCESSING_FEE_RATE = 0.035;
+    const PROCESSING_FEE_RATE = PROCESSING_FEE_PCT / 100;
     const baseAmountCents = stripeLineItems.reduce(
       (sum, item) => sum + (item.price_data?.unit_amount || 0), 0
     );
     const feeCents = Math.round(baseAmountCents * PROCESSING_FEE_RATE);
     console.log(`Addon invoice fee: base=${baseAmountCents}c, fee=${feeCents}c`);
 
+    const feeLabel = `Processing Fee (${PROCESSING_FEE_PCT}%)`;
     stripeLineItems.push({
       price_data: {
         currency: "usd",
-        product_data: { name: "Processing Fee (3.5%)" },
+        product_data: { name: feeLabel },
         unit_amount: feeCents,
       },
       quantity: 1,
     });
-    emailLineItems.push({ label: "Processing Fee (3.5%)", amount: `$${(feeCents / 100).toFixed(2)}` });
+    emailLineItems.push({ label: feeLabel, amount: `$${(feeCents / 100).toFixed(2)}` });
 
     const customers = await stripe.customers.list({ email: customer_email, limit: 1 });
     let customerId: string;
