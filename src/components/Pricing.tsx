@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, Sparkles } from "lucide-react";
+import { Clock, Calendar, Sparkles, Loader2 } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { usePricing } from "@/hooks/usePricing";
 
 const Pricing = () => {
+  const { pricing: p, isLoading } = usePricing();
   const { ref, isVisible } = useScrollAnimation();
 
   const handleBooking = (bookingType?: "hourly" | "daily") => {
