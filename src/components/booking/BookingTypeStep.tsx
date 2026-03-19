@@ -45,6 +45,7 @@ interface BookingTypeStepProps {
 
 const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => {
   const { data: bookedSlots = [], isLoading: isLoadingDates } = useBookedDates();
+  const { pricing: p } = usePricing();
   const [timeConflict, setTimeConflict] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
