@@ -1,5 +1,6 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { usePricing } from "@/hooks/usePricing";
 import * as z from "zod";
 import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -44,6 +45,7 @@ interface BookingTypeStepProps {
 
 const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => {
   const { data: bookedSlots = [], isLoading: isLoadingDates } = useBookedDates();
+  const { pricing: p } = usePricing();
   const [timeConflict, setTimeConflict] = useState(false);
   
   const form = useForm<z.infer<typeof formSchema>>({
@@ -114,7 +116,7 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
                     >
                       <div className="font-semibold">Hourly Rental</div>
                       <div className="text-sm text-muted-foreground">
-                        $140/hour (minimum 4 hours)
+                        ${p.hourly_rate}/hour (minimum 4 hours)
                       </div>
                     </label>
                   </div>
@@ -126,7 +128,7 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
                     >
                       <div className="font-semibold">Daily Rental (24 hours)</div>
                       <div className="text-sm text-muted-foreground">
-                        $899 for full day
+                        ${p.daily_rate} for full day
                       </div>
                     </label>
                   </div>

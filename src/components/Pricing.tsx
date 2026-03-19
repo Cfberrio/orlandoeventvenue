@@ -1,10 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Calendar, Sparkles } from "lucide-react";
+import { Clock, Calendar, Sparkles, Loader2 } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { usePricing } from "@/hooks/usePricing";
 
 const Pricing = () => {
+  const { pricing: p, isLoading } = usePricing();
   const { ref, isVisible } = useScrollAnimation();
 
   const handleBooking = (bookingType?: "hourly" | "daily") => {
@@ -44,7 +46,7 @@ const Pricing = () => {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="mb-4">
-                  <span className="text-4xl font-bold text-foreground">$140</span>
+                  <span className="text-4xl font-bold text-foreground">{isLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : `$${p.hourly_rate}`}</span>
                   <span className="text-muted">/hour</span>
                 </div>
                 <p className="text-sm text-muted mb-4">4-hour minimum</p>
@@ -79,7 +81,7 @@ const Pricing = () => {
               </CardHeader>
               <CardContent className="relative z-10">
                 <div className="mb-4">
-                  <span className="text-4xl font-bold text-foreground">$899</span>
+                  <span className="text-4xl font-bold text-foreground">{isLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : `$${p.daily_rate}`}</span>
                   <span className="text-muted">/day</span>
                 </div>
                 <p className="text-sm text-muted mb-4">24-hour access</p>
@@ -110,7 +112,7 @@ const Pricing = () => {
             <CardContent>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-2xl font-bold text-foreground">$199</p>
+                  <p className="text-2xl font-bold text-foreground">{isLoading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : `$${p.cleaning_fee}`}</p>
                   <p className="text-sm text-muted">Per reservation</p>
                 </div>
                 <p className="text-sm text-muted">
