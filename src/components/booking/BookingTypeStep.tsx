@@ -128,7 +128,7 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
                     >
                       <div className="font-semibold">Daily Rental (24 hours)</div>
                       <div className="text-sm text-muted-foreground">
-                        $899 for full day
+                        ${p.daily_rate} for full day
                       </div>
                     </label>
                   </div>

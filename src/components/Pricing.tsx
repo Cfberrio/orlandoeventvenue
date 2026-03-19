@@ -112,7 +112,7 @@ const Pricing = () => {
             <CardContent>
               <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
-                  <p className="text-2xl font-bold text-foreground">$199</p>
+                  <p className="text-2xl font-bold text-foreground">{isLoading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : `$${p.cleaning_fee}`}</p>
                   <p className="text-sm text-muted">Per reservation</p>
                 </div>
                 <p className="text-sm text-muted">
