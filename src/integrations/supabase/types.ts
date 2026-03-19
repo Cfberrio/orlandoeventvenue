@@ -1721,6 +1721,51 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_pricing: {
+        Row: {
+          category: string
+          created_at: string | null
+          description: string | null
+          extra_fee: number | null
+          id: string
+          is_active: boolean | null
+          item_key: string
+          label: string
+          price: number
+          price_unit: string
+          sort_order: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string | null
+          description?: string | null
+          extra_fee?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_key: string
+          label: string
+          price: number
+          price_unit?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string | null
+          description?: string | null
+          extra_fee?: number | null
+          id?: string
+          is_active?: boolean | null
+          item_key?: string
+          label?: string
+          price?: number
+          price_unit?: string
+          sort_order?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       booking_custodial_staff: {
