@@ -116,7 +116,7 @@ const BookingTypeStep = ({ data, updateData, onNext }: BookingTypeStepProps) => 
                     >
                       <div className="font-semibold">Hourly Rental</div>
                       <div className="text-sm text-muted-foreground">
-                        $140/hour (minimum 4 hours)
+                        ${p.hourly_rate}/hour (minimum 4 hours)
                       </div>
                     </label>
                   </div>
