@@ -8,6 +8,7 @@ import { useCreateBooking } from "@/hooks/useCreateBooking";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
+import { usePricing } from "@/hooks/usePricing";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -15,19 +16,20 @@ interface PaymentStepProps {
   onBack: () => void;
 }
 
-const PROCESSING_FEE_RATE = 0.035;
-
 const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
+  const { pricing: p } = usePricing();
   const [isPaid, setIsPaid] = useState(false);
   const [bookingId, setBookingId] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const createBooking = useCreateBooking();
   const [searchParams] = useSearchParams();
 
+  const feeRate = p.processing_fee / 100;
+  const feePctLabel = `${p.processing_fee}%`;
   const depositBase = data.pricing?.deposit ?? 0;
   const balanceBase = data.pricing?.balance ?? 0;
-  const depositFee = Math.round(depositBase * PROCESSING_FEE_RATE * 100) / 100;
-  const balanceFee = Math.round(balanceBase * PROCESSING_FEE_RATE * 100) / 100;
+  const depositFee = Math.round(depositBase * feeRate * 100) / 100;
+  const balanceFee = Math.round(balanceBase * feeRate * 100) / 100;
   const depositTotal = depositBase + depositFee;
   const balanceTotal = balanceBase + balanceFee;
 
@@ -124,7 +126,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
               </p>
               <div className="text-xs text-muted-foreground mt-1 space-y-0.5">
                 <p>Base deposit: ${depositBase.toFixed(2)}</p>
-                <p>Processing Fee (3.5%): ${depositFee.toFixed(2)}</p>
+                <p>Processing Fee ({feePctLabel}): ${depositFee.toFixed(2)}</p>
               </div>
             </div>
 
@@ -134,7 +136,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
                 ${balanceTotal.toFixed(2)}
               </p>
               <p className="text-xs text-muted-foreground">
-                ${balanceBase.toFixed(2)} + ${balanceFee.toFixed(2)} processing fee (3.5%)
+                ${balanceBase.toFixed(2)} + ${balanceFee.toFixed(2)} processing fee ({feePctLabel})
               </p>
               <p className="text-sm text-muted-foreground mt-1">
                 Due on {format(balanceDueDate, "PPP")} (15 days before your event)
@@ -184,7 +186,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
               <span>${depositBase.toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Processing Fee (3.5%)</span>
+              <span>Processing Fee ({feePctLabel})</span>
               <span>${depositFee.toFixed(2)}</span>
             </div>
           </div>
@@ -194,7 +196,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
             <span>${balanceTotal.toFixed(2)}</span>
           </div>
           <div className="ml-4 text-xs text-muted-foreground">
-            <span>${balanceBase.toFixed(2)} + 3.5% fee at payment</span>
+            <span>${balanceBase.toFixed(2)} + {feePctLabel} fee at payment</span>
           </div>
 
           <div className="text-sm text-muted-foreground pt-2 border-t">

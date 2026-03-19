@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import Navigation from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
@@ -91,9 +91,9 @@ const Book = () => {
     }
   }, [searchParams]);
 
-  const updateFormData = (data: Partial<BookingFormData>) => {
+  const updateFormData = useCallback((data: Partial<BookingFormData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
-  };
+  }, []);
 
   const goToStep = (step: number) => {
     setCurrentStep(step);

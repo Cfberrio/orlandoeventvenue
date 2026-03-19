@@ -116,8 +116,19 @@ serve(async (req) => {
       apiVersion: "2023-10-16",
     });
 
-    // Calculate balance amount in cents + processing fee (fee on top)
-    const PROCESSING_FEE_RATE = 0.035;
+    // Fetch dynamic processing fee from venue_pricing
+    const { data: feeRow, error: feeError } = await supabase
+      .from("venue_pricing")
+      .select("price")
+      .eq("item_key", "processing_fee")
+      .eq("is_active", true)
+      .single();
+
+    if (feeError) console.error("Failed to fetch processing fee from venue_pricing:", feeError);
+    const FEE_PCT = Number(feeRow?.price ?? 3.5);
+    const PROCESSING_FEE_RATE = FEE_PCT / 100;
+    const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
+
     const balanceAmountCents = Math.round(Number(booking.balance_amount) * 100);
     const feeCents = Math.round(balanceAmountCents * PROCESSING_FEE_RATE);
     const totalChargeCents = balanceAmountCents + feeCents;
@@ -180,7 +191,7 @@ serve(async (req) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Processing Fee (3.5%)",
+              name: FEE_LABEL,
             },
             unit_amount: feeCents,
           },
@@ -299,7 +310,7 @@ serve(async (req) => {
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Total Amount</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${totalFormatted}</td></tr>
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Deposit Paid</td><td style="padding:8px 0;text-align:right;color:#059669;font-weight:bold;">${depositFormatted}</td></tr>
 <tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Remaining Balance</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${balanceBaseFormatted}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Processing Fee (3.5%)</td><td style="padding:8px 0;text-align:right;color:#111827;">${processingFeeFormatted}</td></tr>
+<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">${FEE_LABEL}</td><td style="padding:8px 0;text-align:right;color:#111827;">${processingFeeFormatted}</td></tr>
 <tr style="border-top:2px solid #111827;"><td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td><td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#d97706;">${balanceTotalFormatted}</td></tr>
 </table>
 </div>

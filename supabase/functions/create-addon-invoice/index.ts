@@ -139,10 +139,12 @@ serve(async (req: Request) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch dynamic pricing from venue_pricing table
-    const { data: pricingRows } = await supabase
+    const { data: pricingRows, error: pricingError } = await supabase
       .from("venue_pricing")
       .select("item_key, price, extra_fee")
       .eq("is_active", true);
+
+    if (pricingError) console.error("Failed to fetch venue_pricing:", pricingError);
 
     const pricingMap: Record<string, { price: number; extra_fee: number }> = {};
     for (const row of pricingRows ?? []) {

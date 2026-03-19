@@ -169,12 +169,24 @@ serve(async (req: Request) => {
     const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
-    const PROCESSING_FEE_RATE = 0.035;
+
+    const { data: feeRow, error: feeError } = await supabase
+      .from("venue_pricing")
+      .select("price")
+      .eq("item_key", "processing_fee")
+      .eq("is_active", true)
+      .single();
+
+    if (feeError) console.error("Failed to fetch processing fee from venue_pricing:", feeError);
+    const FEE_PCT = Number(feeRow?.price ?? 3.5);
+    const PROCESSING_FEE_RATE = FEE_PCT / 100;
+    const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
+
     const invoiceAmountCents = Math.round(Number(invoice.amount) * 100);
     const feeCents = Math.round(invoiceAmountCents * PROCESSING_FEE_RATE);
     const totalWithFeeCents = invoiceAmountCents + feeCents;
 
-    console.log(`Invoice fee: base=${invoiceAmountCents}c, fee=${feeCents}c, total=${totalWithFeeCents}c`);
+    console.log(`Invoice fee: base=${invoiceAmountCents}c, fee=${feeCents}c (${FEE_PCT}%), total=${totalWithFeeCents}c`);
 
     // Build Stripe line items from line_items JSON or fall back to single item
     const rawLineItems: InvoiceLineItem[] | null = invoice.line_items;
@@ -209,7 +221,7 @@ serve(async (req: Request) => {
     stripeLineItems.push({
       price_data: {
         currency: "usd",
-        product_data: { name: "Processing Fee (3.5%)" },
+        product_data: { name: FEE_LABEL },
         unit_amount: feeCents,
       },
       quantity: 1,
@@ -270,8 +282,8 @@ serve(async (req: Request) => {
         // Build email line items for the breakdown (include processing fee)
         const emailLineItems: InvoiceLineItem[] =
           rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0
-            ? [...rawLineItems, { label: "Processing Fee (3.5%)", amount: feeCents / 100 }]
-            : [{ label: invoice.title, amount: Number(invoice.amount) }, { label: "Processing Fee (3.5%)", amount: feeCents / 100 }];
+            ? [...rawLineItems, { label: FEE_LABEL, amount: feeCents / 100 }]
+            : [{ label: invoice.title, amount: Number(invoice.amount) }, { label: FEE_LABEL, amount: feeCents / 100 }];
 
         const emailHTML = buildInvoiceEmailHTML(
           customer_name || invoice.customer_name || "Customer",

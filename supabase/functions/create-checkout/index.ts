@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -72,12 +73,28 @@ serve(async (req: Request) => {
     }
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
-    const PROCESSING_FEE_RATE = 0.035;
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const { data: feeRow, error: feeError } = await supabase
+      .from("venue_pricing")
+      .select("price")
+      .eq("item_key", "processing_fee")
+      .eq("is_active", true)
+      .single();
+
+    if (feeError) console.error("Failed to fetch processing fee from venue_pricing:", feeError);
+    const FEE_PCT = Number(feeRow?.price ?? 3.5);
+    const PROCESSING_FEE_RATE = FEE_PCT / 100;
+    const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
+
     const depositAmountCents = Math.round(depositAmount * 100);
     const feeCents = Math.round(depositAmountCents * PROCESSING_FEE_RATE);
     const totalChargeCents = depositAmountCents + feeCents;
 
-    console.log(`Deposit: base=${depositAmountCents}c, fee=${feeCents}c, total=${totalChargeCents}c`);
+    console.log(`Deposit: base=${depositAmountCents}c, fee=${feeCents}c (${FEE_PCT}%), total=${totalChargeCents}c`);
 
     // Create checkout session
     const session = await stripe.checkout.sessions.create({
@@ -101,7 +118,7 @@ serve(async (req: Request) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: "Processing Fee (3.5%)",
+              name: FEE_LABEL,
             },
             unit_amount: feeCents,
           },

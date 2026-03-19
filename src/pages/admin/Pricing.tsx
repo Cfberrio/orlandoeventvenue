@@ -114,6 +114,18 @@ export default function Pricing() {
       return;
     }
 
+    const extraFeeVal = parseFloat(form.extra_fee) || 0;
+    if (extraFeeVal < 0) {
+      toast({ title: "Extra fee cannot be negative", variant: "destructive" });
+      return;
+    }
+
+    const sortOrderVal = parseInt(form.sort_order) || 0;
+    if (sortOrderVal < 0) {
+      toast({ title: "Sort order cannot be negative", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -124,9 +136,9 @@ export default function Pricing() {
         description: form.description.trim() || null,
         price: priceVal,
         price_unit: form.price_unit,
-        extra_fee: parseFloat(form.extra_fee) || 0,
+        extra_fee: extraFeeVal,
         is_active: form.is_active,
-        sort_order: parseInt(form.sort_order) || 0,
+        sort_order: sortOrderVal,
       };
 
       if (editingId) {
