@@ -156,7 +156,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 full_name: lead.full_name,
                 email: lead.email,
-                coupon_code: lead.coupon_code || "SAVE50",
+                coupon_code: lead.coupon_code || DEFAULT_POPUP_COUPON_CODE,
                 email_number: 3,
               }),
             }
