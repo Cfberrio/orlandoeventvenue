@@ -9,6 +9,8 @@ const corsHeaders = {
 const EMAIL_2_DELAY_HOURS = 18;
 const EMAIL_3_DELAY_HOURS = 30;
 const MAX_LEADS_PER_RUN = 50;
+// DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
+const DEFAULT_POPUP_COUPON_CODE = "SAVE100";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -78,7 +80,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 full_name: lead.full_name,
                 email: lead.email,
-                coupon_code: lead.coupon_code || "SAVE50",
+                coupon_code: lead.coupon_code || DEFAULT_POPUP_COUPON_CODE,
                 email_number: 2,
               }),
             }
@@ -154,7 +156,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 full_name: lead.full_name,
                 email: lead.email,
-                coupon_code: lead.coupon_code || "SAVE50",
+                coupon_code: lead.coupon_code || DEFAULT_POPUP_COUPON_CODE,
                 email_number: 3,
               }),
             }
