@@ -355,17 +355,45 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // First check if this is an internal booking - skip GHL sync for those
+    // Pre-flight check: fetch booking lead_source and payment_status before any GHL work
     const supabaseCheck = createClient(supabaseUrl, supabaseServiceKey);
     const { data: bookingCheck, error: checkError } = await supabaseCheck
       .from("bookings")
-      .select("lead_source")
+      .select("lead_source, payment_status, booking_origin")
       .eq("id", booking_id)
       .maybeSingle();
 
     if (checkError) {
       console.error("Error checking booking:", checkError);
       throw new Error(`Failed to check booking: ${checkError.message}`);
+    }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // LEAD GUARD (defense-in-depth): Bookings with payment_status = 'pending'
+    // are unpaid leads — do NOT send to GHL webhook or GHL calendar.
+    // This prevents polluting the GHL calendar and workflows with
+    // abandoned checkouts / incomplete signups.
+    // Callers (stripe-webhook, process-scheduled-jobs, etc.) should also
+    // avoid calling sync-to-ghl for pending bookings, but this guard
+    // ensures safety even if they don't.
+    // Exception: internal_admin bookings are handled separately below.
+    // ──────────────────────────────────────────────────────────────────────
+    if (
+      bookingCheck?.payment_status === "pending" &&
+      bookingCheck?.lead_source !== "internal_admin"
+    ) {
+      console.log(
+        `[LEAD_GUARD] Skipping GHL sync for unpaid lead (payment_status=pending): ${booking_id}`
+      );
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: "deposit_not_paid",
+          payment_status: "pending",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // Skip GHL webhook sync for internal admin bookings (but still sync calendar!)
