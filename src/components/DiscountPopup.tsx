@@ -87,7 +87,28 @@ export default function DiscountPopup() {
         coupon_code: COUPON_CODE
       });
 
+      // Handle unique constraint violation (duplicate email).
+      // Decision: still sync to GHL so tags stay current, but do NOT
+      // re-send email #1 to avoid spamming the returning visitor.
       if (insertError) {
+        const pgCode = (insertError as any)?.code;
+        if (pgCode === "23505") {
+          toast({ title: "You're already on the list! Check your email for your credit code." });
+          supabase.functions
+            .invoke("send-popup-lead", {
+              body: {
+                fullName: fullName.trim(),
+                email: email.trim().toLowerCase(),
+                phone: phone.trim(),
+              },
+            })
+            .then(({ error }) => {
+              if (error) console.error("GHL popup lead error:", error);
+            });
+          setSubmitted(true);
+          localStorage.setItem(LOCAL_STORAGE_KEY, "true");
+          return;
+        }
         console.error("Error saving lead:", insertError);
         toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
         return;
