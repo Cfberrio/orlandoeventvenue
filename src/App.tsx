@@ -15,6 +15,8 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfUse from "./pages/TermsOfUse";
 import ScheduleTour from "./pages/ScheduleTour";
 import StripeConnectCallback from "./pages/StripeConnectCallback";
+import PricingPage from "./pages/PricingPage";
+import GalleryPage from "./pages/GalleryPage";
 import NotFound from "./pages/NotFound";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
@@ -66,6 +68,8 @@ const App = () => (
               <Route path="/sms-terms" element={<SmsTerms />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-use" element={<TermsOfUse />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/schedule-tour" element={<ScheduleTour />} />
               <Route path="/stripe/connect/callback" element={<StripeConnectCallback />} />
               
