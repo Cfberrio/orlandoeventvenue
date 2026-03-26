@@ -68,6 +68,8 @@ const App = () => (
               <Route path="/sms-terms" element={<SmsTerms />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-use" element={<TermsOfUse />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/gallery" element={<GalleryPage />} />
               <Route path="/schedule-tour" element={<ScheduleTour />} />
               <Route path="/stripe/connect/callback" element={<StripeConnectCallback />} />
               
