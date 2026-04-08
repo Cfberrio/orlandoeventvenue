@@ -35,6 +35,7 @@ export const useBookedDates = () => {
         .from("bookings")
         .select("event_date, booking_type, start_time, end_time")
         .in("payment_status", ["deposit_paid", "fully_paid", "invoiced"])
+        .neq("status", "cancelled")
         .gte("event_date", today);
 
       if (error) {
