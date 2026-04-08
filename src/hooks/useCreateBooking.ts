@@ -80,6 +80,7 @@ export const useCreateBooking = () => {
         .from("bookings")
         .select("event_date, booking_type, start_time, end_time")
         .in("payment_status", ["deposit_paid", "fully_paid", "invoiced"])
+        .neq("status", "cancelled")
         .eq("event_date", eventDateStr);
 
       if (bookingsError) {

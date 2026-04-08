@@ -20,15 +20,16 @@ interface BookingData {
   event_type: string;
   status: string;
   lifecycle_status: string;
+  cancelled_at?: string | null;
 }
 
 function generateCancellationEmailHTML(booking: BookingData): string {
   const firstName = booking.full_name?.split(' ')[0] || 'there';
-  const eventDate = new Date(booking.event_date).toLocaleDateString('en-US', { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const eventDate = new Date(booking.event_date).toLocaleDateString('en-US', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
 
   return `<!DOCTYPE html>
@@ -92,14 +93,13 @@ We are sorry to see your booking cancelled. We hope to serve you in the future.
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     console.log("=== cancel-booking function ===");
-    
+
     const { booking_id }: CancelBookingRequest = await req.json();
 
     if (!booking_id) {
@@ -115,10 +115,9 @@ serve(async (req) => {
 
     console.log(`Cancelling booking: ${booking_id}`);
 
-    // 1. Fetch booking data and validate status
     const { data: booking, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, full_name, email, event_date, event_type, status, lifecycle_status")
+      .select("id, reservation_number, full_name, email, event_date, event_type, status, lifecycle_status, cancelled_at")
       .eq("id", booking_id)
       .single();
 
@@ -130,67 +129,78 @@ serve(async (req) => {
       );
     }
 
-    // Validate that booking is not completed
-    if (booking.status === 'completed') {
+    if (booking.status === "completed") {
       console.error("Cannot cancel completed booking");
       return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: "Cannot cancel a completed booking" 
-        }),
+        JSON.stringify({ ok: false, error: "Cannot cancel a completed booking" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Check if already cancelled
-    if (booking.status === 'cancelled') {
-      console.log("Booking is already cancelled");
+    const wasAlreadyCancelled = booking.status === "cancelled";
+    console.log(`Booking status: ${booking.status}, lifecycle: ${booking.lifecycle_status}, already cancelled: ${wasAlreadyCancelled}`);
+
+    if (!wasAlreadyCancelled || !booking.cancelled_at || booking.lifecycle_status !== "cancelled") {
+      const { error: updateError } = await supabase
+        .from("bookings")
+        .update({
+          status: "cancelled",
+          lifecycle_status: "cancelled",
+          cancelled_at: booking.cancelled_at ?? new Date().toISOString(),
+        })
+        .eq("id", booking_id);
+
+      if (updateError) {
+        console.error("Error updating booking:", updateError);
+        return new Response(
+          JSON.stringify({ ok: false, error: "Failed to update booking status" }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      console.log(wasAlreadyCancelled ? "Booking cancellation state normalized" : "Booking status updated to 'cancelled'");
+    }
+
+    const { data: deletedJobs, error: deleteJobsError } = await supabase
+      .from("scheduled_jobs")
+      .delete()
+      .eq("booking_id", booking_id)
+      .in("status", ["pending", "failed"])
+      .select("id");
+
+    if (deleteJobsError) {
+      console.error("Error deleting jobs:", deleteJobsError);
+    } else {
+      console.log(`Deleted ${deletedJobs?.length || 0} pending/failed jobs`);
+    }
+
+    const { data: deletedBlocks, error: deleteBlocksError } = await supabase
+      .from("availability_blocks")
+      .delete()
+      .eq("booking_id", booking_id)
+      .select("id");
+
+    if (deleteBlocksError) {
+      console.error("Error deleting availability blocks:", deleteBlocksError);
+    } else {
+      console.log(`Deleted ${deletedBlocks?.length || 0} linked availability blocks`);
+    }
+
+    if (wasAlreadyCancelled) {
       return new Response(
-        JSON.stringify({ 
-          ok: true, 
-          message: "Booking is already cancelled",
-          booking_id: booking_id
+        JSON.stringify({
+          ok: true,
+          message: "Booking already cancelled. Cleanup completed",
+          booking_id: booking_id,
+          reservation_number: booking.reservation_number,
+          jobs_deleted: deletedJobs?.length || 0,
+          blocks_deleted: deletedBlocks?.length || 0,
+          already_cancelled: true,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log(`Booking status: ${booking.status}, lifecycle: ${booking.lifecycle_status}`);
-
-    // 2. Update booking status to 'cancelled'
-    const { error: updateError } = await supabase
-      .from("bookings")
-      .update({ 
-        status: 'cancelled',
-        lifecycle_status: 'cancelled'
-      })
-      .eq("id", booking_id);
-
-    if (updateError) {
-      console.error("Error updating booking:", updateError);
-      return new Response(
-        JSON.stringify({ ok: false, error: "Failed to update booking status" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    console.log("Booking status updated to 'cancelled'");
-
-    // 3. Delete pending and failed scheduled jobs
-    const { data: deletedJobs, error: deleteError } = await supabase
-      .from("scheduled_jobs")
-      .delete()
-      .eq("booking_id", booking_id)
-      .in("status", ["pending", "failed"])
-      .select();
-
-    if (deleteError) {
-      console.error("Error deleting jobs:", deleteError);
-    } else {
-      console.log(`Deleted ${deletedJobs?.length || 0} pending/failed jobs`);
-    }
-
-    // 4. Log event in booking_events
     const { error: eventError } = await supabase
       .from("booking_events")
       .insert({
@@ -200,9 +210,10 @@ serve(async (req) => {
         metadata: {
           cancelled_at: new Date().toISOString(),
           jobs_deleted: deletedJobs?.length || 0,
+          blocks_deleted: deletedBlocks?.length || 0,
           previous_status: booking.status,
-          previous_lifecycle: booking.lifecycle_status
-        }
+          previous_lifecycle: booking.lifecycle_status,
+        },
       });
 
     if (eventError) {
@@ -211,14 +222,13 @@ serve(async (req) => {
       console.log("Cancellation event logged");
     }
 
-    // 5. Send cancellation email to guest
     try {
       const gmailUser = Deno.env.get("GMAIL_USER");
       const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
 
       if (gmailUser && gmailPassword && booking.email) {
         console.log(`Sending cancellation email to: ${booking.email}`);
-        
+
         const client = new SMTPClient({
           connection: {
             hostname: "smtp.gmail.com",
@@ -248,14 +258,12 @@ serve(async (req) => {
       }
     } catch (emailError) {
       console.error("Error sending email:", emailError);
-      // Don't fail the whole operation if email fails
     }
 
-    // 6. Sync with GHL
     try {
       console.log("Syncing cancellation with GHL...");
       const { error: syncError } = await supabase.functions.invoke("sync-to-ghl", {
-        body: { booking_id: booking_id }
+        body: { booking_id: booking_id },
       });
 
       if (syncError) {
@@ -265,25 +273,23 @@ serve(async (req) => {
       }
     } catch (syncError) {
       console.error("Error syncing with GHL:", syncError);
-      // Don't fail the whole operation if GHL sync fails
     }
 
-    // Return success
     return new Response(
       JSON.stringify({
         ok: true,
         message: "Booking cancelled successfully",
         booking_id: booking_id,
         reservation_number: booking.reservation_number,
-        jobs_deleted: deletedJobs?.length || 0
+        jobs_deleted: deletedJobs?.length || 0,
+        blocks_deleted: deletedBlocks?.length || 0,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
-
   } catch (error: unknown) {
     console.error("Error in cancel-booking:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-    
+
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
