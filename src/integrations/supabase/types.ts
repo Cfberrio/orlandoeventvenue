@@ -14,27 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      _qa_bar_service_results: {
-        Row: {
-          details: string | null
-          ran_at: string | null
-          status: string | null
-          test_name: string
-        }
-        Insert: {
-          details?: string | null
-          ran_at?: string | null
-          status?: string | null
-          test_name: string
-        }
-        Update: {
-          details?: string | null
-          ran_at?: string | null
-          status?: string | null
-          test_name?: string
-        }
-        Relationships: []
-      }
       availability_block_reminders: {
         Row: {
           block_id: string
