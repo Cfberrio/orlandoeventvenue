@@ -36,7 +36,7 @@ const BarService = () => {
             }`}
           >
             Choose your bar package, pay online, and we take care of the rest. No vendor hunting,
-            no logistics juggling — just a fully coordinated bar experience for your guests.
+            no logistics juggling, just a fully coordinated bar experience for your guests.
             Available for all private events.
           </p>
 
