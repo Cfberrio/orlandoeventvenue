@@ -226,6 +226,11 @@ export const useCreateBooking = () => {
         company: formData.company || null,
         agree_to_rules: formData.agreeToRules || false,
         beer_wine_service: formData.beerWineService || false,
+        bar_package: formData.barPackage || "none",
+        bar_guest_count:
+          formData.barPackage && formData.barPackage !== "none"
+            ? formData.barGuestCount ?? null
+            : null,
         initials: formData.initials,
         signer_name: formData.signerName,
         signature: formData.signature,
