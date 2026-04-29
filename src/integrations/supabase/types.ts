@@ -69,6 +69,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "availability_block_reminders_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       availability_blocks: {
@@ -115,6 +122,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_blocks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -214,6 +228,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_addon_invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       booking_attachments: {
@@ -260,6 +281,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_attachments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -390,6 +418,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "booking_cleaning_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
             foreignKeyName: "booking_cleaning_reports_cleaner_id_fkey"
             columns: ["cleaner_id"]
             isOneToOne: false
@@ -437,6 +472,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -508,6 +550,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_host_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
           },
           {
             foreignKeyName: "booking_host_reports_reviewed_by_id_fkey"
@@ -642,6 +691,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_revenue_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       booking_reviews: {
@@ -683,6 +739,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       booking_staff_assignments: {
@@ -694,6 +757,13 @@ export type Database = {
           cleaning_type: string | null
           completed_at: string | null
           created_at: string
+          customer_contact_due_at: string | null
+          customer_contact_required: boolean
+          customer_contacted: boolean
+          customer_contacted_at: string | null
+          customer_contacted_by: string | null
+          customer_phone_released: boolean
+          customer_phone_released_at: string | null
           hours_worked: number | null
           id: string
           notes: string | null
@@ -715,6 +785,13 @@ export type Database = {
           cleaning_type?: string | null
           completed_at?: string | null
           created_at?: string
+          customer_contact_due_at?: string | null
+          customer_contact_required?: boolean
+          customer_contacted?: boolean
+          customer_contacted_at?: string | null
+          customer_contacted_by?: string | null
+          customer_phone_released?: boolean
+          customer_phone_released_at?: string | null
           hours_worked?: number | null
           id?: string
           notes?: string | null
@@ -736,6 +813,13 @@ export type Database = {
           cleaning_type?: string | null
           completed_at?: string | null
           created_at?: string
+          customer_contact_due_at?: string | null
+          customer_contact_required?: boolean
+          customer_contacted?: boolean
+          customer_contacted_at?: string | null
+          customer_contacted_by?: string | null
+          customer_phone_released?: boolean
+          customer_phone_released_at?: string | null
           hours_worked?: number | null
           id?: string
           notes?: string | null
@@ -755,6 +839,27 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_customer_contacted_by_fkey"
+            columns: ["customer_contacted_by"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_customer_contacted_by_fkey"
+            columns: ["customer_contacted_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
             referencedColumns: ["id"]
           },
           {
@@ -780,6 +885,20 @@ export type Database = {
           balance_link_expires_at: string | null
           balance_paid_at: string | null
           balance_payment_url: string | null
+          bar_client_phone_released: boolean
+          bar_client_phone_released_at: string | null
+          bar_customer_contacted: boolean
+          bar_customer_contacted_at: string | null
+          bar_customer_contacted_by: string | null
+          bar_guest_count: number | null
+          bar_internal_notes: string | null
+          bar_package: string
+          bar_package_label: string | null
+          bar_rate_per_guest: number
+          bar_subtotal: number
+          bar_vendor_assigned_at: string | null
+          bar_vendor_assignment_id: string | null
+          bar_vendor_id: string | null
           base_rental: number
           beer_wine_service: boolean
           booking_origin: Database["public"]["Enums"]["booking_origin"]
@@ -848,6 +967,20 @@ export type Database = {
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          bar_client_phone_released?: boolean
+          bar_client_phone_released_at?: string | null
+          bar_customer_contacted?: boolean
+          bar_customer_contacted_at?: string | null
+          bar_customer_contacted_by?: string | null
+          bar_guest_count?: number | null
+          bar_internal_notes?: string | null
+          bar_package?: string
+          bar_package_label?: string | null
+          bar_rate_per_guest?: number
+          bar_subtotal?: number
+          bar_vendor_assigned_at?: string | null
+          bar_vendor_assignment_id?: string | null
+          bar_vendor_id?: string | null
           base_rental: number
           beer_wine_service?: boolean
           booking_origin?: Database["public"]["Enums"]["booking_origin"]
@@ -916,6 +1049,20 @@ export type Database = {
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          bar_client_phone_released?: boolean
+          bar_client_phone_released_at?: string | null
+          bar_customer_contacted?: boolean
+          bar_customer_contacted_at?: string | null
+          bar_customer_contacted_by?: string | null
+          bar_guest_count?: number | null
+          bar_internal_notes?: string | null
+          bar_package?: string
+          bar_package_label?: string | null
+          bar_rate_per_guest?: number
+          bar_subtotal?: number
+          bar_vendor_assigned_at?: string | null
+          bar_vendor_assignment_id?: string | null
+          bar_vendor_id?: string | null
           base_rental?: number
           beer_wine_service?: boolean
           booking_origin?: Database["public"]["Enums"]["booking_origin"]
@@ -979,6 +1126,41 @@ export type Database = {
           user_agent?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "bookings_bar_customer_contacted_by_fkey"
+            columns: ["bar_customer_contacted_by"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "bookings_bar_customer_contacted_by_fkey"
+            columns: ["bar_customer_contacted_by"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_bar_vendor_assignment_id_fkey"
+            columns: ["bar_vendor_assignment_id"]
+            isOneToOne: false
+            referencedRelation: "booking_staff_assignments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_bar_vendor_id_fkey"
+            columns: ["bar_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "bookings_bar_vendor_id_fkey"
+            columns: ["bar_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bookings_policy_id_fkey"
             columns: ["policy_id"]
@@ -1290,6 +1472,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "maintenance_tickets_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       popup_leads: {
@@ -1399,6 +1588,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "bookings"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduled_jobs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
           },
         ]
       }
@@ -1674,6 +1870,13 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stripe_event_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       user_roles: {
@@ -1783,6 +1986,55 @@ export type Database = {
             referencedRelation: "bookings"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
+      v_bar_service_bookings: {
+        Row: {
+          bar_client_phone_released: boolean | null
+          bar_customer_contacted: boolean | null
+          bar_customer_contacted_at: string | null
+          bar_guest_count: number | null
+          bar_package: string | null
+          bar_package_label: string | null
+          bar_rate_per_guest: number | null
+          bar_subtotal: number | null
+          bar_vendor_email: string | null
+          bar_vendor_id: string | null
+          bar_vendor_name: string | null
+          booking_id: string | null
+          email: string | null
+          end_time: string | null
+          event_date: string | null
+          full_name: string | null
+          lifecycle_status: string | null
+          number_of_guests: number | null
+          phone: string | null
+          pre_event_ready: string | null
+          reservation_number: string | null
+          start_time: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_bar_vendor_id_fkey"
+            columns: ["bar_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "bookings_bar_vendor_id_fkey"
+            columns: ["bar_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -1798,6 +2050,8 @@ export type Database = {
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
+      get_bar_package_label: { Args: { p_package: string }; Returns: string }
+      get_bar_package_rate: { Args: { p_package: string }; Returns: number }
       get_daily_generated_revenue: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
