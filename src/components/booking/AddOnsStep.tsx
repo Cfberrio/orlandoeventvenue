@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -6,8 +7,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, For
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { BookingFormData } from "@/pages/Book";
 import { usePricing } from "@/hooks/usePricing";
+import { useBarPackages, calcBarSubtotal, getBarLabel, getBarRate, BarPackageKey } from "@/hooks/useBarPackages";
 import { Loader2 } from "lucide-react";
 
 interface AddOnsStepProps {
