@@ -1041,9 +1041,9 @@ export default function BookingDetail() {
                     <span className="text-muted-foreground">Production Package</span>
                     <Badge variant={booking.package !== "none" ? "default" : "secondary"}>
                       {booking.package === "none" ? "No Production" : 
-                       booking.package === "basic" ? "Basic ($79/hr)" :
-                       booking.package === "led" ? "LED ($99/hr)" :
-                       booking.package === "workshop" ? "Workshop ($149/hr)" :
+                      booking.package === "basic" ? `Basic ($${pp.package_basic}/hr)` :
+                      booking.package === "led" ? `LED ($${pp.package_led}/hr)` :
+                      booking.package === "workshop" ? `Workshop ($${pp.package_workshop}/hr)` :
                        booking.package || "None"}
                     </Badge>
                   </div>
