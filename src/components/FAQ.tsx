@@ -4,8 +4,10 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+import { usePricing } from "@/hooks/usePricing";
 
 const FAQ = () => {
+  const { pricing: p } = usePricing();
   const faqs = [
     {
       question: "Can we have alcohol at our event?",
@@ -18,11 +20,11 @@ const FAQ = () => {
     },
     {
       question: "Is setup and teardown included?",
-      answer: "Basic setup and teardown is your responsibility. However, we offer an optional $100 flat rate service if you'd like assistance.",
+      answer: `Basic setup and teardown is your responsibility. However, we offer an optional $${p.setup_breakdown} flat rate service if you'd like assistance.`,
     },
     {
       question: "Are tablecloths available?",
-      answer: "Yes, tablecloths are available for $5 each, plus a $25 cleaning fee.",
+      answer: `Yes, tablecloths are available for $${p.tablecloth_rental} each, plus a $${p.tablecloth_cleaning_fee} cleaning fee.`,
     },
     {
       question: "What about parking and load-in?",

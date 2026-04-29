@@ -15,13 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-
-const PACKAGE_RATES: Record<string, number> = {
-  none: 0,
-  basic: 79,
-  led: 99,
-  workshop: 149,
-};
+import { usePricing } from "@/hooks/usePricing";
 
 const PACKAGE_LABELS: Record<string, string> = {
   none: "No Package",
@@ -30,9 +24,6 @@ const PACKAGE_LABELS: Record<string, string> = {
   workshop: "Workshop Package",
 };
 
-const SETUP_BREAKDOWN_COST = 100;
-const TABLECLOTH_UNIT_COST = 5;
-const TABLECLOTH_CLEANING_FEE = 25;
 const MAX_TABLECLOTHS = 10;
 const MIN_PACKAGE_HOURS = 4;
 
@@ -65,6 +56,18 @@ export default function CreateAddonInvoiceDialog({
   const [tableclothQuantity, setTableclothQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const { pricing: p } = usePricing();
+
+  const PACKAGE_RATES: Record<string, number> = {
+    none: 0,
+    basic: p.package_basic,
+    led: p.package_led,
+    workshop: p.package_workshop,
+  };
+  const SETUP_BREAKDOWN_COST = p.setup_breakdown;
+  const TABLECLOTH_UNIT_COST = p.tablecloth_rental;
+  const TABLECLOTH_CLEANING_FEE = p.tablecloth_cleaning_fee;
+  const PROCESSING_FEE_RATE = (p.processing_fee || 3.5) / 100;
 
   const packageHours = useMemo(() => {
     if (selectedPackage === "none" || !packageStartTime || !packageEndTime) return 0;
@@ -76,7 +79,7 @@ export default function CreateAddonInvoiceDialog({
 
   const packageCost = useMemo(
     () => (PACKAGE_RATES[selectedPackage] || 0) * packageHours,
-    [selectedPackage, packageHours]
+    [selectedPackage, packageHours, PACKAGE_RATES]
   );
 
   const optionalServicesCost = useMemo(() => {
@@ -86,10 +89,9 @@ export default function CreateAddonInvoiceDialog({
       cost += tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE;
     }
     return cost;
-  }, [setupBreakdown, tablecloths, tableclothQuantity]);
+  }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
   const totalAmount = packageCost + optionalServicesCost;
-  const PROCESSING_FEE_RATE = 0.035;
   const processingFee = Math.round(totalAmount * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = totalAmount + processingFee;
 
@@ -212,21 +214,21 @@ export default function CreateAddonInvoiceDialog({
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="basic" id="addon-basic" className="mt-1" />
                 <label htmlFor="addon-basic" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Basic Package — $79/hr</div>
+                  <div className="font-semibold text-sm">Basic Package — ${p.package_basic}/hr</div>
                   <div className="text-xs text-muted-foreground">AV System, Microphones, Speakers, Projectors, Tech Assistant</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="led" id="addon-led" className="mt-1" />
                 <label htmlFor="addon-led" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">LED Package — $99/hr</div>
+                  <div className="font-semibold text-sm">LED Package — ${p.package_led}/hr</div>
                   <div className="text-xs text-muted-foreground">Basic + Stage LED Wall</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="workshop" id="addon-workshop" className="mt-1" />
                 <label htmlFor="addon-workshop" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Workshop Package — $149/hr</div>
+                  <div className="font-semibold text-sm">Workshop Package — ${p.package_workshop}/hr</div>
                   <div className="text-xs text-muted-foreground">LED + Streaming Equipment + Streaming Tech</div>
                 </label>
               </div>
@@ -275,7 +277,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setSetupBreakdown(checked as boolean)}
               />
               <label htmlFor="addon-setup" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables — $100</div>
+                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables — ${SETUP_BREAKDOWN_COST}</div>
                 <div className="text-xs text-muted-foreground">We'll handle all furniture setup and breakdown</div>
               </label>
             </div>
@@ -287,7 +289,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setTablecloths(checked as boolean)}
               />
               <label htmlFor="addon-tablecloths" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Tablecloth Rental — $5 each + $25 cleaning fee</div>
+                <div className="font-semibold text-sm">Tablecloth Rental — ${TABLECLOTH_UNIT_COST} each + ${TABLECLOTH_CLEANING_FEE} cleaning fee</div>
                 <div className="text-xs text-muted-foreground">Professional tablecloths (max {MAX_TABLECLOTHS})</div>
               </label>
             </div>
@@ -327,7 +329,7 @@ export default function CreateAddonInvoiceDialog({
               )}
               {tablecloths && tableclothQuantity > 0 && (
                 <div className="flex justify-between">
-                  <span>Tablecloths ({tableclothQuantity} x $5 + $25 cleaning)</span>
+                  <span>Tablecloths ({tableclothQuantity} x ${TABLECLOTH_UNIT_COST} + ${TABLECLOTH_CLEANING_FEE} cleaning)</span>
                   <span>${(tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE).toFixed(2)}</span>
                 </div>
               )}
@@ -337,7 +339,7 @@ export default function CreateAddonInvoiceDialog({
                 <span>${totalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Processing Fee (3.5%)</span>
+                <span>Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
                 <span>${processingFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-base">

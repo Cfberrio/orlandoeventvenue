@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { usePricing } from "@/hooks/usePricing";
 
 export interface InvoiceInitialData {
   title: string;
@@ -152,7 +153,8 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     return sum + (isNaN(val) ? 0 : val);
   }, 0);
 
-  const PROCESSING_FEE_RATE = 0.035;
+  const { pricing: pp } = usePricing();
+  const PROCESSING_FEE_RATE = (pp.processing_fee || 3.5) / 100;
   const processingFee = Math.round(total * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = total + processingFee;
 
@@ -346,7 +348,7 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Processing Fee (3.5%)</span>
+                <span className="text-sm text-muted-foreground">Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
                 <span className="text-sm">
                   ${processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>

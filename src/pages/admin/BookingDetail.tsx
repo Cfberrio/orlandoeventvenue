@@ -71,6 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
+import { usePricing } from "@/hooks/usePricing";
 
 const lifecycleStatuses = [
   "pending",
@@ -117,6 +118,8 @@ export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
 
+  const { pricing: pp } = usePricing();
+  const PROC_PCT = (pp.processing_fee || 3.5).toFixed(2);
   const { data: booking, isLoading } = useBooking(id!);
   const { data: assignments } = useBookingStaffAssignments(id!);
   const { data: hostReports } = useBookingHostReports(id!);
@@ -970,9 +973,9 @@ export default function BookingDetail() {
                     <span className="text-muted-foreground">Package</span>
                     <Badge variant={booking.package && booking.package !== "none" ? "default" : "secondary"}>
                       {booking.package === "none" || !booking.package ? "No Package" :
-                       booking.package === "basic" ? "Basic Package — $79/hr" :
-                       booking.package === "led" ? "LED Package — $99/hr" :
-                       booking.package === "workshop" ? "Workshop Package — $149/hr" :
+                      booking.package === "basic" ? `Basic Package — $${pp.package_basic}/hr` :
+                      booking.package === "led" ? `LED Package — $${pp.package_led}/hr` :
+                      booking.package === "workshop" ? `Workshop Package — $${pp.package_workshop}/hr` :
                        booking.package}
                     </Badge>
                   </div>
@@ -1038,9 +1041,9 @@ export default function BookingDetail() {
                     <span className="text-muted-foreground">Production Package</span>
                     <Badge variant={booking.package !== "none" ? "default" : "secondary"}>
                       {booking.package === "none" ? "No Production" : 
-                       booking.package === "basic" ? "Basic ($79/hr)" :
-                       booking.package === "led" ? "LED ($99/hr)" :
-                       booking.package === "workshop" ? "Workshop ($149/hr)" :
+                      booking.package === "basic" ? `Basic ($${pp.package_basic}/hr)` :
+                      booking.package === "led" ? `LED ($${pp.package_led}/hr)` :
+                      booking.package === "workshop" ? `Workshop ($${pp.package_workshop}/hr)` :
                        booking.package || "None"}
                     </Badge>
                   </div>
@@ -1114,7 +1117,7 @@ export default function BookingDetail() {
                     </div>
                   )}
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Processing Fee (3.5%)</span>
+                    <span className="text-muted-foreground">Processing Fee ({PROC_PCT}%)</span>
                     <span className="text-xs text-muted-foreground italic">Applied per transaction</span>
                   </div>
                 </div>
@@ -2340,9 +2343,9 @@ export default function BookingDetail() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Production</SelectItem>
-                  <SelectItem value="basic">Basic Package - $79/hr</SelectItem>
-                  <SelectItem value="led">LED Package - $99/hr</SelectItem>
-                  <SelectItem value="workshop">Workshop Package - $149/hr</SelectItem>
+                  <SelectItem value="basic">Basic Package - ${pp.package_basic}/hr</SelectItem>
+                  <SelectItem value="led">LED Package - ${pp.package_led}/hr</SelectItem>
+                  <SelectItem value="workshop">Workshop Package - ${pp.package_workshop}/hr</SelectItem>
                 </SelectContent>
               </Select>
             </div>
