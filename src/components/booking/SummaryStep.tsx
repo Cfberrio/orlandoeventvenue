@@ -218,7 +218,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       const depositRate = p.deposit_percentage / 100;
       const feeRate = p.processing_fee / 100;
 
-      const subtotal = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
+      const barSubtotal = data.barPackage && data.barPackage !== "none"
+        ? Number(data.barSubtotal) || 0
+        : 0;
+
+      const subtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal - rentalDiscount;
       const total = subtotal;
       const deposit = Math.round(subtotal * depositRate);
       const balance = subtotal - deposit;
