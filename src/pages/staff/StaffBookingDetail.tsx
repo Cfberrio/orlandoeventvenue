@@ -276,11 +276,8 @@ export default function StaffBookingDetail() {
 
       {/* Bar Vendor Card */}
       {isBarVendor && (() => {
-        const eventDateObj = parseISO(booking.event_date);
-        const phoneVisible =
-          booking.bar_client_phone_released === true ||
-          isToday(eventDateObj) ||
-          isPast(eventDateObj);
+        // Bar Vendor must always see full client contact info to perform their job.
+        const phoneVisible = true;
         const isContacted = booking.assignment_customer_contacted || booking.bar_customer_contacted;
         const dueAt = booking.assignment_customer_contact_due_at;
 
