@@ -90,22 +90,54 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
       setupBreakdown: data.setupBreakdown || false,
       tablecloths: data.tablecloths || false,
       tableclothQuantity: data.tableclothQuantity || 0,
+      barPackage: data.barPackage || "none",
+      barGuestCount: data.barGuestCount ?? data.numberOfGuests ?? null,
     },
   });
 
   const tableclothsChecked = form.watch("tablecloths");
   const selectedPackage = form.watch("package");
+  const selectedBarPackage = form.watch("barPackage") as BarPackageKey;
+  const barGuestCount = form.watch("barGuestCount");
+
+  // Auto-sync bar guest count with main numberOfGuests if user hasn't manually changed it
+  // (i.e. it currently equals the previous main guest count or is empty)
+  useEffect(() => {
+    if (selectedBarPackage === "none") return;
+    const current = form.getValues("barGuestCount");
+    if (current == null || current === 0) {
+      form.setValue("barGuestCount", data.numberOfGuests ?? null);
+    }
+  }, [selectedBarPackage, data.numberOfGuests, form]);
+
+  const barRate = useMemo(
+    () => getBarRate(barPackages, selectedBarPackage),
+    [barPackages, selectedBarPackage]
+  );
+  const barSubtotal = useMemo(
+    () => calcBarSubtotal(barRate, Number(barGuestCount) || 0),
+    [barRate, barGuestCount]
+  );
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    const isBarNone = values.barPackage === "none";
+    const rate = isBarNone ? 0 : getBarRate(barPackages, values.barPackage as BarPackageKey);
+    const guests = isBarNone ? null : Number(values.barGuestCount) || 0;
+    const subtotal = isBarNone ? 0 : calcBarSubtotal(rate, guests || 0);
+
     updateData({
       ...values,
       packageStartTime: values.package === "none" ? "" : values.packageStartTime,
       packageEndTime: values.package === "none" ? "" : values.packageEndTime,
+      barPackage: values.barPackage,
+      barGuestCount: guests,
+      barRatePerGuest: rate,
+      barSubtotal: subtotal,
     });
     onNext();
   };
 
-  if (pricingLoading) {
+  if (pricingLoading || barLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
