@@ -329,7 +329,7 @@ export default function CreateAddonInvoiceDialog({
               )}
               {tablecloths && tableclothQuantity > 0 && (
                 <div className="flex justify-between">
-                  <span>Tablecloths ({tableclothQuantity} x $5 + $25 cleaning)</span>
+                  <span>Tablecloths ({tableclothQuantity} x ${TABLECLOTH_UNIT_COST} + ${TABLECLOTH_CLEANING_FEE} cleaning)</span>
                   <span>${(tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE).toFixed(2)}</span>
                 </div>
               )}
