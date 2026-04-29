@@ -72,7 +72,10 @@ export function useStaffAssignedBookings() {
         .select(`
           id,
           assignment_role,
+          assignment_type,
           booking_id,
+          customer_contact_due_at,
+          customer_contacted,
           bookings (
             id,
             reservation_number,
@@ -87,7 +90,12 @@ export function useStaffAssignedBookings() {
             package_start_time,
             package_end_time,
             client_notes,
-            lifecycle_status
+            lifecycle_status,
+            bar_package,
+            bar_package_label,
+            bar_guest_count,
+            bar_customer_contacted,
+            bar_client_phone_released
           )
         `)
         .eq("staff_id", staffMember.id)
@@ -103,6 +111,8 @@ export function useStaffAssignedBookings() {
           ...assignment.bookings,
           assignment_role: assignment.assignment_role,
           assignment_id: assignment.id,
+          customer_contact_due_at: assignment.customer_contact_due_at,
+          customer_contacted: assignment.customer_contacted,
         })) as StaffBooking[];
     },
     enabled: !!staffMember?.id,
