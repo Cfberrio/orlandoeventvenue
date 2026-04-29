@@ -593,7 +593,7 @@ export function useBookingStaffAssignments(bookingId: string) {
         .from("booking_staff_assignments")
         .select(`
           *,
-          staff_members(*),
+          staff_members!booking_staff_assignments_staff_id_fkey(*),
           bookings(package, package_start_time, package_end_time, start_time, end_time, booking_type)
         `)
         .eq("booking_id", bookingId);
