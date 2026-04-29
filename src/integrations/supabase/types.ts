@@ -2056,6 +2056,7 @@ export type Database = {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           addon_generated: number
+          bar_generated: number
           baseline_generated: number
           booking_count: number
           cleaning_generated: number
@@ -2070,6 +2071,7 @@ export type Database = {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           addon_revenue: number
+          bar_revenue: number
           baseline_revenue: number
           booking_count: number
           cleaning_revenue: number
@@ -2085,6 +2087,7 @@ export type Database = {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           addon_revenue: number
+          bar_revenue: number
           baseline_revenue: number
           booking_count: number
           cleaning_revenue: number
