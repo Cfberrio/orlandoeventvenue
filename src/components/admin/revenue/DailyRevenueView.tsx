@@ -53,6 +53,7 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
       cleaning_revenue: acc.cleaning_revenue + Number(day.cleaning_revenue || 0),
       production_revenue: acc.production_revenue + Number(day.production_revenue || 0),
       addon_revenue: acc.addon_revenue + Number(day.addon_revenue || 0),
+      bar_revenue: acc.bar_revenue + Number(day.bar_revenue || 0),
       fee_revenue: acc.fee_revenue + Number(day.fee_revenue || 0),
       discount_amount: acc.discount_amount + Number(day.discount_amount || 0),
       tax_amount: acc.tax_amount + Number(day.tax_amount || 0),
@@ -64,6 +65,7 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
       cleaning_revenue: 0,
       production_revenue: 0,
       addon_revenue: 0,
+      bar_revenue: 0,
       fee_revenue: 0,
       discount_amount: 0,
       tax_amount: 0,
@@ -179,6 +181,7 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
                   <TableHead className="text-right">Cleaning</TableHead>
                   <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right">Add-ons</TableHead>
+                  <TableHead className="text-right">Bar</TableHead>
                   <TableHead className="text-right">Fees</TableHead>
                   <TableHead className="text-right">Discounts</TableHead>
                   <TableHead className="text-right">Tax</TableHead>
@@ -203,6 +206,9 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
                     </TableCell>
                     <TableCell className="text-right">
                       ${Number(day.addon_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      ${Number(day.bar_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right">
                       ${Number(day.fee_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -235,6 +241,9 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
                   </TableCell>
                   <TableCell className="text-right">
                     ${totals?.addon_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    ${totals?.bar_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">
                     ${totals?.fee_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
