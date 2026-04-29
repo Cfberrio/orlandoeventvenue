@@ -339,7 +339,7 @@ export default function CreateAddonInvoiceDialog({
                 <span>${totalAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Processing Fee (3.5%)</span>
+                <span>Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
                 <span>${processingFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-base">
