@@ -214,21 +214,21 @@ export default function CreateAddonInvoiceDialog({
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="basic" id="addon-basic" className="mt-1" />
                 <label htmlFor="addon-basic" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Basic Package — $79/hr</div>
+                  <div className="font-semibold text-sm">Basic Package — ${p.package_basic}/hr</div>
                   <div className="text-xs text-muted-foreground">AV System, Microphones, Speakers, Projectors, Tech Assistant</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="led" id="addon-led" className="mt-1" />
                 <label htmlFor="addon-led" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">LED Package — $99/hr</div>
+                  <div className="font-semibold text-sm">LED Package — ${p.package_led}/hr</div>
                   <div className="text-xs text-muted-foreground">Basic + Stage LED Wall</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="workshop" id="addon-workshop" className="mt-1" />
                 <label htmlFor="addon-workshop" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Workshop Package — $149/hr</div>
+                  <div className="font-semibold text-sm">Workshop Package — ${p.package_workshop}/hr</div>
                   <div className="text-xs text-muted-foreground">LED + Streaming Equipment + Streaming Tech</div>
                 </label>
               </div>
