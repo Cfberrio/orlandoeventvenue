@@ -1204,6 +1204,9 @@ export default function BookingDetail() {
               </CardContent>
             </Card>
 
+            {/* Bar Service */}
+            <BarServiceCard booking={booking} />
+
             {/* Add-On Invoices */}
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader className="pb-3">
