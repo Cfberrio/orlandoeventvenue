@@ -346,6 +346,15 @@ export default function BookingDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
+      // UI guard: block pre_event_ready when bar service requirements are unmet
+      if (newStatus === "pre_event_ready") {
+        const barBlock = checkBarServicePreEventBlock(booking);
+        if (barBlock) {
+          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
+          return;
+        }
+      }
+
       const wasPreEventReady = booking.pre_event_ready === "true";
       
       await updateBooking.mutateAsync({ id: booking.id, updates: { lifecycle_status: newStatus } });
