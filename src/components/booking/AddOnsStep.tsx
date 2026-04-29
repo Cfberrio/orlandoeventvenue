@@ -357,7 +357,7 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
                         <RadioGroupItem value="none" id="bar-none" className="mt-1" />
                         <label htmlFor="bar-none" className="flex-1 cursor-pointer">
                           <div className="font-semibold">No bar service</div>
-                          <div className="text-sm text-muted-foreground">No alcohol service for this event</div>
+                          <div className="text-sm text-muted-foreground">No bar service for this event</div>
                         </label>
                       </div>
                       {barPackages.map((bp) => (
