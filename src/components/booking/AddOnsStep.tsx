@@ -1,3 +1,4 @@
+import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -6,8 +7,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormDescription, For
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { BookingFormData } from "@/pages/Book";
 import { usePricing } from "@/hooks/usePricing";
+import { useBarPackages, calcBarSubtotal, getBarLabel, getBarRate, BarPackageKey } from "@/hooks/useBarPackages";
 import { Loader2 } from "lucide-react";
 
 interface AddOnsStepProps {
@@ -19,6 +22,7 @@ interface AddOnsStepProps {
 
 const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
   const { pricing: p, isLoading: pricingLoading } = usePricing();
+  const { packages: barPackages, isLoading: barLoading } = useBarPackages();
   // Get booking time constraints
   const getTimeConstraints = () => {
     if (data.bookingType === "daily") {
@@ -43,6 +47,14 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
     setupBreakdown: z.boolean(),
     tablecloths: z.boolean(),
     tableclothQuantity: z.coerce.number().min(0).max(10, "Maximum 10 tablecloths"),
+    barPackage: z.enum(["none", "house_beer_wine", "essential_bar", "signature_bar", "bespoke_bar"]),
+    barGuestCount: z.coerce.number().nullable().optional(),
+  }).refine((d) => {
+    if (d.barPackage === "none") return true;
+    return d.barGuestCount != null && d.barGuestCount > 0;
+  }, {
+    message: "Guest count is required for bar service",
+    path: ["barGuestCount"],
   }).refine((data) => {
     if (data.package === "none") return true;
     if (!data.packageStartTime || !data.packageEndTime) return false;
@@ -78,22 +90,54 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
       setupBreakdown: data.setupBreakdown || false,
       tablecloths: data.tablecloths || false,
       tableclothQuantity: data.tableclothQuantity || 0,
+      barPackage: data.barPackage || "none",
+      barGuestCount: data.barGuestCount ?? data.numberOfGuests ?? null,
     },
   });
 
   const tableclothsChecked = form.watch("tablecloths");
   const selectedPackage = form.watch("package");
+  const selectedBarPackage = form.watch("barPackage") as BarPackageKey;
+  const barGuestCount = form.watch("barGuestCount");
+
+  // Auto-sync bar guest count with main numberOfGuests if user hasn't manually changed it
+  // (i.e. it currently equals the previous main guest count or is empty)
+  useEffect(() => {
+    if (selectedBarPackage === "none") return;
+    const current = form.getValues("barGuestCount");
+    if (current == null || current === 0) {
+      form.setValue("barGuestCount", data.numberOfGuests ?? null);
+    }
+  }, [selectedBarPackage, data.numberOfGuests, form]);
+
+  const barRate = useMemo(
+    () => getBarRate(barPackages, selectedBarPackage),
+    [barPackages, selectedBarPackage]
+  );
+  const barSubtotal = useMemo(
+    () => calcBarSubtotal(barRate, Number(barGuestCount) || 0),
+    [barRate, barGuestCount]
+  );
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
+    const isBarNone = values.barPackage === "none";
+    const rate = isBarNone ? 0 : getBarRate(barPackages, values.barPackage as BarPackageKey);
+    const guests = isBarNone ? null : Number(values.barGuestCount) || 0;
+    const subtotal = isBarNone ? 0 : calcBarSubtotal(rate, guests || 0);
+
     updateData({
       ...values,
       packageStartTime: values.package === "none" ? "" : values.packageStartTime,
       packageEndTime: values.package === "none" ? "" : values.packageEndTime,
+      barPackage: values.barPackage,
+      barGuestCount: guests,
+      barRatePerGuest: rate,
+      barSubtotal: subtotal,
     });
     onNext();
   };
 
-  if (pricingLoading) {
+  if (pricingLoading || barLoading) {
     return (
       <div className="flex items-center justify-center h-64">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -287,6 +331,99 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
               )}
             />
           )}
+
+          {/* Bar Service */}
+          <div className="pt-4 border-t mt-4">
+            <FormLabel className="text-base font-semibold">Bar Service</FormLabel>
+            <FormDescription className="mb-4">
+              Choose a bar package and confirm your guest count. We coordinate the vendor and handle the bar service logistics.
+            </FormDescription>
+
+            <FormField
+              control={form.control}
+              name="barPackage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium">
+                    Would you like to add bar service to your event?
+                  </FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="space-y-3 mt-2"
+                    >
+                      <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                        <RadioGroupItem value="none" id="bar-none" className="mt-1" />
+                        <label htmlFor="bar-none" className="flex-1 cursor-pointer">
+                          <div className="font-semibold">No bar service</div>
+                          <div className="text-sm text-muted-foreground">No alcohol service for this event</div>
+                        </label>
+                      </div>
+                      {barPackages.map((bp) => (
+                        <div
+                          key={bp.key}
+                          className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors"
+                        >
+                          <RadioGroupItem value={bp.key} id={`bar-${bp.key}`} className="mt-1" />
+                          <label htmlFor={`bar-${bp.key}`} className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold">
+                                {bp.label} — ${bp.ratePerGuest.toFixed(2)}/guest
+                              </span>
+                              {bp.badge && (
+                                <Badge className="bg-primary text-primary-foreground">{bp.badge}</Badge>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {selectedBarPackage !== "none" && (
+              <div className="mt-4 space-y-4 border rounded-lg p-4 bg-accent/20">
+                <FormField
+                  control={form.control}
+                  name="barGuestCount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Guest count for bar service</FormLabel>
+                      <FormDescription>
+                        This should match the number of guests receiving bar service.
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={90}
+                          className="max-w-xs"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === "" ? null : Number(e.target.value))
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="text-sm bg-background border rounded-md p-3">
+                  <div className="font-semibold mb-1">Bar Service Subtotal</div>
+                  <div className="text-muted-foreground">
+                    {Number(barGuestCount) || 0} × ${barRate.toFixed(2)}/guest ={" "}
+                    <span className="text-foreground font-semibold">
+                      ${barSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-between pt-4">

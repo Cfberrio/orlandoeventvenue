@@ -8,8 +8,9 @@ import {
 const FAQ = () => {
   const faqs = [
     {
-      question: "What is your alcohol policy?",
-      answer: "No hard liquor is allowed at the venue. Beer and wine are permitted.",
+      question: "Can we have alcohol at our event?",
+      answer:
+        "Yes — bar service is available as a paid add-on for all private events. We coordinate the vendor; you select your package and pay online when you book. Packages start at $18/guest. No outside alcohol or outside bartenders are permitted.",
     },
     {
       question: "Can I bring my own caterer?",

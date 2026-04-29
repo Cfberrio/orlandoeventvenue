@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Edit, Tag, Check, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePricing } from "@/hooks/usePricing";
+import { useBarPackages, getBarLabel } from "@/hooks/useBarPackages";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -18,6 +19,7 @@ interface SummaryStepProps {
 
 const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStepProps) => {
   const { pricing: p, isLoading: pricingLoading } = usePricing();
+  const { packages: barPackages } = useBarPackages();
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
@@ -216,7 +218,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       const depositRate = p.deposit_percentage / 100;
       const feeRate = p.processing_fee / 100;
 
-      const subtotal = baseRental + cleaningFee + packageCost + optionalServices - rentalDiscount;
+      const barSubtotal = data.barPackage && data.barPackage !== "none"
+        ? Number(data.barSubtotal) || 0
+        : 0;
+
+      const subtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal - rentalDiscount;
       const total = subtotal;
       const deposit = Math.round(subtotal * depositRate);
       const balance = subtotal - deposit;
@@ -348,6 +354,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                   • Tablecloth Rental ({data.tableclothQuantity} tablecloths)
                 </p>
               )}
+              {data.barPackage && data.barPackage !== "none" && (
+                <p>
+                  • Bar Service — {getBarLabel(barPackages, data.barPackage) || data.barPackage} ({data.barGuestCount} guests)
+                </p>
+              )}
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={() => goToStep(3)}>
@@ -446,6 +457,17 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <div className="flex justify-between">
                 <span>Optional Services</span>
                 <span>${data.pricing.optionalServices.toFixed(2)}</span>
+              </div>
+            )}
+            {data.barPackage && data.barPackage !== "none" && (data.barSubtotal || 0) > 0 && (
+              <div className="flex justify-between">
+                <span>
+                  Bar Service — {getBarLabel(barPackages, data.barPackage) || ""}{" "}
+                  <span className="text-muted-foreground">
+                    ({data.barGuestCount} × ${(data.barRatePerGuest || 0).toFixed(2)}/guest)
+                  </span>
+                </span>
+                <span>${(data.barSubtotal || 0).toFixed(2)}</span>
               </div>
             )}
             {data.pricing.discount && data.pricing.discount > 0 && (

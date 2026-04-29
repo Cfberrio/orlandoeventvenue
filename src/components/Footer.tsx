@@ -29,8 +29,8 @@ const Footer = () => {
               </span>
               </div>
               <div className="text-sm opacity-90">
-                <p className="font-semibold mb-2">Alcohol Policy</p>
-                <p>No hard liquor allowed</p>
+                <p className="font-semibold mb-2">Bar Service</p>
+                <p>Available as a paid add-on. No outside alcohol or outside bartenders permitted.</p>
               </div>
             </div>
           </div>

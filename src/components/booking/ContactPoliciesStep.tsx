@@ -12,7 +12,7 @@ import { useState, useRef, useEffect } from "react";
 import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const venueRules = [
-  "No Alcoholic Drinks (only beer & wine allowed) — $250 fee",
+  "Bar service available as a paid add-on. No outside alcohol or outside bartenders permitted — $250 fee",
   "No Drugs — $300 fee",
   "No Smoking — $300 cleaning fee",
   "No Pets (service animals with certification only) — $100 cleaning fee",
