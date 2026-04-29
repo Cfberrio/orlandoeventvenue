@@ -1128,6 +1128,15 @@ export default function BookingDetail() {
                       <span>${Number(booking.optional_services).toLocaleString()}</span>
                     </div>
                   )}
+                  {booking.bar_package && booking.bar_package !== "none" && Number(booking.bar_subtotal) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Bar Service — {booking.bar_package_label || booking.bar_package}
+                        {booking.bar_guest_count ? ` (${booking.bar_guest_count} × $${Number(booking.bar_rate_per_guest).toFixed(2)})` : ''}
+                      </span>
+                      <span>${Number(booking.bar_subtotal).toLocaleString()}</span>
+                    </div>
+                  )}
                   {booking.discount_amount && Number(booking.discount_amount) > 0 && (
                     <div className="flex justify-between text-green-600 dark:text-green-400">
                       <span className="text-muted-foreground">
