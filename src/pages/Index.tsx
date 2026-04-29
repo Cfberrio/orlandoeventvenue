@@ -5,6 +5,7 @@ import SpaceHighlights from "@/components/SpaceHighlights";
 import Gallery from "@/components/Gallery";
 import Pricing from "@/components/Pricing";
 import Production from "@/components/Production";
+import BarService from "@/components/BarService";
 import HowItWorks from "@/components/HowItWorks";
 import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
@@ -37,6 +38,7 @@ const Index = () => {
       <ScheduleTourCTA />
       <HowItWorks />
       <Production />
+      <BarService />
       <FAQ />
       <FinalCTA />
       <ContactForm />
