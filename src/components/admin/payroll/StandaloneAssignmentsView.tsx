@@ -81,7 +81,7 @@ export default function StandaloneAssignmentsView({
           status,
           created_at,
           completed_at,
-          staff_members (
+          staff_members!booking_staff_assignments_staff_id_fkey (
             full_name
           )
         `)
