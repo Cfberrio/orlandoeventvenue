@@ -120,6 +120,7 @@ export default function BookingDetail() {
 
   const { pricing: pp } = usePricing();
   const PROC_PCT = (pp.processing_fee || 3.5).toFixed(2);
+  const { data: booking, isLoading } = useBooking(id!);
   const { data: assignments } = useBookingStaffAssignments(id!);
   const { data: hostReports } = useBookingHostReports(id!);
   const { data: cleaningReports } = useBookingCleaningReports(id!);
