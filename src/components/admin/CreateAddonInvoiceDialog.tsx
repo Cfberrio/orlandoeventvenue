@@ -15,13 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Loader2, Send } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-
-const PACKAGE_RATES: Record<string, number> = {
-  none: 0,
-  basic: 79,
-  led: 99,
-  workshop: 149,
-};
+import { usePricing } from "@/hooks/usePricing";
 
 const PACKAGE_LABELS: Record<string, string> = {
   none: "No Package",
@@ -30,9 +24,6 @@ const PACKAGE_LABELS: Record<string, string> = {
   workshop: "Workshop Package",
 };
 
-const SETUP_BREAKDOWN_COST = 100;
-const TABLECLOTH_UNIT_COST = 5;
-const TABLECLOTH_CLEANING_FEE = 25;
 const MAX_TABLECLOTHS = 10;
 const MIN_PACKAGE_HOURS = 4;
 
