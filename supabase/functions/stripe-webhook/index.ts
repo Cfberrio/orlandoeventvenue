@@ -869,6 +869,11 @@ ${receiptItemRows}
               total_amount: data.total_amount,
               deposit_amount: data.deposit_amount,
               balance_amount: data.balance_amount,
+              bar_package: data.bar_package,
+              bar_package_label: data.bar_package_label,
+              bar_guest_count: data.bar_guest_count,
+              bar_subtotal: data.bar_subtotal,
+              bar_rate_per_guest: data.bar_rate_per_guest,
             }),
           });
 
