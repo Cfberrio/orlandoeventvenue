@@ -153,7 +153,8 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     return sum + (isNaN(val) ? 0 : val);
   }, 0);
 
-  const PROCESSING_FEE_RATE = 0.035;
+  const { pricing: pp } = usePricing();
+  const PROCESSING_FEE_RATE = (pp.processing_fee || 3.5) / 100;
   const processingFee = Math.round(total * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = total + processingFee;
 
