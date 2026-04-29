@@ -24,6 +24,7 @@ interface BookingData {
   event_type: string;
   number_of_guests: number;
   lead_source: string | null;
+  payment_status: string | null;
   client_notes: string | null;
   ghl_appointment_id: string | null;
   ghl_contact_id: string | null;
@@ -933,6 +934,27 @@ serve(async (req) => {
 
     const bookingData = booking as BookingData;
     const isCancelled = bookingData.status === "cancelled";
+
+    // LEAD GUARD: Skip GHL calendar sync for unpaid website leads.
+    // Bookings with payment_status='pending' have not paid the deposit yet.
+    // Exception: internal_admin bookings bypass this guard.
+    if (
+      bookingData.payment_status === "pending" &&
+      (bookingData.lead_source ?? "") !== "internal_admin"
+    ) {
+      console.log(
+        `[LEAD GUARD] Skipping GHL calendar sync for booking ${booking_id} — payment_status is pending (lead).`
+      );
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          skipped: true,
+          reason: "lead_guard_payment_pending",
+          booking_id,
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Calculate times with proper timezone
     const times = calculateTimes(bookingData);
