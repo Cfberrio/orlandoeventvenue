@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { usePricing } from "@/hooks/usePricing";
 
 export interface InvoiceInitialData {
   title: string;
