@@ -52,6 +52,9 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
 
   const handleSelectVendor = async (vendorId: string) => {
     if (!hasBar) return;
+    const previousVendorId: string | null = booking.bar_vendor_id ?? null;
+    const vendorChanged = previousVendorId !== vendorId;
+
     setSaving(true);
     try {
       const now = new Date().toISOString();
@@ -76,8 +79,8 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
             assignment_role: BAR_VENDOR_ROLE,
             assignment_type: "bar_service",
             customer_contact_required: true,
-            customer_contacted: false,
-            customer_contacted_at: null,
+            customer_contacted: vendorChanged ? false : existing.staff_id === vendorId ? undefined : false,
+            customer_contacted_at: vendorChanged ? null : undefined,
             customer_contact_due_at: dueAt,
             updated_at: now,
           })
@@ -111,14 +114,20 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
             booking.bar_vendor_assigned_at && booking.bar_vendor_id === vendorId
               ? booking.bar_vendor_assigned_at
               : now,
-          bar_customer_contacted: false,
-          bar_customer_contacted_at: null,
-          bar_customer_contacted_by: null,
+          bar_customer_contacted: vendorChanged ? false : booking.bar_customer_contacted,
+          bar_customer_contacted_at: vendorChanged ? null : booking.bar_customer_contacted_at,
+          bar_customer_contacted_by: vendorChanged ? null : booking.bar_customer_contacted_by,
         })
         .eq("id", booking.id);
       if (bErr) throw bErr;
 
-      toast({ title: "Bar vendor assigned" });
+      // Send notification email only if vendor actually changed (duplicate prevention)
+      if (vendorChanged) {
+        await sendBarVendorEmail(booking, vendorId, assignmentId);
+      } else {
+        toast({ title: "Bar vendor assigned" });
+      }
+
       invalidate();
     } catch (err) {
       console.error(err);
@@ -129,6 +138,122 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
       });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const sendBarVendorEmail = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    bookingData: any,
+    vendorId: string,
+    assignmentId: string | undefined
+  ) => {
+    try {
+      const { data: vendor, error: vErr } = await supabase
+        .from("staff_members")
+        .select("id, full_name, email")
+        .eq("id", vendorId)
+        .single();
+      if (vErr) throw vErr;
+
+      if (!vendor.email) {
+        console.warn("[BarVendor email] vendor has no email", vendor);
+        toast({
+          title: "Bar Vendor assigned, but notification email failed",
+          description: "Vendor has no email address. Please notify manually.",
+          variant: "destructive",
+        });
+        await supabase.from("booking_events").insert({
+          booking_id: bookingData.id,
+          event_type: "bar_vendor_assignment_email_failed",
+          channel: "email",
+          metadata: {
+            vendor_id: vendorId,
+            assignment_id: assignmentId,
+            error: "vendor_missing_email",
+          },
+        });
+        return;
+      }
+
+      const eventDate = new Date(bookingData.event_date + "T00:00:00");
+      const eventDateLong = eventDate.toLocaleDateString("en-US", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const fmt = (t?: string | null) => {
+        if (!t) return "TBD";
+        const [h, m] = t.split(":");
+        const hr = parseInt(h, 10);
+        const ampm = hr >= 12 ? "PM" : "AM";
+        return `${hr % 12 || 12}:${m} ${ampm}`;
+      };
+      const eventTimeRange =
+        bookingData.start_time && bookingData.end_time
+          ? `${fmt(bookingData.start_time)} - ${fmt(bookingData.end_time)}`
+          : "TBD";
+
+      const { error: emailError } = await supabase.functions.invoke("send-staff-assignment", {
+        body: {
+          staffEmail: vendor.email,
+          staffName: vendor.full_name,
+          reservationNumber: bookingData.reservation_number || "N/A",
+          eventDateLong,
+          eventTimeRange,
+          staffRole: "Bar Vendor",
+          adminNotes: bookingData.bar_internal_notes || "No special notes",
+          logoUrl: "https://orlandoeventvenue.org/logo.png",
+          bookingId: bookingData.id,
+          eventType: bookingData.event_type || "",
+          barPackageLabel: bookingData.bar_package_label || bookingData.bar_package || "",
+          barGuestCount: bookingData.bar_guest_count ?? null,
+          clientFullName: bookingData.full_name || "",
+          clientEmail: bookingData.email || "",
+          clientPhone: bookingData.phone || "",
+        },
+      });
+
+      if (emailError) {
+        console.error("[BarVendor email] send failed", emailError);
+        toast({
+          title: "Bar Vendor assigned, but notification email failed",
+          description: "Please notify the vendor manually.",
+          variant: "destructive",
+        });
+        await supabase.from("booking_events").insert({
+          booking_id: bookingData.id,
+          event_type: "bar_vendor_assignment_email_failed",
+          channel: "email",
+          metadata: {
+            vendor_id: vendorId,
+            vendor_email: vendor.email,
+            assignment_id: assignmentId,
+            error: emailError.message || String(emailError),
+          },
+        });
+        return;
+      }
+
+      toast({ title: "Bar Vendor assigned and notification email sent." });
+      await supabase.from("booking_events").insert({
+        booking_id: bookingData.id,
+        event_type: "bar_vendor_assignment_email_sent",
+        channel: "email",
+        metadata: {
+          vendor_id: vendorId,
+          vendor_email: vendor.email,
+          assignment_id: assignmentId,
+          sent_at: new Date().toISOString(),
+        },
+      });
+    } catch (e) {
+      console.error("[BarVendor email] unexpected error", e);
+      toast({
+        title: "Bar Vendor assigned, but notification email failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
     }
   };
 
