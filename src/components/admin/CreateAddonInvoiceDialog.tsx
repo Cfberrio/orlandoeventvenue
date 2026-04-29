@@ -277,7 +277,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setSetupBreakdown(checked as boolean)}
               />
               <label htmlFor="addon-setup" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables — $100</div>
+                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables — ${SETUP_BREAKDOWN_COST}</div>
                 <div className="text-xs text-muted-foreground">We'll handle all furniture setup and breakdown</div>
               </label>
             </div>
@@ -289,7 +289,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setTablecloths(checked as boolean)}
               />
               <label htmlFor="addon-tablecloths" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Tablecloth Rental — $5 each + $25 cleaning fee</div>
+                <div className="font-semibold text-sm">Tablecloth Rental — ${TABLECLOTH_UNIT_COST} each + ${TABLECLOTH_CLEANING_FEE} cleaning fee</div>
                 <div className="text-xs text-muted-foreground">Professional tablecloths (max {MAX_TABLECLOTHS})</div>
               </label>
             </div>
