@@ -30,6 +30,11 @@ export interface BookingFormData {
   setupBreakdown: boolean;
   tablecloths: boolean;
   tableclothQuantity: number;
+  // Bar Service (Step 3 — Optional Services)
+  barPackage: "none" | "house_beer_wine" | "essential_bar" | "signature_bar" | "bespoke_bar";
+  barGuestCount: number | null;
+  barRatePerGuest: number;
+  barSubtotal: number;
   
   // Step 4 (calculated)
   pricing: {
