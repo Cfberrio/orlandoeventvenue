@@ -56,6 +56,18 @@ export default function CreateAddonInvoiceDialog({
   const [tableclothQuantity, setTableclothQuantity] = useState(1);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+  const { pricing: p } = usePricing();
+
+  const PACKAGE_RATES: Record<string, number> = {
+    none: 0,
+    basic: p.package_basic,
+    led: p.package_led,
+    workshop: p.package_workshop,
+  };
+  const SETUP_BREAKDOWN_COST = p.setup_breakdown;
+  const TABLECLOTH_UNIT_COST = p.tablecloth_rental;
+  const TABLECLOTH_CLEANING_FEE = p.tablecloth_cleaning_fee;
+  const PROCESSING_FEE_RATE = (p.processing_fee || 3.5) / 100;
 
   const packageHours = useMemo(() => {
     if (selectedPackage === "none" || !packageStartTime || !packageEndTime) return 0;
@@ -67,7 +79,7 @@ export default function CreateAddonInvoiceDialog({
 
   const packageCost = useMemo(
     () => (PACKAGE_RATES[selectedPackage] || 0) * packageHours,
-    [selectedPackage, packageHours]
+    [selectedPackage, packageHours, PACKAGE_RATES]
   );
 
   const optionalServicesCost = useMemo(() => {
@@ -77,7 +89,7 @@ export default function CreateAddonInvoiceDialog({
       cost += tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE;
     }
     return cost;
-  }, [setupBreakdown, tablecloths, tableclothQuantity]);
+  }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
   const totalAmount = packageCost + optionalServicesCost;
   const PROCESSING_FEE_RATE = 0.035;
