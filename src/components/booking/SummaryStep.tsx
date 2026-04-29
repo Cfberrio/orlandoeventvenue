@@ -354,6 +354,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                   • Tablecloth Rental ({data.tableclothQuantity} tablecloths)
                 </p>
               )}
+              {data.barPackage && data.barPackage !== "none" && (
+                <p>
+                  • Bar Service — {getBarLabel(barPackages, data.barPackage) || data.barPackage} ({data.barGuestCount} guests)
+                </p>
+              )}
             </div>
           </div>
           <Button variant="ghost" size="sm" onClick={() => goToStep(3)}>
