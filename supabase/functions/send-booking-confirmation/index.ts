@@ -87,6 +87,11 @@ interface BookingEmailData {
   total_amount: number;
   deposit_amount: number;
   balance_amount: number;
+  bar_package?: string | null;
+  bar_package_label?: string | null;
+  bar_guest_count?: number | null;
+  bar_subtotal?: number | null;
+  bar_rate_per_guest?: number | null;
 }
 
 function formatDate(dateString: string): string {
