@@ -368,3 +368,62 @@ export function useStaffScheduleData(dateFrom: string, dateTo: string) {
     enabled: !!staffMember?.id && !!dateFrom && !!dateTo,
   });
 }
+
+// Bar Vendor: Mark customer as contacted from staff portal.
+// Updates assignment (-> auto-completes via existing pattern) AND booking.bar_customer_contacted.
+export function useMarkBarCustomerContacted() {
+  const queryClient = useQueryClient();
+  const { staffMember } = useStaffSession();
+
+  return useMutation({
+    mutationFn: async ({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
+      const now = new Date().toISOString();
+      const staffId = staffMember?.id ?? null;
+
+      // 1) Update assignment — set contacted + complete it (mirrors admin BarServiceCard pattern)
+      const { error: aErr } = await supabase
+        .from("booking_staff_assignments")
+        .update({
+          customer_contacted: true,
+          customer_contacted_at: now,
+          customer_contacted_by: staffId,
+          status: "completed",
+          completed_at: now,
+          updated_at: now,
+        })
+        .eq("id", assignmentId);
+      if (aErr) throw aErr;
+
+      // 2) Update booking-level bar fields so admin BarServiceCard reflects ✓ Customer Contacted
+      const { error: bErr } = await supabase
+        .from("bookings")
+        .update({
+          bar_customer_contacted: true,
+          bar_customer_contacted_at: now,
+          bar_customer_contacted_by: staffId,
+        })
+        .eq("id", bookingId);
+      if (bErr) throw bErr;
+
+      // 3) Audit event for admin visibility
+      await supabase.from("booking_events").insert({
+        booking_id: bookingId,
+        event_type: "bar_customer_contacted",
+        channel: "staff_portal",
+        metadata: {
+          staff_id: staffId,
+          staff_name: staffMember?.full_name,
+          contacted_at: now,
+        },
+      });
+
+      return { success: true };
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["staff-booking-detail", vars.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["booking", vars.bookingId] });
+    },
+  });
+}
+
