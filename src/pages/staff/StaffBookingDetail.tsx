@@ -48,7 +48,8 @@ export default function StaffBookingDetail() {
   const { toast } = useToast();
 
   const isBarVendor = booking?.assignment_role === "Bar Vendor";
-  
+  const isLoading = bookingLoading || reportLoading;
+
   const handleUnassignClick = () => {
     setShowUnassignDialog(true);
   };
