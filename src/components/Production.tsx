@@ -1,16 +1,21 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, Monitor, Video } from "lucide-react";
+import { Mic, Monitor, Video, Loader2 } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { usePricing } from "@/hooks/usePricing";
 
 const Production = () => {
   const { ref, isVisible } = useScrollAnimation();
+  const { pricing: p, items, isLoading } = usePricing();
+
+  const labelFor = (key: string, fallback: string) =>
+    items.find((i) => i.item_key === key)?.label ?? fallback;
 
   const packages = [
     {
       icon: Mic,
-      name: "Basic",
-      price: "$79/hr",
+      name: labelFor("package_basic", "Basic A/V Package"),
+      price: p.package_basic,
       features: [
         "AV System",
         "Microphones",
@@ -21,8 +26,8 @@ const Production = () => {
     },
     {
       icon: Monitor,
-      name: "LED",
-      price: "$99/hr",
+      name: labelFor("package_led", "LED Wall Package"),
+      price: p.package_led,
       features: [
         "Includes Basic +",
         "Stage LED Wall Screen",
@@ -32,8 +37,8 @@ const Production = () => {
     },
     {
       icon: Video,
-      name: "Workshop",
-      price: "$149/hr",
+      name: labelFor("package_workshop", "Workshop/Streaming Package"),
+      price: p.package_workshop,
       features: [
         "Includes Basic & LED +",
         "Streaming Equipment",
@@ -74,7 +79,7 @@ const Production = () => {
                   </div>
                   <CardTitle>{pkg.name}</CardTitle>
                   <CardDescription className="text-2xl font-bold text-foreground">
-                    {pkg.price}
+                    {isLoading ? <Loader2 className="h-5 w-5 animate-spin inline" /> : `$${pkg.price}/hr`}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
