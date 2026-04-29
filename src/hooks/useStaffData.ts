@@ -76,7 +76,7 @@ export function useStaffAssignedBookings() {
           booking_id,
           customer_contact_due_at,
           customer_contacted,
-          bookings (
+          bookings!booking_staff_assignments_booking_id_fkey (
             id,
             reservation_number,
             event_date,
