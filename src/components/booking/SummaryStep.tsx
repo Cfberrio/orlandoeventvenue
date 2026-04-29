@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { Edit, Tag, Check, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePricing } from "@/hooks/usePricing";
+import { useBarPackages, getBarLabel } from "@/hooks/useBarPackages";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -18,6 +19,7 @@ interface SummaryStepProps {
 
 const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStepProps) => {
   const { pricing: p, isLoading: pricingLoading } = usePricing();
+  const { packages: barPackages } = useBarPackages();
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
