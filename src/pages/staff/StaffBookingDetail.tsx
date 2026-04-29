@@ -12,10 +12,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus } from "lucide-react";
-import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment } from "@/hooks/useStaffData";
+import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus, Wine, Phone, Mail, MapPin, CheckCircle2 } from "lucide-react";
+import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment, useMarkBarCustomerContacted } from "@/hooks/useStaffData";
 import { useStaffSession } from "@/hooks/useStaffSession";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isToday, isPast } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
