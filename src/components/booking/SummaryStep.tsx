@@ -459,6 +459,17 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 <span>${data.pricing.optionalServices.toFixed(2)}</span>
               </div>
             )}
+            {data.barPackage && data.barPackage !== "none" && (data.barSubtotal || 0) > 0 && (
+              <div className="flex justify-between">
+                <span>
+                  Bar Service — {getBarLabel(barPackages, data.barPackage) || ""}{" "}
+                  <span className="text-muted-foreground">
+                    ({data.barGuestCount} × ${(data.barRatePerGuest || 0).toFixed(2)}/guest)
+                  </span>
+                </span>
+                <span>${(data.barSubtotal || 0).toFixed(2)}</span>
+              </div>
+            )}
             {data.pricing.discount && data.pricing.discount > 0 && (
               <div className="flex justify-between text-green-600 dark:text-green-400">
                 <span>Discount ({data.pricing.discountCode})</span>
