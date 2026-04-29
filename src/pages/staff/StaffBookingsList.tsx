@@ -95,6 +95,7 @@ export default function StaffBookingsList() {
 
 function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   const isProduction = booking.assignment_role === "Production";
+  const isBarVendor = booking.assignment_role === "Bar Vendor";
   const hasPackage = booking.package && booking.package !== "none";
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const [assignmentIdToRemove, setAssignmentIdToRemove] = useState<string | null>(null);
@@ -133,7 +134,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   
   return (
     <>
-      <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""}`}>
+      <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""} ${isBarVendor ? "border-l-4 border-l-amber-500 bg-amber-500/5" : ""}`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 space-y-3">
@@ -178,7 +179,33 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                   <span>{booking.event_type}</span>
                 </div>
               </div>
-              
+
+              {/* Bar Vendor: show bar service summary + contact status */}
+              {isBarVendor && (
+                <div className="rounded-md border border-amber-300/60 bg-amber-50 dark:bg-amber-950/20 p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="font-semibold text-amber-800 dark:text-amber-200">🍷 Bar Service</span>
+                    <Badge variant="outline" className="bg-white/60 dark:bg-background/60">
+                      {booking.bar_package_label || booking.bar_package || "—"}
+                    </Badge>
+                    {booking.bar_guest_count != null && (
+                      <span className="text-muted-foreground">{booking.bar_guest_count} guests</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap text-xs">
+                    {booking.bar_customer_contacted || booking.customer_contacted ? (
+                      <Badge className="bg-green-100 text-green-800 border-green-300">✓ Customer Contacted</Badge>
+                    ) : (
+                      <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Awaiting Customer Contact</Badge>
+                    )}
+                    {booking.customer_contact_due_at && !(booking.bar_customer_contacted || booking.customer_contacted) && (
+                      <span className="text-muted-foreground">
+                        Due: {format(parseISO(booking.customer_contact_due_at), "MM/dd HH:mm")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
               {!isPast && booking.assignment_id && (
                 <div className="pt-2">
                   <Button

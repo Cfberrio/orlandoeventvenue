@@ -12,10 +12,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus } from "lucide-react";
-import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment } from "@/hooks/useStaffData";
+import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus, Wine, Phone, Mail, MapPin, CheckCircle2 } from "lucide-react";
+import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment, useMarkBarCustomerContacted } from "@/hooks/useStaffData";
 import { useStaffSession } from "@/hooks/useStaffSession";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, isToday, isPast } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -44,10 +44,12 @@ export default function StaffBookingDetail() {
   const { data: cleaningReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const removeAssignment = useRemoveStaffAssignment();
+  const markBarContacted = useMarkBarCustomerContacted();
   const { toast } = useToast();
 
+  const isBarVendor = booking?.assignment_role === "Bar Vendor";
   const isLoading = bookingLoading || reportLoading;
-  
+
   const handleUnassignClick = () => {
     setShowUnassignDialog(true);
   };
@@ -272,8 +274,144 @@ export default function StaffBookingDetail() {
         </Card>
       )}
 
-      {/* Cleaning Report Card - Hidden for Production and Assistant roles */}
-      {staffMember?.role !== 'Production' && staffMember?.role !== 'Assistant' && (
+      {/* Bar Vendor Card */}
+      {isBarVendor && (() => {
+        const eventDateObj = parseISO(booking.event_date);
+        const phoneVisible =
+          booking.bar_client_phone_released === true ||
+          isToday(eventDateObj) ||
+          isPast(eventDateObj);
+        const isContacted = booking.assignment_customer_contacted || booking.bar_customer_contacted;
+        const dueAt = booking.assignment_customer_contact_due_at;
+
+        return (
+          <Card className="border-l-4 border-l-amber-500 bg-amber-500/5">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Wine className="h-5 w-5 text-amber-600" />
+                Bar Service Assignment
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {/* Bar package info */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase">Package</p>
+                  <p className="font-semibold">{booking.bar_package_label || booking.bar_package || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase">Guests</p>
+                  <p className="font-semibold">{booking.bar_guest_count ?? "—"}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase">Status</p>
+                  {isContacted ? (
+                    <Badge className="bg-green-100 text-green-800 border-green-300">
+                      <CheckCircle2 className="h-3 w-3 mr-1" /> Customer Contacted
+                    </Badge>
+                  ) : (
+                    <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300">Awaiting Customer Contact</Badge>
+                  )}
+                </div>
+              </div>
+
+              {/* Venue address */}
+              <div className="rounded-md border border-amber-300/60 bg-white/60 dark:bg-background/60 p-3">
+                <div className="flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-amber-700 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground uppercase">Venue Address</p>
+                    <p className="text-sm font-medium">3847 E Colonial Dr, Orlando, FL 32803</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bar internal notes (if available) */}
+              {booking.bar_internal_notes && (
+                <div className="rounded-md border border-amber-300/60 bg-white/60 dark:bg-background/60 p-3">
+                  <p className="text-xs text-muted-foreground uppercase mb-1">Bar Notes</p>
+                  <p className="text-sm whitespace-pre-wrap">{booking.bar_internal_notes}</p>
+                </div>
+              )}
+
+              {/* Customer contact task */}
+              <div className="rounded-md border border-amber-300/60 bg-white/60 dark:bg-background/60 p-4 space-y-3">
+                <div className="flex items-start justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold">Task: Contact client</p>
+                    {dueAt && !isContacted && (
+                      <p className="text-xs text-muted-foreground">
+                        Due: {format(parseISO(dueAt), "EEEE MM/dd/yyyy 'at' HH:mm")}
+                      </p>
+                    )}
+                    {isContacted && booking.assignment_customer_contacted_at && (
+                      <p className="text-xs text-green-700 dark:text-green-400">
+                        Completed {format(parseISO(booking.assignment_customer_contacted_at), "MM/dd/yyyy HH:mm")}
+                      </p>
+                    )}
+                  </div>
+                  {!isContacted && booking.assignment_id && (
+                    <Button
+                      onClick={async () => {
+                        try {
+                          await markBarContacted.mutateAsync({
+                            bookingId: booking.id,
+                            assignmentId: booking.assignment_id,
+                          });
+                          toast({ title: "Customer marked as contacted" });
+                        } catch (e) {
+                          toast({
+                            title: "Failed to update",
+                            description: e instanceof Error ? e.message : "Unknown error",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                      disabled={markBarContacted.isPending}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-2" />
+                      Mark Customer Contacted
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Client contact info — gated by phone visibility rule */}
+              <div className="rounded-md border border-amber-300/60 bg-white/60 dark:bg-background/60 p-4 space-y-2">
+                <p className="text-xs text-muted-foreground uppercase">Client Contact</p>
+                <div className="space-y-1.5 text-sm">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-medium">{booking.full_name}</span>
+                  </div>
+                  {phoneVisible ? (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <a href={`tel:${booking.phone}`} className="text-primary hover:underline">{booking.phone}</a>
+                      </div>
+                      {booking.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-4 w-4 text-muted-foreground" />
+                          <a href={`mailto:${booking.email}`} className="text-primary hover:underline">{booking.email}</a>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="flex items-start gap-2 text-muted-foreground italic">
+                      <Phone className="h-4 w-4 mt-0.5 shrink-0" />
+                      <span>Client phone will be available on the day of the event or when released by admin.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
+      {/* Cleaning Report Card - Hidden for Production, Assistant, and Bar Vendor roles */}
+      {staffMember?.role !== 'Production' && staffMember?.role !== 'Assistant' && staffMember?.role !== 'Bar Vendor' && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">

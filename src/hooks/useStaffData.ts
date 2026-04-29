@@ -19,6 +19,14 @@ export interface StaffBooking {
   lifecycle_status: string;
   assignment_role: string;
   assignment_id: string;
+  // Bar service fields (only meaningful for Bar Vendor assignments)
+  bar_package: string | null;
+  bar_package_label: string | null;
+  bar_guest_count: number | null;
+  bar_customer_contacted: boolean | null;
+  bar_client_phone_released: boolean | null;
+  customer_contact_due_at: string | null;
+  customer_contacted: boolean | null;
 }
 
 export interface CleaningReport {
@@ -64,7 +72,10 @@ export function useStaffAssignedBookings() {
         .select(`
           id,
           assignment_role,
+          assignment_type,
           booking_id,
+          customer_contact_due_at,
+          customer_contacted,
           bookings (
             id,
             reservation_number,
@@ -79,7 +90,12 @@ export function useStaffAssignedBookings() {
             package_start_time,
             package_end_time,
             client_notes,
-            lifecycle_status
+            lifecycle_status,
+            bar_package,
+            bar_package_label,
+            bar_guest_count,
+            bar_customer_contacted,
+            bar_client_phone_released
           )
         `)
         .eq("staff_id", staffMember.id)
@@ -95,6 +111,8 @@ export function useStaffAssignedBookings() {
           ...assignment.bookings,
           assignment_role: assignment.assignment_role,
           assignment_id: assignment.id,
+          customer_contact_due_at: assignment.customer_contact_due_at,
+          customer_contacted: assignment.customer_contacted,
         })) as StaffBooking[];
     },
     enabled: !!staffMember?.id,
@@ -120,10 +138,10 @@ export function useStaffBookingDetail(bookingId: string) {
       if (bookingError) throw bookingError;
       if (!bookingData) return null;
       
-      // Get assignment role and id for this staff member
+      // Get assignment row for this staff member (incl. bar customer-contact fields)
       const { data: assignmentData, error: assignmentError } = await supabase
         .from("booking_staff_assignments")
-        .select("id, assignment_role, tasks")
+        .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status")
         .eq("booking_id", bookingId)
         .eq("staff_id", staffMember.id)
         .maybeSingle();
@@ -134,6 +152,11 @@ export function useStaffBookingDetail(bookingId: string) {
         ...bookingData,
         assignment_role: assignmentData?.assignment_role || null,
         assignment_id: assignmentData?.id || null,
+        assignment_type: assignmentData?.assignment_type || null,
+        assignment_status: assignmentData?.status || null,
+        assignment_customer_contacted: assignmentData?.customer_contacted ?? false,
+        assignment_customer_contacted_at: assignmentData?.customer_contacted_at ?? null,
+        assignment_customer_contact_due_at: assignmentData?.customer_contact_due_at ?? null,
         assignment_tasks: (assignmentData?.tasks as Array<{ id: string; name: string; completed: boolean }>) || [],
       };
     },
@@ -345,3 +368,62 @@ export function useStaffScheduleData(dateFrom: string, dateTo: string) {
     enabled: !!staffMember?.id && !!dateFrom && !!dateTo,
   });
 }
+
+// Bar Vendor: Mark customer as contacted from staff portal.
+// Updates assignment (-> auto-completes via existing pattern) AND booking.bar_customer_contacted.
+export function useMarkBarCustomerContacted() {
+  const queryClient = useQueryClient();
+  const { staffMember } = useStaffSession();
+
+  return useMutation({
+    mutationFn: async ({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
+      const now = new Date().toISOString();
+      const staffId = staffMember?.id ?? null;
+
+      // 1) Update assignment — set contacted + complete it (mirrors admin BarServiceCard pattern)
+      const { error: aErr } = await supabase
+        .from("booking_staff_assignments")
+        .update({
+          customer_contacted: true,
+          customer_contacted_at: now,
+          customer_contacted_by: staffId,
+          status: "completed",
+          completed_at: now,
+          updated_at: now,
+        })
+        .eq("id", assignmentId);
+      if (aErr) throw aErr;
+
+      // 2) Update booking-level bar fields so admin BarServiceCard reflects ✓ Customer Contacted
+      const { error: bErr } = await supabase
+        .from("bookings")
+        .update({
+          bar_customer_contacted: true,
+          bar_customer_contacted_at: now,
+          bar_customer_contacted_by: staffId,
+        })
+        .eq("id", bookingId);
+      if (bErr) throw bErr;
+
+      // 3) Audit event for admin visibility
+      await supabase.from("booking_events").insert({
+        booking_id: bookingId,
+        event_type: "bar_customer_contacted",
+        channel: "staff_portal",
+        metadata: {
+          staff_id: staffId,
+          staff_name: staffMember?.full_name,
+          contacted_at: now,
+        },
+      });
+
+      return { success: true };
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["staff-booking-detail", vars.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["booking", vars.bookingId] });
+    },
+  });
+}
+

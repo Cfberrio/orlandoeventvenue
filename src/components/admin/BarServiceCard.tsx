@@ -11,7 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Wine, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Wine, AlertTriangle, CheckCircle2, Phone, PhoneOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useStaffMembers } from "@/hooks/useAdminData";
 
@@ -175,6 +175,34 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
     }
   };
 
+  const handleTogglePhoneReleased = async (release: boolean) => {
+    setSaving(true);
+    try {
+      const now = new Date().toISOString();
+      const { error } = await supabase
+        .from("bookings")
+        .update({
+          bar_client_phone_released: release,
+          bar_client_phone_released_at: release ? now : null,
+        })
+        .eq("id", booking.id);
+      if (error) throw error;
+      toast({
+        title: release ? "Client phone released to bar vendor" : "Client phone hidden from bar vendor",
+      });
+      invalidate();
+    } catch (err) {
+      console.error(err);
+      toast({
+        title: "Failed to update phone release",
+        description: err instanceof Error ? err.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <Card className="border-l-4 border-l-amber-500">
       <CardHeader className="pb-3">
@@ -268,6 +296,43 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
             )}
           </div>
         </div>
+
+        {/* Phone release control for bar vendor visibility */}
+        {hasBar && booking.bar_vendor_id && (
+          <div className="space-y-2 pt-2 border-t">
+            <label className="text-sm font-medium">Client Phone Visibility</label>
+            <div className="flex items-center justify-between gap-2">
+              {booking.bar_client_phone_released ? (
+                <Badge className="bg-blue-100 text-blue-800 border-blue-300 flex items-center gap-1">
+                  <Phone className="h-3 w-3" /> Released to Bar Vendor
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <PhoneOff className="h-3 w-3" /> Hidden until day-of event
+                </Badge>
+              )}
+              {booking.bar_client_phone_released ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTogglePhoneReleased(false)}
+                  disabled={saving}
+                >
+                  Hide client phone
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => handleTogglePhoneReleased(true)}
+                  disabled={saving}
+                >
+                  Release client phone to bar vendor
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
