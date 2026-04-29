@@ -285,13 +285,20 @@ serve(async (req) => {
       },
     });
 
-    const emailHTML = generateEmailHTML(data);
+    const isBarVendor = data.staffRole === "Bar Vendor";
+    const emailHTML = isBarVendor ? generateBarVendorEmailHTML(data) : generateEmailHTML(data);
+    const subject = isBarVendor
+      ? `New Bar Service Assignment — ${data.eventDateLong} | Orlando Event Venue`
+      : `New Staff Assignment — OEV #${data.reservationNumber}`;
+    const fallbackText = isBarVendor
+      ? "You have been assigned to a bar service booking. Please view this email in an HTML-compatible client."
+      : "You've been assigned to a booking. Please view this email in an HTML-compatible email client.";
 
     await client.send({
       from: gmailUser,
       to: data.staffEmail,
-      subject: `New Staff Assignment — OEV #${data.reservationNumber}`,
-      content: "You've been assigned to a booking. Please view this email in an HTML-compatible email client.",
+      subject,
+      content: fallbackText,
       html: emailHTML,
     });
 
