@@ -47,6 +47,14 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
     setupBreakdown: z.boolean(),
     tablecloths: z.boolean(),
     tableclothQuantity: z.coerce.number().min(0).max(10, "Maximum 10 tablecloths"),
+    barPackage: z.enum(["none", "house_beer_wine", "essential_bar", "signature_bar", "bespoke_bar"]),
+    barGuestCount: z.coerce.number().nullable().optional(),
+  }).refine((d) => {
+    if (d.barPackage === "none") return true;
+    return d.barGuestCount != null && d.barGuestCount > 0;
+  }, {
+    message: "Guest count is required for bar service",
+    path: ["barGuestCount"],
   }).refine((data) => {
     if (data.package === "none") return true;
     if (!data.packageStartTime || !data.packageEndTime) return false;
