@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mic, Monitor, Video, Wrench } from "lucide-react";
+import { Mic, Monitor, Video } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 
 const Production = () => {
@@ -42,11 +42,6 @@ const Production = () => {
         "Virtual conferencing",
       ],
     },
-  ];
-
-  const addOns = [
-    { name: "Setup & breakdown", price: "$100" },
-    { name: "Tablecloth", price: "$5/ea + $25 cleaning" },
   ];
 
   const handleBooking = () => {
@@ -96,24 +91,6 @@ const Production = () => {
             ))}
           </div>
 
-          <Card className="border-border bg-card mb-8">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-primary" />
-                <CardTitle>Optional Add-Ons</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                {addOns.map((addon, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 bg-accent rounded-lg">
-                    <span className="text-sm font-medium text-foreground">{addon.name}</span>
-                    <span className="text-sm font-bold text-primary">{addon.price}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
 
           <div className="text-center">
             <Button size="lg" onClick={handleBooking}>
