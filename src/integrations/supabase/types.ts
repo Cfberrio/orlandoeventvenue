@@ -1837,6 +1837,125 @@ export type Database = {
           },
         ]
       }
+      stripe_connect_transfers: {
+        Row: {
+          attempts: number
+          booking_addon_invoice_id: string | null
+          booking_id: string | null
+          charge_id: string | null
+          checkout_session_id: string | null
+          created_at: string
+          currency: string
+          destination_account_id: string
+          error_code: string | null
+          error_message: string | null
+          gross_amount_cents: number
+          id: string
+          internal_invoice_id: string | null
+          invoice_id: string | null
+          invoice_number: string | null
+          mechanism: string
+          metadata: Json
+          payment_intent_id: string | null
+          platform_retained_amount_cents: number
+          reservation_number: string | null
+          status: string
+          stripe_event_id: string | null
+          stripe_invoice_id: string | null
+          transfer_amount_cents: number
+          transfer_id: string | null
+          transfer_percent: number
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          booking_addon_invoice_id?: string | null
+          booking_id?: string | null
+          charge_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          currency?: string
+          destination_account_id?: string
+          error_code?: string | null
+          error_message?: string | null
+          gross_amount_cents: number
+          id?: string
+          internal_invoice_id?: string | null
+          invoice_id?: string | null
+          invoice_number?: string | null
+          mechanism?: string
+          metadata?: Json
+          payment_intent_id?: string | null
+          platform_retained_amount_cents: number
+          reservation_number?: string | null
+          status?: string
+          stripe_event_id?: string | null
+          stripe_invoice_id?: string | null
+          transfer_amount_cents: number
+          transfer_id?: string | null
+          transfer_percent?: number
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          booking_addon_invoice_id?: string | null
+          booking_id?: string | null
+          charge_id?: string | null
+          checkout_session_id?: string | null
+          created_at?: string
+          currency?: string
+          destination_account_id?: string
+          error_code?: string | null
+          error_message?: string | null
+          gross_amount_cents?: number
+          id?: string
+          internal_invoice_id?: string | null
+          invoice_id?: string | null
+          invoice_number?: string | null
+          mechanism?: string
+          metadata?: Json
+          payment_intent_id?: string | null
+          platform_retained_amount_cents?: number
+          reservation_number?: string | null
+          status?: string
+          stripe_event_id?: string | null
+          stripe_invoice_id?: string | null
+          transfer_amount_cents?: number
+          transfer_id?: string | null
+          transfer_percent?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_connect_transfers_booking_addon_invoice_id_fkey"
+            columns: ["booking_addon_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "booking_addon_invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stripe_connect_transfers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stripe_connect_transfers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "stripe_connect_transfers_internal_invoice_id_fkey"
+            columns: ["internal_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       stripe_event_log: {
         Row: {
           booking_id: string | null
