@@ -85,7 +85,7 @@ serve(async (req) => {
         id,
         staff_id,
         assignment_role,
-        staff_members (
+        staff_members!booking_staff_assignments_staff_id_fkey (
           id,
           full_name,
           email

@@ -166,7 +166,7 @@ async function buildBookingSnapshot(
       staff_id,
       assignment_role,
       created_at,
-      staff_members (
+      staff_members!booking_staff_assignments_staff_id_fkey (
         id,
         full_name,
         email
