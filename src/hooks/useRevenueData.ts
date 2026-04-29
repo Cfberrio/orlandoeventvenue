@@ -15,6 +15,7 @@ export interface DailyRevenueRecord {
   cleaning_revenue: number;
   production_revenue: number;
   addon_revenue: number;
+  bar_revenue: number;
   fee_revenue: number;
   discount_amount: number;
   tax_amount: number;
@@ -29,6 +30,7 @@ export interface MonthlyRevenueRecord {
   cleaning_revenue: number;
   production_revenue: number;
   addon_revenue: number;
+  bar_revenue: number;
 }
 
 export interface CategoryRevenueRecord {
@@ -53,6 +55,7 @@ export interface DailyGeneratedRevenueRecord {
   cleaning_generated: number;
   production_generated: number;
   addon_generated: number;
+  bar_generated: number;
   tax_generated: number;
   discount_generated: number;
 }
