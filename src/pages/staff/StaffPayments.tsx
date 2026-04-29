@@ -41,14 +41,17 @@ const PAY_TYPE_LABELS: Record<string, string> = {
   regular: "Regular",
   deep: "Deep",
   production: "Production",
+  bar_vendor: "Bar Vendor",
   fixed: "Flat Rate",
 };
 
 const PAY_CATEGORY_LABELS: Record<string, string> = {
   hourly_production: "Hourly (Production)",
+  hourly_bar_vendor: "Hourly (Bar Vendor)",
   cleaning_base: "Cleaning Fee",
   cleaning_surcharge: "Celebration Surcharge",
   base_pay: "Assistant Fee",
+  bar_vendor_flat: "Bar Vendor Flat Fee",
   bonus: "Bonus",
   deduction: "Deduction",
 };
