@@ -71,6 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
+import { usePricing } from "@/hooks/usePricing";
 
 const lifecycleStatuses = [
   "pending",
