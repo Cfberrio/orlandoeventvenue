@@ -15,6 +15,7 @@ export interface DailyRevenueRecord {
   cleaning_revenue: number;
   production_revenue: number;
   addon_revenue: number;
+  bar_revenue: number;
   fee_revenue: number;
   discount_amount: number;
   tax_amount: number;
@@ -29,6 +30,7 @@ export interface MonthlyRevenueRecord {
   cleaning_revenue: number;
   production_revenue: number;
   addon_revenue: number;
+  bar_revenue: number;
 }
 
 export interface CategoryRevenueRecord {
@@ -53,6 +55,7 @@ export interface DailyGeneratedRevenueRecord {
   cleaning_generated: number;
   production_generated: number;
   addon_generated: number;
+  bar_generated: number;
   tax_generated: number;
   discount_generated: number;
 }
@@ -256,7 +259,7 @@ export function useRevenueData() {
   const fetchBookingsByCreatedDate = async (date: string) => {
     const { data, error } = await supabase
       .from('bookings')
-      .select('id, reservation_number, full_name, email, event_date, event_type, booking_type, total_amount, base_rental, cleaning_fee, package_cost, optional_services, taxes_fees, discount_amount, payment_status, status, created_at')
+      .select('id, reservation_number, full_name, email, event_date, event_type, booking_type, total_amount, base_rental, cleaning_fee, package_cost, optional_services, bar_subtotal, taxes_fees, discount_amount, payment_status, status, created_at')
       .eq('booking_origin', 'website')
       .not('status', 'in', '("cancelled","declined")')
       .order('created_at', { ascending: true });

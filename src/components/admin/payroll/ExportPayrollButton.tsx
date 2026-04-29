@@ -103,6 +103,10 @@ export default function ExportPayrollButton({
         <DropdownMenuItem onClick={() => handleExport({ role: 'Assistant' })}>
           Assistant Only
         </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => handleExport({ role: 'Bar Vendor' })}>
+          Bar Vendor Only
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

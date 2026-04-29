@@ -63,6 +63,7 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
       cleaning_revenue: acc.cleaning_revenue + Number(month.cleaning_revenue || 0),
       production_revenue: acc.production_revenue + Number(month.production_revenue || 0),
       addon_revenue: acc.addon_revenue + Number(month.addon_revenue || 0),
+      bar_revenue: acc.bar_revenue + Number(month.bar_revenue || 0),
       booking_count: acc.booking_count + Number(month.booking_count || 0),
     }),
     {
@@ -71,6 +72,7 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
       cleaning_revenue: 0,
       production_revenue: 0,
       addon_revenue: 0,
+      bar_revenue: 0,
       booking_count: 0,
     }
   );
@@ -82,6 +84,7 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
     Cleaning: Number(month.cleaning_revenue),
     Production: Number(month.production_revenue),
     'Add-ons': Number(month.addon_revenue),
+    Bar: Number(month.bar_revenue || 0),
   })) || [];
 
   if (isLoading) {
@@ -197,6 +200,7 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
               <Bar dataKey="Cleaning" stackId="a" fill="#8b5cf6" />
               <Bar dataKey="Production" stackId="a" fill="#f59e0b" />
               <Bar dataKey="Add-ons" stackId="a" fill="#10b981" />
+              <Bar dataKey="Bar" stackId="a" fill="#0ea5e9" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -218,6 +222,7 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
                   <TableHead className="text-right">Cleaning</TableHead>
                   <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right">Add-ons</TableHead>
+                  <TableHead className="text-right">Bar</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                   <TableHead className="text-right">Avg/Booking</TableHead>
                 </TableRow>
@@ -240,6 +245,9 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
                     </TableCell>
                     <TableCell className="text-right">
                       ${Number(month.addon_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      ${Number(month.bar_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                     </TableCell>
                     <TableCell className="text-right font-bold">
                       ${Number(month.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -264,6 +272,9 @@ export default function MonthlyRevenueView({ startDate, endDate }: MonthlyRevenu
                   </TableCell>
                   <TableCell className="text-right">
                     ${totals?.addon_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    ${totals?.bar_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </TableCell>
                   <TableCell className="text-right">
                     ${totals?.total_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}

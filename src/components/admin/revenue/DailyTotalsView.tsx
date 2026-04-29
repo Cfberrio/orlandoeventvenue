@@ -32,6 +32,7 @@ interface BookingDetail {
   cleaning_fee: number;
   package_cost: number;
   optional_services: number;
+  bar_subtotal: number | null;
   taxes_fees: number;
   discount_amount: number | null;
   payment_status: string;
@@ -132,6 +133,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
       cleaning_generated: acc.cleaning_generated + Number(day.cleaning_generated || 0),
       production_generated: acc.production_generated + Number(day.production_generated || 0),
       addon_generated: acc.addon_generated + Number(day.addon_generated || 0),
+      bar_generated: acc.bar_generated + Number(day.bar_generated || 0),
       tax_generated: acc.tax_generated + Number(day.tax_generated || 0),
       discount_generated: acc.discount_generated + Number(day.discount_generated || 0),
       booking_count: acc.booking_count + Number(day.booking_count || 0),
@@ -142,6 +144,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
       cleaning_generated: 0,
       production_generated: 0,
       addon_generated: 0,
+      bar_generated: 0,
       tax_generated: 0,
       discount_generated: 0,
       booking_count: 0,
@@ -284,6 +287,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                   <TableHead className="text-right">Cleaning</TableHead>
                   <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right">Add-ons</TableHead>
+                  <TableHead className="text-right">Bar</TableHead>
                   <TableHead className="text-right">Tax</TableHead>
                   <TableHead className="text-right">Discounts</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
@@ -320,6 +324,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                         <TableCell className="text-right">{fmtMoney(day.cleaning_generated)}</TableCell>
                         <TableCell className="text-right">{fmtMoney(day.production_generated)}</TableCell>
                         <TableCell className="text-right">{fmtMoney(day.addon_generated)}</TableCell>
+                        <TableCell className="text-right">{fmtMoney(day.bar_generated || 0)}</TableCell>
                         <TableCell className="text-right">{fmtMoney(day.tax_generated)}</TableCell>
                         <TableCell className="text-right text-destructive">
                           {Number(day.discount_generated) !== 0
@@ -346,6 +351,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                           <TableCell className="text-right">{fmtMoney(b.cleaning_fee)}</TableCell>
                           <TableCell className="text-right">{fmtMoney(b.package_cost)}</TableCell>
                           <TableCell className="text-right">{fmtMoney(b.optional_services)}</TableCell>
+                          <TableCell className="text-right">{fmtMoney(Number(b.bar_subtotal || 0))}</TableCell>
                           <TableCell className="text-right">{fmtMoney(b.taxes_fees)}</TableCell>
                           <TableCell className="text-right text-destructive">
                             {Number(b.discount_amount || 0) !== 0
@@ -358,7 +364,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                       {isExpanded && bookings && bookings.length === 0 && (
                         <TableRow key={`${dateKey}-empty`} className="bg-muted/30">
                           <TableCell></TableCell>
-                          <TableCell colSpan={9} className="text-center text-sm text-muted-foreground py-3">
+                          <TableCell colSpan={10} className="text-center text-sm text-muted-foreground py-3">
                             No bookings found for this date
                           </TableCell>
                         </TableRow>
@@ -375,6 +381,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                   <TableCell className="text-right">{fmtMoney(totals?.cleaning_generated || 0)}</TableCell>
                   <TableCell className="text-right">{fmtMoney(totals?.production_generated || 0)}</TableCell>
                   <TableCell className="text-right">{fmtMoney(totals?.addon_generated || 0)}</TableCell>
+                  <TableCell className="text-right">{fmtMoney(totals?.bar_generated || 0)}</TableCell>
                   <TableCell className="text-right">{fmtMoney(totals?.tax_generated || 0)}</TableCell>
                   <TableCell className="text-right text-destructive">{fmtMoney(totals?.discount_generated || 0)}</TableCell>
                   <TableCell className="text-right">{fmtMoney(totals?.total_generated || 0)}</TableCell>
