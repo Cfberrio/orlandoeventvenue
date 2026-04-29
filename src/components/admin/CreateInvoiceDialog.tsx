@@ -348,7 +348,7 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Processing Fee (3.5%)</span>
+                <span className="text-sm text-muted-foreground">Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
                 <span className="text-sm">
                   ${processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
