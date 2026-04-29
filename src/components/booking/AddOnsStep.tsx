@@ -331,6 +331,99 @@ const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
               )}
             />
           )}
+
+          {/* Bar Service */}
+          <div className="pt-4 border-t mt-4">
+            <FormLabel className="text-base font-semibold">Bar Service</FormLabel>
+            <FormDescription className="mb-4">
+              Choose a bar package and confirm your guest count. We coordinate the vendor and handle the bar service logistics.
+            </FormDescription>
+
+            <FormField
+              control={form.control}
+              name="barPackage"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-sm font-medium">
+                    Would you like to add bar service to your event?
+                  </FormLabel>
+                  <FormControl>
+                    <RadioGroup
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      className="space-y-3 mt-2"
+                    >
+                      <div className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors">
+                        <RadioGroupItem value="none" id="bar-none" className="mt-1" />
+                        <label htmlFor="bar-none" className="flex-1 cursor-pointer">
+                          <div className="font-semibold">No bar service</div>
+                          <div className="text-sm text-muted-foreground">No alcohol service for this event</div>
+                        </label>
+                      </div>
+                      {barPackages.map((bp) => (
+                        <div
+                          key={bp.key}
+                          className="flex items-start space-x-3 border rounded-lg p-4 hover:bg-accent/50 transition-colors"
+                        >
+                          <RadioGroupItem value={bp.key} id={`bar-${bp.key}`} className="mt-1" />
+                          <label htmlFor={`bar-${bp.key}`} className="flex-1 cursor-pointer">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold">
+                                {bp.label} — ${bp.ratePerGuest.toFixed(2)}/guest
+                              </span>
+                              {bp.badge && (
+                                <Badge className="bg-primary text-primary-foreground">{bp.badge}</Badge>
+                              )}
+                            </div>
+                          </label>
+                        </div>
+                      ))}
+                    </RadioGroup>
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {selectedBarPackage !== "none" && (
+              <div className="mt-4 space-y-4 border rounded-lg p-4 bg-accent/20">
+                <FormField
+                  control={form.control}
+                  name="barGuestCount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Guest count for bar service</FormLabel>
+                      <FormDescription>
+                        This should match the number of guests receiving bar service.
+                      </FormDescription>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min={1}
+                          max={90}
+                          className="max-w-xs"
+                          value={field.value ?? ""}
+                          onChange={(e) =>
+                            field.onChange(e.target.value === "" ? null : Number(e.target.value))
+                          }
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <div className="text-sm bg-background border rounded-md p-3">
+                  <div className="font-semibold mb-1">Bar Service Subtotal</div>
+                  <div className="text-muted-foreground">
+                    {Number(barGuestCount) || 0} × ${barRate.toFixed(2)}/guest ={" "}
+                    <span className="text-foreground font-semibold">
+                      ${barSubtotal.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="flex justify-between pt-4">
