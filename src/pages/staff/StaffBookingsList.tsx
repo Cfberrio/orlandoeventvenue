@@ -95,6 +95,7 @@ export default function StaffBookingsList() {
 
 function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   const isProduction = booking.assignment_role === "Production";
+  const isBarVendor = booking.assignment_role === "Bar Vendor";
   const hasPackage = booking.package && booking.package !== "none";
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const [assignmentIdToRemove, setAssignmentIdToRemove] = useState<string | null>(null);
