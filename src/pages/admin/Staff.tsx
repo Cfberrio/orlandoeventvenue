@@ -12,7 +12,7 @@ import { useStaffMembers, useCreateStaffMember, useUpdateStaffMember } from "@/h
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 
-const staffRoles = ["Custodial", "Production", "Assistant"];
+const staffRoles = ["Custodial", "Production", "Assistant", "Bar Vendor"];
 
 export default function Staff() {
   const { toast } = useToast();

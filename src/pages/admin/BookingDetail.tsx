@@ -71,6 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
+import BarServiceCard, { checkBarServicePreEventBlock } from "@/components/admin/BarServiceCard";
 import { usePricing } from "@/hooks/usePricing";
 
 const lifecycleStatuses = [
@@ -345,6 +346,15 @@ export default function BookingDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
+      // UI guard: block pre_event_ready when bar service requirements are unmet
+      if (newStatus === "pre_event_ready") {
+        const barBlock = checkBarServicePreEventBlock(booking);
+        if (barBlock) {
+          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
+          return;
+        }
+      }
+
       const wasPreEventReady = booking.pre_event_ready === "true";
       
       await updateBooking.mutateAsync({ id: booking.id, updates: { lifecycle_status: newStatus } });
@@ -367,6 +377,11 @@ export default function BookingDetail() {
 
   const handleMarkPreEventReady = async () => {
     try {
+      const barBlock = checkBarServicePreEventBlock(booking);
+      if (barBlock) {
+        toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
+        return;
+      }
       const wasPreEventReady = booking.pre_event_ready === "true";
       
       await updateBooking.mutateAsync({
@@ -405,6 +420,11 @@ export default function BookingDetail() {
 
     if (newSchedule && newStaffing && newConflicts) {
       try {
+        const barBlock = checkBarServicePreEventBlock(booking);
+        if (barBlock) {
+          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
+          return;
+        }
         const wasPreEventReady = booking.pre_event_ready === "true";
         
         await updateBooking.mutateAsync({
@@ -1108,6 +1128,15 @@ export default function BookingDetail() {
                       <span>${Number(booking.optional_services).toLocaleString()}</span>
                     </div>
                   )}
+                  {booking.bar_package && booking.bar_package !== "none" && Number(booking.bar_subtotal) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">
+                        Bar Service — {booking.bar_package_label || booking.bar_package}
+                        {booking.bar_guest_count ? ` (${booking.bar_guest_count} × $${Number(booking.bar_rate_per_guest).toFixed(2)})` : ''}
+                      </span>
+                      <span>${Number(booking.bar_subtotal).toLocaleString()}</span>
+                    </div>
+                  )}
                   {booking.discount_amount && Number(booking.discount_amount) > 0 && (
                     <div className="flex justify-between text-green-600 dark:text-green-400">
                       <span className="text-muted-foreground">
@@ -1174,6 +1203,9 @@ export default function BookingDetail() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Bar Service */}
+            <BarServiceCard booking={booking} />
 
             {/* Add-On Invoices */}
             <Card className="border-l-4 border-l-purple-500">
