@@ -92,7 +92,6 @@ export default function CreateAddonInvoiceDialog({
   }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
   const totalAmount = packageCost + optionalServicesCost;
-  const PROCESSING_FEE_RATE = 0.035;
   const processingFee = Math.round(totalAmount * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = totalAmount + processingFee;
 
