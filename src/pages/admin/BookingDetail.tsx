@@ -420,6 +420,11 @@ export default function BookingDetail() {
 
     if (newSchedule && newStaffing && newConflicts) {
       try {
+        const barBlock = checkBarServicePreEventBlock(booking);
+        if (barBlock) {
+          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
+          return;
+        }
         const wasPreEventReady = booking.pre_event_ready === "true";
         
         await updateBooking.mutateAsync({
