@@ -44,9 +44,10 @@ export default function StaffBookingDetail() {
   const { data: cleaningReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const removeAssignment = useRemoveStaffAssignment();
+  const markBarContacted = useMarkBarCustomerContacted();
   const { toast } = useToast();
 
-  const isLoading = bookingLoading || reportLoading;
+  const isBarVendor = booking?.assignment_role === "Bar Vendor";
   
   const handleUnassignClick = () => {
     setShowUnassignDialog(true);
