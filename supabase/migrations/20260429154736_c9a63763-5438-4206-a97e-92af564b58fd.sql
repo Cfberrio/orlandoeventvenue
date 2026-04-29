@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS public._qa_bar_service_results;
