@@ -49,6 +49,51 @@ function formatTimeRange(startTime: string | undefined | null, endTime: string |
   return `${formatTime(startTime)} - ${formatTime(endTime)}`;
 }
 
+function generateBarVendorEmailHTML(data: StaffAssignmentEmailData): string {
+  const firstName = data.staffName.split(" ")[0];
+  const dashboardLink = data.bookingId
+    ? `https://orlandoeventvenue.org/staff/bookings/${data.bookingId}`
+    : "https://orlandoeventvenue.org/staff";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>New Bar Service Assignment — ${data.eventDateLong}</title></head>
+<body style="margin:0;padding:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#111827;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">You have been assigned to a bar service booking.</div>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f7f9;padding:24px 0;"><tr><td align="center">
+<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:600px;max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;border:1px solid #e5e7eb;">
+<tr><td style="padding:22px 24px;background:#0b1220;"><table role="presentation" width="100%"><tr><td><img src="${data.logoUrl}" alt="Orlando Event Venue" height="28" style="display:block;border:0;"/></td><td align="right" style="color:#cbd5e1;font-size:12px;">Bar Service Assignment</td></tr></table></td></tr>
+<tr><td style="padding:18px 24px 8px 24px;"><span style="display:inline-block;background:#fef3c7;color:#92400e;border:1px solid #fcd34d;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;">NEW BAR SERVICE ASSIGNMENT</span></td></tr>
+<tr><td style="padding:10px 24px 8px 24px;">
+<div style="font-size:20px;line-height:28px;font-weight:800;color:#0f172a;">Hi ${firstName}, you have a new Bar Service assignment</div>
+<div style="margin-top:8px;font-size:14px;line-height:22px;color:#475569;">You have been assigned to a Bar Service booking at Orlando Event Venue. Please review the details below and contact the client directly.</div>
+</td></tr>
+<tr><td style="padding:14px 24px 8px 24px;"><table role="presentation" width="100%" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+<tr><td style="padding:12px 14px;background:#f8fafc;font-weight:800;font-size:13px;color:#0f172a;">Event Details</td></tr>
+<tr><td style="padding:12px 14px;font-size:14px;line-height:22px;color:#334155;">
+<div><b>Reservation #:</b> ${data.reservationNumber}</div>
+<div><b>Date:</b> ${data.eventDateLong}</div>
+<div><b>Time:</b> ${data.eventTimeRange}</div>
+<div><b>Event Type:</b> ${data.eventType || "—"}</div>
+<div><b>Venue:</b> 3847 E Colonial Dr, Orlando, FL 32803</div>
+</td></tr></table></td></tr>
+<tr><td style="padding:8px 24px;"><table role="presentation" width="100%" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+<tr><td style="padding:12px 14px;background:#fef3c7;font-weight:800;font-size:13px;color:#92400e;">Bar Service</td></tr>
+<tr><td style="padding:12px 14px;font-size:14px;line-height:22px;color:#334155;">
+<div><b>Package:</b> ${data.barPackageLabel || "—"}</div>
+<div><b>Guests:</b> ${data.barGuestCount ?? "—"}</div>
+</td></tr></table></td></tr>
+<tr><td style="padding:8px 24px;"><table role="presentation" width="100%" style="border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+<tr><td style="padding:12px 14px;background:#ecfeff;font-weight:800;font-size:13px;color:#155e75;">Client Contact</td></tr>
+<tr><td style="padding:12px 14px;font-size:14px;line-height:22px;color:#334155;">
+<div><b>Name:</b> ${data.clientFullName || "—"}</div>
+<div><b>Email:</b> ${data.clientEmail ? `<a href="mailto:${data.clientEmail}" style="color:#0f172a;">${data.clientEmail}</a>` : "—"}</div>
+<div><b>Phone:</b> ${data.clientPhone ? `<a href="tel:${data.clientPhone}" style="color:#0f172a;">${data.clientPhone}</a>` : "—"}</div>
+</td></tr></table></td></tr>
+<tr><td style="padding:12px 24px;font-size:14px;line-height:22px;color:#334155;">Please log in to your Staff Dashboard, review the booking details, contact the client directly to confirm bar service details, and mark "Customer Contacted" once complete.</td></tr>
+<tr><td style="padding:6px 24px 6px 24px;text-align:center;"><a href="${dashboardLink}" style="display:inline-block;background:#92400e;color:#ffffff;text-decoration:none;padding:14px 18px;border-radius:12px;font-weight:800;font-size:14px;">Open Staff Dashboard</a><div style="margin-top:10px;font-size:12px;color:#64748b;">If the button doesn't work, copy/paste:<br/><span style="color:#0f172a;">${dashboardLink}</span></div></td></tr>
+<tr><td style="padding:16px 24px;background:#0b1220;color:#cbd5e1;font-size:11px;line-height:16px;"><div><strong>Orlando Event Venue</strong></div><div>3847 E Colonial Dr, Orlando, FL 32803</div><div>Orlandoeventvenue@gmail.com | (407) 974-5979</div><div style="margin-top:6px;">orlandoeventvenue.org</div></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 function generateEmailHTML(data: StaffAssignmentEmailData): string {
   const firstName = data.staffName.split(" ")[0];
   
