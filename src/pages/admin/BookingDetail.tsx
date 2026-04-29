@@ -2343,9 +2343,9 @@ export default function BookingDetail() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No Production</SelectItem>
-                  <SelectItem value="basic">Basic Package - $79/hr</SelectItem>
-                  <SelectItem value="led">LED Package - $99/hr</SelectItem>
-                  <SelectItem value="workshop">Workshop Package - $149/hr</SelectItem>
+                  <SelectItem value="basic">Basic Package - ${pp.package_basic}/hr</SelectItem>
+                  <SelectItem value="led">LED Package - ${pp.package_led}/hr</SelectItem>
+                  <SelectItem value="workshop">Workshop Package - ${pp.package_workshop}/hr</SelectItem>
                 </SelectContent>
               </Select>
             </div>
