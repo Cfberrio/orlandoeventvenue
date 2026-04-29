@@ -19,6 +19,14 @@ export interface StaffBooking {
   lifecycle_status: string;
   assignment_role: string;
   assignment_id: string;
+  // Bar service fields (only meaningful for Bar Vendor assignments)
+  bar_package: string | null;
+  bar_package_label: string | null;
+  bar_guest_count: number | null;
+  bar_customer_contacted: boolean | null;
+  bar_client_phone_released: boolean | null;
+  customer_contact_due_at: string | null;
+  customer_contacted: boolean | null;
 }
 
 export interface CleaningReport {
