@@ -22,6 +22,7 @@ interface AddOnsStepProps {
 
 const AddOnsStep = ({ data, updateData, onNext, onBack }: AddOnsStepProps) => {
   const { pricing: p, isLoading: pricingLoading } = usePricing();
+  const { packages: barPackages, isLoading: barLoading } = useBarPackages();
   // Get booking time constraints
   const getTimeConstraints = () => {
     if (data.bookingType === "daily") {
