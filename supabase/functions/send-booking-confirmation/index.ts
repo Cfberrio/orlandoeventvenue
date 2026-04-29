@@ -219,6 +219,32 @@ function generateEmailHTML(booking: BookingEmailData): string {
           </tr>
         </table>
       </div>
+      ${(() => {
+        const rows: string[] = [];
+        const pushRow = (label: string, amount: number, sub?: string) => {
+          rows.push(`<tr><td style="padding:8px 0;border-top:1px solid #E5E7EB;font-size:14px;color:#374151;">${label}${sub ? `<br><span style="font-size:12px;color:#6B7280;">${sub}</span>` : ""}</td><td style="padding:8px 0;border-top:1px solid #E5E7EB;font-size:14px;color:#111827;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(amount)}</td></tr>`);
+        };
+        if (booking.base_rental > 0) pushRow("Base Rental", booking.base_rental, formattedBookingType);
+        if (booking.cleaning_fee > 0) pushRow("Cleaning Fee", booking.cleaning_fee);
+        if (booking.package && booking.package !== "none" && booking.package_cost > 0) pushRow(getPackageName(booking.package), booking.package_cost);
+        if (booking.bar_package && booking.bar_package !== "none" && (booking.bar_subtotal ?? 0) > 0) {
+          const label = booking.bar_package_label || "Bar Service";
+          const sub = booking.bar_guest_count ? `${booking.bar_guest_count} guests${booking.bar_rate_per_guest ? ` × ${formatCurrency(Number(booking.bar_rate_per_guest))}` : ""}` : undefined;
+          pushRow(`Bar Service — ${label}`, Number(booking.bar_subtotal), sub);
+        }
+        if (booking.optional_services > 0) pushRow("Add-ons & Optional Services", booking.optional_services);
+        if (booking.taxes_fees > 0) pushRow("Taxes & Fees", booking.taxes_fees);
+        if (rows.length === 0) return "";
+        return `<div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
+          <p style="margin:0 0 6px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Payment Breakdown</p>
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+            ${rows.join("")}
+            <tr><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;">Total</td><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.total_amount)}</td></tr>
+            <tr><td style="padding:6px 0 0;font-size:13px;color:#059669;">Deposit Paid (50%)</td><td style="padding:6px 0 0;font-size:13px;color:#059669;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.deposit_amount)}</td></tr>
+            <tr><td style="padding:4px 0 0;font-size:13px;color:#6B7280;">Remaining Balance</td><td style="padding:4px 0 0;font-size:13px;color:#374151;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.balance_amount)}</td></tr>
+          </table>
+        </div>`;
+      })()}
       <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
         <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
           What Happens Next
