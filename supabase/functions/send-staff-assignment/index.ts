@@ -15,6 +15,14 @@ interface StaffAssignmentEmailData {
   staffRole: string;
   adminNotes: string;
   logoUrl: string;
+  // Optional Bar Vendor specific fields
+  bookingId?: string;
+  eventType?: string;
+  barPackageLabel?: string;
+  barGuestCount?: number | null;
+  clientFullName?: string;
+  clientEmail?: string;
+  clientPhone?: string;
 }
 
 function formatDate(dateString: string): string {
