@@ -134,7 +134,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   
   return (
     <>
-      <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""}`}>
+      <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""} ${isBarVendor ? "border-l-4 border-l-amber-500 bg-amber-500/5" : ""}`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 space-y-3">
