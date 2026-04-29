@@ -60,6 +60,19 @@ export interface Booking {
   booking_origin: "website" | "internal" | "external";
   policy_id: string;
   beer_wine_service: boolean;
+  bar_package?: string | null;
+  bar_package_label?: string | null;
+  bar_guest_count?: number | null;
+  bar_rate_per_guest?: number | null;
+  bar_subtotal?: number | null;
+  bar_vendor_id?: string | null;
+  bar_vendor_assignment_id?: string | null;
+  bar_vendor_assigned_at?: string | null;
+  bar_customer_contacted?: boolean | null;
+  bar_customer_contacted_at?: string | null;
+  bar_customer_contacted_by?: string | null;
+  bar_client_phone_released?: boolean | null;
+  bar_internal_notes?: string | null;
 }
 
 export interface StaffMember {
