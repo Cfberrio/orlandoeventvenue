@@ -607,7 +607,7 @@ export function useBookingStaffAssignments(bookingId: string) {
         .select(`
           *,
           staff_members!booking_staff_assignments_staff_id_fkey(*),
-          bookings(package, package_start_time, package_end_time, start_time, end_time, booking_type)
+          bookings!booking_staff_assignments_booking_id_fkey(package, package_start_time, package_end_time, start_time, end_time, booking_type)
         `)
         .eq("booking_id", bookingId);
       if (error) throw error;
