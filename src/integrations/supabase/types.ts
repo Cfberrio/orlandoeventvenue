@@ -1170,6 +1170,39 @@ export type Database = {
           },
         ]
       }
+      brand_prompts: {
+        Row: {
+          active: boolean
+          brand: string
+          created_at: string
+          id: number
+          notes: string | null
+          prompt_text: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          active?: boolean
+          brand: string
+          created_at?: string
+          id?: number
+          notes?: string | null
+          prompt_text: string
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          active?: boolean
+          brand?: string
+          created_at?: string
+          id?: number
+          notes?: string | null
+          prompt_text?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       discount_coupons: {
         Row: {
           applies_to: string
@@ -1597,6 +1630,84 @@ export type Database = {
             referencedColumns: ["booking_id"]
           },
         ]
+      }
+      sms_draft_log: {
+        Row: {
+          brand: string
+          cancelled_at: string | null
+          cancelled_reason: string | null
+          contact_context: Json | null
+          contact_id: string | null
+          conversation_id: string
+          created_at: string
+          decision: string
+          draft_message: string | null
+          error_detail: string | null
+          ghl_draft_id: string | null
+          ghl_location_id: string
+          id: number
+          inbound_message: string
+          inbound_message_id: string
+          input_tokens: number | null
+          model: string | null
+          output_tokens: number | null
+          prompt_version: string | null
+          reasoning: string | null
+          scheduled_for: string | null
+          scheduled_message_id: string | null
+          score: number | null
+        }
+        Insert: {
+          brand: string
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          contact_context?: Json | null
+          contact_id?: string | null
+          conversation_id: string
+          created_at?: string
+          decision: string
+          draft_message?: string | null
+          error_detail?: string | null
+          ghl_draft_id?: string | null
+          ghl_location_id: string
+          id?: number
+          inbound_message: string
+          inbound_message_id: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          prompt_version?: string | null
+          reasoning?: string | null
+          scheduled_for?: string | null
+          scheduled_message_id?: string | null
+          score?: number | null
+        }
+        Update: {
+          brand?: string
+          cancelled_at?: string | null
+          cancelled_reason?: string | null
+          contact_context?: Json | null
+          contact_id?: string | null
+          conversation_id?: string
+          created_at?: string
+          decision?: string
+          draft_message?: string | null
+          error_detail?: string | null
+          ghl_draft_id?: string | null
+          ghl_location_id?: string
+          id?: number
+          inbound_message?: string
+          inbound_message_id?: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          prompt_version?: string | null
+          reasoning?: string | null
+          scheduled_for?: string | null
+          scheduled_message_id?: string | null
+          score?: number | null
+        }
+        Relationships: []
       }
       staff_members: {
         Row: {
