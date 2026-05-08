@@ -152,10 +152,13 @@ function formatEventType(eventType: string): string {
     .join(" ");
 }
 
-function generateEmailHTML(booking: BookingEmailData): string {
+function generateEmailHTML(booking: BookingEmailData, processingFeePct: number): string {
   const firstName = booking.full_name.split(" ")[0];
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
+  const feeRate = processingFeePct / 100;
+  const depositFee = Math.round(booking.deposit_amount * feeRate * 100) / 100;
+  const depositCharged = Math.round((booking.deposit_amount + depositFee) * 100) / 100;
 
   return `<!DOCTYPE html>
 <html>
