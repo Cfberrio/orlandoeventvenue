@@ -4,7 +4,7 @@ import { Mic, Monitor, Video, Loader2 } from "lucide-react";
 import { useScrollAnimation } from "@/hooks/useScrollAnimation";
 import { usePricing } from "@/hooks/usePricing";
 
-const Production = () => {
+const Production = ({ embedded = false }: { embedded?: boolean } = {}) => {
   const { ref, isVisible } = useScrollAnimation();
   const { pricing: p, items, isLoading } = usePricing();
 
