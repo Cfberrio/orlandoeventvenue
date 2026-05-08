@@ -53,9 +53,10 @@ const Production = ({ embedded = false }: { embedded?: boolean } = {}) => {
     window.location.href = "/book";
   };
 
+  const Wrapper: any = embedded ? 'div' : 'section';
   return (
-    <section ref={ref as any} id="production" className="scroll-mt-24 py-8 md:py-12 bg-background">
-      <div className="container mx-auto px-4">
+    <Wrapper ref={ref as any} id="production" className={embedded ? "scroll-mt-24" : "scroll-mt-24 py-8 md:py-12 bg-background"}>
+      <div className={embedded ? "" : "container mx-auto px-4"}>
         <div className="max-w-6xl mx-auto">
           <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
