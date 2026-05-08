@@ -122,35 +122,6 @@ const Pricing = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-border bg-card mt-6">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-primary" />
-                <CardTitle>Optional Add-Ons</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
-                  <span className="text-sm font-medium text-foreground">Setup & breakdown</span>
-                  <span className="text-sm font-bold text-primary">
-                    {isLoading ? <Loader2 className="h-4 w-4 animate-spin inline" /> : `$${p.setup_breakdown}`}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
-                  <span className="text-sm font-medium text-foreground">Tablecloth</span>
-                  <span className="text-sm font-bold text-primary">
-                    {isLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin inline" />
-                    ) : (
-                      `$${p.tablecloth_rental}/ea + $${p.tablecloth_cleaning_fee} cleaning`
-                    )}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           <p className="text-center text-sm text-muted mt-8">
             Transparent pricing. Taxes/permits not included where applicable.
           </p>
