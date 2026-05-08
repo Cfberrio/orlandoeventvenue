@@ -321,7 +321,24 @@ serve(async (req) => {
       },
     });
 
-    const emailHTML = generateEmailHTML(booking);
+    let processingFeePct = 3.5;
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const { data: feeRow } = await supabase
+        .from("venue_pricing")
+        .select("price")
+        .eq("item_key", "processing_fee")
+        .eq("is_active", true)
+        .single();
+      if (feeRow?.price) processingFeePct = Number(feeRow.price);
+    } catch (e) {
+      console.error("Failed to fetch processing fee, using default 3.5%:", e);
+    }
+
+    const emailHTML = generateEmailHTML(booking, processingFeePct);
 
     await client.send({
       from: gmailUser,
