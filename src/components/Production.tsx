@@ -58,18 +58,18 @@ const Production = ({ embedded = false }: { embedded?: boolean } = {}) => {
     <Wrapper ref={ref as any} id="production" className={embedded ? "scroll-mt-24" : "scroll-mt-24 py-8 md:py-12 bg-background"}>
       <div className={embedded ? "" : "container mx-auto px-4"}>
         <div className="max-w-6xl mx-auto">
-          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+          <h2 className={`${embedded ? 'text-2xl md:text-3xl mb-2' : 'text-3xl md:text-4xl mb-4'} font-bold text-center text-foreground transition-all duration-1000 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
             Production Packages
           </h2>
-          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+          <p className={`text-center text-muted ${embedded ? 'mb-6 text-sm' : 'mb-12'} max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
             Choose the level of support you need. Prices are per hour and added to your rental.
           </p>
 
-          <div className={`grid md:grid-cols-3 gap-6 mb-12 transition-all duration-1000 delay-300 ${
+          <div className={`grid md:grid-cols-3 gap-6 ${embedded ? '' : 'mb-12'} transition-all duration-1000 delay-300 ${
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
           }`}>
             {packages.map((pkg, index) => (
@@ -97,12 +97,13 @@ const Production = ({ embedded = false }: { embedded?: boolean } = {}) => {
             ))}
           </div>
 
-
-          <div className="text-center">
-            <Button size="lg" onClick={handleBooking}>
-              Add to My Booking
-            </Button>
-          </div>
+          {!embedded && (
+            <div className="text-center mt-8">
+              <Button size="lg" onClick={handleBooking}>
+                Add to My Booking
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </Wrapper>
