@@ -3,7 +3,8 @@ import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import heroBg from "@/assets/hero-bg-new.jpg";
 
-const IFRAME_SRC = "https://api.leadconnectorhq.com/widget/booking/nKkpf3RwImy548hvYGr7";
+const IFRAME_SRC = "https://api.leadconnectorhq.com/widget/booking/tCUlP3Dalpf0fnhAPG52";
+const IFRAME_ID = "tCUlP3Dalpf0fnhAPG52_1778269079909";
 const EMBED_SCRIPT_SRC = "https://link.msgsndr.com/js/form_embed.js";
 
 const ScheduleTour = () => {
@@ -47,9 +48,9 @@ const ScheduleTour = () => {
                 src={IFRAME_SRC}
                 title="Schedule a Tour"
                 className="w-full"
-                style={{ height: "80vh", border: "none" }}
+                style={{ height: "80vh", border: "none", overflow: "hidden" }}
                 scrolling="no"
-                id="nKkpf3RwImy548hvYGr7_1771551481209"
+                id={IFRAME_ID}
               />
             </div>
           </div>
