@@ -15,13 +15,14 @@ const formatPrice = (n: number) => {
   return n % 1 === 0 ? `$${n.toFixed(0)}` : `$${n.toFixed(2)}`;
 };
 
-const BarService = () => {
+const BarService = ({ embedded = false }: { embedded?: boolean } = {}) => {
   const { ref, isVisible } = useScrollAnimation();
   const { packages } = useBarPackages();
 
+  const Wrapper: any = embedded ? 'div' : 'section';
   return (
-    <section ref={ref as any} id="bar-service" className="scroll-mt-24 py-8 md:py-12 bg-accent">
-      <div className="container mx-auto px-4">
+    <Wrapper ref={ref as any} id="bar-service" className={embedded ? "scroll-mt-24" : "scroll-mt-24 py-8 md:py-12 bg-accent"}>
+      <div className={embedded ? "" : "container mx-auto px-4"}>
         <div className="max-w-6xl mx-auto">
           <h2
             className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
