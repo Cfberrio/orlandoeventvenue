@@ -82,12 +82,12 @@ You have a new invoice from Orlando Event Venue. Please review the details below
 </div>
 
 <div style="text-align:center;margin:30px 0;">
-  <a href="${paymentUrl}" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Now</a>
+  <a href="${paymentUrl}" style="display:inline-block;background:#0284c7;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Now</a>
 </div>
 
 <p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">
 If the button doesn't work, copy and paste this link:<br/>
-<a href="${paymentUrl}" style="color:#d97706;word-break:break-all;">${paymentUrl}</a>
+<a href="${paymentUrl}" style="color:#0284c7;word-break:break-all;">${paymentUrl}</a>
 </p>
 
 <p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">
