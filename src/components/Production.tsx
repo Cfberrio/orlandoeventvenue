@@ -105,7 +105,7 @@ const Production = ({ embedded = false }: { embedded?: boolean } = {}) => {
           </div>
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 };
 
