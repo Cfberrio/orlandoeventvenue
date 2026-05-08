@@ -34,11 +34,11 @@ const Index = () => {
       <Hero />
       <SpaceHighlights />
       <Pricing />
+      <BarService />
       <Gallery />
       <ScheduleTourCTA />
       <HowItWorks />
       <Production />
-      <BarService />
       <FAQ />
       <FinalCTA />
       <ContactForm />
