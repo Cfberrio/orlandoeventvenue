@@ -87,7 +87,7 @@ const BarService = ({ embedded = false }: { embedded?: boolean } = {}) => {
           </p>
         </div>
       </div>
-    </section>
+    </Wrapper>
   );
 };
 
