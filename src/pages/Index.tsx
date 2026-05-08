@@ -35,11 +35,10 @@ const Index = () => {
       <Hero />
       <SpaceHighlights />
       <Pricing />
-      <BarService />
+      <AddOns />
       <Gallery />
       <ScheduleTourCTA />
       <HowItWorks />
-      <Production />
       <FAQ />
       <FinalCTA />
       <ContactForm />
