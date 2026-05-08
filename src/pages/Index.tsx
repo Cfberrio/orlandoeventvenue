@@ -6,6 +6,7 @@ import Gallery from "@/components/Gallery";
 import Pricing from "@/components/Pricing";
 import Production from "@/components/Production";
 import BarService from "@/components/BarService";
+import AddOns from "@/components/AddOns";
 import HowItWorks from "@/components/HowItWorks";
 import FAQ from "@/components/FAQ";
 import FinalCTA from "@/components/FinalCTA";
