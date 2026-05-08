@@ -1,8 +1,12 @@
 import Production from "./Production";
 import BarService from "./BarService";
 import { Button } from "@/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { usePricing } from "@/hooks/usePricing";
 
 const AddOns = () => {
+  const { pricing: p, isLoading } = usePricing();
+
   const handleBooking = () => {
     window.location.href = "/book";
   };
@@ -15,7 +19,7 @@ const AddOns = () => {
             Optional Add-Ons
           </h2>
           <p className="text-muted max-w-2xl mx-auto">
-            Enhance your event with production support and bar service. Mix and match to fit your needs.
+            Enhance your event with production support, bar service, and extras. Mix and match to fit your needs.
           </p>
         </div>
 
@@ -23,6 +27,34 @@ const AddOns = () => {
           <Production embedded />
           <div className="border-t border-border" />
           <BarService embedded />
+          <div className="border-t border-border" />
+
+          <div>
+            <h3 className="text-2xl md:text-3xl font-bold text-center text-foreground mb-2">
+              Extras
+            </h3>
+            <p className="text-center text-muted text-sm mb-6 max-w-2xl mx-auto">
+              Small add-ons you can include with your booking.
+            </p>
+            <div className="grid md:grid-cols-2 gap-4 max-w-3xl mx-auto">
+              <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
+                <span className="text-sm font-medium text-foreground">Setup & breakdown</span>
+                <span className="text-sm font-bold text-primary">
+                  {isLoading ? <Loader2 className="h-4 w-4 animate-spin inline" /> : `$${p.setup_breakdown}`}
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-4 bg-accent rounded-lg">
+                <span className="text-sm font-medium text-foreground">Tablecloth</span>
+                <span className="text-sm font-bold text-primary">
+                  {isLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin inline" />
+                  ) : (
+                    `$${p.tablecloth_rental}/ea + $${p.tablecloth_cleaning_fee} cleaning`
+                  )}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="text-center mt-8">
