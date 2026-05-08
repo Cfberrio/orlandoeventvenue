@@ -152,10 +152,13 @@ function formatEventType(eventType: string): string {
     .join(" ");
 }
 
-function generateEmailHTML(booking: BookingEmailData): string {
+function generateEmailHTML(booking: BookingEmailData, processingFeePct: number): string {
   const firstName = booking.full_name.split(" ")[0];
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
+  const feeRate = processingFeePct / 100;
+  const depositFee = Math.round(booking.deposit_amount * feeRate * 100) / 100;
+  const depositCharged = Math.round((booking.deposit_amount + depositFee) * 100) / 100;
 
   return `<!DOCTYPE html>
 <html>
@@ -239,9 +242,11 @@ function generateEmailHTML(booking: BookingEmailData): string {
           <p style="margin:0 0 6px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Payment Breakdown</p>
           <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
             ${rows.join("")}
-            <tr><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;">Total</td><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.total_amount)}</td></tr>
-            <tr><td style="padding:6px 0 0;font-size:13px;color:#059669;">Deposit Paid (50%)</td><td style="padding:6px 0 0;font-size:13px;color:#059669;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.deposit_amount)}</td></tr>
-            <tr><td style="padding:4px 0 0;font-size:13px;color:#6B7280;">Remaining Balance</td><td style="padding:4px 0 0;font-size:13px;color:#374151;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.balance_amount)}</td></tr>
+            <tr><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;">Subtotal</td><td style="padding:10px 0 0;border-top:2px solid #111827;font-size:14px;color:#111827;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.total_amount)}</td></tr>
+            <tr><td style="padding:6px 0 0;font-size:13px;color:#374151;">Deposit (50%)</td><td style="padding:6px 0 0;font-size:13px;color:#374151;text-align:right;white-space:nowrap;">${formatCurrency(booking.deposit_amount)}</td></tr>
+            <tr><td style="padding:4px 0 0;font-size:13px;color:#6B7280;">Processing Fee (${processingFeePct}%) on Deposit</td><td style="padding:4px 0 0;font-size:13px;color:#6B7280;text-align:right;white-space:nowrap;">${formatCurrency(depositFee)}</td></tr>
+            <tr><td style="padding:8px 0 0;border-top:1px solid #E5E7EB;font-size:14px;color:#059669;font-weight:bold;">Charged Today</td><td style="padding:8px 0 0;border-top:1px solid #E5E7EB;font-size:14px;color:#059669;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(depositCharged)}</td></tr>
+            <tr><td style="padding:6px 0 0;font-size:12px;color:#6B7280;">Remaining Balance (due 15 days before event)</td><td style="padding:6px 0 0;font-size:13px;color:#374151;font-weight:bold;text-align:right;white-space:nowrap;">${formatCurrency(booking.balance_amount)}</td></tr>
           </table>
         </div>`;
       })()}
@@ -316,7 +321,24 @@ serve(async (req) => {
       },
     });
 
-    const emailHTML = generateEmailHTML(booking);
+    let processingFeePct = 3.5;
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const { data: feeRow } = await supabase
+        .from("venue_pricing")
+        .select("price")
+        .eq("item_key", "processing_fee")
+        .eq("is_active", true)
+        .single();
+      if (feeRow?.price) processingFeePct = Number(feeRow.price);
+    } catch (e) {
+      console.error("Failed to fetch processing fee, using default 3.5%:", e);
+    }
+
+    const emailHTML = generateEmailHTML(booking, processingFeePct);
 
     await client.send({
       from: gmailUser,
