@@ -25,14 +25,14 @@ const BarService = ({ embedded = false }: { embedded?: boolean } = {}) => {
       <div className={embedded ? "" : "container mx-auto px-4"}>
         <div className="max-w-6xl mx-auto">
           <h2
-            className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            className={`${embedded ? 'text-2xl md:text-3xl mb-2' : 'text-3xl md:text-4xl mb-4'} font-bold text-center text-foreground transition-all duration-1000 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
             Bar Service, Handled.
           </h2>
           <p
-            className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            className={`text-center text-muted ${embedded ? 'mb-6 text-sm' : 'mb-12'} max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
@@ -42,7 +42,7 @@ const BarService = ({ embedded = false }: { embedded?: boolean } = {}) => {
           </p>
 
           <div
-            className={`grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 transition-all duration-1000 delay-300 ${
+            className={`grid sm:grid-cols-2 lg:grid-cols-4 gap-6 ${embedded ? 'mb-4' : 'mb-8'} transition-all duration-1000 delay-300 ${
               isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-10"
             }`}
           >
