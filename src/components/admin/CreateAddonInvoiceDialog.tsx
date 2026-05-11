@@ -347,6 +347,54 @@ export default function CreateAddonInvoiceDialog({
             )}
           </div>
 
+          {/* Bar Service */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Bar Service</Label>
+            <p className="text-sm text-muted-foreground">Charged per guest. Add bar service to this booking.</p>
+
+            {barAlreadyExists && barPackage !== "none" && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                ⚠️ This booking already has bar service ({currentBarPackage}). Adding bar via add-on will replace it on payment.
+              </div>
+            )}
+
+            <RadioGroup value={barPackage} onValueChange={setBarPackage} className="space-y-2">
+              <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="none" id="bar-none" className="mt-1" />
+                <label htmlFor="bar-none" className="flex-1 cursor-pointer">
+                  <div className="font-semibold text-sm">No Bar Service</div>
+                </label>
+              </div>
+              {BAR_PACKAGES.map((bp) => (
+                <div key={bp.value} className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                  <RadioGroupItem value={bp.value} id={`bar-${bp.value}`} className="mt-1" />
+                  <label htmlFor={`bar-${bp.value}`} className="flex-1 cursor-pointer">
+                    <div className="font-semibold text-sm">{bp.label} — ${bp.rate.toFixed(2)}/guest</div>
+                    <div className="text-xs text-muted-foreground">{bp.description}</div>
+                  </label>
+                </div>
+              ))}
+            </RadioGroup>
+
+            {barPackage !== "none" && (
+              <div className="border rounded-lg p-4 bg-accent/20 space-y-3">
+                <Label className="text-xs">Number of Guests</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={barGuestCount || ""}
+                  onChange={(e) => setBarGuestCount(Math.max(0, Number(e.target.value)))}
+                  className="max-w-[160px]"
+                />
+                {barSubtotal > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {barGuestCount} guests × ${barRate.toFixed(2)} = <strong>${barSubtotal.toFixed(2)}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           {/* Pricing Summary */}
