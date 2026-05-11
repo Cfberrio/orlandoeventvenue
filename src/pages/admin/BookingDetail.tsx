@@ -2426,6 +2426,8 @@ export default function BookingDetail() {
         customerName={booking.full_name}
         eventDate={booking.event_date}
         reservationNumber={booking.reservation_number || ""}
+        defaultGuestCount={booking.number_of_guests || 0}
+        currentBarPackage={booking.bar_package || "none"}
         onInvoiceCreated={() => refetchAddonInvoices()}
       />
     </div>
