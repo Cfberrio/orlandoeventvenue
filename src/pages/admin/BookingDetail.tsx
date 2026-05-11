@@ -71,7 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
-import BarServiceCard, { checkBarServicePreEventBlock } from "@/components/admin/BarServiceCard";
+import BarServiceCard from "@/components/admin/BarServiceCard";
 import { usePricing } from "@/hooks/usePricing";
 
 const lifecycleStatuses = [
@@ -346,14 +346,7 @@ export default function BookingDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      // UI guard: block pre_event_ready when bar service requirements are unmet
-      if (newStatus === "pre_event_ready") {
-        const barBlock = checkBarServicePreEventBlock(booking);
-        if (barBlock) {
-          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
-          return;
-        }
-      }
+      // Bar service no longer blocks pre_event_ready; vendor can be assigned at any time.
 
       const wasPreEventReady = booking.pre_event_ready === "true";
       
@@ -377,11 +370,7 @@ export default function BookingDetail() {
 
   const handleMarkPreEventReady = async () => {
     try {
-      const barBlock = checkBarServicePreEventBlock(booking);
-      if (barBlock) {
-        toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
-        return;
-      }
+      // Bar service no longer blocks pre_event_ready.
       const wasPreEventReady = booking.pre_event_ready === "true";
       
       await updateBooking.mutateAsync({
@@ -420,11 +409,7 @@ export default function BookingDetail() {
 
     if (newSchedule && newStaffing && newConflicts) {
       try {
-        const barBlock = checkBarServicePreEventBlock(booking);
-        if (barBlock) {
-          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
-          return;
-        }
+        // Bar service no longer blocks pre_event_ready.
         const wasPreEventReady = booking.pre_event_ready === "true";
         
         await updateBooking.mutateAsync({
@@ -2441,6 +2426,8 @@ export default function BookingDetail() {
         customerName={booking.full_name}
         eventDate={booking.event_date}
         reservationNumber={booking.reservation_number || ""}
+        defaultGuestCount={booking.number_of_guests || 0}
+        currentBarPackage={booking.bar_package || "none"}
         onInvoiceCreated={() => refetchAddonInvoices()}
       />
     </div>

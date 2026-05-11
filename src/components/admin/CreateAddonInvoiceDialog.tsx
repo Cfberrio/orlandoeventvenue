@@ -24,6 +24,13 @@ const PACKAGE_LABELS: Record<string, string> = {
   workshop: "Workshop Package",
 };
 
+const BAR_PACKAGES: { value: string; label: string; rate: number; description: string }[] = [
+  { value: "house_beer_wine", label: "House Beer & Wine", rate: 18.0, description: "Beer & wine bar service" },
+  { value: "essential_bar", label: "Essential Bar", rate: 25.63, description: "Beer, wine, vodka, rum" },
+  { value: "signature_bar", label: "Signature Bar", rate: 32.13, description: "Essential + tequila, whiskey, gin" },
+  { value: "bespoke_bar", label: "Bespoke Bar", rate: 39.63, description: "Custom premium open bar" },
+];
+
 const MAX_TABLECLOTHS = 10;
 const MIN_PACKAGE_HOURS = 4;
 
@@ -35,6 +42,8 @@ interface CreateAddonInvoiceDialogProps {
   customerName: string;
   eventDate: string;
   reservationNumber: string;
+  defaultGuestCount?: number;
+  currentBarPackage?: string;
   onInvoiceCreated: () => void;
 }
 
@@ -46,6 +55,8 @@ export default function CreateAddonInvoiceDialog({
   customerName,
   eventDate,
   reservationNumber,
+  defaultGuestCount = 0,
+  currentBarPackage = "none",
   onInvoiceCreated,
 }: CreateAddonInvoiceDialogProps) {
   const [selectedPackage, setSelectedPackage] = useState("none");
@@ -54,6 +65,8 @@ export default function CreateAddonInvoiceDialog({
   const [setupBreakdown, setSetupBreakdown] = useState(false);
   const [tablecloths, setTablecloths] = useState(false);
   const [tableclothQuantity, setTableclothQuantity] = useState(1);
+  const [barPackage, setBarPackage] = useState("none");
+  const [barGuestCount, setBarGuestCount] = useState<number>(defaultGuestCount || 0);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const { pricing: p } = usePricing();
@@ -91,22 +104,40 @@ export default function CreateAddonInvoiceDialog({
     return cost;
   }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
-  const totalAmount = packageCost + optionalServicesCost;
+  const barRate = useMemo(
+    () => BAR_PACKAGES.find((b) => b.value === barPackage)?.rate ?? 0,
+    [barPackage]
+  );
+  const barSubtotal = useMemo(
+    () => (barPackage !== "none" ? Math.round(barRate * (barGuestCount || 0) * 100) / 100 : 0),
+    [barPackage, barRate, barGuestCount]
+  );
+  const barLabel = useMemo(
+    () => BAR_PACKAGES.find((b) => b.value === barPackage)?.label ?? "",
+    [barPackage]
+  );
+
+  const totalAmount = packageCost + optionalServicesCost + barSubtotal;
   const processingFee = Math.round(totalAmount * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = totalAmount + processingFee;
 
+  const barAlreadyExists = currentBarPackage && currentBarPackage !== "none";
+
   const validationError = useMemo(() => {
-    if (selectedPackage === "none" && !setupBreakdown && !tablecloths) {
+    if (selectedPackage === "none" && !setupBreakdown && !tablecloths && barPackage === "none") {
       return "Select at least one package or service";
     }
     if (selectedPackage !== "none" && packageHours < MIN_PACKAGE_HOURS) {
       return `Package time must be at least ${MIN_PACKAGE_HOURS} hours`;
     }
+    if (barPackage !== "none" && (!barGuestCount || barGuestCount < 1)) {
+      return "Bar guest count must be at least 1";
+    }
     if (totalAmount <= 0) {
       return "Total amount must be greater than $0";
     }
     return null;
-  }, [selectedPackage, setupBreakdown, tablecloths, packageHours, totalAmount]);
+  }, [selectedPackage, setupBreakdown, tablecloths, barPackage, barGuestCount, packageHours, totalAmount]);
 
   const resetForm = () => {
     setSelectedPackage("none");
@@ -115,6 +146,8 @@ export default function CreateAddonInvoiceDialog({
     setSetupBreakdown(false);
     setTablecloths(false);
     setTableclothQuantity(1);
+    setBarPackage("none");
+    setBarGuestCount(defaultGuestCount || 0);
   };
 
   const handleSubmit = async () => {
@@ -136,6 +169,11 @@ export default function CreateAddonInvoiceDialog({
         tablecloths,
         tablecloth_quantity: tablecloths ? tableclothQuantity : 0,
         optional_services_cost: optionalServicesCost,
+        bar_package: barPackage,
+        bar_package_label: barPackage !== "none" ? barLabel : null,
+        bar_guest_count: barPackage !== "none" ? barGuestCount : null,
+        bar_rate_per_guest: barRate,
+        bar_subtotal: barSubtotal,
         total_amount: totalAmount,
         payment_status: "pending",
       };
@@ -309,6 +347,54 @@ export default function CreateAddonInvoiceDialog({
             )}
           </div>
 
+          {/* Bar Service */}
+          <div className="space-y-3">
+            <Label className="text-base font-semibold">Bar Service</Label>
+            <p className="text-sm text-muted-foreground">Charged per guest. Add bar service to this booking.</p>
+
+            {barAlreadyExists && barPackage !== "none" && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900">
+                ⚠️ This booking already has bar service ({currentBarPackage}). Adding bar via add-on will replace it on payment.
+              </div>
+            )}
+
+            <RadioGroup value={barPackage} onValueChange={setBarPackage} className="space-y-2">
+              <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                <RadioGroupItem value="none" id="bar-none" className="mt-1" />
+                <label htmlFor="bar-none" className="flex-1 cursor-pointer">
+                  <div className="font-semibold text-sm">No Bar Service</div>
+                </label>
+              </div>
+              {BAR_PACKAGES.map((bp) => (
+                <div key={bp.value} className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
+                  <RadioGroupItem value={bp.value} id={`bar-${bp.value}`} className="mt-1" />
+                  <label htmlFor={`bar-${bp.value}`} className="flex-1 cursor-pointer">
+                    <div className="font-semibold text-sm">{bp.label} — ${bp.rate.toFixed(2)}/guest</div>
+                    <div className="text-xs text-muted-foreground">{bp.description}</div>
+                  </label>
+                </div>
+              ))}
+            </RadioGroup>
+
+            {barPackage !== "none" && (
+              <div className="border rounded-lg p-4 bg-accent/20 space-y-3">
+                <Label className="text-xs">Number of Guests</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  value={barGuestCount || ""}
+                  onChange={(e) => setBarGuestCount(Math.max(0, Number(e.target.value)))}
+                  className="max-w-[160px]"
+                />
+                {barSubtotal > 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    {barGuestCount} guests × ${barRate.toFixed(2)} = <strong>${barSubtotal.toFixed(2)}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
           <Separator />
 
           {/* Pricing Summary */}
@@ -331,6 +417,12 @@ export default function CreateAddonInvoiceDialog({
                 <div className="flex justify-between">
                   <span>Tablecloths ({tableclothQuantity} x ${TABLECLOTH_UNIT_COST} + ${TABLECLOTH_CLEANING_FEE} cleaning)</span>
                   <span>${(tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE).toFixed(2)}</span>
+                </div>
+              )}
+              {barSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span>Bar Service — {barLabel} ({barGuestCount} × ${barRate.toFixed(2)})</span>
+                  <span>${barSubtotal.toFixed(2)}</span>
                 </div>
               )}
               <Separator className="my-2" />

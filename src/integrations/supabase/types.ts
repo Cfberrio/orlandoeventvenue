@@ -161,6 +161,11 @@ export type Database = {
       }
       booking_addon_invoices: {
         Row: {
+          bar_guest_count: number | null
+          bar_package: string
+          bar_package_label: string | null
+          bar_rate_per_guest: number
+          bar_subtotal: number
           booking_id: string
           created_at: string
           created_by: string | null
@@ -181,6 +186,11 @@ export type Database = {
           total_amount: number
         }
         Insert: {
+          bar_guest_count?: number | null
+          bar_package?: string
+          bar_package_label?: string | null
+          bar_rate_per_guest?: number
+          bar_subtotal?: number
           booking_id: string
           created_at?: string
           created_by?: string | null
@@ -201,6 +211,11 @@ export type Database = {
           total_amount: number
         }
         Update: {
+          bar_guest_count?: number | null
+          bar_package?: string
+          bar_package_label?: string | null
+          bar_rate_per_guest?: number
+          bar_subtotal?: number
           booking_id?: string
           created_at?: string
           created_by?: string | null

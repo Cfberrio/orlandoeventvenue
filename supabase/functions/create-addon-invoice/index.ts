@@ -236,6 +236,30 @@ serve(async (req: Request) => {
       });
     }
 
+    // Bar Service
+    const barPackage = (invoice as { bar_package?: string }).bar_package;
+    const barSubtotal = Number((invoice as { bar_subtotal?: number }).bar_subtotal ?? 0);
+    const barGuestCount = Number((invoice as { bar_guest_count?: number }).bar_guest_count ?? 0);
+    const barRate = Number((invoice as { bar_rate_per_guest?: number }).bar_rate_per_guest ?? 0);
+    const barLabel = (invoice as { bar_package_label?: string }).bar_package_label || barPackage || "Bar Service";
+    if (barPackage && barPackage !== "none" && barSubtotal > 0) {
+      stripeLineItems.push({
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: `Bar Service — ${barLabel}`,
+            description: `${barGuestCount} guests × $${barRate.toFixed(2)}/guest`,
+          },
+          unit_amount: Math.round(barSubtotal * 100),
+        },
+        quantity: 1,
+      });
+      emailLineItems.push({
+        label: `Bar Service — ${barLabel} (${barGuestCount} × $${barRate.toFixed(2)})`,
+        amount: `$${barSubtotal.toFixed(2)}`,
+      });
+    }
+
     if (stripeLineItems.length === 0) {
       return new Response(
         JSON.stringify({ error: "No items to charge" }),
