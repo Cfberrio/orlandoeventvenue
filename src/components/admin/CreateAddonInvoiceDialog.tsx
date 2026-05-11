@@ -419,6 +419,12 @@ export default function CreateAddonInvoiceDialog({
                   <span>${(tableclothQuantity * TABLECLOTH_UNIT_COST + TABLECLOTH_CLEANING_FEE).toFixed(2)}</span>
                 </div>
               )}
+              {barSubtotal > 0 && (
+                <div className="flex justify-between">
+                  <span>Bar Service — {barLabel} ({barGuestCount} × ${barRate.toFixed(2)})</span>
+                  <span>${barSubtotal.toFixed(2)}</span>
+                </div>
+              )}
               <Separator className="my-2" />
               <div className="flex justify-between text-sm text-muted-foreground">
                 <span>Subtotal</span>
