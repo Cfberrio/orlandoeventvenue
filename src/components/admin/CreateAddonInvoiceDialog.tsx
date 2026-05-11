@@ -146,6 +146,8 @@ export default function CreateAddonInvoiceDialog({
     setSetupBreakdown(false);
     setTablecloths(false);
     setTableclothQuantity(1);
+    setBarPackage("none");
+    setBarGuestCount(defaultGuestCount || 0);
   };
 
   const handleSubmit = async () => {
@@ -167,6 +169,11 @@ export default function CreateAddonInvoiceDialog({
         tablecloths,
         tablecloth_quantity: tablecloths ? tableclothQuantity : 0,
         optional_services_cost: optionalServicesCost,
+        bar_package: barPackage,
+        bar_package_label: barPackage !== "none" ? barLabel : null,
+        bar_guest_count: barPackage !== "none" ? barGuestCount : null,
+        bar_rate_per_guest: barRate,
+        bar_subtotal: barSubtotal,
         total_amount: totalAmount,
         payment_status: "pending",
       };
