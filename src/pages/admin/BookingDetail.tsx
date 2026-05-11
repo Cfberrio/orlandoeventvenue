@@ -346,14 +346,7 @@ export default function BookingDetail() {
 
   const handleStatusChange = async (newStatus: string) => {
     try {
-      // UI guard: block pre_event_ready when bar service requirements are unmet
-      if (newStatus === "pre_event_ready") {
-        const barBlock = checkBarServicePreEventBlock(booking);
-        if (barBlock) {
-          toast({ title: "Bar service requirements not met", description: barBlock, variant: "destructive" });
-          return;
-        }
-      }
+      // Bar service no longer blocks pre_event_ready; vendor can be assigned at any time.
 
       const wasPreEventReady = booking.pre_event_ready === "true";
       
