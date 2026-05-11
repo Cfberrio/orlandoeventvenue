@@ -599,6 +599,67 @@ ${receiptItemRows}
 
         console.log("Addon invoice marked as paid:", invoiceId);
 
+        // Fetch the paid invoice to handle bar service propagation
+        const { data: paidInvoice } = await supabase
+          .from("booking_addon_invoices")
+          .select("*")
+          .eq("id", invoiceId)
+          .single();
+
+        // If this add-on includes Bar Service, propagate to booking + insert revenue item
+        const aiBarPackage = (paidInvoice as { bar_package?: string } | null)?.bar_package;
+        const aiBarSubtotal = Number((paidInvoice as { bar_subtotal?: number } | null)?.bar_subtotal ?? 0);
+        if (aiBarPackage && aiBarPackage !== "none" && aiBarSubtotal > 0 && bookingId) {
+          const aiBarGuestCount = (paidInvoice as { bar_guest_count?: number } | null)?.bar_guest_count ?? null;
+          const aiBarRate = Number((paidInvoice as { bar_rate_per_guest?: number } | null)?.bar_rate_per_guest ?? 0);
+          const aiBarLabel = (paidInvoice as { bar_package_label?: string } | null)?.bar_package_label ?? null;
+
+          const { error: barUpdateError } = await supabase
+            .from("bookings")
+            .update({
+              bar_package: aiBarPackage,
+              bar_package_label: aiBarLabel,
+              bar_guest_count: aiBarGuestCount,
+              bar_rate_per_guest: aiBarRate,
+              bar_subtotal: aiBarSubtotal,
+              beer_wine_service: aiBarPackage === "house_beer_wine" ? true : undefined,
+            })
+            .eq("id", bookingId);
+
+          if (barUpdateError) {
+            console.error("Error propagating bar service to booking:", barUpdateError);
+          } else {
+            console.log("Bar service propagated to booking:", bookingId, aiBarPackage);
+          }
+
+          // Insert a single bar_service revenue line for the add-on payment
+          // (80/20 Stripe Connect split was already applied at checkout)
+          const paymentDate = new Date().toISOString().split("T")[0];
+          const { error: revErr } = await supabase.from("booking_revenue_items").insert({
+            booking_id: bookingId,
+            item_category: "bar_service",
+            item_type: aiBarPackage,
+            amount: aiBarSubtotal,
+            quantity: aiBarGuestCount,
+            unit_price: aiBarRate,
+            payment_date: paymentDate,
+            payment_split: "addon",
+            description: `Bar Service — ${aiBarLabel || aiBarPackage} (Add-on, paid in full)`,
+            metadata: {
+              source: "addon_invoice",
+              addon_invoice_id: invoiceId,
+              bar_package: aiBarPackage,
+              bar_package_label: aiBarLabel,
+              guest_count: aiBarGuestCount,
+              rate_per_guest: aiBarRate,
+              split: "80_20",
+            },
+          });
+          if (revErr) {
+            console.error("Error inserting bar_service revenue item:", revErr);
+          }
+        }
+
         // Log the event
         await supabase.from("booking_events").insert({
           booking_id: bookingId,
@@ -609,6 +670,7 @@ ${receiptItemRows}
             session_id: sessionId,
             payment_intent: paymentIntentId,
             amount: amountPaid,
+            bar_package: aiBarPackage && aiBarPackage !== "none" ? aiBarPackage : undefined,
           },
         });
 
