@@ -71,7 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
-import BarServiceCard, { checkBarServicePreEventBlock } from "@/components/admin/BarServiceCard";
+import BarServiceCard from "@/components/admin/BarServiceCard";
 import { usePricing } from "@/hooks/usePricing";
 
 const lifecycleStatuses = [
