@@ -42,6 +42,8 @@ interface CreateAddonInvoiceDialogProps {
   customerName: string;
   eventDate: string;
   reservationNumber: string;
+  defaultGuestCount?: number;
+  currentBarPackage?: string;
   onInvoiceCreated: () => void;
 }
 
@@ -53,6 +55,8 @@ export default function CreateAddonInvoiceDialog({
   customerName,
   eventDate,
   reservationNumber,
+  defaultGuestCount = 0,
+  currentBarPackage = "none",
   onInvoiceCreated,
 }: CreateAddonInvoiceDialogProps) {
   const [selectedPackage, setSelectedPackage] = useState("none");
@@ -61,6 +65,8 @@ export default function CreateAddonInvoiceDialog({
   const [setupBreakdown, setSetupBreakdown] = useState(false);
   const [tablecloths, setTablecloths] = useState(false);
   const [tableclothQuantity, setTableclothQuantity] = useState(1);
+  const [barPackage, setBarPackage] = useState("none");
+  const [barGuestCount, setBarGuestCount] = useState<number>(defaultGuestCount || 0);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
   const { pricing: p } = usePricing();
@@ -98,22 +104,40 @@ export default function CreateAddonInvoiceDialog({
     return cost;
   }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
-  const totalAmount = packageCost + optionalServicesCost;
+  const barRate = useMemo(
+    () => BAR_PACKAGES.find((b) => b.value === barPackage)?.rate ?? 0,
+    [barPackage]
+  );
+  const barSubtotal = useMemo(
+    () => (barPackage !== "none" ? Math.round(barRate * (barGuestCount || 0) * 100) / 100 : 0),
+    [barPackage, barRate, barGuestCount]
+  );
+  const barLabel = useMemo(
+    () => BAR_PACKAGES.find((b) => b.value === barPackage)?.label ?? "",
+    [barPackage]
+  );
+
+  const totalAmount = packageCost + optionalServicesCost + barSubtotal;
   const processingFee = Math.round(totalAmount * PROCESSING_FEE_RATE * 100) / 100;
   const totalWithFee = totalAmount + processingFee;
 
+  const barAlreadyExists = currentBarPackage && currentBarPackage !== "none";
+
   const validationError = useMemo(() => {
-    if (selectedPackage === "none" && !setupBreakdown && !tablecloths) {
+    if (selectedPackage === "none" && !setupBreakdown && !tablecloths && barPackage === "none") {
       return "Select at least one package or service";
     }
     if (selectedPackage !== "none" && packageHours < MIN_PACKAGE_HOURS) {
       return `Package time must be at least ${MIN_PACKAGE_HOURS} hours`;
     }
+    if (barPackage !== "none" && (!barGuestCount || barGuestCount < 1)) {
+      return "Bar guest count must be at least 1";
+    }
     if (totalAmount <= 0) {
       return "Total amount must be greater than $0";
     }
     return null;
-  }, [selectedPackage, setupBreakdown, tablecloths, packageHours, totalAmount]);
+  }, [selectedPackage, setupBreakdown, tablecloths, barPackage, barGuestCount, packageHours, totalAmount]);
 
   const resetForm = () => {
     setSelectedPackage("none");
