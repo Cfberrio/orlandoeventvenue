@@ -24,6 +24,13 @@ const PACKAGE_LABELS: Record<string, string> = {
   workshop: "Workshop Package",
 };
 
+const BAR_PACKAGES: { value: string; label: string; rate: number; description: string }[] = [
+  { value: "house_beer_wine", label: "House Beer & Wine", rate: 18.0, description: "Beer & wine bar service" },
+  { value: "essential_bar", label: "Essential Bar", rate: 25.63, description: "Beer, wine, vodka, rum" },
+  { value: "signature_bar", label: "Signature Bar", rate: 32.13, description: "Essential + tequila, whiskey, gin" },
+  { value: "bespoke_bar", label: "Bespoke Bar", rate: 39.63, description: "Custom premium open bar" },
+];
+
 const MAX_TABLECLOTHS = 10;
 const MIN_PACKAGE_HOURS = 4;
 
