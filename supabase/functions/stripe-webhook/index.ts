@@ -660,6 +660,91 @@ ${receiptItemRows}
           }
         }
 
+        // Insert revenue line items for the rest of the add-on components
+        // (production, setup_breakdown, tablecloths, misc/optional_services).
+        // Each line is marked payment_split='addon' + metadata source='addon_invoice'
+        // so reports can distinguish revenue paid AFTER the original reservation.
+        // We do NOT mutate the booking's original fields — the add-on stays as its
+        // own visible record (booking_addon_invoices + these revenue lines).
+        if (paidInvoice && bookingId) {
+          const inv = paidInvoice as Record<string, unknown>;
+          const paymentDate = new Date().toISOString().split("T")[0];
+          const baseMeta = {
+            source: "addon_invoice",
+            addon_invoice_id: invoiceId,
+            split: "80_20",
+          };
+
+          const aiPackage = (inv.package as string) || "none";
+          const aiPackageCost = Number(inv.package_cost ?? 0);
+          if (aiPackage !== "none" && aiPackageCost > 0) {
+            const label =
+              aiPackage === "basic" ? "Basic Production Package"
+              : aiPackage === "led" ? "LED Production Package"
+              : aiPackage === "workshop" ? "Workshop Production Package"
+              : "Production Package";
+            const { error } = await supabase.from("booking_revenue_items").insert({
+              booking_id: bookingId,
+              item_category: "production",
+              item_type: aiPackage,
+              amount: aiPackageCost,
+              payment_date: paymentDate,
+              payment_split: "addon",
+              description: `${label} (Add-on, paid in full)`,
+              metadata: { ...baseMeta, package: aiPackage },
+            });
+            if (error) console.error("Error inserting production add-on revenue:", error);
+          }
+
+          if (inv.setup_breakdown === true) {
+            const { error } = await supabase.from("booking_revenue_items").insert({
+              booking_id: bookingId,
+              item_category: "addon",
+              item_type: "setup_breakdown",
+              amount: 75.00,
+              payment_date: paymentDate,
+              payment_split: "addon",
+              description: "Setup & Breakdown Service (Add-on, paid in full)",
+              metadata: baseMeta,
+            });
+            if (error) console.error("Error inserting setup_breakdown add-on revenue:", error);
+          }
+
+          const tcQty = Number(inv.tablecloth_quantity ?? 0);
+          if (inv.tablecloths === true && tcQty > 0) {
+            const tcAmount = Math.round(tcQty * 5.00 * 100) / 100;
+            const { error } = await supabase.from("booking_revenue_items").insert({
+              booking_id: bookingId,
+              item_category: "addon",
+              item_type: "tablecloth",
+              amount: tcAmount,
+              quantity: tcQty,
+              unit_price: 5.00,
+              payment_date: paymentDate,
+              payment_split: "addon",
+              description: `Tablecloth Rental x${tcQty} (Add-on, paid in full)`,
+              metadata: baseMeta,
+            });
+            if (error) console.error("Error inserting tablecloth add-on revenue:", error);
+          }
+
+          // optional_services_cost is the manual misc amount (excluding tablecloths line)
+          const miscAmount = Number(inv.optional_services_cost ?? 0);
+          if (miscAmount > 0) {
+            const { error } = await supabase.from("booking_revenue_items").insert({
+              booking_id: bookingId,
+              item_category: "addon",
+              item_type: "misc",
+              amount: miscAmount,
+              payment_date: paymentDate,
+              payment_split: "addon",
+              description: "Additional Services (Add-on, paid in full)",
+              metadata: baseMeta,
+            });
+            if (error) console.error("Error inserting misc add-on revenue:", error);
+          }
+        }
+
         // Log the event
         await supabase.from("booking_events").insert({
           booking_id: bookingId,
