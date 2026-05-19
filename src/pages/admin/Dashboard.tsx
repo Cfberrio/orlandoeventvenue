@@ -26,6 +26,7 @@ import {
   useResolveStaffUnassignmentAlert
 } from "@/hooks/useAdminData";
 import { format } from "date-fns";
+import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -129,6 +130,11 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Venue Access Code admin card */}
+      <AccessCodeAdminCard />
+
+
 
       {/* Staff Unassignment Alerts Section */}
       {staffUnassignmentAlerts && staffUnassignmentAlerts.length > 0 && (

@@ -62,6 +62,12 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     ? `${formatTime(block.start_time)} - ${formatTime(block.end_time)}`
     : "All day";
   
+  const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
+  const reservationNumber = (booking as { reservation_number?: string }).reservation_number;
+  const reservationLine = reservationNumber
+    ? `\n\nYour reservation number: ${reservationNumber}`
+    : "";
+
   const accessInstructions = `Orlando Event Venue – Access Instructions & Rules
 
 Welcome to Orlando Event Venue!
@@ -77,7 +83,10 @@ Step-by-Step Venue Access:
 2. Venue Entry & Lockbox Access
    Facing the Global sign, go to the door on the left side of the building.
    On the wall near the entrance, you will find a black lockbox with a touchscreen keypad.
-   Touch the screen first to light it up, then enter the CODE: 02052026.
+   Touch the screen first to light it up, then enter your access code.
+
+   👉 Get your current access code here: ${accessCodeUrl}${reservationLine}
+
    Unlock the box and retrieve the Magnetic Key.
 
 3. Unlock the Door
@@ -146,9 +155,14 @@ Contact: Luis Torres (407) 276-3234`;
 <div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
 <p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Access / Arrival Notes</strong></p>
 </div>
+<div style="margin:0 0 14px 0;text-align:center;">
+<a href="${accessCodeUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;">🔑 Get Your Access Code</a>
+<p style="margin:8px 0 0 0;font-size:12px;color:#6b7280;">Enter your reservation number${reservationNumber ? ` <strong>${reservationNumber}</strong>` : ""} to view the current lockbox code.</p>
+</div>
 <div style="padding-left: 0px!important;; font-size:14px;line-height:1.75;color:#111827;white-space:pre-line;">
 <p style="margin:0px; padding-left: 0px!important;margin: 0px;">${accessInstructions}</p>
 </div>
+
 </td>
 </tr>
 </tbody>
@@ -371,6 +385,7 @@ serve(async (req) => {
           event_type,
           booking_origin,
           number_of_guests,
+          reservation_number,
           booking_policies!inner(
             policy_name,
             send_pre_event_1d

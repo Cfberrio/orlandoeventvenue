@@ -18,6 +18,7 @@ import StripeConnectCallback from "./pages/StripeConnectCallback";
 import PricingPage from "./pages/PricingPage";
 import GalleryPage from "./pages/GalleryPage";
 import NotFound from "./pages/NotFound";
+import AccessCode from "./pages/AccessCode";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -115,6 +116,10 @@ const App = () => (
               {/* Guest Routes - Public */}
               <Route path="/guest/report/:reservationNumber" element={<GuestReport />} />
               <Route path="/guest/report" element={<GuestReport />} />
+
+              {/* Hidden access code lookup page (not linked from anywhere) */}
+              <Route path="/accesscode" element={<AccessCode />} />
+              
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
