@@ -380,6 +380,7 @@ serve(async (req) => {
           event_type,
           booking_origin,
           number_of_guests,
+          reservation_number,
           booking_policies!inner(
             policy_name,
             send_pre_event_1d
