@@ -63,8 +63,9 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     : "All day";
   
   const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
-  const reservationLine = block.reservation_number
-    ? `\n\nYour reservation number: ${block.reservation_number}`
+  const reservationNumber = (booking as { reservation_number?: string }).reservation_number;
+  const reservationLine = reservationNumber
+    ? `\n\nYour reservation number: ${reservationNumber}`
     : "";
 
   const accessInstructions = `Orlando Event Venue – Access Instructions & Rules
