@@ -131,6 +131,11 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
+      {/* Venue Access Code admin card */}
+      <AccessCodeAdminCard />
+
+
+
       {/* Staff Unassignment Alerts Section */}
       {staffUnassignmentAlerts && staffUnassignmentAlerts.length > 0 && (
         <Card className="border-2 border-orange-500 bg-orange-500/5">
