@@ -62,6 +62,11 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     ? `${formatTime(block.start_time)} - ${formatTime(block.end_time)}`
     : "All day";
   
+  const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
+  const reservationLine = block.reservation_number
+    ? `\n\nYour reservation number: ${block.reservation_number}`
+    : "";
+
   const accessInstructions = `Orlando Event Venue – Access Instructions & Rules
 
 Welcome to Orlando Event Venue!
@@ -77,7 +82,10 @@ Step-by-Step Venue Access:
 2. Venue Entry & Lockbox Access
    Facing the Global sign, go to the door on the left side of the building.
    On the wall near the entrance, you will find a black lockbox with a touchscreen keypad.
-   Touch the screen first to light it up, then enter the CODE: 02052026.
+   Touch the screen first to light it up, then enter your access code.
+
+   👉 Get your current access code here: ${accessCodeUrl}${reservationLine}
+
    Unlock the box and retrieve the Magnetic Key.
 
 3. Unlock the Door
