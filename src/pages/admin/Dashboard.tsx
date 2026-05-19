@@ -26,6 +26,7 @@ import {
   useResolveStaffUnassignmentAlert
 } from "@/hooks/useAdminData";
 import { format } from "date-fns";
+import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
