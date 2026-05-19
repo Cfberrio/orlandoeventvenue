@@ -52,7 +52,7 @@ const AccessCode = () => {
         return;
       }
 
-      const row = Array.isArray(data) ? data[0] : data;
+      const row = Array.isArray(data) ? data[0] : (data ?? null);
       if (!row) {
         setError("No active access code found. Please contact us.");
         return;
