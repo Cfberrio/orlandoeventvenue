@@ -2319,15 +2319,25 @@ export type Database = {
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
-      get_access_code_for_reservation: {
-        Args: { p_reservation_number: string }
-        Returns: {
-          code: string
-          event_date: string
-          full_name: string
-          label: string
-        }[]
-      }
+      get_access_code_for_reservation:
+        | {
+            Args: { p_reservation_number: string }
+            Returns: {
+              code: string
+              event_date: string
+              full_name: string
+              label: string
+            }[]
+          }
+        | {
+            Args: { p_email?: string; p_reservation_number?: string }
+            Returns: {
+              code: string
+              event_date: string
+              full_name: string
+              label: string
+            }[]
+          }
       get_bar_package_label: { Args: { p_package: string }; Returns: string }
       get_bar_package_rate: { Args: { p_package: string }; Returns: number }
       get_daily_generated_revenue: {
