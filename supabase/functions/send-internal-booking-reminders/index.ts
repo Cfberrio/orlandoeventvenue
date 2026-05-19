@@ -155,9 +155,14 @@ Contact: Luis Torres (407) 276-3234`;
 <div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
 <p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Access / Arrival Notes</strong></p>
 </div>
+<div style="margin:0 0 14px 0;text-align:center;">
+<a href="${accessCodeUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;">🔑 Get Your Access Code</a>
+<p style="margin:8px 0 0 0;font-size:12px;color:#6b7280;">Enter your reservation number${reservationNumber ? ` <strong>${reservationNumber}</strong>` : ""} to view the current lockbox code.</p>
+</div>
 <div style="padding-left: 0px!important;; font-size:14px;line-height:1.75;color:#111827;white-space:pre-line;">
 <p style="margin:0px; padding-left: 0px!important;margin: 0px;">${accessInstructions}</p>
 </div>
+
 </td>
 </tr>
 </tbody>
