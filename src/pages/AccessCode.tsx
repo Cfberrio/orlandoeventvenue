@@ -16,6 +16,7 @@ interface AccessCodeResult {
 
 const AccessCode = () => {
   const [reservation, setReservation] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AccessCodeResult | null>(null);
@@ -25,9 +26,11 @@ const AccessCode = () => {
     setError(null);
     setResult(null);
 
-    const trimmed = reservation.trim();
-    if (!trimmed) {
-      setError("Please enter your reservation number.");
+    const trimmedRes = reservation.trim();
+    const trimmedEmail = email.trim();
+
+    if (!trimmedRes && !trimmedEmail) {
+      setError("Please enter your reservation number or email address.");
       return;
     }
 
@@ -35,17 +38,20 @@ const AccessCode = () => {
     try {
       const { data, error: rpcError } = await supabase.rpc(
         "get_access_code_for_reservation" as never,
-        { p_reservation_number: trimmed } as never,
+        {
+          p_reservation_number: trimmedRes || null,
+          p_email: trimmedEmail || null,
+        } as never,
       );
 
       if (rpcError) {
         const msg = rpcError.message || "";
         if (msg.includes("reservation_not_found")) {
-          setError("We couldn't find a reservation with that number. Please double-check and try again.");
+          setError("We couldn't find a reservation matching that information. Please double-check and try again.");
         } else if (msg.includes("reservation_inactive")) {
           setError("This reservation is no longer active. Please contact us if you believe this is an error.");
-        } else if (msg.includes("reservation_number_required")) {
-          setError("Please enter your reservation number.");
+        } else if (msg.includes("reservation_number_or_email_required")) {
+          setError("Please enter your reservation number or email address.");
         } else {
           setError("Something went wrong. Please try again or contact us.");
         }
@@ -74,7 +80,7 @@ const AccessCode = () => {
           </div>
           <CardTitle className="text-2xl">Venue Access Code</CardTitle>
           <CardDescription>
-            Enter your reservation number to view the current lockbox code for Orlando Event Venue.
+            Enter your reservation number or the email used to book to view the current lockbox code.
           </CardDescription>
         </CardHeader>
 
@@ -92,10 +98,28 @@ const AccessCode = () => {
                   maxLength={20}
                   autoComplete="off"
                   disabled={loading}
-                  required
+                />
+              </div>
+
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <div className="flex-1 border-t" />
+                <span>or</span>
+                <div className="flex-1 border-t" />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
+                  disabled={loading}
                 />
                 <p className="text-xs text-muted-foreground">
-                  You can find your reservation number in your confirmation email.
+                  Use the email address associated with your booking.
                 </p>
               </div>
 
@@ -146,6 +170,7 @@ const AccessCode = () => {
                 onClick={() => {
                   setResult(null);
                   setReservation("");
+                  setEmail("");
                 }}
               >
                 Look up another reservation
