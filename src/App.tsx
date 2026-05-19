@@ -18,6 +18,7 @@ import StripeConnectCallback from "./pages/StripeConnectCallback";
 import PricingPage from "./pages/PricingPage";
 import GalleryPage from "./pages/GalleryPage";
 import NotFound from "./pages/NotFound";
+import AccessCode from "./pages/AccessCode";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import AdminDashboard from "./pages/admin/Dashboard";
