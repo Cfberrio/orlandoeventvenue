@@ -237,10 +237,10 @@ Access Instructions:
 - Use the magnetic key from the lockbox (CODE: 10102025)
 - WiFi: GlobalChurch / Orlandoministry
 - Full venue rules in your booking confirmation
-
-Questions? Contact us at (407) 276-3234
-
-See you tomorrow!
+ 
+ Questions? Contact us at 407-974-5979
+ 
+ See you tomorrow!
 ```
 
 ---

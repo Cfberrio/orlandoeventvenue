@@ -97,9 +97,9 @@ Step-by-Step Venue Access:
    Open the door and step inside.
    On the left wall, locate the remote labeled "Light".
    Point it at the lights and press the left-side buttons to turn them on.
-   Return the remote to its original spot after use.
-
-Contact: Luis Torres (407) 276-3234`;
+    Return the remote to its original spot after use.
+ 
+ Contact: Luis Torres 407-974-5979`;
 
   return `
 <table style="margin:0;padding:28px 12px;" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f6">
