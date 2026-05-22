@@ -477,11 +477,11 @@ function buildEventNotes(booking: BookingData, staffInfo: StaffInfo[]): string {
     `Guest is responsible for any damage caused during the event.`,
     ``,
     `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Day-Of Help`,
-    `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
-    `Luis Torres`,
-    `📞 (407) 276-3234`,
-  ];
+     `Day-Of Help`,
+     `━━━━━━━━━━━━━━━━━━━━━━━━━━`,
+     `Luis Torres`,
+     `📞 407-974-5979`,
+   ];
 
   // Add client notes if they exist
   if (booking.client_notes && booking.client_notes.trim() !== "") {
