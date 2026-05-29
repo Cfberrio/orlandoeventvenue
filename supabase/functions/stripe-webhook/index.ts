@@ -901,6 +901,11 @@ ${receiptItemRows}
               tablecloth_quantity: data.tablecloth_quantity,
               optional_services: data.optional_services,
               taxes_fees: data.taxes_fees,
+              bar_package: data.bar_package,
+              bar_package_label: data.bar_package_label,
+              bar_guest_count: data.bar_guest_count,
+              bar_subtotal: data.bar_subtotal,
+              bar_rate_per_guest: data.bar_rate_per_guest,
             }),
           });
 
