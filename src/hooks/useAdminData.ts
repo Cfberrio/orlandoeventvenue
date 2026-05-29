@@ -1389,7 +1389,7 @@ export function usePopupAnalytics() {
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, email, total_amount, discount_code, created_at, reservation_number")
-        .or("discount_code.eq.SAVE100,discount_code.eq.SAVE50");
+        .or("discount_code.eq.HOST100,discount_code.eq.SAVE100,discount_code.eq.SAVE50");
       if (bookingsError) throw bookingsError;
 
       return { leads: leads ?? [], bookings: bookings ?? [] };

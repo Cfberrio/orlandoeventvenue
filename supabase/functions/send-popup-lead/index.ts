@@ -11,6 +11,7 @@ interface PopupLeadData {
   fullName: string;
   email: string;
   phone: string;
+  eventType?: string | null;
 }
 
 serve(async (req) => {
@@ -57,6 +58,12 @@ serve(async (req) => {
         ? `+${rawDigits}`
         : rawDigits;
 
+    const eventType = data.eventType?.trim() || "";
+    const tags = ["popup"];
+    if (eventType) {
+      tags.push(`event-type:${eventType.toLowerCase().replace(/\s+/g, "-")}`);
+    }
+
     const ghlRes = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
       method: "POST",
       headers: {
@@ -70,7 +77,7 @@ serve(async (req) => {
         lastName,
         email: data.email.trim().toLowerCase(),
         phone: formattedPhone,
-        tags: ["popup"],
+        tags,
       }),
     });
 

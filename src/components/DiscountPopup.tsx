@@ -11,6 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2, Gift, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -18,14 +25,14 @@ import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const POPUP_DELAY_MS = 5000;
 const LOCAL_STORAGE_KEY = "popup_discount_shown";
-const COUPON_CODE = "SAVE100";
+const COUPON_CODE = "HOST100";
 
 export default function DiscountPopup() {
   const [isOpen, setIsOpen] = useState(false);
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [preferredDate, setPreferredDate] = useState("");
+  const [eventType, setEventType] = useState("");
   const [consent, setConsent] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +90,7 @@ export default function DiscountPopup() {
       insert({
         full_name: fullName.trim(),
         email: email.trim().toLowerCase(),
-        preferred_event_date: preferredDate || null,
+        event_type: eventType || null,
         coupon_code: COUPON_CODE
       });
 
@@ -100,6 +107,7 @@ export default function DiscountPopup() {
                 fullName: fullName.trim(),
                 email: email.trim().toLowerCase(),
                 phone: phone.trim(),
+                eventType: eventType || null,
               },
             })
             .then(({ error }) => {
@@ -121,6 +129,7 @@ export default function DiscountPopup() {
             fullName: fullName.trim(),
             email: email.trim().toLowerCase(),
             phone: phone.trim(),
+            eventType: eventType || null,
           },
         })
         .then(({ error }) => {
@@ -163,10 +172,10 @@ export default function DiscountPopup() {
                 <Gift className="h-7 w-7 text-primary" />
               </div>
               <DialogTitle className="text-2xl font-bold text-center">
-                Get a $100 Event Booking Credit
+                Get $100 Off Your Event at Orlando Event Venue
               </DialogTitle>
               <DialogDescription className="text-center text-base">
-                Still planning your event? Enter your info and we'll send your $100 Event Booking Credit instantly by email and text so you can apply it when you reserve your date.
+                Apply it when you reserve any open date. We'll text + email your code in 60 seconds.
               </DialogDescription>
             </DialogHeader>
 
@@ -201,7 +210,7 @@ export default function DiscountPopup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-phone">Phone Number</Label>
+                <Label htmlFor="popup-phone">Phone (so we can text your code)</Label>
                 <Input
                 id="popup-phone"
                 type="tel"
@@ -221,14 +230,23 @@ export default function DiscountPopup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-date">Preferred Event Date</Label>
-                <Input
-                id="popup-date"
-                type="date"
-                value={preferredDate}
-                onChange={(e) => setPreferredDate(e.target.value)}
-                disabled={submitting} />
-
+                <Label htmlFor="popup-event-type">What kind of event?</Label>
+                <Select
+                  value={eventType}
+                  onValueChange={setEventType}
+                  disabled={submitting}
+                >
+                  <SelectTrigger id="popup-event-type">
+                    <SelectValue placeholder="Select event type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Corporate">Corporate</SelectItem>
+                    <SelectItem value="Workshop">Workshop</SelectItem>
+                    <SelectItem value="Birthday or Celebration">Birthday or Celebration</SelectItem>
+                    <SelectItem value="Non-Profit Gathering">Non-Profit Gathering</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="flex items-start space-x-2">
@@ -251,7 +269,7 @@ export default function DiscountPopup() {
                     Sending...
                   </> :
 
-              "Send My $100 Credit"
+              "Send My $100"
               }
               </Button>
             </form>
@@ -261,13 +279,22 @@ export default function DiscountPopup() {
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10">
               <CheckCircle2 className="h-7 w-7 text-green-500" />
             </div>
-            <h3 className="text-xl font-bold">Check Your Email</h3>
+            <h3 className="text-xl font-bold">
+              Your $100 is on its way.
+            </h3>
             <p className="text-muted-foreground">
-              Your <strong>$100 Event Booking Credit</strong> has been sent to{" "}
-              <strong>{email}</strong>.
+              Check your email + text in the next 60 seconds.
             </p>
+            <div className="space-y-2 text-sm text-foreground text-left mt-4">
+              <p>
+                <strong>Already know your date?</strong> Book it now — open dates aren't held until 50% is in.
+              </p>
+              <p>
+                <strong>Want to see the space first?</strong> Book your tour online.
+              </p>
+            </div>
             <p className="text-sm text-muted-foreground mt-4">
-              Questions? Call or text 407-974-5979
+              Questions? Call or text 407-974-5979.
             </p>
             <Button
             onClick={() => handleOpenChange(false)}

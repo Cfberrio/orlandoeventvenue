@@ -10,7 +10,7 @@ const EMAIL_2_DELAY_HOURS = 18;
 const EMAIL_3_DELAY_HOURS = 30;
 const MAX_LEADS_PER_RUN = 50;
 // DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
-const DEFAULT_POPUP_COUPON_CODE = "SAVE100";
+const DEFAULT_POPUP_COUPON_CODE = "HOST100";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {

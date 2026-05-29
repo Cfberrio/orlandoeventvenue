@@ -1537,6 +1537,7 @@ export type Database = {
           email_1_sent_at: string | null
           email_2_sent_at: string | null
           email_3_sent_at: string | null
+          event_type: string | null
           full_name: string
           id: string
           is_converted: boolean | null
@@ -1549,6 +1550,7 @@ export type Database = {
           email_1_sent_at?: string | null
           email_2_sent_at?: string | null
           email_3_sent_at?: string | null
+          event_type?: string | null
           full_name: string
           id?: string
           is_converted?: boolean | null
@@ -1561,6 +1563,7 @@ export type Database = {
           email_1_sent_at?: string | null
           email_2_sent_at?: string | null
           email_3_sent_at?: string | null
+          event_type?: string | null
           full_name?: string
           id?: string
           is_converted?: boolean | null
