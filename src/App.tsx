@@ -1,0 +1,134 @@
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/hooks/useAuth";
+import { StaffSessionProvider } from "@/hooks/useStaffSession";
+import Index from "./pages/Index";
+import Book from "./pages/Book";
+import BookingConfirmation from "./pages/BookingConfirmation";
+import Auth from "./pages/Auth";
+import Contact from "./pages/Contact";
+import SmsTerms from "./pages/SmsTerms";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfUse from "./pages/TermsOfUse";
+import ScheduleTour from "./pages/ScheduleTour";
+import StripeConnectCallback from "./pages/StripeConnectCallback";
+import PricingPage from "./pages/PricingPage";
+import GalleryPage from "./pages/GalleryPage";
+import NotFound from "./pages/NotFound";
+import AccessCode from "./pages/AccessCode";
+import AdminLayout from "./components/admin/AdminLayout";
+import ProtectedRoute from "./components/admin/ProtectedRoute";
+import AdminDashboard from "./pages/admin/Dashboard";
+import BookingsList from "./pages/admin/BookingsList";
+import BookingDetail from "./pages/admin/BookingDetail";
+import Schedule from "./pages/admin/Schedule";
+import Staff from "./pages/admin/Staff";
+import Reminders from "./pages/admin/Reminders";
+import RevenueReports from "./pages/admin/RevenueReports";
+import PayrollReports from "./pages/admin/PayrollReports";
+import Cleaning from "./pages/admin/Cleaning";
+import Inventory from "./pages/admin/Inventory";
+import Discounts from "./pages/admin/Discounts";
+import Invoices from "./pages/admin/Invoices";
+import Analytics from "./pages/admin/Analytics";
+import Pricing from "./pages/admin/Pricing";
+// Staff Dashboard imports
+import StaffLayout from "./components/staff/StaffLayout";
+import StaffProtectedRoute from "./components/staff/StaffProtectedRoute";
+import StaffLogin from "./pages/staff/StaffLogin";
+import StaffBookingsList from "./pages/staff/StaffBookingsList";
+import StaffBookingDetail from "./pages/staff/StaffBookingDetail";
+import StaffSchedule from "./pages/staff/StaffSchedule";
+import CleaningReportForm from "./pages/staff/CleaningReportForm";
+import StaffInventory from "./pages/staff/StaffInventory";
+import StaffStandaloneList from "./pages/staff/StaffStandaloneList";
+import StandaloneCleaningReportForm from "./pages/staff/StandaloneCleaningReportForm";
+import StaffPayments from "./pages/staff/StaffPayments";
+// Guest Routes
+import GuestReport from "./pages/guest/GuestReport";
+
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <StaffSessionProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/book" element={<Book />} />
+              <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/auth" element={<Auth />} />
+              <Route path="/contact" element={<Contact />} />
+              <Route path="/sms-terms" element={<SmsTerms />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+              <Route path="/terms-of-use" element={<TermsOfUse />} />
+              <Route path="/pricing" element={<PricingPage />} />
+              <Route path="/gallery" element={<GalleryPage />} />
+              <Route path="/schedule-tour" element={<ScheduleTour />} />
+              <Route path="/stripe/connect/callback" element={<StripeConnectCallback />} />
+              
+              {/* Admin Routes - Protected */}
+              <Route path="/admin" element={
+                <ProtectedRoute>
+                  <AdminLayout />
+                </ProtectedRoute>
+              }>
+                <Route path="dashboard" element={<AdminDashboard />} />
+                <Route path="bookings" element={<BookingsList />} />
+                <Route path="bookings/:id" element={<BookingDetail />} />
+                <Route path="schedule" element={<Schedule />} />
+                <Route path="staff" element={<Staff />} />
+                <Route path="reminders" element={<Reminders />} />
+                <Route path="reports" element={<RevenueReports />} />
+                <Route path="payroll" element={<PayrollReports />} />
+                <Route path="cleaning" element={<Cleaning />} />
+                <Route path="inventory" element={<Inventory />} />
+                <Route path="discounts" element={<Discounts />} />
+                <Route path="invoices" element={<Invoices />} />
+                <Route path="analytics" element={<Analytics />} />
+                <Route path="pricing" element={<Pricing />} />
+              </Route>
+
+              {/* Staff Routes */}
+              <Route path="/staff/login" element={<StaffLogin />} />
+              <Route path="/staff" element={
+                <StaffProtectedRoute>
+                  <StaffLayout />
+                </StaffProtectedRoute>
+              }>
+                <Route index element={<StaffBookingsList />} />
+                <Route path="bookings/:id" element={<StaffBookingDetail />} />
+                <Route path="bookings/:id/cleaning-report" element={<CleaningReportForm />} />
+                <Route path="schedule" element={<StaffSchedule />} />
+                <Route path="inventory" element={<StaffInventory />} />
+                <Route path="standalone" element={<StaffStandaloneList />} />
+                <Route path="standalone/:assignmentId/cleaning-report" element={<StandaloneCleaningReportForm />} />
+                <Route path="payments" element={<StaffPayments />} />
+              </Route>
+
+              {/* Guest Routes - Public */}
+              <Route path="/guest/report/:reservationNumber" element={<GuestReport />} />
+              <Route path="/guest/report" element={<GuestReport />} />
+
+              {/* Hidden access code lookup page (not linked from anywhere) */}
+              <Route path="/accesscode" element={<AccessCode />} />
+              
+              
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </StaffSessionProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
+
+export default App;

@@ -1,0 +1,392 @@
+import { useState } from "react";
+import { format } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Loader2, Send, CheckCircle } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
+import contactBg1 from "@/assets/contact-bg-1.jpg";
+import contactBg2 from "@/assets/contact-bg-2.jpg";
+import contactBg3 from "@/assets/contact-bg-3.jpg";
+
+const ContactForm = () => {
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    subject: "",
+    message: "",
+    eventDate: undefined as Date | undefined,
+    website: "", // Honeypot field
+    transactionalConsent: false,
+    marketingConsent: false,
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState<"idle" | "success" | "error">("idle");
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string; consent?: string; eventDate?: string }>({});
+
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const errors: { email?: string; phone?: string; consent?: string; eventDate?: string } = {};
+
+    if (!formData.eventDate) {
+      errors.eventDate = "Please select an event date";
+    }
+    if (!formData.email || !EMAIL_REGEX.test(formData.email.trim())) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!formData.phone || !isValidPhone(formData.phone)) {
+      errors.phone = "Please enter a valid US phone number (10 digits)";
+    }
+
+    if (!formData.transactionalConsent || !formData.marketingConsent) {
+      errors.consent = "You must agree to both checkboxes to proceed";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+
+    if (!formData.name || !formData.subject || !formData.message) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitStatus("idle");
+
+    try {
+      const { error } = await supabase.functions.invoke("send-contact-form", {
+        body: {
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          subject: formData.subject,
+          message: formData.message,
+          eventDate: formData.eventDate ? format(formData.eventDate, "yyyy-MM-dd") : undefined,
+          website: formData.website, // Honeypot
+          transactionalConsent: formData.transactionalConsent,
+          marketingConsent: formData.marketingConsent,
+          timestamp: new Date().toISOString(),
+        },
+      });
+
+      if (error) {
+        console.error("Error sending contact form:", error);
+        setSubmitStatus("error");
+      } else {
+        setSubmitStatus("success");
+        setFieldErrors({});
+        setFormData({
+          name: "",
+          email: "",
+          phone: "",
+          subject: "",
+          message: "",
+          eventDate: undefined,
+          website: "",
+          transactionalConsent: false,
+          marketingConsent: false,
+        });
+
+        // Clear success message after 5 seconds
+        setTimeout(() => {
+          setSubmitStatus("idle");
+        }, 5000);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      setSubmitStatus("error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <section id="contact" className="scroll-mt-24 py-24 relative overflow-hidden">
+      {/* Background images side by side */}
+      <div className="absolute inset-0 flex">
+        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg1})` }} />
+        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg3})` }} />
+      </div>
+      {/* Fade overlay only - no blur */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/55 to-background/70" />
+
+      <div className="container mx-auto px-4 relative z-10">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">Send us a message</h2>
+            <p className="text-muted-foreground text-lg">
+              Have questions? We're here to help. Fill out the form below and we'll get back to you soon.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6 bg-background p-8 rounded-xl shadow-sm border">
+            {/* Honeypot field - hidden */}
+            <input
+              type="text"
+              name="website"
+              value={formData.website}
+              onChange={(e) => setFormData({ ...formData, website: e.target.value })}
+              style={{ display: "none" }}
+              tabIndex={-1}
+              autoComplete="off"
+            />
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Name */}
+              <div className="space-y-2">
+                <Label htmlFor="name">
+                  Your name <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="name"
+                  type="text"
+                  required
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="John Doe"
+                />
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <Label htmlFor="email">
+                  Email address <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  required
+                  value={formData.email}
+                  onChange={(e) => {
+                    setFormData({ ...formData, email: e.target.value });
+                    if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  }}
+                  placeholder="john@example.com"
+                  className={fieldErrors.email ? "border-destructive" : ""}
+                />
+                {fieldErrors.email && (
+                  <p className="text-sm text-destructive">{fieldErrors.email}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {/* Phone */}
+              <div className="space-y-2">
+                <Label htmlFor="phone">
+                  Phone number <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  required
+                  value={formData.phone}
+                  onChange={(e) => {
+                    const formattedPhone = formatPhoneNumber(e.target.value);
+                    setFormData({ ...formData, phone: formattedPhone });
+                    if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                  }}
+                  placeholder="(407) 123-4567"
+                  maxLength={14}
+                  inputMode="numeric"
+                  className={fieldErrors.phone ? "border-destructive" : ""}
+                />
+                {fieldErrors.phone && (
+                  <p className="text-sm text-destructive">{fieldErrors.phone}</p>
+                )}
+              </div>
+
+              {/* Subject */}
+              <div className="space-y-2">
+                <Label htmlFor="subject">
+                  Subject <span className="text-destructive">*</span>
+                </Label>
+                <Select
+                  required
+                  value={formData.subject}
+                  onValueChange={(value) => setFormData({ ...formData, subject: value })}
+                >
+                  <SelectTrigger id="subject">
+                    <SelectValue placeholder="Select a topic" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pricing & Availability">Pricing & Availability</SelectItem>
+                    <SelectItem value="Tours / Walkthroughs">Tours / Walkthroughs</SelectItem>
+                    <SelectItem value="Add-ons & Production">Add-ons & Production</SelectItem>
+                    <SelectItem value="General Question">General Question</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Event Date */}
+            <div className="space-y-2">
+              <Label>
+                Event Date <span className="text-destructive">*</span>
+              </Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.eventDate && "text-muted-foreground",
+                      fieldErrors.eventDate && "border-destructive"
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.eventDate ? format(formData.eventDate, "PPP") : <span>Select your event date</span>}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.eventDate}
+                    onSelect={(date) => {
+                      setFormData({ ...formData, eventDate: date });
+                      if (fieldErrors.eventDate) setFieldErrors((prev) => ({ ...prev, eventDate: undefined }));
+                    }}
+                    disabled={(date) => date < new Date()}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+              {fieldErrors.eventDate && (
+                <p className="text-sm text-destructive">{fieldErrors.eventDate}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="message">
+                Message <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="message"
+                required
+                rows={6}
+                value={formData.message}
+                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                placeholder="Tell us about your event or ask us a question..."
+                className="resize-none"
+              />
+            </div>
+
+            {/* Consent Checkboxes */}
+            <div className="space-y-3 pt-4">
+              <div className={`flex items-start space-x-3 border rounded-lg p-3 bg-background ${fieldErrors.consent ? "border-destructive" : ""}`}>
+                <Checkbox
+                  id="transactional"
+                  checked={formData.transactionalConsent}
+                  onCheckedChange={(checked) => {
+                    setFormData({ ...formData, transactionalConsent: checked as boolean });
+                    if (fieldErrors.consent) setFieldErrors((prev) => ({ ...prev, consent: undefined }));
+                  }}
+                />
+                <Label htmlFor="transactional" className="text-sm font-normal cursor-pointer leading-snug">
+                  I agree to receive booking-related SMS (confirmations, reminders, updates) from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
+                </Label>
+              </div>
+              {fieldErrors.consent && (
+                <p className="text-sm text-destructive">{fieldErrors.consent}</p>
+              )}
+
+              <div className={`flex items-start space-x-3 border rounded-lg p-3 bg-background ${!formData.marketingConsent && fieldErrors.consent !== undefined ? "border-destructive" : ""}`}>
+                <Checkbox
+                  id="marketing"
+                  checked={formData.marketingConsent}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, marketingConsent: checked as boolean })
+                  }
+                />
+                <Label htmlFor="marketing" className="text-sm font-normal cursor-pointer leading-snug">
+                  I'd like to receive offers, discounts, and availability updates via SMS from Orlando Event Venue. Reply STOP to opt out. <span className="text-destructive">*</span>
+                </Label>
+              </div>
+            </div>
+
+            {/* Submit Button and Status */}
+            <div className="flex flex-col items-center gap-4 pt-4">
+              <Button
+                type="submit"
+                size="lg"
+                disabled={isSubmitting || submitStatus === "success" || !formData.transactionalConsent || !formData.marketingConsent}
+                className="w-full md:w-auto min-w-[200px]"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : submitStatus === "success" ? (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Message Sent
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send Message
+                  </>
+                )}
+              </Button>
+
+              {submitStatus === "success" && (
+                <p className="text-sm text-green-600 dark:text-green-500 font-medium">
+                  Thanks! We received your message.
+                </p>
+              )}
+
+              {submitStatus === "error" && (
+                <p className="text-sm text-destructive font-medium">
+                  Something went wrong. Please try again later.
+                </p>
+              )}
+
+              {/* Legal Links */}
+              <div className="text-center text-sm text-muted-foreground">
+                For more information, please review our{" "}
+                <a
+                  href="/privacy-policy"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80 font-medium"
+                >
+                  Privacy Policy
+                </a>
+                {" "}and{" "}
+                <a
+                  href="/terms-of-use"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline hover:text-primary/80 font-medium"
+                >
+                  Terms of Use
+                </a>
+                .
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default ContactForm;

@@ -1,0 +1,140 @@
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Clock, Calendar, Sparkles, Loader2, Wrench } from "lucide-react";
+import { useScrollAnimation } from "@/hooks/useScrollAnimation";
+import { usePricing } from "@/hooks/usePricing";
+
+const Pricing = () => {
+  const { pricing: p, isLoading } = usePricing();
+  const { ref, isVisible } = useScrollAnimation();
+
+  const handleBooking = (bookingType?: "hourly" | "daily") => {
+    if (bookingType) {
+      window.location.href = `/book?type=${bookingType}`;
+    } else {
+      window.location.href = "/book";
+    }
+  };
+
+  return (
+    <section ref={ref as any} id="pricing" className="scroll-mt-24 py-8 md:py-12 bg-accent">
+      <div className="container mx-auto px-4">
+        <div className="max-w-5xl mx-auto">
+          <h2 className={`text-3xl md:text-4xl font-bold text-center mb-4 text-foreground transition-all duration-1000 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            Simple, Transparent Pricing
+          </h2>
+          <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            No hidden fees. Choose what works for your event.
+          </p>
+
+          <div className={`grid md:grid-cols-2 gap-6 mb-8 transition-all duration-1000 delay-300 ${
+            isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+          }`}>
+            <Card className="border-border bg-gradient-to-br from-card to-card/90 hover:shadow-2xl hover:shadow-primary/10 transition-all duration-500 hover:-translate-y-2 hover:scale-105 group overflow-hidden relative">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Clock className="w-5 h-5 text-primary" />
+                  <CardTitle>Hourly Rate</CardTitle>
+                </div>
+                <CardDescription>Perfect for shorter events</CardDescription>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="mb-4">
+                  <span className="text-4xl font-bold text-foreground">{isLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : `$${p.hourly_rate}`}</span>
+                  <span className="text-muted">/hour</span>
+                </div>
+                <p className="text-sm text-muted mb-4">4-hour minimum</p>
+                <ul className="space-y-2 text-sm text-muted mb-6">
+                  <li>✓ Flexible scheduling</li>
+                  <li>✓ 90 chairs</li>
+                  <li>✓ 10 tables</li>
+                  <li>✓ Prep kitchen</li>
+                  <li>✓ Two bathrooms</li>
+                </ul>
+                <Button 
+                  className="w-full mt-4" 
+                  variant="outline"
+                  onClick={() => handleBooking("hourly")}
+                >
+                  Select Hourly
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-2 border-primary relative bg-gradient-to-br from-card via-primary/5 to-card hover:shadow-2xl hover:shadow-primary/20 transition-all duration-500 hover:-translate-y-3 hover:scale-105 group overflow-visible pt-6">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent opacity-50 group-hover:opacity-70 transition-opacity duration-500" />
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-to-r from-primary via-primary to-primary/80 text-primary-foreground shadow-lg group-hover:scale-110 transition-transform duration-300 z-20">
+                Most Popular
+              </Badge>
+              <CardHeader className="relative z-10">
+                <div className="flex items-center gap-2 mb-2">
+                  <Calendar className="w-5 h-5 text-primary" />
+                  <CardTitle>Daily Special</CardTitle>
+                </div>
+                <CardDescription>Best value for all-day events</CardDescription>
+              </CardHeader>
+              <CardContent className="relative z-10">
+                <div className="mb-4">
+                  <span className="text-4xl font-bold text-foreground">{isLoading ? <Loader2 className="h-8 w-8 animate-spin inline" /> : `$${p.daily_rate}`}</span>
+                  <span className="text-muted">/day</span>
+                </div>
+                <p className="text-sm text-muted mb-4">24-hour access</p>
+                <ul className="space-y-2 text-sm text-muted mb-6">
+                  <li>✓ Full 24-hour access</li>
+                  <li>✓ 90 chairs</li>
+                  <li>✓ 10 tables</li>
+                  <li>✓ Prep kitchen</li>
+                  <li>✓ Two bathrooms</li>
+                </ul>
+                <Button 
+                  className="w-full mt-4" 
+                  onClick={() => handleBooking("daily")}
+                >
+                  Select Daily
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="border-border bg-gradient-to-r from-card via-accent to-card shadow-lg hover:shadow-xl transition-all duration-300">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-5 h-5 text-primary" />
+                <CardTitle>Cleaning Fee</CardTitle>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <p className="text-2xl font-bold text-foreground">{isLoading ? <Loader2 className="h-6 w-6 animate-spin inline" /> : `$${p.cleaning_fee}`}</p>
+                  <p className="text-sm text-muted">Per reservation</p>
+                </div>
+                <p className="text-sm text-muted">
+                  One-time fee added to all bookings
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          <p className="text-center text-sm text-muted mt-8">
+            Transparent pricing. Taxes/permits not included where applicable.
+          </p>
+
+          <div className="text-center mt-8">
+            <Button size="lg" onClick={() => handleBooking()}>
+              Book Now
+            </Button>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+export default Pricing;
