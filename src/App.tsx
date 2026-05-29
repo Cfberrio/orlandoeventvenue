@@ -47,9 +47,6 @@ import StaffInventory from "./pages/staff/StaffInventory";
 import StaffStandaloneList from "./pages/staff/StaffStandaloneList";
 import StandaloneCleaningReportForm from "./pages/staff/StandaloneCleaningReportForm";
 import StaffPayments from "./pages/staff/StaffPayments";
-// Guest Routes
-import GuestReport from "./pages/guest/GuestReport";
-
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -113,11 +110,7 @@ const App = () => (
                 <Route path="payments" element={<StaffPayments />} />
               </Route>
 
-              {/* Guest Routes - Public */}
-              <Route path="/guest/report/:reservationNumber" element={<GuestReport />} />
-              <Route path="/guest/report" element={<GuestReport />} />
-
-              {/* Hidden access code lookup page (not linked from anywhere) */}
+              {/* Public access code + post-event guest report (unified) */}
               <Route path="/accesscode" element={<AccessCode />} />
               
               

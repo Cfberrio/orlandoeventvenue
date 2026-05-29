@@ -79,7 +79,7 @@ const REVIEW_LINK = "https://g.page/r/CU-yUA0El90UEAE/review";
  */
 function generateGuestFeedbackHTML(reservationNumber: string, guestName: string, eventDate: string): string {
   const formattedDate = formatDate(eventDate);
-  const reportUrl = `https://orlandoeventvenue.org/guest/report/${reservationNumber}`;
+  const reportUrl = `https://orlandoeventvenue.org/accesscode`;
 
   return `<!DOCTYPE html>
 <html>

@@ -1,33 +1,53 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { KeyRound, Loader2, ShieldCheck } from "lucide-react";
+import { KeyRound, Loader2, ShieldCheck, CheckCircle2 } from "lucide-react";
+import GuestReportForm, { GuestReportFormBooking } from "@/components/access-code/GuestReportForm";
 
 interface AccessCodeResult {
   code: string;
   label: string | null;
+  booking_id: string;
+  reservation_number: string;
   full_name: string;
+  email: string;
+  phone: string | null;
   event_date: string;
+  end_time: string | null;
+  event_type: string;
+  host_report_step: string | null;
+}
+
+function computeEventEndDate(eventDate: string, endTime: string | null): Date {
+  const time = endTime || "23:59:00";
+  return new Date(`${eventDate}T${time}`);
 }
 
 const AccessCode = () => {
-  const [reservation, setReservation] = useState("");
-  const [email, setEmail] = useState("");
+  const [searchParams] = useSearchParams();
+  const queryRes = searchParams.get("res") || searchParams.get("reservation") || "";
+  const queryEmail = searchParams.get("email") || "";
+
+  const [reservation, setReservation] = useState(queryRes.toUpperCase());
+  const [email, setEmail] = useState(queryEmail);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<AccessCodeResult | null>(null);
+  const [reportSubmitted, setReportSubmitted] = useState(false);
+  const autoLookupRan = useRef(false);
 
-  const handleLookup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const doLookup = async (resInput: string, emailInput: string) => {
     setError(null);
     setResult(null);
+    setReportSubmitted(false);
 
-    const trimmedRes = reservation.trim();
-    const trimmedEmail = email.trim();
+    const trimmedRes = resInput.trim();
+    const trimmedEmail = emailInput.trim();
 
     if (!trimmedRes && !trimmedEmail) {
       setError("Please enter your reservation number or email address.");
@@ -70,6 +90,99 @@ const AccessCode = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (autoLookupRan.current) return;
+    if (queryRes || queryEmail) {
+      autoLookupRan.current = true;
+      void doLookup(queryRes, queryEmail);
+    }
+  }, [queryRes, queryEmail]);
+
+  const handleLookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    void doLookup(reservation, email);
+  };
+
+  const resetLookup = () => {
+    setResult(null);
+    setReservation("");
+    setEmail("");
+    setError(null);
+    setReportSubmitted(false);
+  };
+
+  // Submitted thank-you state
+  if (result && reportSubmitted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Report Submitted!</h2>
+            <p className="text-muted-foreground mb-4">
+              Thank you for submitting your post-event report. Our team will review it shortly.
+            </p>
+            <p className="text-muted-foreground text-sm mb-6">
+              ¡Gracias por enviar tu reporte post-evento! Nuestro equipo lo revisará pronto.
+            </p>
+            <Button variant="outline" className="w-full" onClick={resetLookup}>
+              Look up another reservation
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Already-submitted state (host_report_step === 'completed' from DB)
+  if (result && result.host_report_step === "completed") {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Report Already Submitted</h2>
+            <p className="text-muted-foreground mb-4">
+              We received your post-event report for reservation <strong>{result.reservation_number}</strong>. Thank you.
+            </p>
+            <p className="text-muted-foreground text-sm mb-6">
+              Ya recibimos tu reporte post-evento. Gracias.
+            </p>
+            <Button variant="outline" className="w-full" onClick={resetLookup}>
+              Look up another reservation
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  // Post-event: show guest report form
+  if (result) {
+    const eventEnd = computeEventEndDate(result.event_date, result.end_time);
+    const now = new Date();
+    if (now >= eventEnd) {
+      const formBooking: GuestReportFormBooking = {
+        id: result.booking_id,
+        reservation_number: result.reservation_number,
+        full_name: result.full_name,
+        email: result.email,
+        phone: result.phone,
+        event_date: result.event_date,
+      };
+      return (
+        <div className="min-h-screen bg-background py-8 px-4">
+          <GuestReportForm booking={formBooking} onSubmitted={() => setReportSubmitted(true)} />
+          <div className="max-w-2xl mx-auto mt-6 text-center">
+            <Button variant="ghost" size="sm" onClick={resetLookup}>
+              Look up another reservation
+            </Button>
+          </div>
+        </div>
+      );
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -164,15 +277,7 @@ const AccessCode = () => {
                 </AlertDescription>
               </Alert>
 
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => {
-                  setResult(null);
-                  setReservation("");
-                  setEmail("");
-                }}
-              >
+              <Button variant="outline" className="w-full" onClick={resetLookup}>
                 Look up another reservation
               </Button>
             </div>
