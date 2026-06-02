@@ -2416,6 +2416,7 @@ export type Database = {
         Returns: {
           amount: number
           assignment_date: string
+          assignment_id: string
           assignment_status: string
           assignment_type: string
           booking_id: string
@@ -2480,6 +2481,7 @@ export type Database = {
         Returns: {
           amount: number
           assignment_date: string
+          assignment_id: string
           assignment_status: string
           assignment_type: string
           booking_id: string

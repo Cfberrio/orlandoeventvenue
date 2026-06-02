@@ -34,6 +34,7 @@ export interface PayrollLineItem {
   payroll_type: string;
   assignment_date: string;
   booking_id: string | null;
+  assignment_id: string;
   reservation_number: string | null;
   assignment_type: string;
   pay_category: string;

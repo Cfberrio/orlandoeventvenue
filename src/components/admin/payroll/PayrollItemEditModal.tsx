@@ -63,37 +63,39 @@ export default function PayrollItemEditModal({
     description: "",
   });
 
-  // Load full assignment data
+  // Load full assignment data by assignment_id (exact match, no reverse-lookup)
   useEffect(() => {
     const loadAssignmentData = async () => {
-      // Find staff_id first from staff_members by name
-      const { data: staffData } = await supabase
-        .from('staff_members')
-        .select('id')
-        .eq('full_name', item.staff_name)
-        .single();
+      if (!item.assignment_id) {
+        toast({
+          title: "Error",
+          description: "Missing assignment_id on payroll item",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      if (!staffData) return;
-
-      // Find the assignment by staff_id and scheduled_date
-      const { data: assignment } = await supabase
+      const { data: assignment, error } = await supabase
         .from('booking_staff_assignments')
         .select('*')
-        .eq('staff_id', staffData.id)
-        .eq('scheduled_date', item.assignment_date)
-        .limit(1)
+        .eq('id', item.assignment_id)
         .single();
 
-      if (assignment) {
-        setAssignmentData(assignment);
-        
-        // Populate edit form
-        setEditForm({
-          hours_worked: assignment.hours_worked?.toString() || "",
-          cleaning_type: assignment.cleaning_type || "",
-          celebration_surcharge: assignment.celebration_surcharge?.toString() || "0",
+      if (error || !assignment) {
+        toast({
+          title: "Error",
+          description: "Could not load assignment data",
+          variant: "destructive",
         });
+        return;
       }
+
+      setAssignmentData(assignment);
+      setEditForm({
+        hours_worked: assignment.hours_worked?.toString() || "",
+        cleaning_type: assignment.cleaning_type || "",
+        celebration_surcharge: assignment.celebration_surcharge?.toString() || "0",
+      });
     };
 
     if (isOpen) {
