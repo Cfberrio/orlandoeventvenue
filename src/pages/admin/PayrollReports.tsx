@@ -50,7 +50,7 @@ export default function PayrollReports() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">💰 Payroll</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Pagos a personal — Custodial, Asistente y Producción
+          Staff payment tracking — Custodial, Assistant & Production
         </p>
       </div>
 
@@ -66,7 +66,7 @@ export default function PayrollReports() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Adeudado</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Owed</CardTitle>
               <DollarSign className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -78,7 +78,7 @@ export default function PayrollReports() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">✅ Pagado</CardTitle>
+              <CardTitle className="text-sm font-medium">✅ Paid</CardTitle>
               <Clock className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
@@ -90,7 +90,7 @@ export default function PayrollReports() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">⏳ Pendiente</CardTitle>
+              <CardTitle className="text-sm font-medium">⏳ Pending</CardTitle>
               <Clock className="h-4 w-4 text-orange-600" />
             </CardHeader>
             <CardContent>
@@ -102,7 +102,7 @@ export default function PayrollReports() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">👥 Personal</CardTitle>
+              <CardTitle className="text-sm font-medium">👥 Staff</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -117,8 +117,8 @@ export default function PayrollReports() {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="overview">📋 Todo el Personal</TabsTrigger>
-          <TabsTrigger value="standalone">🧹 Limpiezas Independientes</TabsTrigger>
+          <TabsTrigger value="overview">📋 All Staff Payroll</TabsTrigger>
+          <TabsTrigger value="standalone">🧹 Standalone Cleanings</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="mt-6 space-y-4">

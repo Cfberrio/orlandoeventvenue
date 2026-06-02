@@ -3,8 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { 
   LayoutDashboard, 
   Calendar, 
-  Users, 
-  Bell, 
+  Users,
   Sparkles,
   CalendarDays,
   Menu,
@@ -27,7 +26,6 @@ const navItems = [
   { to: "/admin/bookings", icon: CalendarDays, label: "Bookings" },
   { to: "/admin/schedule", icon: Calendar, label: "Schedule" },
   { to: "/admin/staff", icon: Users, label: "Staff" },
-  { to: "/admin/reminders", icon: Bell, label: "Reminders" },
   { to: "/admin/reports", icon: DollarSign, label: "Reports" },
   { to: "/admin/payroll", icon: Wallet, label: "Payroll" },
   { to: "/admin/cleaning", icon: Sparkles, label: "Cleaning" },

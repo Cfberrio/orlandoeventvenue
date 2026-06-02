@@ -26,7 +26,6 @@ import BookingsList from "./pages/admin/BookingsList";
 import BookingDetail from "./pages/admin/BookingDetail";
 import Schedule from "./pages/admin/Schedule";
 import Staff from "./pages/admin/Staff";
-import Reminders from "./pages/admin/Reminders";
 import RevenueReports from "./pages/admin/RevenueReports";
 import PayrollReports from "./pages/admin/PayrollReports";
 import Cleaning from "./pages/admin/Cleaning";
@@ -82,7 +81,6 @@ const App = () => (
                 <Route path="bookings/:id" element={<BookingDetail />} />
                 <Route path="schedule" element={<Schedule />} />
                 <Route path="staff" element={<Staff />} />
-                <Route path="reminders" element={<Reminders />} />
                 <Route path="reports" element={<RevenueReports />} />
                 <Route path="payroll" element={<PayrollReports />} />
                 <Route path="cleaning" element={<Cleaning />} />

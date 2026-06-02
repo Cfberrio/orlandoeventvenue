@@ -20,7 +20,6 @@ import {
   addDays,
   differenceInCalendarDays,
 } from "date-fns";
-import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { DateRange } from "react-day-picker";
 
@@ -41,7 +40,7 @@ type PresetKey =
 const PRESETS: { key: PresetKey; label: string; build: () => { startDate: Date; endDate: Date } }[] = [
   {
     key: "this_week",
-    label: "Esta semana",
+    label: "This Week",
     build: () => {
       const now = new Date();
       return {
@@ -52,7 +51,7 @@ const PRESETS: { key: PresetKey; label: string; build: () => { startDate: Date; 
   },
   {
     key: "last_week",
-    label: "Semana pasada",
+    label: "Last Week",
     build: () => {
       const lw = subWeeks(new Date(), 1);
       return {
@@ -63,7 +62,7 @@ const PRESETS: { key: PresetKey; label: string; build: () => { startDate: Date; 
   },
   {
     key: "this_month",
-    label: "Este mes",
+    label: "This Month",
     build: () => {
       const now = new Date();
       return { startDate: startOfMonth(now), endDate: endOfMonth(now) };
@@ -71,7 +70,7 @@ const PRESETS: { key: PresetKey; label: string; build: () => { startDate: Date; 
   },
   {
     key: "last_month",
-    label: "Mes pasado",
+    label: "Last Month",
     build: () => {
       const lm = subMonths(new Date(), 1);
       return { startDate: startOfMonth(lm), endDate: endOfMonth(lm) };
@@ -79,7 +78,7 @@ const PRESETS: { key: PresetKey; label: string; build: () => { startDate: Date; 
   },
   {
     key: "last_30_days",
-    label: "Últimos 30 días",
+    label: "Last 30 Days",
     build: () => {
       const today = new Date();
       return { startDate: subDays(today, 29), endDate: today };
@@ -104,15 +103,15 @@ function formatRange(startDate: Date, endDate: Date): string {
   const sameYear = startDate.getFullYear() === endDate.getFullYear();
   const sameMonth = sameYear && startDate.getMonth() === endDate.getMonth();
   if (sameMonth && startDate.getDate() === endDate.getDate()) {
-    return format(startDate, "d MMM yyyy", { locale: es });
+    return format(startDate, "MMM d, yyyy");
   }
   if (sameMonth) {
-    return `${format(startDate, "d", { locale: es })} – ${format(endDate, "d MMM yyyy", { locale: es })}`;
+    return `${format(startDate, "MMM d")} – ${format(endDate, "d, yyyy")}`;
   }
   if (sameYear) {
-    return `${format(startDate, "d MMM", { locale: es })} – ${format(endDate, "d MMM yyyy", { locale: es })}`;
+    return `${format(startDate, "MMM d")} – ${format(endDate, "MMM d, yyyy")}`;
   }
-  return `${format(startDate, "d MMM yyyy", { locale: es })} – ${format(endDate, "d MMM yyyy", { locale: es })}`;
+  return `${format(startDate, "MMM d, yyyy")} – ${format(endDate, "MMM d, yyyy")}`;
 }
 
 export default function PayrollDateRangePicker({
@@ -159,7 +158,7 @@ export default function PayrollDateRangePicker({
               size="icon"
               onClick={() => shiftRange(-1)}
               className="h-9 w-9"
-              title="Período anterior"
+              title="Previous Period"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -181,7 +180,7 @@ export default function PayrollDateRangePicker({
                   {/* Presets sidebar */}
                   <div className="flex flex-col gap-1 border-b md:border-b-0 md:border-r p-2 min-w-[180px]">
                     <p className="text-xs font-semibold text-muted-foreground px-2 pt-1 pb-2 uppercase tracking-wide">
-                      Atajos
+                      Shortcuts
                     </p>
                     {PRESETS.map(preset => (
                       <Button
@@ -196,7 +195,7 @@ export default function PayrollDateRangePicker({
                     ))}
                     <div className="border-t my-1" />
                     <p className="text-xs text-muted-foreground px-2 pb-1">
-                      O elige fechas en el calendario →
+                      Or pick dates in the calendar →
                     </p>
                   </div>
                   {/* Calendar */}
@@ -205,7 +204,6 @@ export default function PayrollDateRangePicker({
                     selected={{ from: startDate, to: endDate }}
                     onSelect={handleCalendarSelect}
                     numberOfMonths={2}
-                    locale={es}
                     weekStartsOn={1}
                     defaultMonth={startDate}
                   />
@@ -218,7 +216,7 @@ export default function PayrollDateRangePicker({
               size="icon"
               onClick={() => shiftRange(1)}
               className="h-9 w-9"
-              title="Período siguiente"
+              title="Next Period"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -239,7 +237,7 @@ export default function PayrollDateRangePicker({
             ))}
             {activePreset === "custom" && (
               <span className="text-xs text-muted-foreground italic">
-                Rango personalizado ({rangeDays} {rangeDays === 1 ? "día" : "días"})
+                Custom range ({rangeDays} {rangeDays === 1 ? "day" : "days"})
               </span>
             )}
           </div>

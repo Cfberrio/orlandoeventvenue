@@ -29,7 +29,7 @@ afterAll(() => {
 const fmt = (d: Date) => format(d, "yyyy-MM-dd");
 
 describe("PayrollDateRangePicker — presets", () => {
-  it('preset "Esta semana" emits Mon..Sun of current week', async () => {
+  it('preset "This Week" emits Mon..Sun of current week', async () => {
     const onChange = vi.fn();
     render(
       <PayrollDateRangePicker
@@ -40,7 +40,7 @@ describe("PayrollDateRangePicker — presets", () => {
     );
 
     // Two preset buttons render (sidebar + chip row). Click the chip in the visible bottom row.
-    const buttons = screen.getAllByRole("button", { name: "Esta semana" });
+    const buttons = screen.getAllByRole("button", { name: "This Week" });
     await userEvent.setup().click(buttons[0]);
 
     expect(onChange).toHaveBeenCalledTimes(1);
@@ -51,7 +51,7 @@ describe("PayrollDateRangePicker — presets", () => {
     expect(fmt(endDate)).toBe(fmt(endOfWeek(FROZEN_NOW, { weekStartsOn: 1 })));
   });
 
-  it('preset "Semana pasada" emits last Mon..Sun', async () => {
+  it('preset "Last Week" emits last Mon..Sun', async () => {
     const onChange = vi.fn();
     render(
       <PayrollDateRangePicker
@@ -61,7 +61,7 @@ describe("PayrollDateRangePicker — presets", () => {
       />,
     );
 
-    const buttons = screen.getAllByRole("button", { name: "Semana pasada" });
+    const buttons = screen.getAllByRole("button", { name: "Last Week" });
     await userEvent.setup().click(buttons[0]);
 
     const lw = subWeeks(FROZEN_NOW, 1);
@@ -70,7 +70,7 @@ describe("PayrollDateRangePicker — presets", () => {
     expect(fmt(endDate)).toBe(fmt(endOfWeek(lw, { weekStartsOn: 1 })));
   });
 
-  it('preset "Este mes" emits 1st..last of current month', async () => {
+  it('preset "This Month" emits 1st..last of current month', async () => {
     const onChange = vi.fn();
     render(
       <PayrollDateRangePicker
@@ -80,7 +80,7 @@ describe("PayrollDateRangePicker — presets", () => {
       />,
     );
 
-    const buttons = screen.getAllByRole("button", { name: "Este mes" });
+    const buttons = screen.getAllByRole("button", { name: "This Month" });
     await userEvent.setup().click(buttons[0]);
 
     const { startDate, endDate } = onChange.mock.calls[0][0];
@@ -88,7 +88,7 @@ describe("PayrollDateRangePicker — presets", () => {
     expect(fmt(endDate)).toBe(fmt(endOfMonth(FROZEN_NOW)));
   });
 
-  it('preset "Mes pasado" emits 1st..last of last month', async () => {
+  it('preset "Last Month" emits 1st..last of last month', async () => {
     const onChange = vi.fn();
     render(
       <PayrollDateRangePicker
@@ -98,7 +98,7 @@ describe("PayrollDateRangePicker — presets", () => {
       />,
     );
 
-    const buttons = screen.getAllByRole("button", { name: "Mes pasado" });
+    const buttons = screen.getAllByRole("button", { name: "Last Month" });
     await userEvent.setup().click(buttons[0]);
 
     const lm = subMonths(FROZEN_NOW, 1);
@@ -107,7 +107,7 @@ describe("PayrollDateRangePicker — presets", () => {
     expect(fmt(endDate)).toBe(fmt(endOfMonth(lm)));
   });
 
-  it('preset "Últimos 30 días" emits today-29..today', async () => {
+  it('preset "Last 30 Days" emits today-29..today', async () => {
     const onChange = vi.fn();
     render(
       <PayrollDateRangePicker
@@ -117,7 +117,7 @@ describe("PayrollDateRangePicker — presets", () => {
       />,
     );
 
-    const buttons = screen.getAllByRole("button", { name: "Últimos 30 días" });
+    const buttons = screen.getAllByRole("button", { name: "Last 30 Days" });
     await userEvent.setup().click(buttons[0]);
 
     const { startDate, endDate } = onChange.mock.calls[0][0];
@@ -138,8 +138,8 @@ describe("PayrollDateRangePicker — presets", () => {
       />,
     );
 
-    const prev = screen.getByTitle("Período anterior");
-    const next = screen.getByTitle("Período siguiente");
+    const prev = screen.getByTitle("Previous Period");
+    const next = screen.getByTitle("Next Period");
 
     const user = userEvent.setup();
     await user.click(next);
