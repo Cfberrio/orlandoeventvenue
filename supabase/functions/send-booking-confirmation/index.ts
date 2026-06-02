@@ -97,7 +97,10 @@ interface BookingEmailData {
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+  // Parse date-only strings ("2026-08-15") as a local calendar date so the
+  // rendered day never shifts due to UTC parsing in a non-UTC timezone.
+  const [y, m, d] = dateString.split("T")[0].split("-").map(Number);
+  const date = new Date(y, (m || 1) - 1, d || 1);
   return date.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -319,7 +322,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   y -= 28;
   page.drawText("EVENT DETAILS", { x: M, y, size: 9, font: helvBold, color: gray500 });
   y -= 14;
-  const eventDateLong = new Date(booking.event_date).toLocaleDateString("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+  const eventDateLong = formatDate(booking.event_date);
   const drawDetail = (text: string) => {
     page.drawText(text, { x: M, y, size: 10, font: helv, color: gray700 });
     y -= 13;
@@ -481,6 +484,13 @@ serve(async (req) => {
       pdfBase64 = encodeBase64(pdfBytes);
     } catch (pdfErr) {
       console.error("Failed to generate deposit receipt PDF:", pdfErr);
+      const pdfMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+      // Email still sends (without attachment) — alert so the missing invoice is noticed.
+      await sendCriticalAlert(
+        "send-booking-confirmation (deposit PDF)",
+        booking.reservation_number,
+        `Deposit receipt PDF failed to generate — confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
+      );
     }
 
     await client.send({

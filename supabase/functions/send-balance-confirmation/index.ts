@@ -9,6 +9,37 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const ALERT_EMAIL = "orlandoglobalministries@gmail.com";
+
+/**
+ * Send instant critical failure alert email
+ */
+async function sendCriticalAlert(functionName: string, reservationNumber: string, errorMsg: string, bookingId?: string): Promise<void> {
+  try {
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    if (!gmailUser || !gmailPassword) return;
+
+    const client = new SMTPClient({
+      connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: gmailUser, password: gmailPassword } },
+    });
+
+    const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+
+    await client.send({
+      from: `"OEV Alert" <${gmailUser}>`,
+      to: ALERT_EMAIL,
+      subject: `🚨 CRITICAL: ${functionName} Failed for ${reservationNumber}`,
+      html,
+    });
+    await client.close();
+    console.log(`[ALERT] Critical failure alert sent for ${reservationNumber}`);
+  } catch (alertErr) {
+    console.error("[ALERT] Failed to send critical alert:", alertErr);
+  }
+}
+
 interface BalanceEmailData {
   email: string;
   full_name: string;
@@ -42,7 +73,10 @@ interface BalanceEmailData {
 }
 
 function formatDate(dateString: string): string {
-  const date = new Date(dateString);
+  // Parse date-only strings ("2026-08-15") as a local calendar date so the
+  // rendered day never shifts due to UTC parsing in a non-UTC timezone.
+  const [y, m, d] = dateString.split("T")[0].split("-").map(Number);
+  const date = new Date(y, (m || 1) - 1, d || 1);
   return date.toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -473,6 +507,13 @@ serve(async (req) => {
       pdfBase64 = encodeBase64(pdfBytes);
     } catch (pdfErr) {
       console.error("Failed to generate balance receipt PDF:", pdfErr);
+      const pdfMsg = pdfErr instanceof Error ? pdfErr.message : String(pdfErr);
+      // Email still sends (without attachment) — alert so the missing invoice is noticed.
+      await sendCriticalAlert(
+        "send-balance-confirmation (balance PDF)",
+        booking.reservation_number,
+        `Balance receipt PDF failed to generate — confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
+      );
     }
 
     await client.send({
@@ -504,6 +545,13 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error sending balance confirmation email:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
+
+    // Alert on customer-facing email failure (re-parse body for reservation #).
+    const booking: BalanceEmailData = await req.clone().json().catch(() => ({} as BalanceEmailData));
+    if (booking.reservation_number) {
+      await sendCriticalAlert("send-balance-confirmation", booking.reservation_number, errorMessage);
+    }
+
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
