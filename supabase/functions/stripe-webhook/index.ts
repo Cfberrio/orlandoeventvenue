@@ -10,6 +10,17 @@ const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function deriveProcessingFee(amountPaid: number, baseAmount: unknown): { fee: number; pct: number | null } {
+  const base = Number(baseAmount ?? 0);
+  const fee = roundMoney(Math.max(0, amountPaid - base));
+  const pct = base > 0 ? roundMoney((fee / base) * 100) : null;
+  return { fee, pct };
+}
+
 /**
  * Helper to sync booking to GHL contact/opportunity.
  */
