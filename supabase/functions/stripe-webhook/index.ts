@@ -327,7 +327,7 @@ serve(async (req) => {
 
         const { data: existingStandaloneInvoice } = await supabaseForInvoice
           .from("invoices")
-          .select("paid_at, customer_email, customer_name, title, description, amount, invoice_number, line_items")
+          .select("paid_at, customer_email, customer_name, title, description, amount, invoice_number, line_items, processing_fee, processing_fee_pct, total_charged")
           .eq("id", standaloneInvoiceId)
           .single();
 
@@ -370,7 +370,15 @@ serve(async (req) => {
             });
 
             const inv = existingStandaloneInvoice;
-            const amtFormatted = `$${Number(inv.amount).toFixed(2)}`;
+            // What the customer actually paid = subtotal + processing fee.
+            // Prefer the persisted total_charged; fall back to Stripe's amount_total (source of truth).
+            const subtotalAmt = Number(inv.amount);
+            const totalPaidAmt = inv.total_charged != null ? Number(inv.total_charged) : amountPaid;
+            const feeAmt = inv.processing_fee != null
+              ? Number(inv.processing_fee)
+              : Math.max(0, Math.round((totalPaidAmt - subtotalAmt) * 100) / 100);
+            const feePct = inv.processing_fee_pct != null ? Number(inv.processing_fee_pct) : 3.5;
+            const amtFormatted = `$${totalPaidAmt.toFixed(2)}`;
 
             await smtpClient.send({
               from: gmailUser,
@@ -407,9 +415,13 @@ serve(async (req) => {
             });
 
             const custName = inv.customer_name ? inv.customer_name.split(" ")[0] : "Customer";
-            const receiptLineItems = inv.line_items && Array.isArray(inv.line_items) && inv.line_items.length > 0
+            const baseLineItems = inv.line_items && Array.isArray(inv.line_items) && inv.line_items.length > 0
               ? inv.line_items
-              : [{ label: inv.title, amount: Number(inv.amount) }];
+              : [{ label: inv.title, amount: subtotalAmt }];
+            // Append the processing fee so the receipt line items sum to the Total Paid.
+            const receiptLineItems = feeAmt > 0
+              ? [...baseLineItems, { label: `Processing Fee (${feePct}%)`, amount: feeAmt }]
+              : baseLineItems;
             const receiptItemRows = receiptLineItems.map((item: { label: string; amount: number }) =>
               `<tr>
 <td style="padding:8px 0;color:#374151;font-size:14px;">${item.label}</td>
@@ -832,6 +844,13 @@ ${receiptItemRows}
 
         console.log("Booking fully paid:", data);
 
+        // Reconciliation guard: Stripe's charged total must equal the persisted balance_total_charged.
+        if (data.balance_total_charged != null && Math.abs(amountPaid - Number(data.balance_total_charged)) > 0.01) {
+          console.warn(
+            `RECONCILE_MISMATCH balance: Stripe charged $${amountPaid} but balance_total_charged=$${data.balance_total_charged} (booking ${bookingId})`
+          );
+        }
+
         // Cancel any pending balance retry jobs
         const { data: cancelledJobs, error: cancelError } = await supabase
           .from("scheduled_jobs")
@@ -890,6 +909,10 @@ ${receiptItemRows}
               deposit_amount: data.deposit_amount,
               balance_amount: data.balance_amount,
               amount_paid: amountPaid,
+              // Persisted fee fields so the balance PDF shows exactly what Stripe charged
+              processing_fee_pct: data.processing_fee_pct,
+              balance_fee: data.balance_fee,
+              balance_total_charged: data.balance_total_charged,
               base_rental: data.base_rental,
               cleaning_fee: data.cleaning_fee,
               package: data.package,
@@ -983,6 +1006,13 @@ ${receiptItemRows}
 
         console.log("Booking updated successfully:", data);
 
+        // Reconciliation guard: Stripe's charged total must equal the persisted deposit_total_charged.
+        if (data.deposit_total_charged != null && Math.abs(amountPaid - Number(data.deposit_total_charged)) > 0.01) {
+          console.warn(
+            `RECONCILE_MISMATCH deposit: Stripe charged $${amountPaid} but deposit_total_charged=$${data.deposit_total_charged} (booking ${bookingId})`
+          );
+        }
+
         // Send internal email notification
         await sendInternalPaymentEmail(data, "deposit", amountPaid, currency, sessionId, paymentIntentId);
 
@@ -1021,6 +1051,10 @@ ${receiptItemRows}
               total_amount: data.total_amount,
               deposit_amount: data.deposit_amount,
               balance_amount: data.balance_amount,
+              // Persisted fee fields so the deposit PDF shows exactly what Stripe charged
+              processing_fee_pct: data.processing_fee_pct,
+              deposit_fee: data.deposit_fee,
+              deposit_total_charged: data.deposit_total_charged,
               bar_package: data.bar_package,
               bar_package_label: data.bar_package_label,
               bar_guest_count: data.bar_guest_count,
