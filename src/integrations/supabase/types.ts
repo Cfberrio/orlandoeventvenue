@@ -907,10 +907,10 @@ export type Database = {
           agree_to_rules: boolean
           balance_amount: number
           balance_fee: number | null
-          balance_total_charged: number | null
           balance_link_expires_at: string | null
           balance_paid_at: string | null
           balance_payment_url: string | null
+          balance_total_charged: number | null
           bar_client_phone_released: boolean
           bar_client_phone_released_at: string | null
           bar_customer_contacted: boolean
@@ -938,8 +938,8 @@ export type Database = {
           created_at: string
           deposit_amount: number
           deposit_fee: number | null
-          deposit_total_charged: number | null
           deposit_paid_at: string | null
+          deposit_total_charged: number | null
           discount_amount: number | null
           discount_code: string | null
           email: string
@@ -972,6 +972,7 @@ export type Database = {
           phone: string
           policy_id: string
           pre_event_ready: string
+          processing_fee_pct: number | null
           reservation_number: string | null
           setup_breakdown: boolean
           signature: string
@@ -982,7 +983,6 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
-          processing_fee_pct: number | null
           tablecloth_quantity: number
           tablecloths: boolean
           taxes_fees: number
@@ -994,10 +994,10 @@ export type Database = {
           agree_to_rules?: boolean
           balance_amount: number
           balance_fee?: number | null
-          balance_total_charged?: number | null
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          balance_total_charged?: number | null
           bar_client_phone_released?: boolean
           bar_client_phone_released_at?: string | null
           bar_customer_contacted?: boolean
@@ -1025,8 +1025,8 @@ export type Database = {
           created_at?: string
           deposit_amount: number
           deposit_fee?: number | null
-          deposit_total_charged?: number | null
           deposit_paid_at?: string | null
+          deposit_total_charged?: number | null
           discount_amount?: number | null
           discount_code?: string | null
           email: string
@@ -1059,6 +1059,7 @@ export type Database = {
           phone: string
           policy_id: string
           pre_event_ready?: string
+          processing_fee_pct?: number | null
           reservation_number?: string | null
           setup_breakdown?: boolean
           signature: string
@@ -1069,7 +1070,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
-          processing_fee_pct?: number | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           taxes_fees?: number
@@ -1081,10 +1081,10 @@ export type Database = {
           agree_to_rules?: boolean
           balance_amount?: number
           balance_fee?: number | null
-          balance_total_charged?: number | null
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          balance_total_charged?: number | null
           bar_client_phone_released?: boolean
           bar_client_phone_released_at?: string | null
           bar_customer_contacted?: boolean
@@ -1112,8 +1112,8 @@ export type Database = {
           created_at?: string
           deposit_amount?: number
           deposit_fee?: number | null
-          deposit_total_charged?: number | null
           deposit_paid_at?: string | null
+          deposit_total_charged?: number | null
           discount_amount?: number | null
           discount_code?: string | null
           email?: string
@@ -1146,6 +1146,7 @@ export type Database = {
           phone?: string
           policy_id?: string
           pre_event_ready?: string
+          processing_fee_pct?: number | null
           reservation_number?: string | null
           setup_breakdown?: boolean
           signature?: string
@@ -1156,7 +1157,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
-          processing_fee_pct?: number | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           taxes_fees?: number
