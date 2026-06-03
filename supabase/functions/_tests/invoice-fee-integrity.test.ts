@@ -235,6 +235,27 @@ describe("F. Admin Invoices dashboard uses total_charged", () => {
   });
 });
 
+describe("F2. Revenue report (InvoiceRevenueView) uses total_charged", () => {
+  it("fetchPaidInvoices query selects total_charged + processing_fee", () => {
+    const hook = read("src/hooks/useRevenueData.ts");
+    expect(hook).toMatch(/\.select\([^)]*total_charged[^)]*\)/);
+    expect(hook).toMatch(/\.select\([^)]*processing_fee[^)]*\)/);
+  });
+
+  it("PaidInvoiceRecord type carries total_charged", () => {
+    const hook = read("src/hooks/useRevenueData.ts");
+    expect(hook).toContain("total_charged: number | null");
+  });
+
+  it("InvoiceRevenueView totals + rows use total_charged (fallback amount)", () => {
+    const view = read("src/components/admin/revenue/InvoiceRevenueView.tsx");
+    expect(view).toContain("Number(inv.total_charged ?? inv.amount)");
+    // both the summary reducer and the row cell
+    const matches = [...view.matchAll(/inv\.total_charged \?\? inv\.amount/g)];
+    expect(matches.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // G. GHL sync forwards the charged totals so external emails are correct.
 // ---------------------------------------------------------------------------

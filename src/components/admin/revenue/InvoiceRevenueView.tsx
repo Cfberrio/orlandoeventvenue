@@ -45,7 +45,9 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
     loadData();
   }, [startDate, endDate]);
 
-  const totalRevenue = data?.reduce((sum, inv) => sum + Number(inv.amount), 0) ?? 0;
+  // Use what Stripe actually charged (subtotal + processing fee); fall back to
+  // amount for any legacy invoice that predates the total_charged column.
+  const totalRevenue = data?.reduce((sum, inv) => sum + Number(inv.total_charged ?? inv.amount), 0) ?? 0;
   const invoiceCount = data?.length ?? 0;
   const avgPerInvoice = invoiceCount > 0 ? totalRevenue / invoiceCount : 0;
 
@@ -178,7 +180,12 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
                       )}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      ${fmt(Number(inv.amount))}
+                      <div>${fmt(Number(inv.total_charged ?? inv.amount))}</div>
+                      {inv.processing_fee != null && Number(inv.processing_fee) > 0 && (
+                        <div className="text-xs text-muted-foreground font-normal">
+                          ${fmt(Number(inv.amount))} + ${fmt(Number(inv.processing_fee))} fee
+                        </div>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}

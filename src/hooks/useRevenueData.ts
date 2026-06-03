@@ -65,6 +65,8 @@ export interface PaidInvoiceRecord {
   invoice_number: string;
   title: string;
   amount: number;
+  processing_fee: number | null;
+  total_charged: number | null;
   customer_email: string;
   customer_name: string | null;
   paid_at: string;
@@ -281,7 +283,7 @@ export function useRevenueData() {
   const fetchPaidInvoices = async (startDate: string, endDate: string) => {
     const { data, error } = await (supabase as any)
       .from("invoices")
-      .select("id, invoice_number, title, amount, customer_email, customer_name, paid_at, line_items")
+      .select("id, invoice_number, title, amount, processing_fee, total_charged, customer_email, customer_name, paid_at, line_items")
       .eq("payment_status", "paid")
       .gte("paid_at", `${startDate}T00:00:00`)
       .lte("paid_at", `${endDate}T23:59:59`)
