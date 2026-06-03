@@ -10,6 +10,17 @@ const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function deriveProcessingFee(amountPaid: number, baseAmount: unknown): { fee: number; pct: number | null } {
+  const base = Number(baseAmount ?? 0);
+  const fee = roundMoney(Math.max(0, amountPaid - base));
+  const pct = base > 0 ? roundMoney((fee / base) * 100) : null;
+  return { fee, pct };
+}
+
 /**
  * Helper to sync booking to GHL contact/opportunity.
  */
@@ -827,11 +838,27 @@ ${receiptItemRows}
           });
         }
 
+        const { data: currentBooking, error: currentBookingError } = await supabase
+          .from("bookings")
+          .select("balance_amount")
+          .eq("id", bookingId)
+          .single();
+
+        if (currentBookingError) {
+          console.error("Error fetching booking before balance update:", currentBookingError);
+          return new Response("Database error", { status: 500 });
+        }
+
+        const balanceFeeInfo = deriveProcessingFee(amountPaid, currentBooking?.balance_amount);
+
         const { data, error } = await supabase
           .from("bookings")
           .update({
             payment_status: "fully_paid",
             balance_paid_at: new Date().toISOString(),
+            balance_fee: balanceFeeInfo.fee,
+            balance_total_charged: amountPaid,
+            ...(balanceFeeInfo.pct != null ? { processing_fee_pct: balanceFeeInfo.pct } : {}),
           })
           .eq("id", bookingId)
           .select()
@@ -987,6 +1014,19 @@ ${receiptItemRows}
           });
         }
 
+        const { data: currentBooking, error: currentBookingError } = await supabase
+          .from("bookings")
+          .select("deposit_amount")
+          .eq("id", bookingId)
+          .single();
+
+        if (currentBookingError) {
+          console.error("Error fetching booking before deposit update:", currentBookingError);
+          return new Response("Database error", { status: 500 });
+        }
+
+        const depositFeeInfo = deriveProcessingFee(amountPaid, currentBooking?.deposit_amount);
+
         const { data, error } = await supabase
           .from("bookings")
           .update({
@@ -994,6 +1034,9 @@ ${receiptItemRows}
             deposit_paid_at: new Date().toISOString(),
             stripe_session_id: sessionId,
             stripe_payment_intent_id: paymentIntentId,
+            deposit_fee: depositFeeInfo.fee,
+            deposit_total_charged: amountPaid,
+            ...(depositFeeInfo.pct != null ? { processing_fee_pct: depositFeeInfo.pct } : {}),
           })
           .eq("id", bookingId)
           .select()
