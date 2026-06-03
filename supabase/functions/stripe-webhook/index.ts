@@ -838,11 +838,27 @@ ${receiptItemRows}
           });
         }
 
+        const { data: currentBooking, error: currentBookingError } = await supabase
+          .from("bookings")
+          .select("balance_amount")
+          .eq("id", bookingId)
+          .single();
+
+        if (currentBookingError) {
+          console.error("Error fetching booking before balance update:", currentBookingError);
+          return new Response("Database error", { status: 500 });
+        }
+
+        const balanceFeeInfo = deriveProcessingFee(amountPaid, currentBooking?.balance_amount);
+
         const { data, error } = await supabase
           .from("bookings")
           .update({
             payment_status: "fully_paid",
             balance_paid_at: new Date().toISOString(),
+            balance_fee: balanceFeeInfo.fee,
+            balance_total_charged: amountPaid,
+            ...(balanceFeeInfo.pct != null ? { processing_fee_pct: balanceFeeInfo.pct } : {}),
           })
           .eq("id", bookingId)
           .select()
