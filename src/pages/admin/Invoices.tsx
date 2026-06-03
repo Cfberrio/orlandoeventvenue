@@ -33,6 +33,8 @@ interface Invoice {
   title: string;
   description: string | null;
   amount: number;
+  processing_fee: number | null;
+  total_charged: number | null;
   customer_email: string;
   customer_name: string | null;
   payment_status: string;
@@ -141,10 +143,11 @@ export default function Invoices() {
 
   const totalPending = invoices?.filter((i) => i.payment_status === "pending").length ?? 0;
   const totalPaid = invoices?.filter((i) => i.payment_status === "paid").length ?? 0;
+  // Use total_charged (subtotal + fee) when available; fall back to amount for legacy invoices
   const totalRevenue =
     invoices
       ?.filter((i) => i.payment_status === "paid")
-      .reduce((sum, i) => sum + Number(i.amount), 0) ?? 0;
+      .reduce((sum, i) => sum + Number(i.total_charged ?? i.amount), 0) ?? 0;
   const activeRecurring = invoices?.filter((i) => i.recurring_active).length ?? 0;
 
   return (
@@ -278,7 +281,12 @@ export default function Invoices() {
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          ${Number(inv.amount).toFixed(2)}
+                          <div>${Number(inv.total_charged ?? inv.amount).toFixed(2)}</div>
+                          {inv.processing_fee != null && inv.processing_fee > 0 && (
+                            <div className="text-xs text-muted-foreground">
+                              ${Number(inv.amount).toFixed(2)} + ${Number(inv.processing_fee).toFixed(2)} fee
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Badge variant={status.variant}>{status.label}</Badge>

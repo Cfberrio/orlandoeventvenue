@@ -256,6 +256,9 @@ serve(async (req: Request) => {
       .update({
         payment_url: session.url,
         stripe_session_id: session.id,
+        processing_fee_pct: FEE_PCT,
+        processing_fee: feeCents / 100,
+        total_charged: totalWithFeeCents / 100,
       })
       .eq("id", invoice.id);
 

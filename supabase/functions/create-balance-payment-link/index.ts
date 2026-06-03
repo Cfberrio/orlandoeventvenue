@@ -221,13 +221,15 @@ serve(async (req) => {
 
     const expiresAt = new Date(session.expires_at! * 1000).toISOString();
 
-    // Update booking with balance payment link data
+    // Update booking with balance payment link data + persist exact fee amounts
     const { error: updateError } = await supabase
       .from("bookings")
       .update({
         balance_payment_url: session.url,
         balance_link_expires_at: expiresAt,
         updated_at: new Date().toISOString(),
+        balance_fee: feeCents / 100,
+        balance_total_charged: totalChargeCents / 100,
       })
       .eq("id", booking.id);
 

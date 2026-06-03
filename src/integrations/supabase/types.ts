@@ -178,12 +178,15 @@ export type Database = {
           paid_at: string | null
           payment_status: string
           payment_url: string | null
+          processing_fee: number | null
+          processing_fee_pct: number | null
           setup_breakdown: boolean
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           tablecloth_quantity: number
           tablecloths: boolean
           total_amount: number
+          total_charged: number | null
         }
         Insert: {
           bar_guest_count?: number | null
@@ -203,12 +206,15 @@ export type Database = {
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          processing_fee?: number | null
+          processing_fee_pct?: number | null
           setup_breakdown?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           total_amount: number
+          total_charged?: number | null
         }
         Update: {
           bar_guest_count?: number | null
@@ -228,12 +234,15 @@ export type Database = {
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          processing_fee?: number | null
+          processing_fee_pct?: number | null
           setup_breakdown?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           total_amount?: number
+          total_charged?: number | null
         }
         Relationships: [
           {
@@ -897,6 +906,8 @@ export type Database = {
         Row: {
           agree_to_rules: boolean
           balance_amount: number
+          balance_fee: number | null
+          balance_total_charged: number | null
           balance_link_expires_at: string | null
           balance_paid_at: string | null
           balance_payment_url: string | null
@@ -926,6 +937,8 @@ export type Database = {
           contract_version: string | null
           created_at: string
           deposit_amount: number
+          deposit_fee: number | null
+          deposit_total_charged: number | null
           deposit_paid_at: string | null
           discount_amount: number | null
           discount_code: string | null
@@ -969,6 +982,7 @@ export type Database = {
           status: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
+          processing_fee_pct: number | null
           tablecloth_quantity: number
           tablecloths: boolean
           taxes_fees: number
@@ -979,6 +993,8 @@ export type Database = {
         Insert: {
           agree_to_rules?: boolean
           balance_amount: number
+          balance_fee?: number | null
+          balance_total_charged?: number | null
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
@@ -1008,6 +1024,8 @@ export type Database = {
           contract_version?: string | null
           created_at?: string
           deposit_amount: number
+          deposit_fee?: number | null
+          deposit_total_charged?: number | null
           deposit_paid_at?: string | null
           discount_amount?: number | null
           discount_code?: string | null
@@ -1051,6 +1069,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          processing_fee_pct?: number | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           taxes_fees?: number
@@ -1061,6 +1080,8 @@ export type Database = {
         Update: {
           agree_to_rules?: boolean
           balance_amount?: number
+          balance_fee?: number | null
+          balance_total_charged?: number | null
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
@@ -1090,6 +1111,8 @@ export type Database = {
           contract_version?: string | null
           created_at?: string
           deposit_amount?: number
+          deposit_fee?: number | null
+          deposit_total_charged?: number | null
           deposit_paid_at?: string | null
           discount_amount?: number | null
           discount_code?: string | null
@@ -1133,6 +1156,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["booking_status"]
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          processing_fee_pct?: number | null
           tablecloth_quantity?: number
           tablecloths?: boolean
           taxes_fees?: number
@@ -1404,6 +1428,8 @@ export type Database = {
           paid_at: string | null
           payment_status: string
           payment_url: string | null
+          processing_fee: number | null
+          processing_fee_pct: number | null
           recurring_active: boolean
           recurring_interval_days: number | null
           recurring_next_send_at: string | null
@@ -1411,6 +1437,7 @@ export type Database = {
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           title: string
+          total_charged: number | null
           updated_at: string
         }
         Insert: {
@@ -1427,6 +1454,8 @@ export type Database = {
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          processing_fee?: number | null
+          processing_fee_pct?: number | null
           recurring_active?: boolean
           recurring_interval_days?: number | null
           recurring_next_send_at?: string | null
@@ -1434,6 +1463,7 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           title: string
+          total_charged?: number | null
           updated_at?: string
         }
         Update: {
@@ -1450,6 +1480,8 @@ export type Database = {
           paid_at?: string | null
           payment_status?: string
           payment_url?: string | null
+          processing_fee?: number | null
+          processing_fee_pct?: number | null
           recurring_active?: boolean
           recurring_interval_days?: number | null
           recurring_next_send_at?: string | null
@@ -1457,6 +1489,7 @@ export type Database = {
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           title?: string
+          total_charged?: number | null
           updated_at?: string
         }
         Relationships: [

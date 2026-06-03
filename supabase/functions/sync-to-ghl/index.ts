@@ -74,7 +74,11 @@ interface BookingSnapshot {
   package: string | null;
   total_amount: number | null;
   deposit_amount: number | null;
+  deposit_fee: number | null;
+  deposit_total_charged: number | null;
   balance_amount: number | null;
+  balance_fee: number | null;
+  balance_total_charged: number | null;
   balance_payment_url: string | null;
   balance_link_expires_at: string | null;
   is_deposit_paid: string;
@@ -119,7 +123,11 @@ interface BookingRow {
   package: string | null;
   total_amount: number | null;
   deposit_amount: number | null;
+  deposit_fee: number | null;
+  deposit_total_charged: number | null;
   balance_amount: number | null;
+  balance_fee: number | null;
+  balance_total_charged: number | null;
   balance_payment_url: string | null;
   balance_link_expires_at: string | null;
   pre_event_ready: string | null;
@@ -292,7 +300,11 @@ async function buildBookingSnapshot(
     package: booking.package,
     total_amount: booking.total_amount ? Number(booking.total_amount) : null,
     deposit_amount: booking.deposit_amount ? Number(booking.deposit_amount) : null,
+    deposit_fee: booking.deposit_fee != null ? Number(booking.deposit_fee) : null,
+    deposit_total_charged: booking.deposit_total_charged != null ? Number(booking.deposit_total_charged) : null,
     balance_amount: booking.balance_amount ? Number(booking.balance_amount) : null,
+    balance_fee: booking.balance_fee != null ? Number(booking.balance_fee) : null,
+    balance_total_charged: booking.balance_total_charged != null ? Number(booking.balance_total_charged) : null,
     balance_payment_url: booking.balance_payment_url,
     balance_link_expires_at: booking.balance_link_expires_at,
     is_deposit_paid,

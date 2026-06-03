@@ -54,6 +54,10 @@ interface BalanceEmailData {
   deposit_amount: number;
   balance_amount: number;
   amount_paid: number;
+  // Persisted fee fields — set by create-balance-payment-link after Stripe session
+  processing_fee_pct?: number | null;
+  balance_fee?: number | null;
+  balance_total_charged?: number | null;
   base_rental?: number;
   cleaning_fee?: number;
   package?: string;
@@ -422,8 +426,14 @@ async function generateBalanceReceiptPDF(booking: BalanceEmailData, processingFe
   page.drawText(subStr, { x: width - M - helvBold.widthOfTextAtSize(subStr, 11), y, size: 11, font: helvBold, color: gray700 });
   y -= 16;
 
-  const feeAmt = Math.round(booking.balance_amount * (processingFeePct / 100) * 100) / 100;
-  const totalCharged = Math.round((booking.balance_amount + feeAmt) * 100) / 100;
+  // Use persisted values when available (set by create-balance-payment-link after Stripe session).
+  // Fall back to local computation only for legacy bookings that predate the migration.
+  const feeAmt = booking.balance_fee != null
+    ? Number(booking.balance_fee)
+    : Math.round(booking.balance_amount * (processingFeePct / 100) * 100) / 100;
+  const totalCharged = booking.balance_total_charged != null
+    ? Number(booking.balance_total_charged)
+    : Math.round((booking.balance_amount + feeAmt) * 100) / 100;
 
   page.drawText(`Processing Fee (${processingFeePct}%)`, { x: M, y, size: 10, font: helv, color: gray500 });
   const feeStr = formatCurrency(feeAmt);

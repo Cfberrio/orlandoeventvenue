@@ -149,10 +149,21 @@ serve(async (req: Request) => {
 
     console.log("Checkout session created:", session.id);
 
+    // Persist exact fee amounts so PDFs, dashboard, and GHL all read the same numbers
+    const { error: feeUpdateError } = await supabase
+      .from("bookings")
+      .update({
+        processing_fee_pct: FEE_PCT,
+        deposit_fee: feeCents / 100,
+        deposit_total_charged: totalChargeCents / 100,
+      })
+      .eq("id", bookingId);
+    if (feeUpdateError) console.error("Failed to persist deposit fee on booking:", feeUpdateError);
+
     return new Response(
-      JSON.stringify({ 
-        sessionId: session.id, 
-        url: session.url 
+      JSON.stringify({
+        sessionId: session.id,
+        url: session.url
       }),
       {
         status: 200,

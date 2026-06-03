@@ -89,6 +89,10 @@ interface BookingEmailData {
   total_amount: number;
   deposit_amount: number;
   balance_amount: number;
+  // Persisted fee fields — set by create-checkout after Stripe session creation
+  processing_fee_pct?: number | null;
+  deposit_fee?: number | null;
+  deposit_total_charged?: number | null;
   bar_package?: string | null;
   bar_package_label?: string | null;
   bar_guest_count?: number | null;
@@ -398,8 +402,14 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   page.drawText(subStr, { x: width - M - helvBold.widthOfTextAtSize(subStr, 11), y, size: 11, font: helvBold, color: gray700 });
   y -= 16;
 
-  const feeAmt = Math.round(booking.deposit_amount * (processingFeePct / 100) * 100) / 100;
-  const totalCharged = Math.round((booking.deposit_amount + feeAmt) * 100) / 100;
+  // Use persisted values when available (set by create-checkout after Stripe session).
+  // Fall back to local computation only for legacy bookings that predate the migration.
+  const feeAmt = booking.deposit_fee != null
+    ? Number(booking.deposit_fee)
+    : Math.round(booking.deposit_amount * (processingFeePct / 100) * 100) / 100;
+  const totalCharged = booking.deposit_total_charged != null
+    ? Number(booking.deposit_total_charged)
+    : Math.round((booking.deposit_amount + feeAmt) * 100) / 100;
 
   page.drawText(`Processing Fee (${processingFeePct}%)`, { x: M, y, size: 10, font: helv, color: gray500 });
   const feeStr = formatCurrency(feeAmt);
