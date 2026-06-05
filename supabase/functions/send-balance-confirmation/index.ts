@@ -536,7 +536,12 @@ serve(async (req) => {
     await client.send({
       from: gmailUser,
       to: booking.email,
-      subject: `You're Set — Access Instructions for Event Day | Orlando Event Venue`,
+      // Keep the subject pure ASCII. A non-ASCII char (e.g. an em-dash) forces denomailer
+      // 1.6.0 to RFC2047-encode the subject, and it then QP-wraps the encoded word across
+      // lines WITHOUT a leading-whitespace fold ("...Ven=\r\nue?="). That malformed header
+      // makes Gmail treat the rest of the headers as body and render the whole MIME as raw
+      // text. ASCII subjects stay on one valid line.
+      subject: `You're Set - Access Instructions for Event Day | Orlando Event Venue`,
       content: "You're set. Please view this email in an HTML-compatible email client.",
       html: emailHTML,
       attachments: pdfBase64
