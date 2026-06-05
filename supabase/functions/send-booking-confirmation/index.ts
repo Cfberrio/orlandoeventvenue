@@ -486,7 +486,14 @@ serve(async (req) => {
       console.error("Failed to fetch processing fee, using default 3.5%:", e);
     }
 
-    const emailHTML = generateEmailHTML(booking);
+    // denomailer 1.6.0's quoted-printable encoder turns whitespace-only lines into a
+    // literal "=20" that renders as visible junk in the email. Our template produces
+    // whitespace-only lines from indentation around ${...} interpolations. Strip
+    // trailing whitespace per line so the encoder never sees a whitespace-only line.
+    const emailHTML = generateEmailHTML(booking)
+      .split("\n")
+      .map((line) => line.replace(/[ \t]+$/, ""))
+      .join("\n");
 
     let pdfBase64: string | null = null;
     try {
