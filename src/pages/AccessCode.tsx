@@ -191,7 +191,7 @@ const AccessCode = () => {
           <div className="mx-auto mb-3 w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
             <KeyRound className="w-6 h-6 text-primary" />
           </div>
-          <CardTitle className="text-2xl">Venue Access Code</CardTitle>
+          <CardTitle className="text-2xl">OEV DAY OF EVENT</CardTitle>
           <CardDescription>
             Enter your reservation number or the email used to book to view the current lockbox code.
           </CardDescription>
