@@ -71,7 +71,7 @@ const AccessCode = () => {
         } else if (msg.includes("reservation_inactive")) {
           setError("This reservation is no longer active. Please contact us if you believe this is an error.");
         } else if (msg.includes("access_code_locked_until_event_day")) {
-          setError("The venue access code will be available on the day of your event. Please come back on your event date to retrieve the lockbox code.");
+          setError("Your event is not the day of the event yet. Please try again on the date of your event.");
         } else if (msg.includes("reservation_number_or_email_required")) {
           setError("Please enter your reservation number or email address.");
         } else {
