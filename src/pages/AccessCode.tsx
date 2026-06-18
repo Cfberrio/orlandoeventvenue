@@ -249,7 +249,7 @@ const AccessCode = () => {
                     Looking up…
                   </>
                 ) : (
-                  "Get Access Code"
+                  "ENTER"
                 )}
               </Button>
             </form>
