@@ -23,9 +23,12 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   const [discountCode, setDiscountCode] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
     code: string;
-    percentage?: number;
-    amount: number;
-    type: "rental" | "cleaning_fee";
+    // scope = what the discount reduces; mode = how value is interpreted; value = % or $ amount.
+    // The actual dollar amount is computed in the pricing effect so it stays correct
+    // even if the customer goes back and edits add-ons.
+    scope: "rental" | "cleaning_fee" | "total";
+    mode: "percentage" | "fixed";
+    value: number;
   } | null>(null);
   const [discountError, setDiscountError] = useState("");
 
@@ -54,8 +57,9 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       if (typeof discountConfig === "object" && discountConfig.type === "cleaning_fee") {
         setAppliedDiscount({
           code,
-          amount: discountConfig.amount,
-          type: "cleaning_fee",
+          scope: "cleaning_fee",
+          mode: "fixed",
+          value: discountConfig.amount,
         });
         setDiscountError("");
         return;
@@ -69,26 +73,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         return;
       }
 
-      const percentage = discountConfig as number;
-
-      // Calculate discount amount based on base rental
-      let baseRental = 0;
-      if (data.bookingType === "hourly" && data.startTime && data.endTime) {
-        const start = new Date(`2000-01-01T${data.startTime}`);
-        const end = new Date(`2000-01-01T${data.endTime}`);
-        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = p.hourly_rate * hours;
-      } else if (data.bookingType === "daily") {
-        baseRental = p.daily_rate;
-      }
-
-      const discountAmount = Math.round((baseRental * percentage) / 100);
-
       setAppliedDiscount({
         code,
-        percentage,
-        amount: discountAmount,
-        type: "rental",
+        scope: "rental",
+        mode: "percentage",
+        value: discountConfig as number,
       });
       setDiscountError("");
       return;
@@ -127,31 +116,13 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         return;
       }
 
-      // Calculate base rental
-      let baseRental = 0;
-      if (data.bookingType === "hourly" && data.startTime && data.endTime) {
-        const start = new Date(`2000-01-01T${data.startTime}`);
-        const end = new Date(`2000-01-01T${data.endTime}`);
-        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = p.hourly_rate * hours;
-      } else if (data.bookingType === "daily") {
-        baseRental = p.daily_rate;
-      }
-
-      // Calculate discount based on type
-      let discountAmount = 0;
-      if (dbCoupon.discount_type === "percentage") {
-        discountAmount = Math.round((baseRental * dbCoupon.discount_value) / 100);
-      } else {
-        // fixed_amount
-        discountAmount = Math.min(dbCoupon.discount_value, baseRental); // Cap at base rental
-      }
-
+      // Target: "total" reduces the full subtotal, otherwise the base rental.
+      // Actual dollar amount (and the cap for fixed_amount) is computed in the pricing effect.
       setAppliedDiscount({
         code: dbCoupon.code,
-        percentage: dbCoupon.discount_type === "percentage" ? dbCoupon.discount_value : undefined,
-        amount: discountAmount,
-        type: "rental",
+        scope: dbCoupon.applies_to === "total" ? "total" : "rental",
+        mode: dbCoupon.discount_type === "percentage" ? "percentage" : "fixed",
+        value: dbCoupon.discount_value,
       });
       setDiscountError("");
     } catch (err) {
@@ -184,15 +155,6 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
       }
 
       let cleaningFee = p.cleaning_fee;
-      let rentalDiscount = 0;
-
-      if (appliedDiscount) {
-        if (appliedDiscount.type === "cleaning_fee") {
-          cleaningFee = Math.max(0, cleaningFee - appliedDiscount.amount);
-        } else {
-          rentalDiscount = appliedDiscount.amount;
-        }
-      }
 
       const packageRates: Record<string, number> = {
         none: 0,
@@ -222,6 +184,27 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
         ? Number(data.barSubtotal) || 0
         : 0;
 
+      // Gross subtotal before any discount (full cleaning fee included).
+      const grossSubtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal;
+
+      // Resolve the discount rule into an actual dollar amount.
+      let discountAmount = 0;
+      if (appliedDiscount) {
+        if (appliedDiscount.scope === "cleaning_fee") {
+          discountAmount = Math.min(appliedDiscount.value, cleaningFee);
+          cleaningFee = Math.max(0, cleaningFee - discountAmount);
+        } else {
+          // "total" discounts the full subtotal; otherwise only the base rental.
+          const discountBase = appliedDiscount.scope === "total" ? grossSubtotal : baseRental;
+          discountAmount = appliedDiscount.mode === "percentage"
+            ? Math.round((discountBase * appliedDiscount.value) / 100)
+            : Math.min(appliedDiscount.value, discountBase); // cap fixed amount at its base
+        }
+      }
+
+      // For cleaning-fee scope the reduction is already baked into cleaningFee above.
+      const rentalDiscount = appliedDiscount && appliedDiscount.scope !== "cleaning_fee" ? discountAmount : 0;
+
       const subtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal - rentalDiscount;
       const total = subtotal;
       const deposit = Math.round(subtotal * depositRate);
@@ -234,7 +217,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
           cleaningFee,
           packageCost,
           optionalServices,
-          discount: appliedDiscount ? appliedDiscount.amount : 0,
+          discount: discountAmount,
           discountCode: appliedDiscount?.code,
           processingFee,
           total,
@@ -408,11 +391,11 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <Check className="h-4 w-4" />
               <span className="font-medium">
                 {appliedDiscount.code} applied
-                {appliedDiscount.type === "cleaning_fee" 
-                  ? " (Free cleaning)" 
-                  : appliedDiscount.percentage != null
-                    ? ` (${appliedDiscount.percentage}% off)`
-                    : ` (-$${appliedDiscount.amount} off)`
+                {appliedDiscount.scope === "cleaning_fee"
+                  ? " (Free cleaning)"
+                  : appliedDiscount.mode === "percentage"
+                    ? ` (${appliedDiscount.value}% off${appliedDiscount.scope === "total" ? " total" : ""})`
+                    : ` (-$${appliedDiscount.value} off${appliedDiscount.scope === "total" ? " total" : ""})`
                 }
               </span>
             </div>

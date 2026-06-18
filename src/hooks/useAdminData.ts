@@ -1223,6 +1223,7 @@ export function useCreateDiscountCoupon() {
       code: string;
       discount_type: "percentage" | "fixed_amount";
       discount_value: number;
+      applies_to?: "base_rental" | "total";
       applies_to_hourly: boolean;
       applies_to_daily: boolean;
       is_active: boolean;
@@ -1256,6 +1257,7 @@ export function useUpdateDiscountCoupon() {
         code: string;
         discount_type: "percentage" | "fixed_amount";
         discount_value: number;
+        applies_to: "base_rental" | "total";
         applies_to_hourly: boolean;
         applies_to_daily: boolean;
         is_active: boolean;

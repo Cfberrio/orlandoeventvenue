@@ -40,6 +40,7 @@ export default function Discounts() {
   const [formCode, setFormCode] = useState("");
   const [formType, setFormType] = useState<"percentage" | "fixed_amount">("percentage");
   const [formValue, setFormValue] = useState("");
+  const [formAppliesTo, setFormAppliesTo] = useState<"base_rental" | "total">("base_rental");
   const [formAppliesHourly, setFormAppliesHourly] = useState(true);
   const [formAppliesDaily, setFormAppliesDaily] = useState(true);
   const [formActive, setFormActive] = useState(true);
@@ -53,6 +54,7 @@ export default function Discounts() {
     setFormCode("");
     setFormType("percentage");
     setFormValue("");
+    setFormAppliesTo("base_rental");
     setFormAppliesHourly(true);
     setFormAppliesDaily(true);
     setFormActive(true);
@@ -80,6 +82,7 @@ export default function Discounts() {
         code: formCode.trim(),
         discount_type: formType,
         discount_value: value,
+        applies_to: formAppliesTo,
         applies_to_hourly: formAppliesHourly,
         applies_to_daily: formAppliesDaily,
         is_active: formActive,
@@ -101,6 +104,7 @@ export default function Discounts() {
     setFormCode(coupon.code);
     setFormType(coupon.discount_type);
     setFormValue(coupon.discount_value.toString());
+    setFormAppliesTo(coupon.applies_to === "total" ? "total" : "base_rental");
     setFormAppliesHourly(coupon.applies_to_hourly);
     setFormAppliesDaily(coupon.applies_to_daily);
     setFormActive(coupon.is_active);
@@ -132,6 +136,7 @@ export default function Discounts() {
           code: formCode.trim(),
           discount_type: formType,
           discount_value: value,
+          applies_to: formAppliesTo,
           applies_to_hourly: formAppliesHourly,
           applies_to_daily: formAppliesDaily,
           is_active: formActive,
@@ -176,6 +181,8 @@ export default function Discounts() {
   const formatDiscountValue = (type: string, value: number) => {
     return type === "percentage" ? `${value}%` : `$${value}`;
   };
+
+  const formatTarget = (appliesTo: string) => (appliesTo === "total" ? "Total" : "Base Rental");
 
   const formatAppliesTo = (hourly: boolean, daily: boolean) => {
     if (hourly && daily) return "Hourly & Daily";
@@ -249,6 +256,24 @@ export default function Discounts() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {formType === "percentage" ? "Enter percentage without % symbol" : "Enter dollar amount"}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="target">Discount Target *</Label>
+                <Select value={formAppliesTo} onValueChange={(v: "base_rental" | "total") => setFormAppliesTo(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="base_rental">Base Rental only</SelectItem>
+                    <SelectItem value="total">Total (rental + cleaning + add-ons, before processing fee)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  {formAppliesTo === "total"
+                    ? "Discount applies to the full subtotal. Processing fee is always added on top."
+                    : "Discount applies to the base rental only (current default behavior)."}
                 </p>
               </div>
 
@@ -364,6 +389,7 @@ export default function Discounts() {
                   <TableHead>Code</TableHead>
                   <TableHead>Type</TableHead>
                   <TableHead>Value</TableHead>
+                  <TableHead>Target</TableHead>
                   <TableHead>Applies To</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -380,6 +406,7 @@ export default function Discounts() {
                     <TableCell className="font-medium">
                       {formatDiscountValue(coupon.discount_type, coupon.discount_value)}
                     </TableCell>
+                    <TableCell>{formatTarget(coupon.applies_to)}</TableCell>
                     <TableCell>{formatAppliesTo(coupon.applies_to_hourly, coupon.applies_to_daily)}</TableCell>
                     <TableCell>
                       <Button
