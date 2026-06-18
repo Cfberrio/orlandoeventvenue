@@ -73,7 +73,7 @@ const AccessCodeAdminCard = () => {
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <KeyRound className="w-5 h-5 text-primary" />
-          Venue Access Code
+          OEV DAY OF EVENT
         </CardTitle>
         <CardDescription>
           Update the lockbox/access code shown to guests on the public lookup page.
