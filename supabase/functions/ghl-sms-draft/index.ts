@@ -4,6 +4,8 @@ const GHL_BASE = "https://services.leadconnectorhq.com";
 const GHL_VERSION = "2021-07-28";
 const MODEL = "claude-haiku-4-5";
 const SCORE_GATE = 0.75;
+const BRAND_TZ = "America/New_York";
+const AVAILABILITY_WINDOW_DAYS = 90;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -49,74 +51,41 @@ function tryParseJson(s: string): any | null {
   return null;
 }
 
-function htmlToText(html: string): string {
-  let s = String(html);
-  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
-  s = s.replace(/<head[\s\S]*?<\/head>/gi, " ");
-  s = s.replace(/<blockquote[\s\S]*$/gi, " ");
-  s = s.replace(/<div[^>]+gmail_quote[\s\S]*$/gi, " ");
-  s = s.replace(/<br\s*\/?>/gi, "\n");
-  s = s.replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
-  s = s.replace(/<[^>]+>/g, " ");
-  s = s.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#0?39;/g, "'");
-  s = s.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{3,}/g, "\n\n");
-  return s.trim();
+// ============= TIME CONTEXT =============
+
+function nowInTZ(tz: string) {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", hour12: false, weekday: "long",
+  }).formatToParts(now);
+  const map: Record<string, string> = {};
+  for (const p of parts) if (p.type !== "literal") map[p.type] = p.value;
+  const date = `${map.year}-${map.month}-${map.day}`;
+  return {
+    date,
+    time: `${map.hour}:${map.minute}`,
+    weekday: map.weekday,
+    timezone: tz,
+  };
 }
 
-function stripQuotedReplyText(text: string): string {
-  const markers = [
-    /^On .{5,160} wrote:\s*$/m,
-    /^El .{5,160} escribió:\s*$/m,
-    /^-{2,}\s*(Original Message|Mensaje original)\s*-{2,}/im,
-    /^_{5,}\s*$/m,
-    /^From:\s.+/m,
-    /^De:\s.+/m,
-  ];
-  let cut = text.length;
-  for (const re of markers) {
-    const m = re.exec(text);
-    if (m && m.index > 40 && m.index < cut) cut = m.index;
-  }
-  let out = text.slice(0, cut);
-  out = out.split("\n").filter((l) => !/^\s*>/.test(l)).join("\n");
-  return out.trim();
+function addDaysISO(dateISO: string, days: number): string {
+  const d = new Date(`${dateISO}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
 }
 
-function emailBodyToText(raw: unknown): string {
-  const str = (raw ?? "").toString();
-  const looksHtml = /<[a-z!][\s\S]*>/i.test(str);
-  let text = looksHtml ? htmlToText(str) : str;
-  if (looksHtml && text.length < 10) {
-    text = htmlToText(str.replace(/<blockquote/gi, "<div").replace(/gmail_quote/gi, "gq"));
-  }
-  return stripQuotedReplyText(text).slice(0, 6000);
+function weekdayOf(dateISO: string, tz: string): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" })
+    .format(new Date(`${dateISO}T12:00:00Z`));
 }
 
-async function fetchEmailFull(
-  token: string,
-  m: any,
-): Promise<{ subject: string | null; body: string | null }> {
-  const candidates: string[] = [];
-  const metaIds = m?.meta?.email?.messageIds;
-  if (Array.isArray(metaIds) && metaIds.length) candidates.push(String(metaIds[metaIds.length - 1]));
-  if (m?.id) candidates.push(String(m.id));
-  for (const id of candidates) {
-    try {
-      const r = await fetch(`${GHL_BASE}/conversations/messages/email/${id}`, {
-        headers: ghlHeaders(token),
-      });
-      if (!r.ok) continue;
-      const j = await r.json().catch(() => null);
-      const em = j?.emailMessage ?? j;
-      const body = em?.body ?? em?.bodyHtml ?? em?.html ?? null;
-      const subject = em?.subject ?? null;
-      if (body || subject) return { subject, body };
-    } catch { /* try next candidate */ }
-  }
-  return { subject: m?.subject ?? null, body: null };
+function hhmm(t: unknown): string {
+  return (t ?? "").toString().slice(0, 5);
 }
+
+// ============= BRAND GROUNDING =============
 
 async function loadActivePrograms(supabase: any) {
   const { data, error } = await supabase
@@ -185,13 +154,195 @@ async function loadCateringMenu(supabase: any) {
   };
 }
 
+// OEV — live venue calendar from the bookings DB (same conflict rules as voice-check-availability)
+async function loadVenueAvailability(supabase: any) {
+  const t = nowInTZ(BRAND_TZ);
+  const startDate = t.date;
+  const endDate = addDaysISO(startDate, AVAILABILITY_WINDOW_DAYS);
+
+  const [bookingsQ, blocksQ, blackoutsQ, configQ] = await Promise.all([
+    supabase.from("bookings")
+      .select("event_date, booking_type, start_time, end_time, status, payment_status")
+      .gte("event_date", startDate).lte("event_date", endDate)
+      .not("status", "in", "(cancelled,declined)")
+      .in("payment_status", ["deposit_paid", "fully_paid", "invoiced"])
+      .order("event_date"),
+    supabase.from("availability_blocks")
+      .select("start_date, end_date, start_time, end_time, block_type, source")
+      .lte("start_date", endDate).gte("end_date", startDate),
+    supabase.from("blackout_dates")
+      .select("start_date, end_date")
+      .lte("start_date", endDate).gte("end_date", startDate),
+    supabase.from("venue_config").select("key, value")
+      .in("key", ["minimum_booking_notice_hours", "balance_due_days", "deposit_percentage"]),
+  ]);
+  if (bookingsQ.error) throw bookingsQ.error;
+
+  // date -> { full: boolean, hours: string[] }
+  const busy = new Map<string, { full: boolean; hours: string[] }>();
+  const mark = (date: string, full: boolean, hours?: string) => {
+    if (date < startDate || date > endDate) return;
+    const cur = busy.get(date) ?? { full: false, hours: [] };
+    if (full) cur.full = true;
+    else if (hours) cur.hours.push(hours);
+    busy.set(date, cur);
+  };
+
+  for (const b of bookingsQ.data ?? []) {
+    const isDaily = (b.booking_type ?? "").toString() === "daily";
+    mark(b.event_date, isDaily, isDaily ? undefined : `${hhmm(b.start_time)}–${hhmm(b.end_time)}`);
+  }
+  const expand = (s: string, e: string, cb: (d: string) => void) => {
+    let d = s < startDate ? startDate : s;
+    const stop = e > endDate ? endDate : e;
+    let guard = 0;
+    while (d <= stop && guard++ < 400) { cb(d); d = addDaysISO(d, 1); }
+  };
+  for (const bl of blocksQ.data ?? []) {
+    const isHourly = (bl.block_type ?? "").toString() === "hourly" && bl.start_time && bl.end_time;
+    expand(bl.start_date, bl.end_date, (d) =>
+      mark(d, !isHourly, isHourly ? `${hhmm(bl.start_time)}–${hhmm(bl.end_time)}` : undefined));
+  }
+  for (const bo of blackoutsQ.data ?? []) {
+    expand(bo.start_date, bo.end_date, (d) => mark(d, true));
+  }
+
+  const cfg = Object.fromEntries((configQ.data ?? []).map((c: any) => [c.key, c.value]));
+  const busy_dates = [...busy.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([date, v]) => ({
+      date,
+      weekday: weekdayOf(date, BRAND_TZ),
+      status: v.full ? "fully_booked" : "partially_booked",
+      busy_hours: v.full ? "ALL DAY" : v.hours.join(", "),
+    }));
+
+  return {
+    timezone: BRAND_TZ,
+    today: startDate,
+    window_end: endDate,
+    minimum_booking_notice_hours: Number(cfg.minimum_booking_notice_hours ?? 48),
+    deposit: "50% deposit holds the date; no date is held without a reservation",
+    balance_due_days_before_event: Number(cfg.balance_due_days ?? 15),
+    busy_dates,
+    how_to_read_this:
+      `This is the LIVE venue calendar from the bookings database, covering ${startDate} to ${endDate}. ` +
+      `Every date in that window that is NOT listed in busy_dates is fully OPEN for both hourly and daily bookings. ` +
+      `Dates marked partially_booked are open outside the listed busy_hours. ` +
+      `Dates marked fully_booked are not available. Dates after ${endDate} are outside this snapshot — say you'll confirm those.`,
+  };
+}
+
+// OEV — the contact's own bookings (matched by email, then phone)
+async function loadOevBookingContext(supabase: any, contact: any) {
+  if (!contact) return null;
+  const t = nowInTZ(BRAND_TZ);
+  const since = addDaysISO(t.date, -30);
+  const sel = "reservation_number, event_date, start_time, end_time, booking_type, event_type, number_of_guests, status, payment_status, total_amount, deposit_amount, balance_amount, lifecycle_status";
+  const email = (contact.email ?? "").toString().trim();
+  const digits = (contact.phone ?? "").toString().replace(/\D/g, "");
+  let rows: any[] = [];
+  try {
+    if (email) {
+      const { data } = await supabase.from("bookings").select(sel)
+        .ilike("email", email).gte("event_date", since)
+        .order("event_date").limit(5);
+      rows = data ?? [];
+    }
+    if (!rows.length && digits.length >= 7) {
+      const { data } = await supabase.from("bookings").select(sel)
+        .ilike("phone", `%${digits.slice(-7)}%`).gte("event_date", since)
+        .order("event_date").limit(5);
+      rows = data ?? [];
+    }
+  } catch (e) {
+    console.error("booking context error", e);
+    return null;
+  }
+  return rows.length ? rows : null;
+}
+
 async function loadBrandGrounding(
   supabase: any,
   brand: string,
 ): Promise<{ label: string; data: unknown } | null> {
   if (brand === "DR") return { label: "ACTIVE_PROGRAMS", data: await loadActivePrograms(supabase) };
   if (brand === "CTS") return { label: "CATERING_MENU", data: await loadCateringMenu(supabase) };
+  if (brand === "OEV" || brand === "RV") {
+    return { label: "VENUE_AVAILABILITY", data: await loadVenueAvailability(supabase) };
+  }
   return null;
+}
+
+// ============= EMAIL PARSING =============
+
+function htmlToText(html: string): string {
+  let s = String(html);
+  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
+  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
+  s = s.replace(/<head[\s\S]*?<\/head>/gi, " ");
+  s = s.replace(/<blockquote[\s\S]*$/gi, " ");
+  s = s.replace(/<div[^>]+gmail_quote[\s\S]*$/gi, " ");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
+  s = s.replace(/<[^>]+>/g, " ");
+  s = s.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#0?39;/g, "'");
+  s = s.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
+function stripQuotedReplyText(text: string): string {
+  const markers = [
+    /^On .{5,160} wrote:\s*$/m,
+    /^El .{5,160} escribió:\s*$/m,
+    /^-{2,}\s*(Original Message|Mensaje original)\s*-{2,}/im,
+    /^_{5,}\s*$/m,
+    /^From:\s.+/m,
+    /^De:\s.+/m,
+  ];
+  let cut = text.length;
+  for (const re of markers) {
+    const m = re.exec(text);
+    if (m && m.index > 40 && m.index < cut) cut = m.index;
+  }
+  let out = text.slice(0, cut);
+  out = out.split("\n").filter((l) => !/^\s*>/.test(l)).join("\n");
+  return out.trim();
+}
+
+function emailBodyToText(raw: unknown): string {
+  const str = (raw ?? "").toString();
+  const looksHtml = /<[a-z!][\s\S]*>/i.test(str);
+  let text = looksHtml ? htmlToText(str) : str;
+  if (looksHtml && text.length < 10) {
+    text = htmlToText(str.replace(/<blockquote/gi, "<div").replace(/gmail_quote/gi, "gq"));
+  }
+  return stripQuotedReplyText(text).slice(0, 6000);
+}
+
+async function fetchEmailFull(
+  token: string,
+  m: any,
+): Promise<{ subject: string | null; body: string | null }> {
+  const candidates: string[] = [];
+  const metaIds = m?.meta?.email?.messageIds;
+  if (Array.isArray(metaIds) && metaIds.length) candidates.push(String(metaIds[metaIds.length - 1]));
+  if (m?.id) candidates.push(String(m.id));
+  for (const id of candidates) {
+    try {
+      const r = await fetch(`${GHL_BASE}/conversations/messages/email/${id}`, {
+        headers: ghlHeaders(token),
+      });
+      if (!r.ok) continue;
+      const j = await r.json().catch(() => null);
+      const em = j?.emailMessage ?? j;
+      const body = em?.body ?? em?.bodyHtml ?? em?.html ?? null;
+      const subject = em?.subject ?? null;
+      if (body || subject) return { subject, body };
+    } catch { /* try next candidate */ }
+  }
+  return { subject: m?.subject ?? null, body: null };
 }
 
 async function postDraftComment(
@@ -282,6 +433,16 @@ Deno.serve(async (req) => {
     }
 
     const grounding = await loadBrandGrounding(supabase, brand);
+    const timeCtx = nowInTZ(BRAND_TZ);
+
+    if (body?.debug_grounding === true) {
+      return new Response(JSON.stringify({
+        debug_grounding: true,
+        current_datetime: timeCtx,
+        grounding_label: grounding?.label ?? null,
+        grounding: grounding?.data ?? null,
+      }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    }
 
     const convRes = await fetch(
       `${GHL_BASE}/conversations/search?locationId=${encodeURIComponent(ghl_location_id)}&status=unread&sort=desc&sortBy=last_message_date&limit=20`,
@@ -401,6 +562,11 @@ Deno.serve(async (req) => {
           }
         }
 
+        let bookingContext: any = null;
+        if (brand === "OEV" || brand === "RV") {
+          bookingContext = await loadOevBookingContext(supabase, contact);
+        }
+
         const latestBlock = channel === "email"
           ? { subject: inboundSubject, body: inboundText, at: lastInbound.dateAdded ?? null }
           : { text: inboundText, at: lastInbound.dateAdded ?? null };
@@ -408,7 +574,13 @@ Deno.serve(async (req) => {
           ? `{"score": number, "subject": string, "draft": string, "reasoning": string, "decision": "draft"|"skip"|"flag_human"}`
           : `{"score": number, "draft": string, "reasoning": string, "decision": "draft"|"skip"|"flag_human"}`;
         const blocks: string[] = [];
-        if (grounding) blocks.push(`${grounding.label}:\n${JSON.stringify(grounding.data, null, 2)}`);
+        blocks.push(`CURRENT_DATETIME (live, venue local time):\n${JSON.stringify(timeCtx)}`);
+        if (grounding) blocks.push(`${grounding.label} (live data from the business database, loaded seconds ago):\n${JSON.stringify(grounding.data, null, 2)}`);
+        if (brand === "OEV" || brand === "RV") {
+          blocks.push(`BOOKING_CONTEXT (this contact's own bookings in our database, matched by email/phone):\n${
+            bookingContext ? JSON.stringify(bookingContext, null, 2) : "none found for this contact"
+          }`);
+        }
         blocks.push(`CHANNEL: ${channel.toUpperCase()}`);
         blocks.push(`CONVERSATION_HISTORY (chronological, last ${cfg.historyLimit} ${channel} messages):\n${JSON.stringify(history, null, 2)}`);
         blocks.push(`LATEST_INBOUND_${channel.toUpperCase()}:\n${JSON.stringify(latestBlock, null, 2)}`);
