@@ -290,13 +290,36 @@ Deno.serve(async (req) => {
     if (!convRes.ok) throw new Error(`conv search ${convRes.status}`);
     const convJson = await convRes.json();
     const cutoff = Date.now() - lookback_minutes * 60_000;
-    const conversations = (convJson?.conversations ?? [])
-      .map((c: any) => ({ ...c, __channel: channelOf(c?.lastMessageType) }))
-      .filter((c: any) => {
-        const dir = (c?.lastMessageDirection ?? "").toLowerCase();
-        const ts = Date.parse(c?.lastMessageDate ?? "") || 0;
-        return c.__channel && dir === "inbound" && ts >= cutoff;
-      });
+    const allConvs = (convJson?.conversations ?? [])
+      .map((c: any) => ({ ...c, __channel: channelOf(c?.lastMessageType) }));
+
+    if (body?.debug === true) {
+      return new Response(JSON.stringify({
+        debug: true,
+        now: new Date().toISOString(),
+        cutoff: new Date(cutoff).toISOString(),
+        total: allConvs.length,
+        conversations: allConvs.slice(0, 15).map((c: any) => ({
+          id: c.id,
+          contactId: c.contactId ?? null,
+          type: c.type ?? null,
+          lastMessageType: c.lastMessageType ?? null,
+          lastMessageDirection: c.lastMessageDirection ?? null,
+          lastMessageDate: c.lastMessageDate ?? null,
+          dateUpdated: c.dateUpdated ?? null,
+          unreadCount: c.unreadCount ?? null,
+          computedChannel: c.__channel,
+          computedTs: new Date(c?.lastMessageDate ?? c?.dateUpdated ?? 0).getTime() || 0,
+          passesCutoff: (new Date(c?.lastMessageDate ?? c?.dateUpdated ?? 0).getTime() || 0) >= cutoff,
+        })),
+      }), { headers: { ...corsHeaders, "content-type": "application/json" } });
+    }
+
+    const conversations = allConvs.filter((c: any) => {
+      const dir = (c?.lastMessageDirection ?? "").toLowerCase();
+      const ts = new Date(c?.lastMessageDate ?? c?.dateUpdated ?? 0).getTime() || 0;
+      return c.__channel && dir === "inbound" && ts >= cutoff;
+    });
 
     for (const conv of conversations) {
       summary.processed++;
