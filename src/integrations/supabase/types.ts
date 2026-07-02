@@ -1209,10 +1209,36 @@ export type Database = {
           },
         ]
       }
+      brand: {
+        Row: {
+          code: string
+          created_at: string
+          id: string
+          name: string | null
+          updated_at: string
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          id?: string
+          name?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       brand_prompts: {
         Row: {
           active: boolean
           brand: string
+          brand_id: string | null
+          channel: string
           created_at: string
           id: number
           notes: string | null
@@ -1223,6 +1249,8 @@ export type Database = {
         Insert: {
           active?: boolean
           brand: string
+          brand_id?: string | null
+          channel?: string
           created_at?: string
           id?: number
           notes?: string | null
@@ -1233,6 +1261,8 @@ export type Database = {
         Update: {
           active?: boolean
           brand?: string
+          brand_id?: string | null
+          channel?: string
           created_at?: string
           id?: number
           notes?: string | null
@@ -1240,7 +1270,15 @@ export type Database = {
           updated_at?: string
           version?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "brand_prompts_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       discount_coupons: {
         Row: {
@@ -1682,8 +1720,10 @@ export type Database = {
       sms_draft_log: {
         Row: {
           brand: string
+          brand_id: string | null
           cancelled_at: string | null
           cancelled_reason: string | null
+          channel: string
           contact_context: Json | null
           contact_id: string | null
           conversation_id: string
@@ -1707,8 +1747,10 @@ export type Database = {
         }
         Insert: {
           brand: string
+          brand_id?: string | null
           cancelled_at?: string | null
           cancelled_reason?: string | null
+          channel?: string
           contact_context?: Json | null
           contact_id?: string | null
           conversation_id: string
@@ -1732,8 +1774,10 @@ export type Database = {
         }
         Update: {
           brand?: string
+          brand_id?: string | null
           cancelled_at?: string | null
           cancelled_reason?: string | null
+          channel?: string
           contact_context?: Json | null
           contact_id?: string | null
           conversation_id?: string
@@ -1755,7 +1799,15 @@ export type Database = {
           scheduled_message_id?: string | null
           score?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "sms_draft_log_brand_id_fkey"
+            columns: ["brand_id"]
+            isOneToOne: false
+            referencedRelation: "brand"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_members: {
         Row: {
