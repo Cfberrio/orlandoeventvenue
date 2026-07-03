@@ -130,6 +130,9 @@ verify_jwt = false
 [functions.ghl-sms-draft]
 verify_jwt = false
 
+[functions.composio-gmail-webhook]
+verify_jwt = false
+
 [functions.auto-generate-payroll]
 verify_jwt = false
 
