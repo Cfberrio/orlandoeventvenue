@@ -368,7 +368,8 @@ async function processEvent(supabase: any, logId: string, ctx: {
     if ((decision === "draft" || decision === "flag_human") && parsed.draft) {
       const d = await composioExecute("GMAIL_CREATE_EMAIL_DRAFT", {
         thread_id: threadId,
-        recipient_email: ctx.fromName ? `${ctx.fromName} <${ctx.fromEmail}>` : ctx.fromEmail,
+        // bare address only — Composio rejects RFC 5322 name-addr ("Name <a@b.com>") with "Invalid email format"
+        recipient_email: ctx.fromEmail,
         body: parsed.draft,
       });
       draftId = d?.id ?? null;
@@ -399,8 +400,8 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   if (req.method !== "POST") return json(405, { error: "POST only" });
 
-  const brand = Deno.env.get("BRAND_CODE") ?? "";
-  const brandEmail = (Deno.env.get("BRAND_EMAIL") ?? "").toLowerCase();
+  const brand = Deno.env.get("BRAND_CODE") || "OEV";
+  const brandEmail = (Deno.env.get("BRAND_EMAIL") || "orlandoeventvenue@gmail.com").toLowerCase();
   const secret = Deno.env.get("COMPOSIO_WEBHOOK_SECRET") ?? "";
   const myCa = Deno.env.get("COMPOSIO_CONNECTED_ACCOUNT_ID") ?? "";
 
