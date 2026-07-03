@@ -368,7 +368,8 @@ async function processEvent(supabase: any, logId: string, ctx: {
     if ((decision === "draft" || decision === "flag_human") && parsed.draft) {
       const d = await composioExecute("GMAIL_CREATE_EMAIL_DRAFT", {
         thread_id: threadId,
-        recipient_email: ctx.fromName ? `${ctx.fromName} <${ctx.fromEmail}>` : ctx.fromEmail,
+        // bare address only — Composio rejects RFC 5322 name-addr ("Name <a@b.com>") with "Invalid email format"
+        recipient_email: ctx.fromEmail,
         body: parsed.draft,
       });
       draftId = d?.id ?? null;
