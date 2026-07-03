@@ -1,0 +1,2 @@
+ALTER TABLE public.brand_prompts DROP CONSTRAINT brand_prompts_channel_chk;
+ALTER TABLE public.brand_prompts ADD CONSTRAINT brand_prompts_channel_chk CHECK (channel = ANY (ARRAY['sms'::text, 'email'::text, 'gmail'::text]));
