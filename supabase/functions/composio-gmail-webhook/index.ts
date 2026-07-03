@@ -376,8 +376,10 @@ async function processEvent(supabase: any, logId: string, ctx: {
         subject: replySubject,
         body: parsed.draft,
       });
-      draftId = d?.id ?? null;
-      draftMessageId = d?.message?.id ?? null;
+      // Composio nests the created draft under response_data
+      const dd = d?.response_data ?? d;
+      draftId = dd?.id ?? null;
+      draftMessageId = dd?.message?.id ?? null;
     }
 
     await patch({
