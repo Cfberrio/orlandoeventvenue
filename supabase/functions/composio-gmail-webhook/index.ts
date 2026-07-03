@@ -366,10 +366,14 @@ async function processEvent(supabase: any, logId: string, ctx: {
     let draftId: string | null = null;
     let draftMessageId: string | null = null;
     if ((decision === "draft" || decision === "flag_human") && parsed.draft) {
+      // Composio requires subject even for thread replies; "Re: <original>" keeps Gmail threading intact
+      const baseSubject = (ctx.subject || "").trim();
+      const replySubject = /^re\s*:/i.test(baseSubject) ? baseSubject : `Re: ${baseSubject}`.trim();
       const d = await composioExecute("GMAIL_CREATE_EMAIL_DRAFT", {
         thread_id: threadId,
         // bare address only — Composio rejects RFC 5322 name-addr ("Name <a@b.com>") with "Invalid email format"
         recipient_email: ctx.fromEmail,
+        subject: replySubject,
         body: parsed.draft,
       });
       draftId = d?.id ?? null;
