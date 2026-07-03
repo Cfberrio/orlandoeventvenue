@@ -1340,6 +1340,84 @@ export type Database = {
         }
         Relationships: []
       }
+      gmail_draft_log: {
+        Row: {
+          audience: string | null
+          brand_code: string
+          created_at: string
+          decision: string
+          draft_body: string | null
+          draft_id: string | null
+          draft_message_id: string | null
+          error_detail: string | null
+          event_id: string | null
+          from_email: string | null
+          gmail_message_id: string
+          gmail_thread_id: string | null
+          id: string
+          input_tokens: number | null
+          model: string | null
+          output_tokens: number | null
+          prompt_version: string | null
+          reasoning: string | null
+          score: number | null
+          skip_reason: string | null
+          snippet: string | null
+          subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          audience?: string | null
+          brand_code: string
+          created_at?: string
+          decision?: string
+          draft_body?: string | null
+          draft_id?: string | null
+          draft_message_id?: string | null
+          error_detail?: string | null
+          event_id?: string | null
+          from_email?: string | null
+          gmail_message_id: string
+          gmail_thread_id?: string | null
+          id?: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          prompt_version?: string | null
+          reasoning?: string | null
+          score?: number | null
+          skip_reason?: string | null
+          snippet?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          audience?: string | null
+          brand_code?: string
+          created_at?: string
+          decision?: string
+          draft_body?: string | null
+          draft_id?: string | null
+          draft_message_id?: string | null
+          error_detail?: string | null
+          event_id?: string | null
+          from_email?: string | null
+          gmail_message_id?: string
+          gmail_thread_id?: string | null
+          id?: string
+          input_tokens?: number | null
+          model?: string | null
+          output_tokens?: number | null
+          prompt_version?: string | null
+          reasoning?: string | null
+          score?: number | null
+          skip_reason?: string | null
+          snippet?: string | null
+          subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       inventory_locations: {
         Row: {
           created_at: string
