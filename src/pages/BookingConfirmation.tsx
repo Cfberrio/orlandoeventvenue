@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle2, XCircle, Loader2, Calendar, Clock, Users, Copy, Check } from "lucide-react";
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
+import { trackPurchase } from "@/lib/analytics";
 
 interface BookingDetails {
   id: string;
@@ -36,6 +37,7 @@ const BookingConfirmation = () => {
   const sessionId = searchParams.get("session_id");
   const bookingId = searchParams.get("booking_id");
   const cancelled = searchParams.get("cancelled");
+  const paymentType = searchParams.get("type");
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -69,10 +71,17 @@ const BookingConfirmation = () => {
 
       setBooking(data);
       setLoading(false);
+
+      // GA4 conversion: only the initial deposit checkout (no `type` param).
+      // Balance (`type=balance`) and addon (`type=addon`) payments land here
+      // too and must not count as new bookings.
+      if (sessionId && !cancelled && !paymentType) {
+        trackPurchase(data);
+      }
     };
 
     fetchBooking();
-  }, [bookingId]);
+  }, [bookingId, sessionId, cancelled, paymentType]);
 
   const copyReservationNumber = () => {
     if (booking?.reservation_number) {

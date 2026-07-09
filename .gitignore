@@ -25,3 +25,14 @@ dist-ssr
 
 # Test artifacts
 .playwright-mcp/
+
+# Environment variables (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Supabase CLI cache
+supabase/.temp/
+
+# Local archive (stale duplicate repo, dev screenshots) — kept on disk, not in git
+archive/
