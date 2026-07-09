@@ -63,14 +63,14 @@ describe("AccessCode — landing form", () => {
     renderAt("/accesscode");
     expect(screen.getByLabelText(/Reservation Number/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Get Access Code/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /ENTER/i })).toBeInTheDocument();
   });
 
   it("shows error when both inputs are empty", async () => {
     const user = userEvent.setup();
     vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     renderAt("/accesscode");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
     expect(
       await screen.findByText(/Please enter your reservation number or email address/i),
     ).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("AccessCode — gate code view (BEFORE event end_time)", () => {
     renderAt("/accesscode");
 
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText("1234")).toBeInTheDocument();
     expect(screen.getByText("Lockbox Code")).toBeInTheDocument();
@@ -95,17 +95,24 @@ describe("AccessCode — gate code view (BEFORE event end_time)", () => {
     expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
   });
 
-  it("shows gate code when event is 3 days in the future", async () => {
+  it("shows locked message when server blocks code before event day", async () => {
+    // Server-side gate: RPC raises access_code_locked_until_event_day
+    // for lookups before the event date (America/New_York).
     vi.setSystemTime(new Date("2026-08-12T10:00:00"));
-    rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "access_code_locked_until_event_day" },
+    });
 
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
-    expect(await screen.findByText("1234")).toBeInTheDocument();
-    expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(/available on the day of your event/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("1234")).not.toBeInTheDocument();
   });
 
   it("shows gate code 1 minute BEFORE end_time", async () => {
@@ -115,7 +122,7 @@ describe("AccessCode — gate code view (BEFORE event end_time)", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText("1234")).toBeInTheDocument();
     expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
@@ -129,7 +136,7 @@ describe("AccessCode — gate code view (BEFORE event end_time)", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText("1234")).toBeInTheDocument();
     expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
@@ -145,7 +152,7 @@ describe("AccessCode — guest report view (AFTER event end_time)", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
@@ -161,7 +168,7 @@ describe("AccessCode — guest report view (AFTER event end_time)", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
@@ -174,7 +181,7 @@ describe("AccessCode — guest report view (AFTER event end_time)", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
   });
@@ -191,7 +198,7 @@ describe("AccessCode — already-submitted state", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(await screen.findByText(/Report Already Submitted/i)).toBeInTheDocument();
     // No form sections render
@@ -251,7 +258,7 @@ describe("AccessCode — error states from RPC", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-NOPE");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(
       await screen.findByText(/couldn't find a reservation/i),
@@ -268,7 +275,7 @@ describe("AccessCode — error states from RPC", () => {
     const user = userEvent.setup();
     renderAt("/accesscode");
     await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-CXLD");
-    await user.click(screen.getByRole("button", { name: /Get Access Code/i }));
+    await user.click(screen.getByRole("button", { name: /ENTER/i }));
 
     expect(
       await screen.findByText(/no longer active/i),
