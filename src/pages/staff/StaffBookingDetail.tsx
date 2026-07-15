@@ -19,6 +19,7 @@ import { format, parseISO, isToday, isPast } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import StaffAddonsPanel from "@/components/staff/StaffAddonsPanel";
+import { getAssignmentHours } from "@/lib/assignmentHours";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -109,6 +110,17 @@ export default function StaffBookingDetail() {
   }
 
   const cleaningStatus = cleaningReport?.status === 'completed' ? 'Completed' : 'Pending';
+
+  const effectiveHours = getAssignmentHours({
+    scheduledStartTime: booking.scheduled_start_time ?? null,
+    scheduledEndTime: booking.scheduled_end_time ?? null,
+    assignmentRole: booking.assignment_role,
+    packageName: booking.package ?? null,
+    packageStartTime: booking.package_start_time ?? null,
+    packageEndTime: booking.package_end_time ?? null,
+    bookingStartTime: booking.start_time ?? null,
+    bookingEndTime: booking.end_time ?? null,
+  });
 
   return (
     <div className="space-y-6">
@@ -224,7 +236,7 @@ export default function StaffBookingDetail() {
                 As Production staff, you are assigned to work during the package hours only:
               </p>
               <Badge className="bg-purple-600 text-white text-base px-4 py-2">
-                {booking.package_start_time.slice(0, 5)} - {booking.package_end_time.slice(0, 5)}
+                {effectiveHours.start?.slice(0, 5)} - {effectiveHours.end?.slice(0, 5)}
               </Badge>
               <p className="text-xs text-muted-foreground">
                 Package: {packageLabels[booking.package]}
@@ -250,7 +262,7 @@ export default function StaffBookingDetail() {
                 <div>
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Working Hours</p>
                   <p className="font-semibold text-orange-700 dark:text-orange-300">
-                    {booking.start_time?.slice(0, 5)} – {booking.end_time?.slice(0, 5)}
+                    {effectiveHours.start?.slice(0, 5)} – {effectiveHours.end?.slice(0, 5)}
                   </p>
                 </div>
               </div>

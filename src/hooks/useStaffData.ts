@@ -141,7 +141,7 @@ export function useStaffBookingDetail(bookingId: string) {
       // Get assignment row for this staff member (incl. bar customer-contact fields)
       const { data: assignmentData, error: assignmentError } = await supabase
         .from("booking_staff_assignments")
-        .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status")
+        .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status, scheduled_start_time, scheduled_end_time")
         .eq("booking_id", bookingId)
         .eq("staff_id", staffMember.id)
         .maybeSingle();
@@ -158,6 +158,8 @@ export function useStaffBookingDetail(bookingId: string) {
         assignment_customer_contacted_at: assignmentData?.customer_contacted_at ?? null,
         assignment_customer_contact_due_at: assignmentData?.customer_contact_due_at ?? null,
         assignment_tasks: (assignmentData?.tasks as Array<{ id: string; name: string; completed: boolean }>) || [],
+        scheduled_start_time: assignmentData?.scheduled_start_time ?? null,
+        scheduled_end_time: assignmentData?.scheduled_end_time ?? null,
       };
     },
     enabled: !!bookingId && !!staffMember?.id,
