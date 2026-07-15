@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
+import { Rotate3d } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
@@ -121,11 +123,23 @@ const Gallery = () => {
             }`}>
               Gallery
             </h2>
-            <p className={`text-center text-muted mb-12 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
+            <p className={`text-center text-muted mb-6 max-w-2xl mx-auto transition-all duration-1000 delay-150 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
             }`}>
               Take a look at our modern venue space
             </p>
+
+            <div className={`flex justify-center mb-12 transition-all duration-1000 delay-200 ${
+              isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'
+            }`}>
+              <Link
+                to="/tour"
+                className="inline-flex items-center gap-2 rounded-full bg-primary px-6 py-3 font-semibold text-primary-foreground shadow-lg transition-all duration-300 hover:shadow-xl hover:-translate-y-0.5"
+              >
+                <Rotate3d className="h-5 w-5" />
+                Take the 3D Virtual Tour
+              </Link>
+            </div>
 
             <div className={`transition-all duration-1000 delay-300 ${
               isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-10'

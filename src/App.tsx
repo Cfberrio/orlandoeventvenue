@@ -17,6 +17,9 @@ import ScheduleTour from "./pages/ScheduleTour";
 import StripeConnectCallback from "./pages/StripeConnectCallback";
 import PricingPage from "./pages/PricingPage";
 import GalleryPage from "./pages/GalleryPage";
+import { lazy, Suspense } from "react";
+
+const VirtualTour = lazy(() => import("./pages/VirtualTour"));
 import NotFound from "./pages/NotFound";
 import AccessCode from "./pages/AccessCode";
 import AdminLayout from "./components/admin/AdminLayout";
@@ -67,6 +70,14 @@ const App = () => (
               <Route path="/terms-of-use" element={<TermsOfUse />} />
               <Route path="/pricing" element={<PricingPage />} />
               <Route path="/gallery" element={<GalleryPage />} />
+              <Route
+                path="/tour"
+                element={
+                  <Suspense fallback={<div className="fixed inset-0 bg-black" />}>
+                    <VirtualTour />
+                  </Suspense>
+                }
+              />
               <Route path="/schedule-tour" element={<ScheduleTour />} />
               <Route path="/stripe/connect/callback" element={<StripeConnectCallback />} />
               
