@@ -73,7 +73,7 @@ export default function StaffBookingsList() {
         ) : (
           <div className="grid gap-4">
             {upcomingBookings.map((booking) => (
-              <BookingCard key={booking.id} booking={booking} />
+              <BookingCard key={booking.assignment_id ?? booking.id} booking={booking} />
             ))}
           </div>
         )}
@@ -85,7 +85,7 @@ export default function StaffBookingsList() {
           <h2 className="text-lg font-semibold text-foreground">Past Bookings</h2>
           <div className="grid gap-4">
             {pastBookings.slice(0, 10).map((booking) => (
-              <BookingCard key={booking.id} booking={booking} isPast />
+              <BookingCard key={booking.assignment_id ?? booking.id} booking={booking} isPast />
             ))}
           </div>
         </div>
