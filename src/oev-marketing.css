@@ -187,3 +187,135 @@
     scroll-behavior: smooth;
   }
 }
+
+/* ===================== nav ===================== */
+.oev .oev-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--g200);
+  transition: box-shadow 0.25s;
+}
+.oev .oev-nav.scrolled {
+  box-shadow: 0 6px 24px rgba(11, 11, 11, 0.07);
+}
+.oev .oev-nav-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 72px;
+}
+.oev .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  min-width: 0;
+}
+.oev .brand img {
+  height: 44px;
+  width: auto;
+  flex: none;
+}
+.oev .brand span {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  font-size: 17px;
+  color: var(--g900);
+  white-space: nowrap;
+}
+.oev .nav-links {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.oev .nav-links > a:not(.btn) {
+  font-weight: 700;
+  font-size: 14.5px;
+  color: var(--g700);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.oev .nav-links > a:not(.btn):hover {
+  color: var(--accent);
+}
+.oev .btn-nav {
+  padding: 10px 22px;
+  font-size: 14px;
+}
+.oev .nav-burger {
+  display: none;
+  background: none;
+  border: 0;
+  color: var(--g900);
+  padding: 8px;
+  cursor: pointer;
+}
+.oev .nav-mobile {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .oev .nav-links {
+    display: none;
+  }
+  .oev .nav-burger {
+    display: block;
+  }
+  .oev .nav-mobile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 16px 18px;
+    border-top: 1px solid var(--g200);
+    background: #fff;
+  }
+  .oev .nav-mobile > a:not(.btn) {
+    padding: 12px 8px;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--g700);
+    text-decoration: none;
+    border-radius: 10px;
+  }
+  .oev .nav-mobile > a:not(.btn):active {
+    background: var(--g50);
+  }
+  .oev .nav-mobile .btn {
+    margin-top: 10px;
+  }
+  .oev .brand span {
+    font-size: 15px;
+  }
+  .oev .brand img {
+    height: 36px;
+  }
+}
+@media (max-width: 420px) {
+  .oev .brand span {
+    display: none;
+  }
+}
+
+/* ===================== mobile sticky bar ===================== */
+.oev .mbar {
+  display: none;
+}
+@media (max-width: 960px) {
+  .oev .mbar {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 60;
+    background: var(--ink);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  }
+  .oev .mbar .btn {
+    width: 100%;
+  }
+}
