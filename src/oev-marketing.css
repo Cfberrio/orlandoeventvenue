@@ -1,0 +1,189 @@
+/* =====================================================================
+   OEV marketing system — scoped to .oev (one-page only).
+   Inspired by the DR minimalist system; OEV official branding.
+   NEVER leak styles outside .oev — the admin/staff dashboards must not
+   be affected by anything in this file.
+   ===================================================================== */
+
+.oev {
+  /* --- tokens (OEV branding) --- */
+  --accent: hsl(200 98% 39%);      /* OEV primary, exact */
+  --accent-ink: hsl(200 98% 30%);  /* hover / pressed */
+  --accent-soft: hsl(200 98% 39% / 0.08);
+  --ink: #0b0b0b;
+  --g900: #1d1d1f;
+  --g700: #3f4147;
+  --g500: #6b7280;
+  --g300: #c9ccd1;
+  --g200: #e5e7eb;
+  --g100: #eef0f3;
+  --g50: #f5f6f8;
+  /* event-type accents — ONLY for the hero event-types line + dots */
+  --ev-cele: #e85d75;
+  --ev-pres: #8b5cf6;
+  --ev-prod: #f59e0b;
+
+  --shadow-hover: 0 12px 34px rgba(11, 11, 11, 0.1);
+  --radius-card: 26px;
+  --radius-band: 30px;
+
+  background: #fff;
+  color: var(--g700);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- layout --- */
+.oev .wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+.oev section {
+  padding: 96px 0;
+}
+.oev section[id] {
+  scroll-margin-top: 84px; /* sticky nav offset */
+}
+.oev .band-soft {
+  background: var(--g50);
+}
+
+/* --- typography --- */
+.oev h1,
+.oev h2,
+.oev h3 {
+  color: var(--g900);
+  font-weight: 900;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  margin: 0;
+}
+.oev .shead {
+  text-align: center;
+  margin-bottom: 44px;
+}
+.oev .shead h2,
+.oev h2.accent {
+  color: var(--accent);
+  font-size: clamp(30px, 4vw, 52px);
+}
+.oev .shead .lead,
+.oev .lead {
+  color: var(--g500);
+  font-size: clamp(16px, 1.6vw, 18.5px);
+  max-width: 640px;
+  margin: 14px auto 0;
+}
+.oev p {
+  margin: 0;
+}
+
+/* --- buttons (pill, weight 800) --- */
+.oev .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-radius: 999px;
+  border: 1.5px solid transparent;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.01em;
+  padding: 14px 28px;
+  cursor: pointer;
+  text-decoration: none;
+  transition:
+    background 0.2s,
+    color 0.2s,
+    border-color 0.2s,
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.oev .btn:active {
+  transform: translateY(1px);
+}
+.oev .btn-lg {
+  padding: 17px 36px;
+  font-size: 16.5px;
+}
+.oev .btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.oev .btn-primary:hover {
+  background: var(--accent-ink);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-hover);
+}
+.oev .btn-ghost {
+  background: #fff;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.oev .btn-ghost:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.oev .btn-onblue {
+  background: #fff;
+  color: var(--accent);
+}
+.oev .btn-onblue:hover {
+  background: var(--g50);
+  transform: translateY(-1px);
+}
+
+/* --- shared bits --- */
+.oev .tick {
+  display: inline-grid;
+  place-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  flex: none;
+}
+.oev .tick::after {
+  content: "";
+  width: 6px;
+  height: 10px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+
+/* Mobile card rows: horizontal snap scroll, never stack (DR rule) */
+@media (max-width: 960px) {
+  .oev .snap-row {
+    display: grid !important;
+    grid-auto-flow: column;
+    grid-auto-columns: 78%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 8px;
+  }
+  .oev .snap-row::-webkit-scrollbar {
+    display: none;
+  }
+  .oev .snap-row > * {
+    scroll-snap-align: start;
+  }
+  .oev section {
+    padding: 72px 0;
+  }
+  .oev .wrap {
+    padding: 0 16px;
+  }
+}
+
+/* Smooth anchor scroll, motion-safe */
+@media (prefers-reduced-motion: no-preference) {
+  html:has(.oev) {
+    scroll-behavior: smooth;
+  }
+}
