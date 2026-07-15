@@ -586,3 +586,55 @@
     min-height: 220px;
   }
 }
+/* ===================== why cards (vcard) ===================== */
+.oev .grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.oev .vcard {
+  position: relative;
+  display: block;
+  background: #fff;
+  border: 1.5px solid var(--accent);
+  border-radius: var(--radius-card);
+  padding: 26px 26px 30px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.22s, box-shadow 0.22s;
+}
+.oev .vcard:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+.oev .vcard .big {
+  display: block;
+  color: var(--accent);
+  font-weight: 900;
+  font-size: 26px;
+  letter-spacing: -0.03em;
+}
+.oev .vcard .small {
+  display: block;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 14.5px;
+  margin-top: 2px;
+}
+.oev .vcard p {
+  margin-top: 12px;
+  color: var(--g500);
+  font-size: 15.5px;
+}
+.oev .vcard .arrow {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  transition: transform 0.22s;
+}
+.oev .vcard:hover .arrow {
+  transform: translate(4px, -4px);
+}
