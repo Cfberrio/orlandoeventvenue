@@ -58,4 +58,12 @@ describe("getVisibleAddons", () => {
     const items = getVisibleAddons({ ...empty, tablecloths: true, tablecloth_quantity: 3 });
     expect(JSON.stringify(items)).not.toMatch(/amount|price|\$/i);
   });
+
+  it("keeps an extra whose type merely contains a covered word", () => {
+    const items = getVisibleAddons({
+      ...empty,
+      addons_detail: [{ type: "Open Bar Snacks", quantity: 2, amount: 30 }],
+    });
+    expect(items).toEqual([{ key: "addon-Open Bar Snacks", label: "Open Bar Snacks", detail: "2" }]);
+  });
 });

@@ -25,8 +25,8 @@ export interface AddonSource {
 const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : "");
 const hasPackage = (p?: string | null) => !!p && p !== "none";
 
-// Extras from addons_detail whose type is already represented by a typed column.
-const COVERED = ["tablecloth", "setup", "package", "bar"];
+// addons_detail entry types already represented by a typed column (exact match, normalized).
+const COVERED_TYPES = new Set(["tablecloth", "tablecloths", "setup", "setup_breakdown", "package", "bar", "bar_package"]);
 
 export function getVisibleAddons(booking: AddonSource): AddonItem[] {
   const items: AddonItem[] = [];
@@ -54,7 +54,7 @@ export function getVisibleAddons(booking: AddonSource): AddonItem[] {
   for (const extra of booking.addons_detail ?? []) {
     const type = (extra.type ?? "").trim();
     if (!type) continue;
-    if (COVERED.some((c) => type.toLowerCase().includes(c))) continue;
+    if (COVERED_TYPES.has(type.toLowerCase())) continue;
     items.push({ key: `addon-${type}`, label: type, detail: extra.quantity != null ? String(extra.quantity) : undefined });
   }
 
