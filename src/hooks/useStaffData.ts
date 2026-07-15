@@ -29,6 +29,8 @@ export interface StaffBooking {
   bar_client_phone_released: boolean | null;
   customer_contact_due_at: string | null;
   customer_contacted: boolean | null;
+  response_status: string | null;
+  response_due_at: string | null;
 }
 
 export interface CleaningReport {
@@ -78,6 +80,8 @@ export function useStaffAssignedBookings() {
           booking_id,
           customer_contact_due_at,
           customer_contacted,
+          response_status,
+          response_due_at,
           scheduled_start_time,
           scheduled_end_time,
           bookings!booking_staff_assignments_booking_id_fkey (
@@ -117,6 +121,8 @@ export function useStaffAssignedBookings() {
           assignment_id: assignment.id,
           customer_contact_due_at: assignment.customer_contact_due_at,
           customer_contacted: assignment.customer_contacted,
+          response_status: assignment.response_status ?? null,
+          response_due_at: assignment.response_due_at ?? null,
           scheduled_start_time: assignment.scheduled_start_time ?? null,
           scheduled_end_time: assignment.scheduled_end_time ?? null,
         })) as StaffBooking[];
@@ -147,7 +153,7 @@ export function useStaffBookingDetail(bookingId: string) {
       // Get assignment row for this staff member (incl. bar customer-contact fields)
       const { data: assignmentData, error: assignmentError } = await supabase
         .from("booking_staff_assignments")
-        .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status, scheduled_start_time, scheduled_end_time")
+        .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status, response_status, response_due_at, scheduled_start_time, scheduled_end_time")
         .eq("booking_id", bookingId)
         .eq("staff_id", staffMember.id)
         .maybeSingle();
@@ -163,6 +169,8 @@ export function useStaffBookingDetail(bookingId: string) {
         assignment_customer_contacted: assignmentData?.customer_contacted ?? false,
         assignment_customer_contacted_at: assignmentData?.customer_contacted_at ?? null,
         assignment_customer_contact_due_at: assignmentData?.customer_contact_due_at ?? null,
+        assignment_response_status: assignmentData?.response_status ?? null,
+        assignment_response_due_at: assignmentData?.response_due_at ?? null,
         assignment_tasks: (assignmentData?.tasks as Array<{ id: string; name: string; completed: boolean }>) || [],
         scheduled_start_time: assignmentData?.scheduled_start_time ?? null,
         scheduled_end_time: assignmentData?.scheduled_end_time ?? null,
@@ -431,6 +439,80 @@ export function useMarkBarCustomerContacted() {
       queryClient.invalidateQueries({ queryKey: ["staff-booking-detail", vars.bookingId] });
       queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["booking", vars.bookingId] });
+    },
+  });
+}
+
+// Staff accepts or rejects a booking assignment from the staff portal.
+// Updates response_status, logs a booking_events audit row and notifies admin by email.
+export function useRespondToAssignment() {
+  const queryClient = useQueryClient();
+  const { staffMember } = useStaffSession();
+
+  return useMutation({
+    mutationFn: async ({
+      bookingId,
+      assignmentId,
+      response,
+      reservationNumber,
+      eventDate,
+      assignmentRole,
+    }: {
+      bookingId: string;
+      assignmentId: string;
+      response: "accepted" | "rejected";
+      reservationNumber?: string | null;
+      eventDate?: string | null;
+      assignmentRole?: string | null;
+    }) => {
+      const now = new Date().toISOString();
+
+      const { error } = await supabase
+        .from("booking_staff_assignments")
+        .update({
+          response_status: response,
+          response_at: now,
+          updated_at: now,
+        })
+        .eq("id", assignmentId);
+      if (error) throw error;
+
+      // Audit event for admin visibility (mirrors bar_customer_contacted pattern)
+      await supabase.from("booking_events").insert({
+        booking_id: bookingId,
+        event_type: response === "accepted" ? "staff_assignment_accepted" : "staff_assignment_rejected",
+        channel: "staff_portal",
+        metadata: {
+          assignment_id: assignmentId,
+          staff_id: staffMember?.id,
+          staff_name: staffMember?.full_name,
+          assignment_role: assignmentRole,
+          responded_at: now,
+        },
+      });
+
+      // Notify admin by email (best-effort; don't fail the response on email issues)
+      try {
+        await supabase.functions.invoke("send-staff-response-notification", {
+          body: {
+            response,
+            staffName: staffMember?.full_name || "Unknown staff",
+            staffRole: assignmentRole || staffMember?.role || "Staff",
+            reservationNumber: reservationNumber || "N/A",
+            eventDate: eventDate || "N/A",
+            bookingId,
+          },
+        });
+      } catch (emailError) {
+        console.error("Failed to send staff response notification:", emailError);
+      }
+
+      return { success: true };
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-booking-detail", vars.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", vars.bookingId] });
     },
   });
 }

@@ -57,6 +57,9 @@ verify_jwt = false
 [functions.send-staff-assignment]
 verify_jwt = false
 
+[functions.send-staff-response-notification]
+verify_jwt = false
+
 [functions.voice-check-availability]
 verify_jwt = false
 

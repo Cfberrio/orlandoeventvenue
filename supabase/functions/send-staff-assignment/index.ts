@@ -327,7 +327,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
                 <tr>
                   <td style="padding:12px 14px;font-size:14px;line-height:22px;color:#334155;">
                     <div style="margin-bottom:6px;">1) Open the Staff Portal to review instructions and any special notes.</div>
-                    <div style="margin-bottom:6px;">2) Confirm you can make it.</div>
+                    <div style="margin-bottom:6px;">2) <b>Accept or reject this assignment in the Staff Portal within 24 hours.</b> If you don't respond in time, the assignment is automatically rejected and may be reassigned.</div>
                     <div>3) On the day of service, use the Staff Portal to view booking details.</div>
                   </td>
                 </tr>

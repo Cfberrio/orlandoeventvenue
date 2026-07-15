@@ -1441,6 +1441,7 @@ export default function BookingDetail() {
                       <TableHead>Staff Member</TableHead>
                       <TableHead>Staff Role</TableHead>
                       <TableHead>Assignment</TableHead>
+                      <TableHead>Response</TableHead>
                       <TableHead>Working Hours</TableHead>
                       <TableHead>Cleaning Details</TableHead>
                       <TableHead className="w-[50px]"></TableHead>
@@ -1467,6 +1468,27 @@ export default function BookingDetail() {
                           </TableCell>
                           <TableCell>
                             <Badge variant="outline">{assignment.assignment_role.replace(/_/g, " ")}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            {assignment.response_status === "accepted" ? (
+                              <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-400 dark:border-green-700">✓ Accepted</Badge>
+                            ) : assignment.response_status === "rejected" ? (
+                              <div className="flex flex-col gap-1">
+                                <Badge className="bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-400 dark:border-red-700 w-fit">✗ Rejected</Badge>
+                                {assignment.auto_rejected && (
+                                  <span className="text-xs text-muted-foreground">auto (no response)</span>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="flex flex-col gap-1">
+                                <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-400 dark:border-yellow-700 w-fit">Pending</Badge>
+                                {assignment.response_due_at && (
+                                  <span className="text-xs text-muted-foreground">
+                                    due {format(new Date(assignment.response_due_at), "MM/dd HH:mm")}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">

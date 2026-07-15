@@ -200,6 +200,10 @@ export interface StaffAssignment {
   tasks?: AssignmentTask[] | null;
   scheduled_start_time: string | null;
   scheduled_end_time: string | null;
+  response_status?: string | null;
+  response_at?: string | null;
+  response_due_at?: string | null;
+  auto_rejected?: boolean | null;
   created_at: string;
   updated_at: string;
   staff_member?: StaffMember;

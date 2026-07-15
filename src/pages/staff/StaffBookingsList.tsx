@@ -12,8 +12,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Calendar, Users, Clock, FileText, ChevronRight, UserMinus } from "lucide-react";
-import { useStaffAssignedBookings, useRemoveStaffAssignment } from "@/hooks/useStaffData";
+import { Calendar, Users, Clock, FileText, ChevronRight, UserMinus, Check, X } from "lucide-react";
+import { useStaffAssignedBookings, useRemoveStaffAssignment, useRespondToAssignment } from "@/hooks/useStaffData";
 import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
 import { useState } from "react";
@@ -110,8 +110,38 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   });
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const [assignmentIdToRemove, setAssignmentIdToRemove] = useState<string | null>(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
   const removeAssignment = useRemoveStaffAssignment();
+  const respondToAssignment = useRespondToAssignment();
   const { toast } = useToast();
+  const isPendingResponse = booking.response_status === "pending";
+
+  const handleRespond = async (response: "accepted" | "rejected") => {
+    try {
+      await respondToAssignment.mutateAsync({
+        bookingId: booking.id,
+        assignmentId: booking.assignment_id,
+        response,
+        reservationNumber: booking.reservation_number,
+        eventDate: booking.event_date,
+        assignmentRole: booking.assignment_role,
+      });
+      toast({
+        title: response === "accepted" ? "Assignment Accepted" : "Assignment Rejected",
+        description:
+          response === "accepted"
+            ? "You confirmed this booking. The administrator has been notified."
+            : "You declined this booking. The administrator has been notified.",
+      });
+      setShowRejectDialog(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "No se pudo enviar tu respuesta. Por favor intenta de nuevo.",
+        variant: "destructive",
+      });
+    }
+  };
   
   const handleUnassignClick = (assignmentId: string) => {
     setAssignmentIdToRemove(assignmentId);
@@ -156,6 +186,12 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                 <Badge variant="secondary">
                   {booking.assignment_role}
                 </Badge>
+                {booking.response_status === "accepted" && (
+                  <Badge className="bg-green-100 text-green-800 border-green-300">✓ Accepted</Badge>
+                )}
+                {booking.response_status === "rejected" && (
+                  <Badge className="bg-red-100 text-red-800 border-red-300">✗ Rejected</Badge>
+                )}
                 {booking.reservation_number && (
                   <span className="text-sm font-mono text-muted-foreground">
                     {booking.reservation_number}
@@ -217,7 +253,43 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                   </div>
                 </div>
               )}
-              {!isPast && booking.assignment_id && (
+              {/* Pending response: accept / reject */}
+              {!isPast && booking.assignment_id && isPendingResponse && (
+                <div className="rounded-md border border-blue-300/60 bg-blue-50 dark:bg-blue-950/20 p-3 space-y-2">
+                  <div className="flex items-center gap-2 flex-wrap text-sm">
+                    <span className="font-semibold text-blue-800 dark:text-blue-200">
+                      Do you accept this assignment?
+                    </span>
+                    {booking.response_due_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Respond by {format(parseISO(booking.response_due_at), "MM/dd HH:mm")} or it will be auto-rejected
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      disabled={respondToAssignment.isPending}
+                      onClick={() => handleRespond("accepted")}
+                    >
+                      <Check className="h-4 w-4 mr-2" />
+                      Accept
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                      disabled={respondToAssignment.isPending}
+                      onClick={() => setShowRejectDialog(true)}
+                    >
+                      <X className="h-4 w-4 mr-2" />
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {!isPast && booking.assignment_id && !isPendingResponse && booking.response_status !== "rejected" && (
                 <div className="pt-2">
                   <Button
                     variant="outline"
@@ -240,6 +312,27 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
           </div>
         </CardContent>
       </Card>
+
+      <AlertDialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reject this assignment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              You will decline working this event. The administrator will be notified immediately so they can assign someone else.
+              Are you sure you want to continue?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => handleRespond("rejected")}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Yes, reject assignment
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={showUnassignDialog} onOpenChange={setShowUnassignDialog}>
         <AlertDialogContent>
