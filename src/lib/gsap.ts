@@ -6,9 +6,6 @@ import { useGSAP } from "@gsap/react";
 
 gsap.registerPlugin(ScrollTrigger, SplitText, DrawSVGPlugin, useGSAP);
 
-// Ensure SplitText is accessible by its export name in globals
-gsap.core.globals().SplitText = SplitText;
-
 export function prefersReducedMotion(): boolean {
   return (
     typeof window !== "undefined" &&
