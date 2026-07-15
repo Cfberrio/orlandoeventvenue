@@ -1100,3 +1100,24 @@
     grid-auto-columns: 64%;
   }
 }
+
+/* ===================== faq ===================== */
+.oev .faq-wrap {
+  max-width: 780px;
+}
+.oev .faq-acc [data-state] {
+  border-color: var(--g200);
+}
+.oev .faq-acc button {
+  font-weight: 700;
+  font-size: 16px;
+  color: var(--g900);
+}
+.oev .faq-acc button:hover {
+  color: var(--accent);
+  text-decoration: none;
+}
+.oev .faq-acc [role="region"] {
+  color: var(--g500);
+  font-size: 15px;
+}
