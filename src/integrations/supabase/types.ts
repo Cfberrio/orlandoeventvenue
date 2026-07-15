@@ -792,10 +792,6 @@ export type Database = {
           id: string
           notes: string | null
           reminder_sent_at: string | null
-          response_at: string | null
-          response_due_at: string | null
-          response_status: string
-          auto_rejected: boolean
           scheduled_date: string | null
           scheduled_end_time: string | null
           scheduled_start_time: string | null
@@ -824,10 +820,6 @@ export type Database = {
           id?: string
           notes?: string | null
           reminder_sent_at?: string | null
-          response_at?: string | null
-          response_due_at?: string | null
-          response_status?: string
-          auto_rejected?: boolean
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
@@ -856,10 +848,6 @@ export type Database = {
           id?: string
           notes?: string | null
           reminder_sent_at?: string | null
-          response_at?: string | null
-          response_due_at?: string | null
-          response_status?: string
-          auto_rejected?: boolean
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
