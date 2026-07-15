@@ -8,7 +8,7 @@ const NAV_ITEMS = [
   { id: "gallery", label: "Gallery" },
   { id: "tour", label: "Tour" },
   { id: "how-it-works", label: "How It Works" },
-  { id: "production", label: "Production" },
+  { id: "add-ons", label: "Production" },
   { id: "faq", label: "FAQ" },
   { id: "contact", label: "Contact" },
 ];

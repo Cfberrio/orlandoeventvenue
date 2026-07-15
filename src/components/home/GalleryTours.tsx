@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Rotate3d } from "lucide-react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
   Carousel,
   CarouselContent,
@@ -110,9 +110,10 @@ const GalleryTours = () => {
       </section>
 
       <Dialog open={!!selected} onOpenChange={() => setSelected(null)}>
-        <DialogContent className="max-w-7xl w-[95vw] h-[90vh] p-0 overflow-hidden">
+        <DialogContent className="oev max-w-7xl w-[95vw] h-[90vh] p-0 overflow-hidden">
           {selected && (
             <div className="lightbox">
+              <DialogTitle className="sr-only">{selected.title}</DialogTitle>
               <img src={selected.url} alt={selected.title} />
               <p>{selected.title}</p>
             </div>
