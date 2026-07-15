@@ -1062,3 +1062,41 @@
     font-size: 13px;
   }
 }
+/* ===================== how it works ===================== */
+.oev .steps {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.oev .step {
+  background: #fff;
+  border: 1.5px solid var(--g200);
+  border-radius: 20px;
+  padding: 24px 20px;
+}
+.oev .step .num {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-content: center;
+  font-weight: 900;
+  font-size: 19px;
+  margin-bottom: 14px;
+}
+.oev .step h3 {
+  font-size: 16.5px;
+  letter-spacing: -0.01em;
+}
+.oev .step p {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--g500);
+}
+@media (max-width: 960px) {
+  .oev .steps.snap-row {
+    grid-auto-columns: 64%;
+  }
+}
