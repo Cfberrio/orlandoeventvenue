@@ -319,3 +319,122 @@
     width: 100%;
   }
 }
+
+/* ===================== hero ===================== */
+.oev .hero {
+  position: relative;
+  padding: 110px 0 84px;
+  text-align: center;
+  overflow: hidden;
+}
+.oev .hero h1 {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+.oev .hero .pre {
+  font-size: clamp(17px, 2vw, 23px);
+  font-weight: 800;
+  color: var(--g900);
+  letter-spacing: -0.01em;
+}
+.oev .hero .giant {
+  font-size: clamp(40px, 6.5vw, 84px);
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  text-wrap: balance;
+  max-width: 15ch;
+}
+.oev .hero .post {
+  font-size: clamp(18px, 2.2vw, 27px);
+  font-weight: 800;
+  color: var(--g700);
+}
+.oev .evtypes {
+  margin-top: 20px;
+  font-weight: 800;
+  font-size: clamp(14px, 1.6vw, 17px);
+  color: var(--g300);
+}
+.oev .evtypes .ev-corp {
+  color: var(--accent);
+}
+.oev .evtypes .ev-cele {
+  color: var(--ev-cele);
+}
+.oev .evtypes .ev-pres {
+  color: var(--ev-pres);
+}
+.oev .evtypes .ev-prod {
+  color: var(--ev-prod);
+}
+.oev .hero-stats {
+  display: flex;
+  justify-content: center;
+  gap: clamp(26px, 5vw, 64px);
+  margin-top: 38px;
+}
+.oev .stat {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+}
+.oev .stat-num {
+  font-size: clamp(28px, 3.4vw, 42px);
+  font-weight: 900;
+  color: var(--accent);
+  letter-spacing: -0.03em;
+}
+.oev .stat-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--g500);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.oev .hero-cta-row {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 36px;
+  flex-wrap: wrap;
+}
+.oev .hero-note {
+  margin-top: 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--g500);
+}
+.oev .hero-orbits {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.oev .orbit {
+  position: absolute;
+}
+.oev .orbit-in {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--accent);
+  opacity: 0.35;
+}
+.oev .orbit-in svg {
+  width: 100%;
+  height: 100%;
+}
+@media (max-width: 960px) {
+  .oev .hero {
+    padding: 72px 0 64px;
+  }
+  .oev .hero-orbits {
+    display: none;
+  }
+  .oev .hero-stats {
+    flex-wrap: wrap;
+    gap: 22px 34px;
+  }
+}
