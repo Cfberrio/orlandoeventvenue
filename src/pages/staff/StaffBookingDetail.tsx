@@ -18,6 +18,7 @@ import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isToday, isPast } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import StaffAddonsPanel from "@/components/staff/StaffAddonsPanel";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -205,6 +206,8 @@ export default function StaffBookingDetail() {
           )}
         </CardContent>
       </Card>
+
+      <StaffAddonsPanel booking={booking} />
 
       {/* Production Hours Card - Only show for Production staff with package */}
       {booking.assignment_role === "Production" && booking.package && booking.package !== "none" && booking.package_start_time && booking.package_end_time && (
