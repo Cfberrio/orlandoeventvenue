@@ -1209,3 +1209,12 @@
     padding-bottom: 96px; /* clear the fixed .mbar */
   }
 }
+
+/* ===================== contact (existing ContactForm, unmodified) =====================
+   `.oev h1, .oev h2, .oev h3 { margin: 0; ... }` above (line ~55) has higher
+   specificity (.oev + h2 = 0,1,1) than Tailwind's `.mb-4` utility (0,1,0) on
+   ContactForm's "Send us a message" heading, so it wins and collapses that
+   spacing. Restore just that — typography only, component untouched. */
+.oev #contact h2 {
+  margin-bottom: 1rem;
+}
