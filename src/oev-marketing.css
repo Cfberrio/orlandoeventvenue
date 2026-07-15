@@ -962,12 +962,12 @@
   background: #fff;
 }
 .oev .lightbox {
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
   display: grid;
+  grid-template-rows: 100%;
   place-items: center;
   background: rgba(255, 255, 255, 0.97);
-  position: relative;
 }
 .oev .lightbox img {
   max-width: 100%;
