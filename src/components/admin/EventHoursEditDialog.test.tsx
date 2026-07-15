@@ -1,0 +1,33 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+const mutateAsync = vi.fn().mockResolvedValue(undefined);
+vi.mock("@/hooks/useAdminData", () => ({ useUpdateBookingTimes: () => ({ mutateAsync, isPending: false }) }));
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
+
+import EventHoursEditDialog from "./EventHoursEditDialog";
+
+describe("EventHoursEditDialog", () => {
+  beforeEach(() => mutateAsync.mockClear());
+
+  it("saves the edited event hours", async () => {
+    render(<EventHoursEditDialog bookingId="b1" startTime="17:00:00" endTime="22:00:00" open onOpenChange={() => {}} />);
+    const end = screen.getByLabelText(/fin/i);
+    await userEvent.clear(end);
+    await userEvent.type(end, "23:00");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({ bookingId: "b1", startTime: "17:00", endTime: "23:00" }),
+    );
+  });
+
+  it("blocks saving when end is not after start", async () => {
+    render(<EventHoursEditDialog bookingId="b1" startTime="17:00:00" endTime="22:00:00" open onOpenChange={() => {}} />);
+    const end = screen.getByLabelText(/fin/i);
+    await userEvent.clear(end);
+    await userEvent.type(end, "16:00");
+    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    expect(mutateAsync).not.toHaveBeenCalled();
+  });
+});

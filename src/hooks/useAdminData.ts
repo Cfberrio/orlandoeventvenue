@@ -1012,6 +1012,24 @@ export function useDeleteStaffAssignment() {
   });
 }
 
+export function useUpdateBookingTimes() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ bookingId, startTime, endTime }: { bookingId: string; startTime: string; endTime: string }) => {
+      const { error } = await supabase
+        .from("bookings")
+        .update({ start_time: startTime, end_time: endTime })
+        .eq("id", bookingId);
+      if (error) throw error;
+    },
+    onSuccess: (_, { bookingId }) => {
+      queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
+      syncToGHL(bookingId);
+    },
+  });
+}
+
 export function useCreateCleaningReport() {
   const queryClient = useQueryClient();
   return useMutation({

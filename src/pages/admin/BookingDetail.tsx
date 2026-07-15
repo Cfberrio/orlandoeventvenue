@@ -71,6 +71,7 @@ import {
   useUpdateHostReport,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
+import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
 import BarServiceCard from "@/components/admin/BarServiceCard";
 import { usePricing } from "@/hooks/usePricing";
 
@@ -138,6 +139,9 @@ export default function BookingDetail() {
   // Report expand states
   const [isGuestReportExpanded, setIsGuestReportExpanded] = useState(false);
   const [isCleaningReportExpanded, setIsCleaningReportExpanded] = useState(false);
+
+  // Event hours edit dialog state
+  const [eventHoursOpen, setEventHoursOpen] = useState(false);
 
   // Form states
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
@@ -1403,9 +1407,14 @@ export default function BookingDetail() {
         <TabsContent value="staff">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                👥 Staff Assignments
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  👥 Staff Assignments
+                </div>
+                <Button variant="outline" size="sm" onClick={() => setEventHoursOpen(true)}>
+                  Editar horario del evento
+                </Button>
               </CardTitle>
               <p className="text-sm text-muted-foreground">
                 Assign staff members to this event
@@ -2429,6 +2438,15 @@ export default function BookingDetail() {
         defaultGuestCount={booking.number_of_guests || 0}
         currentBarPackage={booking.bar_package || "none"}
         onInvoiceCreated={() => refetchAddonInvoices()}
+      />
+
+      {/* Event Hours Edit Dialog */}
+      <EventHoursEditDialog
+        bookingId={booking.id}
+        startTime={booking.start_time}
+        endTime={booking.end_time}
+        open={eventHoursOpen}
+        onOpenChange={setEventHoursOpen}
       />
     </div>
   );
