@@ -63,7 +63,7 @@ const AddonsSection = () => {
       icon: "stream" as const,
       name: labelFor("package_workshop", "Workshop/Streaming Package"),
       price: p.package_workshop,
-      features: ["Includes Basic & LED +", "Streaming Equipment", "Live streaming & recording", "Virtual conferencing"],
+      features: ["Includes Basic & LED +", "Streaming Equipment", "Streaming Tech", "Live streaming & recording", "Virtual conferencing"],
     },
   ];
 

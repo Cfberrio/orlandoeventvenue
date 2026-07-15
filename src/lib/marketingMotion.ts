@@ -108,7 +108,7 @@ export function useMarketingMotion<T extends HTMLElement>(): RefObject<T | null>
 
         /* ---- data-draw (SVG stroke draw) ---- */
         for (const el of gsap.utils.toArray<HTMLElement>(root.querySelectorAll("[data-draw]"))) {
-          const strokes = el.querySelectorAll("path, circle, line, polyline, ellipse");
+          const strokes = el.querySelectorAll("path, circle, line, polyline, polygon, ellipse, rect");
           if (!strokes.length) continue;
           gsap.fromTo(
             strokes,
