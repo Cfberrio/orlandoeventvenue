@@ -1121,3 +1121,91 @@
   color: var(--g500);
   font-size: 15px;
 }
+
+/* ===================== final band ===================== */
+.oev .final {
+  padding-bottom: 40px;
+}
+.oev .final-band {
+  background: var(--accent);
+  border-radius: var(--radius-band);
+  padding: clamp(36px, 5vw, 60px);
+  text-align: center;
+  color: #fff;
+}
+.oev .final-band h2 {
+  color: #fff;
+  font-size: clamp(28px, 3.6vw, 46px);
+  letter-spacing: -0.03em;
+}
+.oev .final-band p {
+  margin: 14px auto 26px;
+  max-width: 560px;
+  opacity: 0.92;
+  font-size: 16.5px;
+}
+
+/* ===================== footer ===================== */
+.oev .oev-footer {
+  background: var(--ink);
+  color: #fff;
+  padding: 64px 0 40px;
+  margin-bottom: 0;
+}
+.oev .oev-footer .f-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 32px;
+}
+.oev .oev-footer img {
+  height: 72px;
+  width: auto;
+  margin-bottom: 14px;
+}
+.oev .oev-footer h3 {
+  color: #fff;
+  font-size: 15px;
+  font-weight: 800;
+  margin-bottom: 12px;
+}
+.oev .oev-footer p {
+  font-size: 14px;
+  opacity: 0.9;
+}
+.oev .f-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.oev .f-line svg {
+  flex: none;
+  margin-top: 3px;
+}
+.oev .f-note {
+  margin-top: 14px;
+}
+.oev .f-legal {
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+  margin-top: 40px;
+  padding-top: 26px;
+  text-align: center;
+  font-size: 13.5px;
+  opacity: 0.8;
+  display: grid;
+  gap: 8px;
+}
+.oev .f-legal a {
+  color: #fff;
+  text-decoration: none;
+}
+.oev .f-legal a:hover {
+  text-decoration: underline;
+}
+@media (max-width: 960px) {
+  .oev .oev-footer .f-grid {
+    grid-template-columns: 1fr;
+  }
+  .oev .oev-footer {
+    padding-bottom: 96px; /* clear the fixed .mbar */
+  }
+}
