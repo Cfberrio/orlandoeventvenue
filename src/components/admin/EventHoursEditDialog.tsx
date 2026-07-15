@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateBookingTimes } from "@/hooks/useAdminData";
-import { isValidTimeRange } from "@/lib/assignmentHours";
+import { isValidTimeRange, toTimeInputValue } from "@/lib/assignmentHours";
 
 interface Props {
   bookingId: string;
@@ -15,18 +15,16 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const toInput = (t: string | null) => (t ? t.slice(0, 5) : "");
-
 export default function EventHoursEditDialog({ bookingId, startTime, endTime, open, onOpenChange }: Props) {
   const { toast } = useToast();
   const { mutateAsync, isPending } = useUpdateBookingTimes();
-  const [start, setStart] = useState(toInput(startTime));
-  const [end, setEnd] = useState(toInput(endTime));
+  const [start, setStart] = useState(toTimeInputValue(startTime));
+  const [end, setEnd] = useState(toTimeInputValue(endTime));
 
   useEffect(() => {
     if (open) {
-      setStart(toInput(startTime));
-      setEnd(toInput(endTime));
+      setStart(toTimeInputValue(startTime));
+      setEnd(toTimeInputValue(endTime));
     }
   }, [open, startTime, endTime]);
 

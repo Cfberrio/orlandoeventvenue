@@ -34,3 +34,8 @@ export function isValidTimeRange(start: string, end: string): boolean {
   const norm = (t: string) => (t.length === 5 ? `${t}:00` : t);
   return norm(end) > norm(start);
 }
+
+// Converts a DB time ("HH:MM:SS" or "HH:MM") or null to an <input type="time"> value ("HH:MM").
+export function toTimeInputValue(t: string | null): string {
+  return t ? t.slice(0, 5) : "";
+}

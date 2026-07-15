@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateStaffAssignment } from "@/hooks/useAdminData";
-import { getAssignmentHours, isValidTimeRange } from "@/lib/assignmentHours";
+import { getAssignmentHours, isValidTimeRange, toTimeInputValue } from "@/lib/assignmentHours";
 
 interface Props {
   assignment: any;
@@ -14,19 +14,17 @@ interface Props {
   onOpenChange: (open: boolean) => void;
 }
 
-const toInput = (t: string | null) => (t ? t.slice(0, 5) : "");
-
 export default function StaffHoursEditDialog({ assignment, bookingId, open, onOpenChange }: Props) {
   const { toast } = useToast();
   const { mutateAsync, isPending } = useUpdateStaffAssignment();
-  const [start, setStart] = useState(toInput(assignment.scheduled_start_time));
-  const [end, setEnd] = useState(toInput(assignment.scheduled_end_time));
+  const [start, setStart] = useState(toTimeInputValue(assignment.scheduled_start_time));
+  const [end, setEnd] = useState(toTimeInputValue(assignment.scheduled_end_time));
 
   // Reseed on open so a reopened dialog never shows a stale draft.
   useEffect(() => {
     if (open) {
-      setStart(toInput(assignment.scheduled_start_time));
-      setEnd(toInput(assignment.scheduled_end_time));
+      setStart(toTimeInputValue(assignment.scheduled_start_time));
+      setEnd(toTimeInputValue(assignment.scheduled_end_time));
     }
   }, [open, assignment]);
 

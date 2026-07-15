@@ -1447,12 +1447,19 @@ export default function BookingDetail() {
                   </TableHeader>
                   <TableBody>
                     {assignments?.map((assignment) => {
-                      const isProduction = assignment.staff_member?.role === "Production";
-                      const hasPackage = assignment.booking?.package && assignment.booking.package !== "none";
-                      const showProductionHours = isProduction && hasPackage && assignment.booking?.package_start_time && assignment.booking?.package_end_time;
-                      
+                      const h = getAssignmentHours({
+                        scheduledStartTime: assignment.scheduled_start_time ?? null,
+                        scheduledEndTime: assignment.scheduled_end_time ?? null,
+                        assignmentRole: assignment.assignment_role,
+                        packageName: assignment.booking?.package ?? null,
+                        packageStartTime: assignment.booking?.package_start_time ?? null,
+                        packageEndTime: assignment.booking?.package_end_time ?? null,
+                        bookingStartTime: assignment.booking?.start_time ?? null,
+                        bookingEndTime: assignment.booking?.end_time ?? null,
+                      });
+
                       return (
-                        <TableRow key={assignment.id} className={showProductionHours ? "bg-purple-50 dark:bg-purple-950/20" : ""}>
+                        <TableRow key={assignment.id} className={h.source === "package" ? "bg-purple-50 dark:bg-purple-950/20" : ""}>
                           <TableCell className="font-medium">{assignment.staff_member?.full_name}</TableCell>
                           <TableCell>
                             <Badge variant="secondary">{assignment.staff_member?.role}</Badge>
@@ -1461,44 +1468,30 @@ export default function BookingDetail() {
                             <Badge variant="outline">{assignment.assignment_role.replace(/_/g, " ")}</Badge>
                           </TableCell>
                           <TableCell>
-                            {(() => {
-                              const h = getAssignmentHours({
-                                scheduledStartTime: assignment.scheduled_start_time ?? null,
-                                scheduledEndTime: assignment.scheduled_end_time ?? null,
-                                assignmentRole: assignment.assignment_role,
-                                packageName: assignment.booking?.package ?? null,
-                                packageStartTime: assignment.booking?.package_start_time ?? null,
-                                packageEndTime: assignment.booking?.package_end_time ?? null,
-                                bookingStartTime: assignment.booking?.start_time ?? null,
-                                bookingEndTime: assignment.booking?.end_time ?? null,
-                              });
-                              return (
-                                <div className="flex items-center gap-2">
-                                  {h.source === "package" ? (
-                                    <Badge className="bg-purple-600 text-white flex items-center gap-1 w-fit">
-                                      <span>🎬</span>
-                                      <span>{h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}</span>
-                                    </Badge>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">
-                                      {h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}
-                                    </span>
-                                  )}
-                                  {h.source === "override" && (
-                                    <Badge variant="outline" className="text-xs">custom</Badge>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-6 w-6"
-                                    onClick={() => setEditingAssignment(assignment)}
-                                    title="Editar horas"
-                                  >
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              );
-                            })()}
+                            <div className="flex items-center gap-2">
+                              {h.source === "package" ? (
+                                <Badge className="bg-purple-600 text-white flex items-center gap-1 w-fit">
+                                  <span>🎬</span>
+                                  <span>{h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}</span>
+                                </Badge>
+                              ) : (
+                                <span className="text-sm text-muted-foreground">
+                                  {h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}
+                                </span>
+                              )}
+                              {h.source === "override" && (
+                                <Badge variant="outline" className="text-xs">custom</Badge>
+                              )}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => setEditingAssignment(assignment)}
+                                title="Editar horas"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </TableCell>
                           <TableCell>
                             {assignment.staff_member?.role === 'Assistant' && assignment.tasks && assignment.tasks.length > 0 ? (
