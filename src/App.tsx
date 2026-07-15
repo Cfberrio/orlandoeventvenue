@@ -2,21 +2,18 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { StaffSessionProvider } from "@/hooks/useStaffSession";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
 import BookingConfirmation from "./pages/BookingConfirmation";
 import Auth from "./pages/Auth";
-import Contact from "./pages/Contact";
 import SmsTerms from "./pages/SmsTerms";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfUse from "./pages/TermsOfUse";
 import ScheduleTour from "./pages/ScheduleTour";
 import StripeConnectCallback from "./pages/StripeConnectCallback";
-import PricingPage from "./pages/PricingPage";
-import GalleryPage from "./pages/GalleryPage";
 import { lazy, Suspense } from "react";
 
 const VirtualTour = lazy(() => import("./pages/VirtualTour"));
@@ -64,12 +61,12 @@ const App = () => (
               <Route path="/book" element={<Book />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
               <Route path="/auth" element={<Auth />} />
-              <Route path="/contact" element={<Contact />} />
+              <Route path="/contact" element={<Navigate to={{ pathname: "/", hash: "#contact" }} replace />} />
               <Route path="/sms-terms" element={<SmsTerms />} />
               <Route path="/privacy-policy" element={<PrivacyPolicy />} />
               <Route path="/terms-of-use" element={<TermsOfUse />} />
-              <Route path="/pricing" element={<PricingPage />} />
-              <Route path="/gallery" element={<GalleryPage />} />
+              <Route path="/pricing" element={<Navigate to={{ pathname: "/", hash: "#pricing" }} replace />} />
+              <Route path="/gallery" element={<Navigate to={{ pathname: "/", hash: "#gallery" }} replace />} />
               <Route
                 path="/tour"
                 element={
