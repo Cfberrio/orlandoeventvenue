@@ -1218,3 +1218,14 @@
 .oev #contact h2 {
   margin-bottom: 1rem;
 }
+
+/* Mobile: keep embla arrows inside the viewport (shadcn defaults place them
+   -left-12/-right-12 outside the carousel, which overflows small screens). */
+@media (max-width: 960px) {
+  .oev .gal-arrow.gal-prev {
+    left: 8px;
+  }
+  .oev .gal-arrow.gal-next {
+    right: 8px;
+  }
+}
