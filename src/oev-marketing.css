@@ -799,3 +799,116 @@
     grid-auto-columns: 84%;
   }
 }
+/* ===================== add-ons ===================== */
+.oev .addon-h {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  margin: 42px 0 18px;
+}
+.oev .addon-h em {
+  font-style: normal;
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--g500);
+  margin-left: 10px;
+}
+.oev .atile-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+.oev .atile-grid.bar {
+  grid-template-columns: repeat(4, 1fr);
+}
+.oev .atile {
+  position: relative;
+  background: #fff;
+  border: 1.5px solid var(--g200);
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: transform 0.22s, box-shadow 0.22s, border-color 0.22s;
+}
+.oev .atile:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-hover);
+}
+.oev .atile > svg {
+  width: 34px;
+  height: 34px;
+  color: var(--accent);
+}
+.oev .atile .lbl {
+  font-weight: 800;
+  font-size: 15.5px;
+  color: var(--g900);
+  letter-spacing: -0.01em;
+}
+.oev .aprice {
+  font-weight: 900;
+  font-size: 20px;
+  color: var(--accent);
+  letter-spacing: -0.02em;
+}
+.oev .atile ul {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+.oev .atile li {
+  font-size: 13px;
+  color: var(--g500);
+  padding-left: 14px;
+  position: relative;
+}
+.oev .atile li::before {
+  content: "✓";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+.oev .atile .pop-badge {
+  top: -12px;
+}
+.oev .addon-note {
+  font-size: 13px;
+  color: var(--g500);
+  margin-top: 14px;
+}
+.oev .extras {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  max-width: 760px;
+}
+.oev .extra-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: var(--g50);
+  border-radius: 14px;
+  padding: 16px 20px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--g700);
+}
+.oev .extra-row strong {
+  color: var(--accent);
+  font-weight: 900;
+  white-space: nowrap;
+}
+@media (max-width: 960px) {
+  .oev .atile-grid.bar.snap-row {
+    grid-auto-columns: 56%;
+  }
+  .oev .extras {
+    grid-template-columns: 1fr;
+  }
+}
