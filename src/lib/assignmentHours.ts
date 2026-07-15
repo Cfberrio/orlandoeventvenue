@@ -28,8 +28,9 @@ export function getAssignmentHours(input: AssignmentHoursInput): AssignmentHours
   return { start: input.bookingStartTime, end: input.bookingEndTime, source: "booking" };
 }
 
-// Compares "HH:MM" or "HH:MM:SS" lexicographically (zero-padded 24h → safe).
+// Compares "HH:MM" or "HH:MM:SS" times; normalizes precision so mixed formats compare correctly.
 export function isValidTimeRange(start: string, end: string): boolean {
   if (!start || !end) return false;
-  return end > start;
+  const norm = (t: string) => (t.length === 5 ? `${t}:00` : t);
+  return norm(end) > norm(start);
 }

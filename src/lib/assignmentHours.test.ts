@@ -32,6 +32,13 @@ describe("getAssignmentHours", () => {
   it("ignores a half-set override (only start) and falls through", () => {
     expect(getAssignmentHours({ ...baseInput, scheduledStartTime: "14:00:00" }).source).toBe("booking");
   });
+
+  it("ignores package hours when the role is not Production", () => {
+    expect(getAssignmentHours({
+      ...baseInput, assignmentRole: "Assistant", packageName: "gold",
+      packageStartTime: "15:00:00", packageEndTime: "19:00:00",
+    })).toEqual({ start: "17:00:00", end: "22:00:00", source: "booking" });
+  });
 });
 
 describe("isValidTimeRange", () => {
@@ -41,5 +48,12 @@ describe("isValidTimeRange", () => {
   it("is false when end equals or precedes start", () => {
     expect(isValidTimeRange("18:00", "18:00")).toBe(false);
     expect(isValidTimeRange("19:00", "18:00")).toBe(false);
+  });
+  it("treats the same instant in mixed HH:MM / HH:MM:SS format as invalid (zero-length)", () => {
+    expect(isValidTimeRange("09:05", "09:05:00")).toBe(false);
+    expect(isValidTimeRange("09:05:00", "09:05")).toBe(false);
+  });
+  it("accepts a valid range across mixed formats", () => {
+    expect(isValidTimeRange("09:05", "10:00:00")).toBe(true);
   });
 });
