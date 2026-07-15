@@ -52,7 +52,8 @@ import {
   CreditCard,
   AlertTriangle,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Pencil
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format, parseISO, isBefore } from "date-fns";
@@ -72,8 +73,10 @@ import {
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
 import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
+import StaffHoursEditDialog from "@/components/admin/StaffHoursEditDialog";
 import BarServiceCard from "@/components/admin/BarServiceCard";
 import { usePricing } from "@/hooks/usePricing";
+import { getAssignmentHours } from "@/lib/assignmentHours";
 
 const lifecycleStatuses = [
   "pending",
@@ -142,6 +145,9 @@ export default function BookingDetail() {
 
   // Event hours edit dialog state
   const [eventHoursOpen, setEventHoursOpen] = useState(false);
+
+  // Per-person staff hours edit dialog state
+  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
 
   // Form states
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");
@@ -1455,16 +1461,44 @@ export default function BookingDetail() {
                             <Badge variant="outline">{assignment.assignment_role.replace(/_/g, " ")}</Badge>
                           </TableCell>
                           <TableCell>
-                            {showProductionHours ? (
-                              <Badge className="bg-purple-600 text-white flex items-center gap-1 w-fit">
-                                <span>🎬</span>
-                                <span>{assignment.booking.package_start_time.slice(0, 5)} - {assignment.booking.package_end_time.slice(0, 5)}</span>
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">
-                                {assignment.booking?.start_time?.slice(0, 5)} - {assignment.booking?.end_time?.slice(0, 5)}
-                              </span>
-                            )}
+                            {(() => {
+                              const h = getAssignmentHours({
+                                scheduledStartTime: assignment.scheduled_start_time ?? null,
+                                scheduledEndTime: assignment.scheduled_end_time ?? null,
+                                assignmentRole: assignment.assignment_role,
+                                packageName: assignment.booking?.package ?? null,
+                                packageStartTime: assignment.booking?.package_start_time ?? null,
+                                packageEndTime: assignment.booking?.package_end_time ?? null,
+                                bookingStartTime: assignment.booking?.start_time ?? null,
+                                bookingEndTime: assignment.booking?.end_time ?? null,
+                              });
+                              return (
+                                <div className="flex items-center gap-2">
+                                  {h.source === "package" ? (
+                                    <Badge className="bg-purple-600 text-white flex items-center gap-1 w-fit">
+                                      <span>🎬</span>
+                                      <span>{h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}</span>
+                                    </Badge>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">
+                                      {h.start?.slice(0, 5)} - {h.end?.slice(0, 5)}
+                                    </span>
+                                  )}
+                                  {h.source === "override" && (
+                                    <Badge variant="outline" className="text-xs">custom</Badge>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-6 w-6"
+                                    onClick={() => setEditingAssignment(assignment)}
+                                    title="Editar horas"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                           <TableCell>
                             {assignment.staff_member?.role === 'Assistant' && assignment.tasks && assignment.tasks.length > 0 ? (
@@ -2448,6 +2482,16 @@ export default function BookingDetail() {
         open={eventHoursOpen}
         onOpenChange={setEventHoursOpen}
       />
+
+      {/* Per-Person Staff Hours Edit Dialog */}
+      {editingAssignment && (
+        <StaffHoursEditDialog
+          assignment={editingAssignment}
+          bookingId={booking.id}
+          open={!!editingAssignment}
+          onOpenChange={(o) => !o && setEditingAssignment(null)}
+        />
+      )}
     </div>
   );
 }

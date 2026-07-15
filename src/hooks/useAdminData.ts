@@ -198,6 +198,8 @@ export interface StaffAssignment {
   cleaning_type?: string | null;
   celebration_surcharge?: number | null;
   tasks?: AssignmentTask[] | null;
+  scheduled_start_time: string | null;
+  scheduled_end_time: string | null;
   created_at: string;
   updated_at: string;
   staff_member?: StaffMember;
@@ -1024,6 +1026,25 @@ export function useUpdateBookingTimes() {
     },
     onSuccess: (_, { bookingId }) => {
       queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
+      syncToGHL(bookingId);
+    },
+  });
+}
+
+export function useUpdateStaffAssignment() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, scheduledStartTime, scheduledEndTime }: {
+      id: string; bookingId: string; scheduledStartTime: string | null; scheduledEndTime: string | null;
+    }) => {
+      const { error } = await supabase
+        .from("booking_staff_assignments")
+        .update({ scheduled_start_time: scheduledStartTime, scheduled_end_time: scheduledEndTime })
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: (_, { bookingId }) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
       syncToGHL(bookingId);
     },
