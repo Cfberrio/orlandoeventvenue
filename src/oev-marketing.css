@@ -638,3 +638,163 @@
 .oev .vcard:hover .arrow {
   transform: translate(4px, -4px);
 }
+
+/* ===================== pricing ===================== */
+.oev .pgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  max-width: 860px;
+  margin: 0 auto;
+}
+.oev .pcard {
+  position: relative;
+  background: #fff;
+  border: 1.5px solid var(--g200);
+  border-radius: var(--radius-card);
+  padding: 30px 28px;
+  transition: transform 0.22s, box-shadow 0.22s;
+}
+.oev .pcard:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-hover);
+}
+.oev .pcard h3 {
+  font-size: 20px;
+  letter-spacing: -0.02em;
+}
+.oev .pprice {
+  margin-top: 12px;
+  font-size: 44px;
+  font-weight: 900;
+  color: var(--g900);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+.oev .pprice em {
+  font-style: normal;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--g500);
+}
+.oev .pprice.small {
+  font-size: 30px;
+}
+.oev .pspin {
+  width: 30px;
+  height: 30px;
+  animation: oev-spin 1s linear infinite;
+}
+@keyframes oev-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.oev .pcard ul {
+  list-style: none;
+  margin: 20px 0 24px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.oev .pcard li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: var(--g500);
+}
+.oev .ptick {
+  display: inline-grid;
+  place-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  flex: none;
+}
+.oev .ptick::after {
+  content: "";
+  width: 5px;
+  height: 8px;
+  border: solid var(--accent);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) translateY(-1px);
+}
+.oev .pcard .btn {
+  width: 100%;
+}
+.oev .pcard-daily {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.oev .pcard-daily h3,
+.oev .pcard-daily .pprice {
+  color: #fff;
+}
+.oev .pcard-daily .pprice em,
+.oev .pcard-daily li {
+  color: rgba(255, 255, 255, 0.85);
+}
+.oev .pcard-daily .ptick {
+  background: rgba(255, 255, 255, 0.16);
+}
+.oev .pcard-daily .ptick::after {
+  border-color: #fff;
+}
+.oev .pop-badge {
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #fff;
+  color: var(--accent);
+  border: 1.5px solid var(--accent);
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 800;
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+.oev .fee-line {
+  max-width: 860px;
+  margin: 18px auto 0;
+  background: #fff;
+  border: 1.5px solid var(--g200);
+  border-radius: 18px;
+  padding: 18px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.oev .fee-line strong {
+  display: block;
+  color: var(--g900);
+  font-weight: 800;
+}
+.oev .fee-line span {
+  font-size: 13.5px;
+  color: var(--g500);
+}
+.oev .pricing-note {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--g500);
+  margin-top: 22px;
+}
+.oev .pricing-cta {
+  text-align: center;
+  margin-top: 22px;
+}
+@media (max-width: 960px) {
+  .oev .pgrid.snap-row {
+    grid-auto-columns: 84%;
+  }
+}
