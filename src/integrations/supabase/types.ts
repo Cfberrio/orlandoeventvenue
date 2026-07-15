@@ -776,6 +776,7 @@ export type Database = {
         Row: {
           assignment_role: string
           assignment_type: string | null
+          auto_rejected: boolean
           booking_id: string | null
           celebration_surcharge: number | null
           cleaning_type: string | null
@@ -792,6 +793,9 @@ export type Database = {
           id: string
           notes: string | null
           reminder_sent_at: string | null
+          response_at: string | null
+          response_due_at: string | null
+          response_status: string
           scheduled_date: string | null
           scheduled_end_time: string | null
           scheduled_start_time: string | null
@@ -804,6 +808,7 @@ export type Database = {
         Insert: {
           assignment_role: string
           assignment_type?: string | null
+          auto_rejected?: boolean
           booking_id?: string | null
           celebration_surcharge?: number | null
           cleaning_type?: string | null
@@ -820,6 +825,9 @@ export type Database = {
           id?: string
           notes?: string | null
           reminder_sent_at?: string | null
+          response_at?: string | null
+          response_due_at?: string | null
+          response_status?: string
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
@@ -832,6 +840,7 @@ export type Database = {
         Update: {
           assignment_role?: string
           assignment_type?: string | null
+          auto_rejected?: boolean
           booking_id?: string | null
           celebration_surcharge?: number | null
           cleaning_type?: string | null
@@ -848,6 +857,9 @@ export type Database = {
           id?: string
           notes?: string | null
           reminder_sent_at?: string | null
+          response_at?: string | null
+          response_due_at?: string | null
+          response_status?: string
           scheduled_date?: string | null
           scheduled_end_time?: string | null
           scheduled_start_time?: string | null
