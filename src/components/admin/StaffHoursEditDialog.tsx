@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { useUpdateStaffAssignment } from "@/hooks/useAdminData";
+import { useUpdateStaffAssignment, type StaffAssignment } from "@/hooks/useAdminData";
 import { getAssignmentHours, isValidTimeRange, toTimeInputValue } from "@/lib/assignmentHours";
 
 interface Props {
-  assignment: any;
+  assignment: StaffAssignment;
   bookingId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;

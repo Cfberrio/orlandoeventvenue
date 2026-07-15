@@ -18,6 +18,7 @@ import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { getAssignmentHours } from "@/lib/assignmentHours";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -97,6 +98,16 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
   const isProduction = booking.assignment_role === "Production";
   const isBarVendor = booking.assignment_role === "Bar Vendor";
   const hasPackage = booking.package && booking.package !== "none";
+  const hours = getAssignmentHours({
+    scheduledStartTime: booking.scheduled_start_time ?? null,
+    scheduledEndTime: booking.scheduled_end_time ?? null,
+    assignmentRole: booking.assignment_role,
+    packageName: booking.package ?? null,
+    packageStartTime: booking.package_start_time ?? null,
+    packageEndTime: booking.package_end_time ?? null,
+    bookingStartTime: booking.start_time ?? null,
+    bookingEndTime: booking.end_time ?? null,
+  });
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
   const [assignmentIdToRemove, setAssignmentIdToRemove] = useState<string | null>(null);
   const removeAssignment = useRemoveStaffAssignment();
@@ -159,14 +170,14 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  {isProduction && hasPackage && booking.package_start_time && booking.package_end_time ? (
+                  {hours.source === "package" ? (
                     <Badge className="bg-purple-600 text-white flex items-center gap-1">
                       <span>🎬</span>
-                      <span>{booking.package_start_time.slice(0, 5)} - {booking.package_end_time.slice(0, 5)}</span>
+                      <span>{hours.start?.slice(0, 5)} - {hours.end?.slice(0, 5)}</span>
                     </Badge>
                   ) : (
                     <span>
-                      {booking.start_time?.slice(0, 5)} - {booking.end_time?.slice(0, 5)}
+                      {hours.start?.slice(0, 5)} - {hours.end?.slice(0, 5)}
                     </span>
                   )}
                 </div>

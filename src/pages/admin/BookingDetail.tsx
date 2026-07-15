@@ -70,6 +70,7 @@ import {
   useCreateStaffAssignment,
   useDeleteStaffAssignment,
   useUpdateHostReport,
+  type StaffAssignment,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
 import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
@@ -147,7 +148,7 @@ export default function BookingDetail() {
   const [eventHoursOpen, setEventHoursOpen] = useState(false);
 
   // Per-person staff hours edit dialog state
-  const [editingAssignment, setEditingAssignment] = useState<any | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState<StaffAssignment | null>(null);
 
   // Form states
   const [newAssignmentStaff, setNewAssignmentStaff] = useState("");

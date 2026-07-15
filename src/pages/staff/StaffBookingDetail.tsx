@@ -122,6 +122,19 @@ export default function StaffBookingDetail() {
     bookingEndTime: booking.end_time ?? null,
   });
 
+  // Gating for the three mutually-exclusive "your hours" displays below.
+  // Every assigned role must see effective hours somewhere — the generic card
+  // is the catch-all for roles the other two cards don't cover (Custodial,
+  // Bar Vendor, Production without package times, etc.).
+  const hasProductionHoursCard =
+    booking.assignment_role === "Production" &&
+    !!booking.package &&
+    booking.package !== "none" &&
+    !!booking.package_start_time &&
+    !!booking.package_end_time;
+  const hasAssistantCard = booking.assignment_role === "Assistant";
+  const showGenericHours = !hasProductionHoursCard && !hasAssistantCard;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -221,8 +234,28 @@ export default function StaffBookingDetail() {
 
       <StaffAddonsPanel booking={booking} />
 
+      {/* Generic Hours Card - Catch-all so every assigned role (Custodial, Bar
+          Vendor, Production without package times, etc.) sees their effective
+          hours, including any per-person override, even when neither of the
+          role-specific cards below applies. */}
+      {showGenericHours && (
+        <Card className="border-l-4 border-l-blue-500 bg-blue-500/5">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5 text-blue-600" />
+              <span>Tu horario de trabajo</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Badge className="bg-blue-600 text-white text-base px-4 py-2">
+              {effectiveHours.start?.slice(0, 5)} – {effectiveHours.end?.slice(0, 5)}
+            </Badge>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Production Hours Card - Only show for Production staff with package */}
-      {booking.assignment_role === "Production" && booking.package && booking.package !== "none" && booking.package_start_time && booking.package_end_time && (
+      {hasProductionHoursCard && (
         <Card className="border-l-4 border-l-purple-500 bg-purple-500/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -233,7 +266,9 @@ export default function StaffBookingDetail() {
           <CardContent>
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
-                As Production staff, you are assigned to work during the package hours only:
+                {effectiveHours.source === "override"
+                  ? "Tu horario asignado:"
+                  : "As Production staff, you are assigned to work during the package hours only:"}
               </p>
               <Badge className="bg-purple-600 text-white text-base px-4 py-2">
                 {effectiveHours.start?.slice(0, 5)} - {effectiveHours.end?.slice(0, 5)}
@@ -247,7 +282,7 @@ export default function StaffBookingDetail() {
       )}
 
       {/* Assistant Tasks Card - Only for Assistant role */}
-      {booking.assignment_role === "Assistant" && (
+      {hasAssistantCard && (
         <Card className="border-l-4 border-l-orange-500 bg-orange-500/5">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">

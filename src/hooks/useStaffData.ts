@@ -19,6 +19,8 @@ export interface StaffBooking {
   lifecycle_status: string;
   assignment_role: string;
   assignment_id: string;
+  scheduled_start_time: string | null;
+  scheduled_end_time: string | null;
   // Bar service fields (only meaningful for Bar Vendor assignments)
   bar_package: string | null;
   bar_package_label: string | null;
@@ -76,6 +78,8 @@ export function useStaffAssignedBookings() {
           booking_id,
           customer_contact_due_at,
           customer_contacted,
+          scheduled_start_time,
+          scheduled_end_time,
           bookings!booking_staff_assignments_booking_id_fkey (
             id,
             reservation_number,
@@ -113,6 +117,8 @@ export function useStaffAssignedBookings() {
           assignment_id: assignment.id,
           customer_contact_due_at: assignment.customer_contact_due_at,
           customer_contacted: assignment.customer_contacted,
+          scheduled_start_time: assignment.scheduled_start_time ?? null,
+          scheduled_end_time: assignment.scheduled_end_time ?? null,
         })) as StaffBooking[];
     },
     enabled: !!staffMember?.id,
