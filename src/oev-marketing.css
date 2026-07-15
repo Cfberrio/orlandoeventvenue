@@ -160,6 +160,7 @@
 @media (max-width: 960px) {
   .oev .snap-row {
     display: grid !important;
+    grid-template-columns: none !important;
     grid-auto-flow: column;
     grid-auto-columns: 78%;
     overflow-x: auto;
