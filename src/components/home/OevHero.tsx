@@ -1,6 +1,12 @@
 import { useRef } from "react";
+import { MapPin } from "lucide-react";
 import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 import { MM } from "@/lib/marketingMotion";
+import heroBg from "@/assets/hero-bg-new.jpg";
+
+const REVIEWS_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
+const MAPS_URL =
+  "https://www.google.com/maps/dir//3847+E+Colonial+Dr,+Orlando,+FL+32803/@28.5442048,-81.1597824,13z/data=!4m8!4m7!1m0!1m5!1m1!1s0x88e7658349956c29:0x14dd97040d50b24f!2m2!1d-81.3365053!2d28.5546946?entry=ttu&g_ep=EgoyMDI2MDExMy4wIKXMDSoASAFQAw%3D%3D";
 
 /* Ambient event glyphs orbiting the cursor (desktop + fine pointer only).
  * `depth` scales how far each drifts. Mobile never mounts them (CSS). */
@@ -52,7 +58,8 @@ const OevHero = () => {
       mm.add(MM.noPref, () => {
         /* fromTo throughout: end state explicit, nothing can strand hidden. */
         const tl = gsap.timeline({ defaults: { ease: "power3.out", duration: 0.8 } });
-        tl.fromTo(".pre", { y: 24, opacity: 0 }, { y: 0, opacity: 1 }, 0)
+        tl.fromTo(".hero-stars", { y: 24, opacity: 0 }, { y: 0, opacity: 1 }, 0)
+          .fromTo(".pre", { y: 24, opacity: 0 }, { y: 0, opacity: 1 }, 0.08)
           .fromTo(
             ".evtypes span",
             { scale: 0.6, opacity: 0 },
@@ -101,6 +108,7 @@ const OevHero = () => {
 
   return (
     <section className="hero" id="top" ref={scope}>
+      <div className="hero-bg" aria-hidden style={{ backgroundImage: `url(${heroBg})` }} />
       <div className="hero-orbits" aria-hidden>
         {ORBITS.map((o, i) => (
           <span
@@ -115,11 +123,25 @@ const OevHero = () => {
         ))}
       </div>
       <div className="wrap">
+        <a className="hero-stars" href={REVIEWS_URL} target="_blank" rel="noopener noreferrer">
+          <span className="stars" aria-hidden>
+            ★★★★★
+          </span>
+          5-star on Google
+        </a>
         <h1>
           <span className="pre">Modern venue for</span>
           <span className="giant">events that just work.</span>
-          <span className="post">Near Downtown Orlando.</span>
         </h1>
+        <a
+          className="post hero-address"
+          href={MAPS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <MapPin size={20} aria-hidden />
+          3847 E Colonial Dr, Orlando, FL 32803 · Near Downtown
+        </a>
         <p className="evtypes">
           <span className="ev-corp">Corporate</span> · <span className="ev-cele">Celebrations</span>{" "}
           · <span className="ev-pres">Presentations</span> ·{" "}

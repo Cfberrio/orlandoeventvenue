@@ -21,4 +21,17 @@ describe("OevHero", () => {
     expect(screen.getByText("Tables")).toBeInTheDocument();
     expect(screen.getByText("Deposit")).toBeInTheDocument();
   });
+
+  it("renders the 5-star reviews badge, address link and background photo", () => {
+    const { container } = render(<OevHero />);
+    expect(screen.getByRole("link", { name: /5-star on Google/i })).toHaveAttribute(
+      "href",
+      "https://g.page/r/CU-yUA0El90UEAE/review",
+    );
+    expect(screen.getByRole("link", { name: /3847 E Colonial Dr/i })).toHaveAttribute(
+      "href",
+      expect.stringContaining("google.com/maps"),
+    );
+    expect(container.querySelector(".hero-bg")).not.toBeNull();
+  });
 });
