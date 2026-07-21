@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
 import { useParams, Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -670,55 +671,17 @@ export default function BookingDetail() {
   };
 
   const handleSaveProduction = async () => {
-    // Validation: if package is not 'none', times are required
-    if (productionPackage !== "none" && (!productionStartTime || !productionEndTime)) {
-      toast({
-        title: "Missing Information",
-        description: "Please specify both start and end times for production",
-        variant: "destructive",
-      });
+    // Admins may set any production duration (no 4-hour minimum). Shared,
+    // unit-tested rules live in validateProductionTimes.
+    const validationError = validateProductionTimes(
+      productionPackage as ProductionPackage,
+      productionStartTime,
+      productionEndTime,
+      booking
+    );
+    if (validationError) {
+      toast({ ...validationError, variant: "destructive" });
       return;
-    }
-
-    // Validation: end time must be after start time
-    if (productionPackage !== "none" && productionStartTime && productionEndTime) {
-      const start = new Date(`2000-01-01T${productionStartTime}`);
-      const end = new Date(`2000-01-01T${productionEndTime}`);
-      
-      if (end <= start) {
-        toast({
-          title: "Invalid Time Range",
-          description: "End time must be after start time",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validation: minimum 4 hours
-      const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      if (hours < 4) {
-        toast({
-          title: "Invalid Duration",
-          description: "Production package requires a minimum of 4 hours",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Validation: for hourly bookings, production hours must be within booking hours
-      if (booking?.booking_type === "hourly" && booking.start_time && booking.end_time) {
-        const bookingStart = new Date(`2000-01-01T${booking.start_time}`);
-        const bookingEnd = new Date(`2000-01-01T${booking.end_time}`);
-        
-        if (start < bookingStart || end > bookingEnd) {
-          toast({
-            title: "Invalid Time Range",
-            description: `Production hours must be within booking time (${booking.start_time.slice(0, 5)} - ${booking.end_time.slice(0, 5)})`,
-            variant: "destructive",
-          });
-          return;
-        }
-      }
     }
 
     setProductionLoading(true);
