@@ -952,9 +952,9 @@ export default function BookingDetail() {
                     <span className="text-muted-foreground">Package</span>
                     <Badge variant={booking.package && booking.package !== "none" ? "default" : "secondary"}>
                       {booking.package === "none" || !booking.package ? "No Package" :
-                      booking.package === "basic" ? `Basic Package — $${pp.package_basic}/hr` :
-                      booking.package === "led" ? `LED Package — $${pp.package_led}/hr` :
-                      booking.package === "workshop" ? `Workshop Package — $${pp.package_workshop}/hr` :
+                      booking.package === "basic" ? `Basic Package: $${pp.package_basic}/hr` :
+                      booking.package === "led" ? `LED Package: $${pp.package_led}/hr` :
+                      booking.package === "workshop" ? `Workshop Package: $${pp.package_workshop}/hr` :
                        booking.package}
                     </Badge>
                   </div>
@@ -983,7 +983,7 @@ export default function BookingDetail() {
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Beer & Wine Service</span>
                   <Badge variant={booking.beer_wine_service ? "default" : "secondary"}>
-                    {booking.beer_wine_service ? "🍷 Yes — Prep Required" : "No"}
+                    {booking.beer_wine_service ? "🍷 Yes, Prep Required" : "No"}
                   </Badge>
                 </div>
                 {booking.beer_wine_service && (
@@ -1090,7 +1090,7 @@ export default function BookingDetail() {
                   {booking.bar_package && booking.bar_package !== "none" && Number(booking.bar_subtotal) > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">
-                        Bar Service — {booking.bar_package_label || booking.bar_package}
+                        Bar Service: {booking.bar_package_label || booking.bar_package}
                         {booking.bar_guest_count ? ` (${booking.bar_guest_count} × $${Number(booking.bar_rate_per_guest).toFixed(2)})` : ''}
                       </span>
                       <span>${Number(booking.bar_subtotal).toLocaleString()}</span>
@@ -1792,7 +1792,7 @@ export default function BookingDetail() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Submitted {format(new Date(hostReport.submitted_at), "MM/dd/yyyy h:mm a")}
                   {hostReport.guest_name ? ` by ${hostReport.guest_name}` : ''}
-                  {hostReport.has_issue ? ' — Issue reported' : ''}
+                  {hostReport.has_issue ? '. Issue reported' : ''}
                 </p>
               )}
             </CardHeader>
@@ -1943,8 +1943,8 @@ export default function BookingDetail() {
               {cleaningReport && !isCleaningReportExpanded && (
                 <p className="text-sm text-muted-foreground mt-1">
                   {cleaningReport.cleaner_name ? `By ${cleaningReport.cleaner_name}` : 'Cleaner not specified'}
-                  {cleaningReport.completed_at ? ` — Completed ${format(new Date(cleaningReport.completed_at), "MM/dd/yyyy h:mm a")}` : ''}
-                  {cleaningReport.clean_issues_notes ? ' — Maintenance issues reported' : ''}
+                  {cleaningReport.completed_at ? `. Completed ${format(new Date(cleaningReport.completed_at), "MM/dd/yyyy h:mm a")}` : ''}
+                  {cleaningReport.clean_issues_notes ? '. Maintenance issues reported' : ''}
                 </p>
               )}
             </CardHeader>

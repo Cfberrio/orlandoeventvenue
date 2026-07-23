@@ -30,7 +30,7 @@ const CARDS = [
     href: "#how-it-works",
     big: "Simple",
     small: "flat pricing, book online",
-    body: "Transparent pricing with no hidden fees. Pick your date, sign, pay online — done.",
+    body: "Transparent pricing with no hidden fees. Pick your date, sign, pay online. Done.",
   },
 ];
 

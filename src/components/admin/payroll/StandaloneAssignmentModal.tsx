@@ -97,7 +97,7 @@ export default function StandaloneAssignmentModal({
       return;
     }
     if (surchargeNum < 0 || surchargeNum > 70) {
-      toast({ title: "Error", description: "Surcharge must be $0–$70", variant: "destructive" });
+      toast({ title: "Error", description: "Surcharge must be $0 to $70", variant: "destructive" });
       return;
     }
 
@@ -218,7 +218,7 @@ export default function StandaloneAssignmentModal({
 
           {/* Celebration Surcharge */}
           <div className="grid gap-1.5">
-            <Label>Celebration Surcharge ($0–$70)</Label>
+            <Label>Celebration Surcharge ($0 to $70)</Label>
             <Input
               type="number"
               min="0"

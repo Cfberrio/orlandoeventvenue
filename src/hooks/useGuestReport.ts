@@ -200,7 +200,7 @@ export const useGuestReport = () => {
           .from('maintenance_tickets')
           .insert({
             booking_id: bookingId,
-            title: `Guest issue reported – reservation ${reservationNumber}`,
+            title: `Guest issue reported: reservation ${reservationNumber}`,
             description: reportData.issue_description,
             issue_type: 'guest_report',
             reported_by_role: 'host',

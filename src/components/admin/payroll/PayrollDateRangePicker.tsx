@@ -106,12 +106,12 @@ function formatRange(startDate: Date, endDate: Date): string {
     return format(startDate, "MMM d, yyyy");
   }
   if (sameMonth) {
-    return `${format(startDate, "MMM d")} – ${format(endDate, "d, yyyy")}`;
+    return `${format(startDate, "MMM d")} to ${format(endDate, "d, yyyy")}`;
   }
   if (sameYear) {
-    return `${format(startDate, "MMM d")} – ${format(endDate, "MMM d, yyyy")}`;
+    return `${format(startDate, "MMM d")} to ${format(endDate, "MMM d, yyyy")}`;
   }
-  return `${format(startDate, "MMM d, yyyy")} – ${format(endDate, "MMM d, yyyy")}`;
+  return `${format(startDate, "MMM d, yyyy")} to ${format(endDate, "MMM d, yyyy")}`;
 }
 
 export default function PayrollDateRangePicker({

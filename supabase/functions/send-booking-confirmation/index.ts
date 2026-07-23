@@ -185,7 +185,7 @@ function generateEmailHTML(booking: BookingEmailData): string {
         <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:14px;">
           <li>Up to 90 guests</li>
           <li>10 tables + 90 chairs</li>
-          <li>Prep kitchen (staging + re-heating only — no on-site cooking)</li>
+          <li>Prep kitchen (staging + re-heating only, no on-site cooking)</li>
           <li>2 bathrooms</li>
           <li>Free parking</li>
         </ul>`;
@@ -215,12 +215,12 @@ function generateEmailHTML(booking: BookingEmailData): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Orlando Event Venue — 50% Received</title>
-  <meta name="description" content="We've got your 50%. Your date is being held — we'll confirm within 24 hours.">
+  <title>Orlando Event Venue: 50% Received</title>
+  <meta name="description" content="We've got your 50%. Your date is being held. We'll confirm within 24 hours.">
 </head>
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    We've got your 50%. Your date is being held — we'll confirm within 24 hours.
+    We've got your 50%. Your date is being held. We'll confirm within 24 hours.
   </div>
   <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
     <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
@@ -236,10 +236,10 @@ function generateEmailHTML(booking: BookingEmailData): string {
         Hi <strong>${firstName}</strong>,
       </p>
       <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Welcome to Orlando Event Venue. We've got your 50% — your date is being held.
+        Welcome to Orlando Event Venue. We've got your 50%, and your date is being held.
       </p>
       <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Here's the deal: we'll review your booking details (timing, capacity, venue readiness) and confirm within about <strong>24 hours</strong>. Hold off on invitations until we confirm — saves trouble if anything needs to shift.
+        Here's the deal: we'll review your booking details (timing, capacity, venue readiness) and confirm within about <strong>24 hours</strong>. Hold off on invitations until we confirm. It saves trouble if anything needs to shift.
       </p>
       <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
         Save this email. It's the one place where everything you need before event day lives: reservation #, payment timeline, day-of rules, and what to expect. From here on, most reminders arrive as short texts. Email stays for receipts, your payment link, and your access instructions.
@@ -257,9 +257,9 @@ function generateEmailHTML(booking: BookingEmailData): string {
         </table>
       </div>
       ${card("What's Included", includedList)}
-      ${card("Catering", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Zero restrictions — bring any caterer you want. Professional caterers must show proof of liability insurance.</p>`)}
+      ${card("Catering", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Zero restrictions: bring any caterer you want. Professional caterers must show proof of liability insurance.</p>`)}
       ${card("Bar Service", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">All alcohol service runs through us. Packages and add-ons are on our website.</p>`)}
-      ${card("Wi-Fi", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Wi-Fi credentials will be on your access page along with your door code on event day — both update together.</p>`)}
+      ${card("Wi-Fi", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Wi-Fi credentials will be on your access page along with your door code on event day, and both update together.</p>`)}
       ${card("Payment Timeline", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Your remaining 50% is due <strong>15 days before your event</strong>. We'll send a secure payment link by email with a short text reminder. Your full access instructions arrive with that final-payment email.</p>`)}
       ${card("Your Agreement at a Glance", `${agreementIntro}${agreementList}`)}
       <p style="margin:18px 0 0;font-size:14px;line-height:1.65;color:#374151;">
@@ -336,11 +336,11 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   drawDetail(`Guests: ${booking.number_of_guests}`);
   drawDetail(`Booking: ${formatBookingType(booking.booking_type)}`);
   if (booking.start_time && booking.end_time) {
-    drawDetail(`Time: ${formatTime(booking.start_time)} – ${formatTime(booking.end_time)}`);
+    drawDetail(`Time: ${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`);
   }
 
   y -= 14;
-  page.drawText("50% DEPOSIT — PAID TODAY", { x: M, y, size: 9, font: helvBold, color: gray500 });
+  page.drawText("50% DEPOSIT: PAID TODAY", { x: M, y, size: 9, font: helvBold, color: gray500 });
   y -= 6;
   page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: gray200 });
   y -= 16;
@@ -363,7 +363,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   }
   if (booking.bar_package && booking.bar_package !== "none" && (booking.bar_subtotal ?? 0) > 0) {
     const sub = booking.bar_guest_count ? `${booking.bar_guest_count} guests${booking.bar_rate_per_guest ? ` × ${formatCurrency(Number(booking.bar_rate_per_guest))}` : ""}` : undefined;
-    items.push({ label: `Bar Service — ${booking.bar_package_label || "Standard"}`, full: Number(booking.bar_subtotal), sub });
+    items.push({ label: `Bar Service: ${booking.bar_package_label || "Standard"}`, full: Number(booking.bar_subtotal), sub });
   }
   if (booking.optional_services > 0) items.push({ label: "Add-ons & Optional Services", full: booking.optional_services });
   if (booking.taxes_fees > 0) items.push({ label: "Taxes & Fees", full: booking.taxes_fees });
@@ -425,7 +425,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
 
   y -= 26;
   const balStr = formatCurrency(booking.balance_amount);
-  page.drawText(`Remaining 50% balance: ${balStr} — due 15 days before your event.`, { x: M, y, size: 9, font: helv, color: gray500 });
+  page.drawText(`Remaining 50% balance: ${balStr}, due 15 days before your event.`, { x: M, y, size: 9, font: helv, color: gray500 });
   y -= 12;
   page.drawText("This receipt reflects only the 50% deposit portion paid today.", { x: M, y, size: 9, font: helv, color: gray500 });
 
@@ -506,7 +506,7 @@ serve(async (req) => {
       await sendCriticalAlert(
         "send-booking-confirmation (deposit PDF)",
         booking.reservation_number,
-        `Deposit receipt PDF failed to generate — confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
+        `Deposit receipt PDF failed to generate: confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
       );
     }
 

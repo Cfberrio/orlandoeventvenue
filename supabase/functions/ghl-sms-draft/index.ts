@@ -117,7 +117,7 @@ async function loadActivePrograms(supabase: any) {
     sessions: (t.sessions ?? []).map((s: any) => ({
       start_date: s.start_date,
       end_date: s.end_date,
-      time: `${s.start_time}–${s.end_time}`,
+      time: `${s.start_time}-${s.end_time}`,
       days: s.day_of_week,
       repeat: s.recurrence,
     })),
@@ -190,7 +190,7 @@ async function loadVenueAvailability(supabase: any) {
 
   for (const b of bookingsQ.data ?? []) {
     const isDaily = (b.booking_type ?? "").toString() === "daily";
-    mark(b.event_date, isDaily, isDaily ? undefined : `${hhmm(b.start_time)}–${hhmm(b.end_time)}`);
+    mark(b.event_date, isDaily, isDaily ? undefined : `${hhmm(b.start_time)}-${hhmm(b.end_time)}`);
   }
   const expand = (s: string, e: string, cb: (d: string) => void) => {
     let d = s < startDate ? startDate : s;
@@ -201,7 +201,7 @@ async function loadVenueAvailability(supabase: any) {
   for (const bl of blocksQ.data ?? []) {
     const isHourly = (bl.block_type ?? "").toString() === "hourly" && bl.start_time && bl.end_time;
     expand(bl.start_date, bl.end_date, (d) =>
-      mark(d, !isHourly, isHourly ? `${hhmm(bl.start_time)}–${hhmm(bl.end_time)}` : undefined));
+      mark(d, !isHourly, isHourly ? `${hhmm(bl.start_time)}-${hhmm(bl.end_time)}` : undefined));
   }
   for (const bo of blackoutsQ.data ?? []) {
     expand(bo.start_date, bo.end_date, (d) => mark(d, true));
@@ -229,7 +229,7 @@ async function loadVenueAvailability(supabase: any) {
       `This is the LIVE venue calendar from the bookings database, covering ${startDate} to ${endDate}. ` +
       `Every date in that window that is NOT listed in busy_dates is fully OPEN for both hourly and daily bookings. ` +
       `Dates marked partially_booked are open outside the listed busy_hours. ` +
-      `Dates marked fully_booked are not available. Dates after ${endDate} are outside this snapshot — say you'll confirm those.`,
+      `Dates marked fully_booked are not available. Dates after ${endDate} are outside this snapshot, so say you'll confirm those.`,
   };
 }
 
@@ -354,8 +354,8 @@ async function postDraftComment(
   subject: string | null,
 ): Promise<{ ok: boolean; messageId?: string; error?: string }> {
   const header = channel === "email"
-    ? "[AI DRAFT — EMAIL — copy/edit/send manually]"
-    : "[AI DRAFT — copy/edit/send manually]";
+    ? "[AI DRAFT: EMAIL, copy/edit/send manually]"
+    : "[AI DRAFT: copy/edit/send manually]";
   const message = channel === "email"
     ? `${header}\n\nSubject: ${subject ?? ""}\n\n${draft}`
     : `${header}\n\n${draft}`;

@@ -50,7 +50,7 @@ export default function PayrollReports() {
       <div>
         <h1 className="text-2xl font-bold text-foreground">💰 Payroll</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          Staff payment tracking — Custodial, Assistant & Production
+          Staff payment tracking: Custodial, Assistant & Production
         </p>
       </div>
 

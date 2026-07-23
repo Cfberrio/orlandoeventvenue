@@ -91,7 +91,7 @@ const GuestsEventStep = ({ data, updateData, onNext, onBack }: GuestsEventStepPr
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent className="bg-background">
-                  <SelectItem value="birthday-party">Birthday Party (adult or kids)</SelectItem>
+                  <SelectItem value="birthday-party">Birthday Party (adults or kids)</SelectItem>
                   <SelectItem value="baby-shower">Baby Shower</SelectItem>
                   <SelectItem value="bridal-shower">Bridal Shower</SelectItem>
                   <SelectItem value="wedding-reception">Wedding Reception</SelectItem>

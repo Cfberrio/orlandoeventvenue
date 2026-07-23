@@ -127,7 +127,7 @@ const OevHero = () => {
           <span className="stars" aria-hidden>
             ★★★★★
           </span>
-          5-star on Google
+          5 stars on Google
         </a>
         <h1>
           <span className="pre">Modern venue for</span>

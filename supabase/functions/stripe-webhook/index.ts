@@ -261,7 +261,7 @@ View Booking in Admin
     await client.send({
       from: gmailUser,
       to: "orlandoglobalministries@gmail.com",
-      subject: `OEV Payment Received (${subjectPrefix}) — ${reservationNumber}`,
+      subject: `OEV Payment Received (${subjectPrefix}): ${reservationNumber}`,
       content: `Payment received: ${paymentType} - ${formatCurrency(amountPaid)} for booking ${reservationNumber}`,
       html: emailHTML,
     });
@@ -394,7 +394,7 @@ serve(async (req) => {
             await smtpClient.send({
               from: gmailUser,
               to: gmailUser,
-              subject: `Invoice Paid: ${inv.invoice_number} – ${amtFormatted}`,
+              subject: `Invoice Paid: ${inv.invoice_number}, ${amtFormatted}`,
               content: `Invoice ${inv.invoice_number} (${inv.title}) has been paid by ${inv.customer_email}. Amount: ${amtFormatted}.`,
               html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
@@ -446,7 +446,7 @@ serve(async (req) => {
             await smtpClient.send({
               from: gmailUser,
               to: inv.customer_email,
-              subject: `Payment Confirmation – ${inv.invoice_number} | Orlando Event Venue`,
+              subject: `Payment Confirmation: ${inv.invoice_number} | Orlando Event Venue`,
               content: `Thank you for your payment of ${amtFormatted} for "${inv.title}". Invoice ${inv.invoice_number} is now paid.`,
               html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
@@ -667,7 +667,7 @@ ${receiptItemRows}
             unit_price: aiBarRate,
             payment_date: paymentDate,
             payment_split: "addon",
-            description: `Bar Service — ${aiBarLabel || aiBarPackage} (Add-on, paid in full)`,
+            description: `Bar Service: ${aiBarLabel || aiBarPackage} (Add-on, paid in full)`,
             metadata: {
               source: "addon_invoice",
               addon_invoice_id: invoiceId,

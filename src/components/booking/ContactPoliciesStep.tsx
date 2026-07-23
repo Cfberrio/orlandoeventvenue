@@ -12,17 +12,17 @@ import { useState, useRef, useEffect } from "react";
 import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const venueRules = [
-  "Bar service available as a paid add-on. No outside alcohol or outside bartenders permitted — $250 fee",
-  "No Drugs — $300 fee",
-  "No Smoking — $300 cleaning fee",
-  "No Pets (service animals with certification only) — $100 cleaning fee",
-  "Food & Beverage Compliance — $300 fee",
-  "No Glitter / Confetti / Rice — $300 cleaning fee",
-  "Setup & Breakdown Time — $200/hr overtime + $150 if not restored",
-  "Maximum Occupancy: 90 Guests — $200 fee",
-  "Decoration Rules — $200 damage fee",
-  "Damage & Repair — Repair costs (min. $200)",
-  "Chairs & Tables Reset — $150 fee",
+  "Bar service available as a paid add-on. No outside alcohol or outside bartenders permitted: $250 fee",
+  "No Drugs: $300 fee",
+  "No Smoking: $300 cleaning fee",
+  "No Pets (service animals with certification only): $100 cleaning fee",
+  "Food & Beverage Compliance: $300 fee",
+  "No Glitter / Confetti / Rice: $300 cleaning fee",
+  "Setup & Breakdown Time: $200/hr overtime + $150 if not restored",
+  "Maximum Occupancy: 90 Guests, $200 fee",
+  "Decoration Rules: $200 damage fee",
+  "Damage & Repair: Repair costs (min. $200)",
+  "Chairs & Tables Reset: $150 fee",
 ];
 
 const formSchema = z.object({

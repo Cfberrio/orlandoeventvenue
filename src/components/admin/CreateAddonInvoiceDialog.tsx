@@ -252,21 +252,21 @@ export default function CreateAddonInvoiceDialog({
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="basic" id="addon-basic" className="mt-1" />
                 <label htmlFor="addon-basic" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Basic Package — ${p.package_basic}/hr</div>
+                  <div className="font-semibold text-sm">Basic Package: ${p.package_basic}/hr</div>
                   <div className="text-xs text-muted-foreground">AV System, Microphones, Speakers, Projectors, Tech Assistant</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="led" id="addon-led" className="mt-1" />
                 <label htmlFor="addon-led" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">LED Package — ${p.package_led}/hr</div>
+                  <div className="font-semibold text-sm">LED Package: ${p.package_led}/hr</div>
                   <div className="text-xs text-muted-foreground">Basic + Stage LED Wall</div>
                 </label>
               </div>
               <div className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                 <RadioGroupItem value="workshop" id="addon-workshop" className="mt-1" />
                 <label htmlFor="addon-workshop" className="flex-1 cursor-pointer">
-                  <div className="font-semibold text-sm">Workshop Package — ${p.package_workshop}/hr</div>
+                  <div className="font-semibold text-sm">Workshop Package: ${p.package_workshop}/hr</div>
                   <div className="text-xs text-muted-foreground">LED + Streaming Equipment + Streaming Tech</div>
                 </label>
               </div>
@@ -315,7 +315,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setSetupBreakdown(checked as boolean)}
               />
               <label htmlFor="addon-setup" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables — ${SETUP_BREAKDOWN_COST}</div>
+                <div className="font-semibold text-sm">Setup & Breakdown of Chairs/Tables: ${SETUP_BREAKDOWN_COST}</div>
                 <div className="text-xs text-muted-foreground">We'll handle all furniture setup and breakdown</div>
               </label>
             </div>
@@ -327,7 +327,7 @@ export default function CreateAddonInvoiceDialog({
                 onCheckedChange={(checked) => setTablecloths(checked as boolean)}
               />
               <label htmlFor="addon-tablecloths" className="flex-1 cursor-pointer">
-                <div className="font-semibold text-sm">Tablecloth Rental — ${TABLECLOTH_UNIT_COST} each + ${TABLECLOTH_CLEANING_FEE} cleaning fee</div>
+                <div className="font-semibold text-sm">Tablecloth Rental: ${TABLECLOTH_UNIT_COST} each + ${TABLECLOTH_CLEANING_FEE} cleaning fee</div>
                 <div className="text-xs text-muted-foreground">Professional tablecloths (max {MAX_TABLECLOTHS})</div>
               </label>
             </div>
@@ -369,7 +369,7 @@ export default function CreateAddonInvoiceDialog({
                 <div key={bp.value} className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                   <RadioGroupItem value={bp.value} id={`bar-${bp.value}`} className="mt-1" />
                   <label htmlFor={`bar-${bp.value}`} className="flex-1 cursor-pointer">
-                    <div className="font-semibold text-sm">{bp.label} — ${bp.rate.toFixed(2)}/guest</div>
+                    <div className="font-semibold text-sm">{bp.label}: ${bp.rate.toFixed(2)}/guest</div>
                     <div className="text-xs text-muted-foreground">{bp.description}</div>
                   </label>
                 </div>
@@ -421,7 +421,7 @@ export default function CreateAddonInvoiceDialog({
               )}
               {barSubtotal > 0 && (
                 <div className="flex justify-between">
-                  <span>Bar Service — {barLabel} ({barGuestCount} × ${barRate.toFixed(2)})</span>
+                  <span>Bar Service: {barLabel} ({barGuestCount} × ${barRate.toFixed(2)})</span>
                   <span>${barSubtotal.toFixed(2)}</span>
                 </div>
               )}

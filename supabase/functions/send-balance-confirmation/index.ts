@@ -145,7 +145,7 @@ function generateEmailHTML(booking: BalanceEmailData): string {
   const formattedBookingType = formatBookingType(booking.booking_type);
   const formattedEventType = formatEventType(booking.event_type);
   const timeRange = booking.start_time && booking.end_time
-    ? `${formatTime(booking.start_time)} – ${formatTime(booking.end_time)}`
+    ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
     : "All Day";
 
   const detailRow = (label: string, value: string) => `
@@ -177,7 +177,7 @@ function generateEmailHTML(booking: BalanceEmailData): string {
         <p style="margin:0 0 12px;font-size:16px;color:#111827;font-weight:bold;letter-spacing:.5px;">${booking.reservation_number}</p>
         <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:14px;">
           <li style="margin:0 0 6px;"><strong>Before / during your event:</strong> the page shows your live door code + Wi-Fi. The code rotates per booking.</li>
-          <li style="margin:0;"><strong>After your event ends:</strong> the same page becomes your Guest Report (2 min — photos of the venue) and your review link.</li>
+          <li style="margin:0;"><strong>After your event ends:</strong> the same page becomes your Guest Report (2 min, photos of the venue) and your review link.</li>
         </ul>
         <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:#6B7280;">
           The day before your event you'll get a short text with the access link, and again 1 hour before.
@@ -193,7 +193,7 @@ function generateEmailHTML(booking: BalanceEmailData): string {
           <li style="margin:0 0 6px;">Open the lockbox and retrieve the <strong>magnetic key</strong>.</li>
           <li style="margin:0 0 6px;">Tap the magnetic key on the sensor on the <strong>right side</strong> of the door.</li>
           <li style="margin:0 0 6px;">Return the key to the lockbox immediately and close it.</li>
-          <li style="margin:0;">Inside, locate the remote labeled <strong>"Light"</strong> on the left wall — left-side buttons turn lights on. Return the remote when done.</li>
+          <li style="margin:0;">Inside, locate the remote labeled <strong>"Light"</strong> on the left wall. Left-side buttons turn lights on. Return the remote when done.</li>
         </ol>`;
 
   const beforeYouLeave = `
@@ -207,7 +207,7 @@ function generateEmailHTML(booking: BalanceEmailData): string {
 
   const afterYouLeave = `
         <p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">
-          Head back to the same access page — once your booking ends, it switches to show the <strong>Guest Report</strong> (a quick photo walkthrough so we can close out your reservation) and a quick review link. Same URL, same reservation number:
+          Head back to the same access page. Once your booking ends, it switches to show the <strong>Guest Report</strong> (a quick photo walkthrough so we can close out your reservation) and a quick review link. Same URL, same reservation number:
         </p>
         <p style="margin:10px 0 0;font-size:14px;line-height:1.5;">
           <a href="https://orlandoeventvenue.org/accesscode" style="color:#14ADE6;text-decoration:none;font-weight:bold;">https://orlandoeventvenue.org/accesscode</a>
@@ -221,12 +221,12 @@ function generateEmailHTML(booking: BalanceEmailData): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>You're Set — Access Instructions for Event Day | Orlando Event Venue</title>
-  <meta name="description" content="Fully paid. Here's how access works on event day — and what to do after.">
+  <title>You're Set: Access Instructions for Event Day | Orlando Event Venue</title>
+  <meta name="description" content="Fully paid. Here's how access works on event day, and what to do after.">
 </head>
 <body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    Fully paid. Here's how access works on event day — and what to do after.
+    Fully paid. Here's how access works on event day, and what to do after.
   </div>
   <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
     <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
@@ -365,11 +365,11 @@ async function generateBalanceReceiptPDF(booking: BalanceEmailData, processingFe
   drawDetail(`Guests: ${booking.number_of_guests}`);
   drawDetail(`Booking: ${formatBookingType(booking.booking_type)}`);
   if (booking.start_time && booking.end_time) {
-    drawDetail(`Time: ${formatTime(booking.start_time)} – ${formatTime(booking.end_time)}`);
+    drawDetail(`Time: ${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`);
   }
 
   y -= 14;
-  page.drawText("FINAL 50% — PAID TODAY", { x: M, y, size: 9, font: helvBold, color: gray500 });
+  page.drawText("FINAL 50%: PAID TODAY", { x: M, y, size: 9, font: helvBold, color: gray500 });
   y -= 6;
   page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: gray200 });
   y -= 16;
@@ -391,7 +391,7 @@ async function generateBalanceReceiptPDF(booking: BalanceEmailData, processingFe
   }
   if (booking.bar_package && booking.bar_package !== "none" && (booking.bar_subtotal ?? 0) > 0) {
     const sub = booking.bar_guest_count ? `${booking.bar_guest_count} guests${booking.bar_rate_per_guest ? ` × ${formatCurrency(Number(booking.bar_rate_per_guest))}` : ""}` : undefined;
-    items.push({ label: `Bar Service — ${booking.bar_package_label || "Standard"}`, full: Number(booking.bar_subtotal), sub });
+    items.push({ label: `Bar Service: ${booking.bar_package_label || "Standard"}`, full: Number(booking.bar_subtotal), sub });
   }
   if ((booking.optional_services ?? 0) > 0) items.push({ label: "Add-ons & Optional Services", full: Number(booking.optional_services) });
   if ((booking.taxes_fees ?? 0) > 0) items.push({ label: "Taxes & Fees", full: Number(booking.taxes_fees) });
@@ -529,7 +529,7 @@ serve(async (req) => {
       await sendCriticalAlert(
         "send-balance-confirmation (balance PDF)",
         booking.reservation_number,
-        `Balance receipt PDF failed to generate — confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
+        `Balance receipt PDF failed to generate: confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
       );
     }
 

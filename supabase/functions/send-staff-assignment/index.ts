@@ -66,7 +66,7 @@ function generateBarVendorEmailHTML(data: StaffAssignmentEmailData): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>New Bar Service Assignment — OEV #${data.reservationNumber}</title>
+  <title>New Bar Service Assignment: OEV #${data.reservationNumber}</title>
   <style>
     @media (max-width: 620px) {
       .container { width: 100% !important; }
@@ -78,7 +78,7 @@ function generateBarVendorEmailHTML(data: StaffAssignmentEmailData): string {
 <body style="margin:0;padding:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <!-- Preheader (hidden) -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-    New Bar Service assignment — review details and contact the client.
+    New Bar Service assignment: review details and contact the client.
   </div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f7f9;padding:24px 0;">
@@ -228,7 +228,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>New Staff Assignment — OEV #${data.reservationNumber}</title>
+  <title>New Staff Assignment: OEV #${data.reservationNumber}</title>
   <style>
     @media (max-width: 620px) {
       .container { width: 100% !important; }
@@ -414,8 +414,8 @@ serve(async (req) => {
     const isBarVendor = data.staffRole === "Bar Vendor";
     const emailHTML = isBarVendor ? generateBarVendorEmailHTML(data) : generateEmailHTML(data);
     const subject = isBarVendor
-      ? `New Bar Service Assignment — ${data.eventDateLong} | Orlando Event Venue`
-      : `New Staff Assignment — OEV #${data.reservationNumber}`;
+      ? `New Bar Service Assignment: ${data.eventDateLong} | Orlando Event Venue`
+      : `New Staff Assignment: OEV #${data.reservationNumber}`;
     const fallbackText = isBarVendor
       ? "You have been assigned to a bar service booking. Please view this email in an HTML-compatible client."
       : "You've been assigned to a booking. Please view this email in an HTML-compatible email client.";

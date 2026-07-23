@@ -238,12 +238,16 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   };
 
   const eventTypeNames: Record<string, string> = {
-    "corporate-offsite": "Corporate Offsite",
-    training: "Training",
-    workshop: "Workshop",
-    meetup: "Meetup",
-    celebration: "Celebration",
-    "brand-launch": "Brand Launch/Showcase",
+    "birthday-party": "Birthday Party",
+    "baby-shower": "Baby Shower",
+    "bridal-shower": "Bridal Shower",
+    "wedding-reception": "Wedding Reception",
+    "graduation-party": "Graduation Party",
+    "corporate-meeting": "Corporate Meeting / Team Meeting",
+    "training-seminar": "Training / Seminar",
+    "workshop-class": "Workshop / Class",
+    "networking-mixer": "Networking Mixer / Meetup",
+    "celebration-of-life": "Celebration of Life / Memorial Reception",
     other: data.eventTypeOther || "Other",
   };
 
@@ -339,7 +343,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               )}
               {data.barPackage && data.barPackage !== "none" && (
                 <p>
-                  • Bar Service — {getBarLabel(barPackages, data.barPackage) || data.barPackage} ({data.barGuestCount} guests)
+                  • Bar Service: {getBarLabel(barPackages, data.barPackage) || data.barPackage} ({data.barGuestCount} guests)
                 </p>
               )}
             </div>
@@ -445,7 +449,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
             {data.barPackage && data.barPackage !== "none" && (data.barSubtotal || 0) > 0 && (
               <div className="flex justify-between">
                 <span>
-                  Bar Service — {getBarLabel(barPackages, data.barPackage) || ""}{" "}
+                  Bar Service: {getBarLabel(barPackages, data.barPackage) || ""}{" "}
                   <span className="text-muted-foreground">
                     ({data.barGuestCount} × ${(data.barRatePerGuest || 0).toFixed(2)}/guest)
                   </span>

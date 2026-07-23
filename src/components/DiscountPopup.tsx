@@ -287,7 +287,7 @@ export default function DiscountPopup() {
             </p>
             <div className="space-y-2 text-sm text-foreground text-left mt-4">
               <p>
-                <strong>Already know your date?</strong> Book it now — open dates aren't held until 50% is in.
+                <strong>Already know your date?</strong> Book it now: open dates aren't held until 50% is in.
               </p>
               <p>
                 <strong>Want to see the space first?</strong> Book your tour online.

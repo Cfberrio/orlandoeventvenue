@@ -344,7 +344,7 @@ serve(async (req) => {
           await smtpClient.send({
             from: gmailUser,
             to: booking.email,
-            subject: `Balance Payment Due – ${booking.reservation_number || "Event Booking"} | Orlando Event Venue`,
+            subject: `Balance Payment Due: ${booking.reservation_number || "Event Booking"} | Orlando Event Venue`,
             content: `Your remaining balance of ${balanceTotalFormatted} is due. Pay here: ${paymentUrl}`,
             html: emailHTML,
           });

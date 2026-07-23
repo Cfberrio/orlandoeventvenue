@@ -17,13 +17,13 @@ import restroom from "@/assets/tour/restroom.jpg";
 gsap.registerPlugin(useGSAP, Observer);
 
 const SCENES = [
-  { src: entrance, title: "Venue Exterior", desc: "Your guests arrive here — easy access and parking right outside." },
+  { src: entrance, title: "Venue Exterior", desc: "Your guests arrive here: easy access and parking right outside." },
   { src: lobby, title: "Welcome Area", desc: "A warm first impression with our signature wood-slat wall." },
   { src: lounge, title: "Main Entrance", desc: "Marble accents and smart TV displays greet you on the way in." },
   { src: mainHall, title: "Presentation Setup", desc: "Stage, dual projection screens and flexible seating for your event." },
   { src: flexRoom, title: "Event Space", desc: "An open flex room that adapts to your layout." },
   { src: kitchen, title: "Prep Kitchen", desc: "Full prep kitchen for catering and bar service." },
-  { src: storage, title: "Storage Area", desc: "Tables and chairs on hand — setup and teardown made easy." },
+  { src: storage, title: "Storage Area", desc: "Tables and chairs on hand: setup and teardown made easy." },
   { src: restroom, title: "Restroom Facilities", desc: "Clean, modern restrooms for your guests." },
 ];
 

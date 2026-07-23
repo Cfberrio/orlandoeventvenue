@@ -301,7 +301,7 @@ serve(async (req: Request) => {
         await client.send({
           from: gmailUser,
           to: customer_email,
-          subject: `Invoice ${invoice.invoice_number} – ${totalWithFeeFormatted} | Orlando Event Venue`,
+          subject: `Invoice ${invoice.invoice_number}: ${totalWithFeeFormatted} | Orlando Event Venue`,
           content: `You have a new invoice of ${totalWithFeeFormatted} from Orlando Event Venue. Pay here: ${session.url}`,
           html: emailHTML,
         });

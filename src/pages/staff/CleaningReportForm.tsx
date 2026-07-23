@@ -392,7 +392,7 @@ export default function CleaningReportForm() {
       />
 
       <MediaUploadSection
-        title="Main Event Area – Stage, Screen, All Cleared"
+        title="Main Event Area: Stage, Screen, All Cleared"
         descriptionEN="Show the stage and screen. Show the entire main area clean, with no trash, no items on tables, and the floor clean."
         descriptionES="Muestra la tarima y la pantalla. Muestra toda el área principal limpia, sin basura, sin objetos sobre las mesas y el piso limpio."
         fieldId="main_area"
@@ -418,7 +418,7 @@ export default function CleaningReportForm() {
       />
 
       <MediaUploadSection
-        title="Bathrooms (Both) – After Cleaning"
+        title="Bathrooms (Both): After Cleaning"
         descriptionEN="Show both bathrooms clean. Show floor, toilet, sink areas clearly."
         descriptionES="Muestra ambos baños limpios. Muestra claramente el piso, el inodoro y el lavamanos."
         fieldId="bathrooms"
@@ -432,7 +432,7 @@ export default function CleaningReportForm() {
       />
 
       <MediaUploadSection
-        title="Kitchen – Trash Removed + Cans Set Up"
+        title="Kitchen: Trash Removed + Cans Set Up"
         descriptionEN="All trash bags must be gone from the kitchen and event areas. Show the two trash cans with: Current bag installed, One extra bag folded under the current bag."
         descriptionES="Todas las bolsas de basura deben estar retiradas. Muestra los dos zafacones con: La bolsa actual instalada, Una bolsa extra doblada debajo."
         fieldId="kitchen"

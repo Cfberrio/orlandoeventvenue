@@ -71,7 +71,7 @@ export default function StaffHoursEditDialog({ assignment, bookingId, open, onOp
           <DialogDescription>Da a este staff un horario propio. Vacío = hereda el horario del evento.</DialogDescription>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Horario heredado del evento: {inherited.start?.slice(0, 5)} – {inherited.end?.slice(0, 5)}
+          Horario heredado del evento: {inherited.start?.slice(0, 5)} a {inherited.end?.slice(0, 5)}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">

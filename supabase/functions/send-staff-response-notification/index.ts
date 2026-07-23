@@ -77,7 +77,7 @@ function generateEmailHTML(data: StaffResponseNotificationData): string {
           </tr>
           <tr>
             <td style="padding:16px 28px;background:#f8fafc;color:#94a3b8;font-size:12px;">
-              Orlando Event Venue — internal staff notification
+              Orlando Event Venue: internal staff notification
             </td>
           </tr>
         </table>
@@ -128,13 +128,13 @@ serve(async (req) => {
     });
 
     const copy = RESPONSE_COPY[data.response];
-    const subject = `${copy.label} — ${data.staffName} · ${data.reservationNumber}`;
+    const subject = `${copy.label}: ${data.staffName} · ${data.reservationNumber}`;
 
     await client.send({
       from: gmailUser,
       to: gmailUser, // internal notification to the venue inbox
       subject,
-      content: `${copy.label}: ${data.staffName} (${data.staffRole}) — reservation ${data.reservationNumber}, event ${data.eventDate}. ${copy.detail}`,
+      content: `${copy.label}: ${data.staffName} (${data.staffRole}), reservation ${data.reservationNumber}, event ${data.eventDate}. ${copy.detail}`,
       html: generateEmailHTML(data),
     });
 

@@ -148,7 +148,7 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
       </div>
       <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
         <p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">
-          This report takes about <strong>2–3 minutes</strong> and includes photos or videos of the front door, main area, tables/chairs, bathrooms, and kitchen, plus a few final checkboxes.
+          This report takes about <strong>2 to 3 minutes</strong> and includes photos or videos of the front door, main area, tables/chairs, bathrooms, and kitchen, plus a few final checkboxes.
         </p>
         <p style="margin:12px 0 0;font-size:14px;line-height:1.65;color:#374151;">
           After submitting, please reply <strong>DONE</strong> to this email.

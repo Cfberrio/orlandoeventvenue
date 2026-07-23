@@ -108,7 +108,7 @@ If you have any questions about these services, just reply to this email and we'
 <p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
 <p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
 <p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email — please keep it for your records.</p>
+<p style="margin:8px 0 0;">This is an automated email, please keep it for your records.</p>
 </div>
 
 </div>
@@ -247,7 +247,7 @@ serve(async (req: Request) => {
         price_data: {
           currency: "usd",
           product_data: {
-            name: `Bar Service — ${barLabel}`,
+            name: `Bar Service: ${barLabel}`,
             description: `${barGuestCount} guests × $${barRate.toFixed(2)}/guest`,
           },
           unit_amount: Math.round(barSubtotal * 100),
@@ -255,7 +255,7 @@ serve(async (req: Request) => {
         quantity: 1,
       });
       emailLineItems.push({
-        label: `Bar Service — ${barLabel} (${barGuestCount} × $${barRate.toFixed(2)})`,
+        label: `Bar Service: ${barLabel} (${barGuestCount} × $${barRate.toFixed(2)})`,
         amount: `$${barSubtotal.toFixed(2)}`,
       });
     }
@@ -374,7 +374,7 @@ serve(async (req: Request) => {
         await client.send({
           from: gmailUser,
           to: customer_email,
-          subject: `Additional Services Invoice – ${reservation_number} | Orlando Event Venue`,
+          subject: `Additional Services Invoice: ${reservation_number} | Orlando Event Venue`,
           content: `You have a new invoice of ${totalFormatted} for additional services. Pay here: ${session.url}`,
           html: emailHTML,
         });

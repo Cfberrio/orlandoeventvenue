@@ -24,7 +24,7 @@ describe("OevHero", () => {
 
   it("renders the 5-star reviews badge, address link and background photo", () => {
     const { container } = render(<OevHero />);
-    expect(screen.getByRole("link", { name: /5-star on Google/i })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /5 stars on Google/i })).toHaveAttribute(
       "href",
       "https://g.page/r/CU-yUA0El90UEAE/review",
     );

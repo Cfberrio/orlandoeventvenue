@@ -256,7 +256,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
             />
             <MediaUploadSection
               fieldId="guest_kitchen_trash_media"
-              titleEn="5. Kitchen – Trash Gathered" titleEs="Cocina – Basura Reunida"
+              titleEn="5. Kitchen: Trash Gathered" titleEs="Cocina: Basura Reunida"
               descEn="Show all trash bags in the kitchen gathered and tied."
               descEs="Muestra todas las bolsas de basura en la cocina reunidas y amarradas."
               minFiles={1} maxFiles={3}

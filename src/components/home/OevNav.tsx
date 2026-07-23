@@ -26,7 +26,7 @@ const OevNav = () => {
   return (
     <nav className={`oev-nav${scrolled ? " scrolled" : ""}`}>
       <div className="wrap oev-nav-in">
-        <a href="#top" className="brand" aria-label="Orlando Event Venue — top">
+        <a href="#top" className="brand" aria-label="Orlando Event Venue, top">
           <img src={oevLogoIcon} alt="" />
           <span>Orlando Event Venue</span>
         </a>

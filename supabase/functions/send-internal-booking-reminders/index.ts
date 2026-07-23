@@ -68,7 +68,7 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     ? `\n\nYour reservation number: ${reservationNumber}`
     : "";
 
-  const accessInstructions = `Orlando Event Venue – Access Instructions & Rules
+  const accessInstructions = `Orlando Event Venue: Access Instructions & Rules
 
 Welcome to Orlando Event Venue!
 3847 E Colonial Dr, Orlando, FL 32803
@@ -114,7 +114,7 @@ Step-by-Step Venue Access:
 <p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Your Booking Starts Soon</strong></p>
 </div>
 <div style="padding-left: 0px!important;; padding-left: 0px!important;; padding-left: 0px!important;; margin-top:6px;font-size:13px;line-height:1.6;color:#e5e7eb;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Quick reminder — your booking starts soon. Here are access notes and details for your event.</p>
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Quick reminder: your booking starts soon. Here are access notes and details for your event.</p>
 </div>
 <table style="margin-top:12px;" cellpadding="0" cellspacing="0" border="0">
 <tbody>
@@ -130,7 +130,7 @@ Step-by-Step Venue Access:
 <tr>
 <td colspan="1" rowspan="1" style="padding:22px 26px 14px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;color:#111827;">
 <p style="margin:0px; line-height: 1.7;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">Hi <strong>${firstName}</strong>,</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px 0 12px 0;font-size: 14px;color: #374151;">We're excited to host you tomorrow — hope you have an amazing event. Here's everything you need in one place so you can arrive confidently.</p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px 0 12px 0;font-size: 14px;color: #374151;">We're excited to host you tomorrow. We hope you have an amazing event. Here's everything you need in one place so you can arrive confidently.</p>
 
 <table style="border:1px solid #e5e7eb;background:#ffffff;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
 <tbody>
@@ -184,12 +184,12 @@ Step-by-Step Venue Access:
 </table>
 
 <div style="padding-left: 0px!important;; border-top:1px solid #e5e7eb;margin:16px 0;"></div>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">— <strong>Orlando Event Venue Team</strong></p>
+<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Orlando Event Venue Team</strong></p>
 </td>
 </tr>
 <tr>
 <td colspan="1" rowspan="1" style="padding:0 26px 20px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;font-size:11px;line-height:1.6;color:#9ca3af;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br>This is an automated email — please keep it for your records.</p>
+<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br>This is an automated email, please keep it for your records.</p>
 </td>
 </tr>
 </tbody>
@@ -322,7 +322,7 @@ async function sendViaSendGrid(block: BlockWithBooking, htmlContent: string): Pr
       body: JSON.stringify({
         personalizations: [{
           to: [{ email: booking.email, name: booking.full_name }],
-          subject: "Orlando Event Venue — Starting Soon (Access Notes Inside)",
+          subject: "Orlando Event Venue: Starting Soon (Access Notes Inside)",
         }],
         from: { email: fromEmail, name: "Orlando Event Venue" },
         content: [{

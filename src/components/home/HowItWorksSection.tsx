@@ -11,7 +11,7 @@ const HowItWorksSection = () => (
       <div className="shead">
         <h2 data-rv>Four simple steps.</h2>
         <p className="lead" data-rv>
-          From date to done — the whole booking takes minutes.
+          From date to done: the whole booking takes minutes.
         </p>
       </div>
       <div className="steps snap-row" data-rv-group>

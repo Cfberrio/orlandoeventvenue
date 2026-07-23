@@ -206,7 +206,7 @@ async function loadVenueAvailability(supabase: any) {
   };
   for (const b of bookingsQ.data ?? []) {
     const isDaily = (b.booking_type ?? "").toString() === "daily";
-    mark(b.event_date, isDaily, isDaily ? undefined : `${hhmm(b.start_time)}–${hhmm(b.end_time)}`);
+    mark(b.event_date, isDaily, isDaily ? undefined : `${hhmm(b.start_time)}-${hhmm(b.end_time)}`);
   }
   const expand = (s: string, e: string, cb: (d: string) => void) => {
     let d = s < startDate ? startDate : s;
@@ -216,7 +216,7 @@ async function loadVenueAvailability(supabase: any) {
   };
   for (const bl of blocksQ.data ?? []) {
     const isHourly = (bl.block_type ?? "").toString() === "hourly" && bl.start_time && bl.end_time;
-    expand(bl.start_date, bl.end_date, (d) => mark(d, !isHourly, isHourly ? `${hhmm(bl.start_time)}–${hhmm(bl.end_time)}` : undefined));
+    expand(bl.start_date, bl.end_date, (d) => mark(d, !isHourly, isHourly ? `${hhmm(bl.start_time)}-${hhmm(bl.end_time)}` : undefined));
   }
   for (const bo of blackoutsQ.data ?? []) expand(bo.start_date, bo.end_date, (d) => mark(d, true));
   const cfg = Object.fromEntries((configQ.data ?? []).map((c: any) => [c.key, c.value]));
@@ -235,7 +235,7 @@ async function loadVenueAvailability(supabase: any) {
       `This is the LIVE venue calendar from the bookings database, covering ${startDate} to ${endDate}. ` +
       `Every date in that window that is NOT listed in busy_dates is fully OPEN for both hourly and daily bookings. ` +
       `Dates marked partially_booked are open outside the listed busy_hours. ` +
-      `Dates marked fully_booked are not available. Dates after ${endDate} are outside this snapshot — say you'll confirm those.`,
+      `Dates marked fully_booked are not available. Dates after ${endDate} are outside this snapshot, so say you'll confirm those.`,
   };
 }
 
@@ -359,7 +359,7 @@ async function processEvent(supabase: any, logId: string, ctx: {
       decision = "flag_human";
       parsed.reasoning = `${parsed.reasoning ?? ""} | score_gate: ${score ?? "null"} < ${SCORE_GATE}`.trim();
       if (parsed.draft && !parsed.draft.startsWith("⚠️")) {
-        parsed.draft = `⚠️ HUMAN REVIEW — low confidence (${score ?? "?"}). Do not send as-is.\n\n${parsed.draft}`;
+        parsed.draft = `⚠️ HUMAN REVIEW: low confidence (${score ?? "?"}). Do not send as-is.\n\n${parsed.draft}`;
       }
     }
 

@@ -324,7 +324,7 @@ export default function StaffBookingDetail() {
           </CardHeader>
           <CardContent>
             <Badge className="bg-blue-600 text-white text-base px-4 py-2">
-              {effectiveHours.start?.slice(0, 5)} – {effectiveHours.end?.slice(0, 5)}
+              {effectiveHours.start?.slice(0, 5)} to {effectiveHours.end?.slice(0, 5)}
             </Badge>
           </CardContent>
         </Card>
@@ -373,7 +373,7 @@ export default function StaffBookingDetail() {
                 <div>
                   <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Working Hours</p>
                   <p className="font-semibold text-orange-700 dark:text-orange-300">
-                    {effectiveHours.start?.slice(0, 5)} – {effectiveHours.end?.slice(0, 5)}
+                    {effectiveHours.start?.slice(0, 5)} to {effectiveHours.end?.slice(0, 5)}
                   </p>
                 </div>
               </div>
