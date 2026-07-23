@@ -288,6 +288,7 @@ function generateEmailHTML(booking: BookingEmailData): string {
 
 async function generateDepositReceiptPDF(booking: BookingEmailData, processingFeePct: number): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
+  pdfDoc.setTitle("Invoice");
   const page = pdfDoc.addPage([595.28, 841.89]);
   const { width, height } = page.getSize();
 
@@ -305,7 +306,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   const M = 50;
 
   page.drawRectangle({ x: 0, y: height - 100, width, height: 100, color: dark });
-  page.drawText("DEPOSIT RECEIPT", { x: M, y: height - 52, size: 22, font: helvBold, color: white });
+  page.drawText("INVOICE", { x: M, y: height - 52, size: 22, font: helvBold, color: white });
   page.drawText("Orlando Event Venue", { x: M, y: height - 76, size: 11, font: helv, color: white });
   page.drawRectangle({ x: 0, y: height - 104, width, height: 4, color: accent });
 
@@ -313,7 +314,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
 
   const issueDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const issueText = `Issued: ${issueDate}`;
-  page.drawText(`RECEIPT #: ${booking.reservation_number}`, { x: M, y, size: 10, font: helvBold, color: gray700 });
+  page.drawText(`INVOICE #: ${booking.reservation_number}`, { x: M, y, size: 10, font: helvBold, color: gray700 });
   page.drawText(issueText, { x: width - M - helv.widthOfTextAtSize(issueText, 10), y, size: 10, font: helv, color: gray500 });
 
   y -= 30;
@@ -427,7 +428,7 @@ async function generateDepositReceiptPDF(booking: BookingEmailData, processingFe
   const balStr = formatCurrency(booking.balance_amount);
   page.drawText(`Remaining 50% balance: ${balStr}, due 15 days before your event.`, { x: M, y, size: 9, font: helv, color: gray500 });
   y -= 12;
-  page.drawText("This receipt reflects only the 50% deposit portion paid today.", { x: M, y, size: 9, font: helv, color: gray500 });
+  page.drawText("This invoice reflects only the 50% deposit portion paid today.", { x: M, y, size: 9, font: helv, color: gray500 });
 
   const footerY = 50;
   page.drawLine({ start: { x: M, y: footerY + 30 }, end: { x: width - M, y: footerY + 30 }, thickness: 0.5, color: gray200 });
@@ -519,7 +520,7 @@ serve(async (req) => {
       attachments: pdfBase64
         ? [
             {
-              filename: `Deposit-Receipt-${booking.reservation_number}.pdf`,
+              filename: `Invoice-${booking.reservation_number}.pdf`,
               content: pdfBase64,
               encoding: "base64",
               contentType: "application/pdf",
