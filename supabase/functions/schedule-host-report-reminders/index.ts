@@ -161,7 +161,7 @@ serve(async (req) => {
           updated_at: new Date().toISOString() 
         })
         .eq("booking_id", booking_id)
-        .in("job_type", ["host_report_pre_start", "host_report_during", "host_report_post"])
+        .in("job_type", ["host_report_pre_start", "host_report_during", "host_report_post", "one_hour_report"])
         .eq("status", "pending")
         .select();
 
@@ -294,6 +294,37 @@ serve(async (req) => {
       });
     }
 
+    // ===============================
+    // ONE HOUR REPORT (guest report closeout trigger)
+    // ===============================
+    // Fires 1 hour before the event END so GHL sends the Guest Report
+    // email/SMS while the host is still on site. One-shot: never re-fires.
+    if (booking.one_hour_report !== "true") {
+      let eventEndOrlando: Date;
+      if (booking.booking_type === "daily" || !booking.end_time) {
+        // Daily or missing end_time: end of day Orlando (same fallback as
+        // check-post-event-transition) → email at 22:59:59
+        eventEndOrlando = toOrlandoUTC(booking.event_date, "23:59:59");
+      } else {
+        eventEndOrlando = toOrlandoUTC(booking.event_date, booking.end_time);
+      }
+
+      const t_one_hour_ms = eventEndOrlando.getTime() - 60 * 60 * 1000;
+      // Smart catch-up: if end-1h already passed, run on the next cron tick
+      const runAtMs = Math.max(t_one_hour_ms, nowMs);
+
+      jobsToCreate.push({
+        job_type: "one_hour_report",
+        run_at: new Date(runAtMs).toISOString(),
+      });
+      console.log(
+        `one_hour_report job queued: run_at=${new Date(runAtMs).toISOString()} ` +
+        `(event end ${eventEndOrlando.toISOString()}, catch_up=${runAtMs !== t_one_hour_ms})`
+      );
+    } else {
+      console.log("one_hour_report already 'true' - not scheduling (one-shot)");
+    }
+
     // If there's an immediate step to set
     if (immediateStep) {
       // Only update if different from current
@@ -373,7 +404,7 @@ serve(async (req) => {
           updated_at: new Date().toISOString() 
         })
         .eq("booking_id", booking_id)
-        .in("job_type", ["host_report_pre_start", "host_report_during", "host_report_post"])
+        .in("job_type", ["host_report_pre_start", "host_report_during", "host_report_post", "one_hour_report"])
         .in("status", ["pending", "failed"])
         .select();
 
