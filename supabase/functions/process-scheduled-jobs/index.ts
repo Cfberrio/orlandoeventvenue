@@ -15,6 +15,9 @@ const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress", "set_lifecycle_post_ev
 // Host report reminder job types
 const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
 
+// One hour report (guest report closeout trigger) job types
+const ONE_HOUR_REPORT_JOB_TYPES = ["one_hour_report"];
+
 // Guest feedback job types
 const GUEST_FEEDBACK_JOB_TYPES = ["guest_feedback_post_event"];
 
@@ -1020,6 +1023,186 @@ serve(async (req) => {
           results.succeeded++;
           results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
           console.log(`Job ${job.id} completed - booking ${job.booking_id} host_report_step changed: ${previousStep} -> ${newStep}`);
+
+        // ===============================
+        // ONE HOUR REPORT JOBS (guest report closeout trigger)
+        // ===============================
+        } else if (ONE_HOUR_REPORT_JOB_TYPES.includes(job.job_type)) {
+          const { data: booking, error: bookingError } = await supabase
+            .from("bookings")
+            .select("id, status, payment_status, reservation_number, one_hour_report")
+            .eq("id", job.booking_id)
+            .maybeSingle();
+
+          // Helper to cancel this job with a reason
+          const cancelOneHourJob = async (reason: string) => {
+            await supabase
+              .from("scheduled_jobs")
+              .update({
+                status: "cancelled",
+                last_error: reason,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", job.id);
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: reason });
+          };
+
+          if (bookingError || !booking) {
+            console.error(`Booking not found for one_hour_report job ${job.id}:`, bookingError);
+            await cancelOneHourJob("booking_not_found_for_one_hour_report");
+            continue;
+          }
+
+          if (booking.status === "cancelled") {
+            console.log(`Booking ${job.booking_id} cancelled - cancelling one_hour_report job ${job.id}`);
+            await cancelOneHourJob("booking_cancelled_before_one_hour_report");
+            continue;
+          }
+
+          if (booking.payment_status !== "deposit_paid" && booking.payment_status !== "fully_paid") {
+            console.log(`Booking ${job.booking_id} deposit not paid (${booking.payment_status}) - cancelling one_hour_report job`);
+            await cancelOneHourJob("deposit_not_paid");
+            continue;
+          }
+
+          // Requires at least 1 staff assigned (any role)
+          const { data: staffRows } = await supabase
+            .from("booking_staff_assignments")
+            .select("id")
+            .eq("booking_id", job.booking_id)
+            .limit(1);
+
+          if (!staffRows || staffRows.length === 0) {
+            console.log(`Booking ${job.booking_id} has no staff assigned - cancelling one_hour_report job`);
+            await cancelOneHourJob("no_staff_assigned");
+            continue;
+          }
+
+          // Skip if host (guest) report already submitted - email would be pointless
+          const { data: hostReports } = await supabase
+            .from("booking_host_reports")
+            .select("id")
+            .eq("booking_id", job.booking_id)
+            .limit(1);
+
+          if (hostReports && hostReports.length > 0) {
+            console.log(`Host report already completed for booking ${job.booking_id} - cancelling one_hour_report job`);
+            await cancelOneHourJob("host_report_already_completed");
+            continue;
+          }
+
+          // Idempotency: already fired → complete without update (no GHL re-trigger)
+          if (booking.one_hour_report === "true") {
+            console.log(`Booking ${job.booking_id} one_hour_report already 'true' - marking job complete without update`);
+            await supabase
+              .from("scheduled_jobs")
+              .update({
+                status: "completed",
+                completed_at: new Date().toISOString(),
+                last_error: "already_fired",
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", job.id);
+            results.skipped++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "skipped", error: "already_fired" });
+            continue;
+          }
+
+          // Flip the flag
+          console.log(`Setting one_hour_report='true' for booking ${job.booking_id}`);
+          const { error: updateError } = await supabase
+            .from("bookings")
+            .update({
+              one_hour_report: "true",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.booking_id);
+
+          if (updateError) {
+            console.error(`Failed to set one_hour_report for booking ${job.booking_id}:`, updateError);
+            const newAttempts = job.attempts + 1;
+            const newStatus = newAttempts >= 3 ? "failed" : "pending";
+            await supabase
+              .from("scheduled_jobs")
+              .update({
+                status: newStatus,
+                last_error: `db_update_failed: ${updateError.message}`,
+                updated_at: new Date().toISOString(),
+              })
+              .eq("id", job.id);
+            results.failed++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `db_update_failed: ${updateError.message}` });
+            continue;
+          }
+
+          // Log the trigger event
+          await supabase.from("booking_events").insert({
+            booking_id: job.booking_id,
+            event_type: "one_hour_report_triggered",
+            channel: "system",
+            metadata: {
+              job_id: job.id,
+              reservation_number: booking.reservation_number,
+              timestamp: new Date().toISOString(),
+            },
+          });
+
+          // CRITICAL: sync to GHL immediately - Contact Changed fires the email/SMS
+          console.log(`CRITICAL: Calling syncToGHL for booking ${job.booking_id} after one_hour_report flip`);
+          try {
+            const syncResponse = await fetch(
+              `${supabaseUrl}/functions/v1/sync-to-ghl`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "Authorization": `Bearer ${supabaseServiceKey}`,
+                },
+                body: JSON.stringify({ booking_id: job.booking_id }),
+              }
+            );
+
+            if (!syncResponse.ok) {
+              const syncError = await syncResponse.text();
+              console.error(`syncToGHL FAILED for booking ${job.booking_id}:`, syncError);
+              await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "sync_to_ghl_failed",
+                channel: "system",
+                metadata: {
+                  context: "one_hour_report_trigger",
+                  error: syncError,
+                },
+              });
+            } else {
+              console.log(`syncToGHL SUCCESS for booking ${job.booking_id} (one_hour_report)`);
+              await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "sync_to_ghl_success",
+                channel: "system",
+                metadata: {
+                  context: "one_hour_report_trigger",
+                },
+              });
+            }
+          } catch (syncError) {
+            console.error(`syncToGHL EXCEPTION for booking ${job.booking_id}:`, syncError);
+          }
+
+          // Mark job as completed
+          await supabase
+            .from("scheduled_jobs")
+            .update({
+              status: "completed",
+              completed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", job.id);
+
+          results.succeeded++;
+          results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
+          console.log(`Job ${job.id} completed - one_hour_report fired for booking ${job.booking_id}`);
 
         // ===============================
         // GUEST FEEDBACK JOBS
