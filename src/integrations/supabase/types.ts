@@ -975,6 +975,7 @@ export type Database = {
           lead_source: string | null
           lifecycle_status: string
           number_of_guests: number
+          one_hour_report: string
           optional_services: number
           package: Database["public"]["Enums"]["package_type"]
           package_cost: number
@@ -1062,6 +1063,7 @@ export type Database = {
           lead_source?: string | null
           lifecycle_status?: string
           number_of_guests: number
+          one_hour_report?: string
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
@@ -1149,6 +1151,7 @@ export type Database = {
           lead_source?: string | null
           lifecycle_status?: string
           number_of_guests?: number
+          one_hour_report?: string
           optional_services?: number
           package?: Database["public"]["Enums"]["package_type"]
           package_cost?: number
@@ -2490,6 +2493,7 @@ export type Database = {
         Args: { _author_id: string; _booking_id: string; _note: string }
         Returns: undefined
       }
+      auto_fix_missing_jobs: { Args: never; Returns: undefined }
       bump_recurring_next_send: {
         Args: { p_invoice_id: string }
         Returns: undefined
