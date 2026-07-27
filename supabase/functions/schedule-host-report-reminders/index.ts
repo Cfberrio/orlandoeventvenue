@@ -85,6 +85,36 @@ function getNowInOrlando(): Date {
   return new Date(now.getTime() + (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
 }
 
+/**
+ * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
+ */
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
+  const asIfUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
+  );
+  return asIfUtc - date.getTime();
+}
+
+/**
+ * Converts a date + time string interpreted as Orlando local time (America/New_York,
+ * DST-aware) to the corresponding UTC Date. Used ONLY by the one_hour_report
+ * scheduling; the host_report_step flow keeps the legacy fixed -5 offset.
+ */
+function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
+  const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
+  const offset = tzOffsetMs(new Date(asUtcMs), "America/New_York");
+  return new Date(asUtcMs - offset);
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -304,23 +334,27 @@ serve(async (req) => {
       if (booking.booking_type === "daily" || !booking.end_time) {
         // Daily or missing end_time: end of day Orlando (same fallback as
         // check-post-event-transition) → email at 22:59:59
-        eventEndOrlando = toOrlandoUTC(booking.event_date, "23:59:59");
+        eventEndOrlando = orlandoLocalToUTC(booking.event_date, "23:59:59");
       } else {
-        eventEndOrlando = toOrlandoUTC(booking.event_date, booking.end_time);
+        eventEndOrlando = orlandoLocalToUTC(booking.event_date, booking.end_time);
       }
 
-      const t_one_hour_ms = eventEndOrlando.getTime() - 60 * 60 * 1000;
-      // Smart catch-up: if end-1h already passed, run on the next cron tick
-      const runAtMs = Math.max(t_one_hour_ms, nowMs);
+      if (nowMs > eventEndOrlando.getTime()) {
+        console.log("one_hour_report: event already ended - not scheduling");
+      } else {
+        const t_one_hour_ms = eventEndOrlando.getTime() - 60 * 60 * 1000;
+        // Smart catch-up: if end-1h already passed, run on the next cron tick
+        const runAtMs = Math.max(t_one_hour_ms, nowMs);
 
-      jobsToCreate.push({
-        job_type: "one_hour_report",
-        run_at: new Date(runAtMs).toISOString(),
-      });
-      console.log(
-        `one_hour_report job queued: run_at=${new Date(runAtMs).toISOString()} ` +
-        `(event end ${eventEndOrlando.toISOString()}, catch_up=${runAtMs !== t_one_hour_ms})`
-      );
+        jobsToCreate.push({
+          job_type: "one_hour_report",
+          run_at: new Date(runAtMs).toISOString(),
+        });
+        console.log(
+          `one_hour_report job queued: run_at=${new Date(runAtMs).toISOString()} ` +
+          `(event end ${eventEndOrlando.toISOString()}, catch_up=${runAtMs !== t_one_hour_ms})`
+        );
+      }
     } else {
       console.log("one_hour_report already 'true' - not scheduling (one-shot)");
     }
