@@ -225,14 +225,14 @@ serve(async (req) => {
     // during_event = event_start - 7 days
     const DURING_DAYS = 7;
     const t_during_event_ms = eventStartMs - DURING_DAYS * 24 * 60 * 60 * 1000;
-    // post_event = event_start - 1 hour
-    const POST_HOURS = 1;
-    const t_post_event_ms = eventStartMs - POST_HOURS * 60 * 60 * 1000;
+    // post_event = event_start - 1 day
+    const POST_DAYS = 1;
+    const t_post_event_ms = eventStartMs - POST_DAYS * 24 * 60 * 60 * 1000;
 
     console.log(`Host report scheduled times (UTC):`);
     console.log(`  pre_start (event-${PRE_START_DAYS}d): ${new Date(t_pre_start_ms).toISOString()}`);
     console.log(`  during_event (event-${DURING_DAYS}d): ${new Date(t_during_event_ms).toISOString()}`);
-    console.log(`  post_event (event-${POST_HOURS}h): ${new Date(t_post_event_ms).toISOString()}`);
+    console.log(`  post_event (event-${POST_DAYS}d): ${new Date(t_post_event_ms).toISOString()}`);
 
     // SMART CATCH-UP: Pick ONLY ONE immediate step, create only FUTURE jobs
     // Rule: for short-notice bookings, don't send 2-3 emails at once
@@ -241,12 +241,12 @@ serve(async (req) => {
 
     // Priority order: check from closest to event → furthest
     if (nowMs >= t_post_event_ms) {
-      // We're within 1h of event start (or past it) → set post_event immediately
+      // We're within 1 day of event start (or past it) → set post_event immediately
       // NO jobs created - all email times have passed
       immediateStep = "post_event";
-      console.log("CATCH-UP: now >= event-1h → setting post_event immediately, no jobs");
+      console.log("CATCH-UP: now >= event-1d → setting post_event immediately, no jobs");
     } else if (nowMs >= t_during_event_ms) {
-      // We're within 7 days but more than 1h out → set during_event immediately
+      // We're within 7 days but more than 1 day out → set during_event immediately
       // Only create post_event job (it's still in the future)
       immediateStep = "during_event";
       if (t_post_event_ms > nowMs) {
