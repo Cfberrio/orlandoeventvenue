@@ -87,6 +87,7 @@ interface BookingSnapshot {
   cleaning_report_completed: string;
   host_report_completed: string;
   host_report_step: string | null;
+  one_hour_report: string;
   review_received: string;
   pre_event_ready: string;
   short_notice_balance: string;
@@ -132,6 +133,7 @@ interface BookingRow {
   balance_link_expires_at: string | null;
   pre_event_ready: string | null;
   host_report_step: string | null;
+  one_hour_report: string | null;
   full_name: string | null;
   email: string | null;
   phone: string | null;
@@ -313,6 +315,7 @@ async function buildBookingSnapshot(
     cleaning_report_completed,
     host_report_completed,
     host_report_step: booking.host_report_step,
+    one_hour_report: booking.one_hour_report || "false",
     review_received,
     pre_event_ready,
     short_notice_balance,
