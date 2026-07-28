@@ -15,6 +15,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCreateAvailabilityBlock, calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
+import { generateReservationNumber } from "@/hooks/useCreateBooking";
+import { buildExternalFullName } from "@/lib/externalBooking";
 import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
 
 interface ExternalBookingWizardProps {
@@ -179,8 +181,9 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         throw new Error("Failed to fetch external booking policy");
       }
 
-      // Prefix client name with "External - "
-      const externalFullName = `External - ${clientName}`;
+      // Real name first, " - External" suffix: GHL derives firstName from the
+      // first word of the contact name, and firstName feeds customer SMS/email.
+      const externalFullName = buildExternalFullName(clientName);
 
       // Step 1: Create the booking record
       const { data: booking, error: bookingError } = await supabase
@@ -193,6 +196,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
           number_of_guests: numberOfGuests,
           event_type: eventType,
           full_name: externalFullName,
+          reservation_number: generateReservationNumber(),
           email: clientEmail,
           phone: clientPhone,
           lead_source: "external_admin",
@@ -253,15 +257,18 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         });
       }
 
-      // Step 3: Sync to GHL Calendar (automatic)
+      // Step 3: Sync to GHL (snapshot webhook + calendar)
+      // sync-to-ghl sends the booking snapshot (reservation_number, customer
+      // info, flags) so GHL contact custom fields populate for automated
+      // messages, then triggers the calendar sync itself.
       try {
-        console.log("Syncing external booking to GHL calendar:", booking.id);
-        await supabase.functions.invoke("sync-ghl-calendar", {
-          body: { booking_id: booking.id, skip_if_unchanged: false },
+        console.log("Syncing external booking to GHL:", booking.id);
+        await supabase.functions.invoke("sync-to-ghl", {
+          body: { booking_id: booking.id },
         });
-        console.log("GHL calendar sync triggered for external booking");
+        console.log("GHL sync triggered for external booking");
       } catch (syncError) {
-        console.error("Error syncing to GHL calendar:", syncError);
+        console.error("Error syncing to GHL:", syncError);
         // Don't fail the booking creation if sync fails
       }
 
@@ -454,7 +461,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Enter client name"
               />
-              <p className="text-xs text-muted-foreground">Will be saved as: External - {clientName || "[Name]"}</p>
+              <p className="text-xs text-muted-foreground">Will be saved as: {clientName || "[Name]"} - External</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

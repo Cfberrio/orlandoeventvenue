@@ -66,6 +66,7 @@ interface BookingSnapshot {
   start_time: string | null;
   end_time: string | null;
   booking_type: string | null;
+  booking_origin: string | null;
   status: string | null;
   payment_status: string | null;
   lifecycle_status: string | null;
@@ -116,6 +117,7 @@ interface BookingRow {
   start_time: string | null;
   end_time: string | null;
   booking_type: string | null;
+  booking_origin: string | null;
   status: string | null;
   payment_status: string | null;
   lifecycle_status: string | null;
@@ -294,6 +296,7 @@ async function buildBookingSnapshot(
     start_time: booking.start_time,
     end_time: booking.end_time,
     booking_type: booking.booking_type,
+    booking_origin: booking.booking_origin,
     status: booking.status,
     payment_status: booking.payment_status,
     lifecycle_status: booking.lifecycle_status,

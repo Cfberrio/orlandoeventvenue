@@ -9,7 +9,7 @@ interface CreateBookingResult {
 }
 
 // Generate a unique reservation number
-const generateReservationNumber = (): string => {
+export const generateReservationNumber = (): string => {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Exclude confusing chars like 0, O, 1, I
   let result = "OEV-";
   for (let i = 0; i < 6; i++) {
