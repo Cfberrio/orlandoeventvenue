@@ -80,6 +80,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
   const [endTime, setEndTime] = useState("");
   const [duration, setDuration] = useState<BlockDuration>("1_day");
   const [numberOfGuests, setNumberOfGuests] = useState(50);
+  const [totalAmount, setTotalAmount] = useState("");
   const [eventType, setEventType] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
@@ -93,6 +94,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
     setEndTime("");
     setDuration("1_day");
     setNumberOfGuests(50);
+    setTotalAmount("");
     setEventType("");
     setClientName("");
     setClientEmail("");
@@ -136,6 +138,11 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       toast.error("Please select start and end times for hourly booking");
       return;
     }
+    const parsedTotal = parseFloat(totalAmount);
+    if (totalAmount.trim() === "" || isNaN(parsedTotal) || parsedTotal < 0) {
+      toast.error("Please enter the total amount the client paid");
+      return;
+    }
 
     // Validate availability
     if (bookingType === "daily") {
@@ -170,20 +177,32 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       const effectiveDuration = bookingType === "hourly" ? "1_day" : duration;
       const effectiveEndDate = bookingType === "hourly" ? eventDate : endDateStr;
 
-      // Get the EXTERNAL_BLOCK_FLOW policy
+      // External bookings run the same automation pipeline as website
+      // bookings (host report jobs, lifecycle transitions, GHL messages).
+      // EXTERNAL_BLOCK_FLOW has requires_payment=false, which would abort
+      // schedule-balance-payment before it creates the lifecycle job.
       const { data: policyData, error: policyError } = await supabase
         .from("booking_policies")
         .select("id")
-        .eq("policy_name", "EXTERNAL_BLOCK_FLOW")
+        .eq("policy_name", "WEBSITE_FULL_FLOW")
         .single();
 
       if (policyError || !policyData) {
-        throw new Error("Failed to fetch external booking policy");
+        throw new Error("Failed to fetch booking policy");
       }
 
       // Real name first, " - External" suffix: GHL derives firstName from the
       // first word of the contact name, and firstName feeds customer SMS/email.
       const externalFullName = buildExternalFullName(clientName);
+
+      // External = client already paid deposit + balance outside our Stripe.
+      // fully_paid keeps the booking out of the remaining-balance chain
+      // (schedule-balance-payment only runs for deposit_paid), so
+      // balance_payment_url never populates and the GHL balance automation
+      // (triggered by that field changing) never fires.
+      const depositPaid = Math.round((parsedTotal / 2) * 100) / 100;
+      const balancePaid = Math.round((parsedTotal - depositPaid) * 100) / 100;
+      const paidAt = new Date().toISOString();
 
       // Step 1: Create the booking record
       const { data: booking, error: bookingError } = await supabase
@@ -191,8 +210,10 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         .insert({
           booking_type: bookingType,
           event_date: eventDate,
-          start_time: bookingType === "hourly" ? startTime : null,
-          end_time: bookingType === "hourly" ? endTime : null,
+          // Daily bookings mirror website bookings (01:00-23:00) so
+          // downstream schedulers compute the same job times.
+          start_time: bookingType === "hourly" ? startTime : "01:00",
+          end_time: bookingType === "hourly" ? endTime : "23:00",
           number_of_guests: numberOfGuests,
           event_type: eventType,
           full_name: externalFullName,
@@ -202,15 +223,22 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
           lead_source: "external_admin",
           status: "confirmed",
           lifecycle_status: "confirmed",
-          payment_status: "invoiced",
-          base_rental: 0,
+          payment_status: "fully_paid",
+          package: "none",
+          base_rental: parsedTotal,
           cleaning_fee: 0,
           package_cost: 0,
           optional_services: 0,
           taxes_fees: 0,
-          total_amount: 0,
-          deposit_amount: 0,
-          balance_amount: 0,
+          total_amount: parsedTotal,
+          deposit_amount: depositPaid,
+          balance_amount: balancePaid,
+          deposit_fee: 0,
+          balance_fee: 0,
+          deposit_total_charged: depositPaid,
+          balance_total_charged: balancePaid,
+          deposit_paid_at: paidAt,
+          balance_paid_at: paidAt,
           agree_to_rules: true,
           initials: clientName.split(" ").map(n => n[0]).join("").toUpperCase(),
           signer_name: clientName,
@@ -233,7 +261,10 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         for (const recurringDate of recurringDates) {
           const recurringDateStr = format(recurringDate, "yyyy-MM-dd");
           await createBlock.mutateAsync({
-            source: "internal_admin",
+            // "system" (not "internal_admin") keeps external clients out of
+            // send-internal-booking-reminders, which emails the client 1 day
+            // before for internal_admin blocks — GHL already covers that.
+            source: "system",
             booking_id: booking.id,
             block_type: bookingType,
             start_date: recurringDateStr,
@@ -246,7 +277,8 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       } else {
         // For single occurrence or daily bookings
         await createBlock.mutateAsync({
-          source: "internal_admin",
+          // "system" for the same reason as recurring blocks above.
+          source: "system",
           booking_id: booking.id,
           block_type: bookingType,
           start_date: eventDate,
@@ -257,7 +289,36 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         });
       }
 
-      // Step 3: Sync to GHL (snapshot webhook + calendar)
+      // Step 3: Mark pre_event_ready and trigger automation — same pattern
+      // as BookingDetail.handleMarkPreEventReady. The lifecycle UPDATE fires
+      // the DB trigger, and the explicit invoke is the belt-and-suspenders
+      // the rest of the app uses (both paths dedupe on existing jobs).
+      // This creates the host report jobs (event-30d/-7d/-1d), one_hour_report
+      // and guest feedback. Balance jobs are skipped because fully_paid.
+      try {
+        const { error: readyError } = await supabase
+          .from("bookings")
+          .update({
+            pre_event_ready: "true",
+            lifecycle_status: "pre_event_ready",
+          })
+          .eq("id", booking.id);
+        if (readyError) throw readyError;
+
+        const { error: automationError } = await supabase.functions.invoke(
+          "trigger-booking-automation",
+          { body: { booking_id: booking.id } },
+        );
+        if (automationError) {
+          console.error("trigger-booking-automation failed:", automationError);
+          toast.error("Booking created, but automation scheduling may have failed");
+        }
+      } catch (readyErr) {
+        console.error("Error marking booking pre_event_ready:", readyErr);
+        toast.error("Booking created, but automation setup failed");
+      }
+
+      // Step 4: Sync to GHL (snapshot webhook + calendar)
       // sync-to-ghl sends the booking snapshot (reservation_number, customer
       // info, flags) so GHL contact custom fields populate for automated
       // messages, then triggers the calendar sync itself.
@@ -272,7 +333,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         // Don't fail the booking creation if sync fails
       }
 
-      // Step 4: Populate revenue items
+      // Step 5: Populate revenue items
       try {
         console.log("Populating revenue items for booking:", booking.id);
         const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
@@ -450,6 +511,22 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
               value={numberOfGuests}
               onChange={(e) => setNumberOfGuests(parseInt(e.target.value) || 1)}
             />
+          </div>
+
+          {/* Total Amount Paid */}
+          <div className="space-y-2">
+            <Label>Total Amount Paid *</Label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              value={totalAmount}
+              onChange={(e) => setTotalAmount(e.target.value)}
+              placeholder="0.00"
+            />
+            <p className="text-xs text-muted-foreground">
+              Full event price the client already paid (deposit + balance). Recorded as fully paid.
+            </p>
           </div>
 
           {/* Client Info */}
