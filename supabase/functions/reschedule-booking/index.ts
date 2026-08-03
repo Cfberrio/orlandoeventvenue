@@ -152,16 +152,57 @@ serve(async (req) => {
     console.log("Jobs updated:", rpcResult.jobs_updated);
     console.log("Date shift days:", rpcResult.date_shift_days);
 
-    // Job recreation no longer needed since booking_type never changes
-    // Jobs are always shifted by date difference in the RPC function
     // GHL sync will happen automatically via trigger (no action needed here)
     console.log("GHL sync will be triggered automatically by database trigger");
+
+    // The RPC only shifts run_at on jobs that are still pending. If the host
+    // report jobs never existed (short-notice booking whose reminder times had
+    // already passed) or were already executed for the old date, shifting does
+    // nothing and host_report_step stays frozen at the old value. Recreate them
+    // from the new date for bookings already in the host-report window.
+    let hostReportRescheduled = false;
+    const { data: updatedBooking } = await supabaseClient
+      .from("bookings")
+      .select("lifecycle_status")
+      .eq("id", booking_id)
+      .single();
+
+    if (
+      updatedBooking &&
+      ["pre_event_ready", "in_progress"].includes(updatedBooking.lifecycle_status)
+    ) {
+      try {
+        const hrResponse = await fetch(
+          `${supabaseUrl}/functions/v1/schedule-host-report-reminders`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": `Bearer ${supabaseServiceKey}`,
+            },
+            body: JSON.stringify({ booking_id, force_reschedule: true }),
+          }
+        );
+
+        if (hrResponse.ok) {
+          hostReportRescheduled = true;
+          console.log("Host report reminders rescheduled for new date");
+        } else {
+          console.error(
+            "schedule-host-report-reminders failed:",
+            await hrResponse.text()
+          );
+        }
+      } catch (hrError) {
+        console.error("schedule-host-report-reminders exception:", hrError);
+      }
+    }
 
     // Return success response
     return new Response(
       JSON.stringify({
         ...rpcResult,
-        // jobs_recreated removed - no longer needed since booking_type never changes
+        host_report_rescheduled: hostReportRescheduled,
       }),
       {
         status: 200,
