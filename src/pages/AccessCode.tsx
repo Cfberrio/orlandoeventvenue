@@ -23,6 +23,8 @@ interface AccessCodeResult {
   end_time: string | null;
   event_type: string;
   host_report_step: string | null;
+  is_recurring?: boolean;
+  expires_on?: string | null;
 }
 
 const GOOGLE_REVIEW_URL =
@@ -100,6 +102,37 @@ const ReservationDetails = ({ result }: { result: AccessCodeResult }) => {
   );
 };
 
+const RecurringDetails = ({ result }: { result: AccessCodeResult }) => (
+  <Card>
+    <CardHeader>
+      <CardTitle className="text-base uppercase tracking-wide">Recurring Access Details</CardTitle>
+    </CardHeader>
+    <CardContent>
+      <div className="space-y-1.5 text-sm">
+        <p>
+          <span className="text-muted-foreground">Reservation Number:</span>{" "}
+          <strong>{result.reservation_number}</strong>
+        </p>
+        <p>
+          <span className="text-muted-foreground">Name:</span> <strong>{result.full_name}</strong>
+        </p>
+        {result.expires_on && (
+          <p>
+            <span className="text-muted-foreground">Access Valid Until:</span>{" "}
+            <strong>
+              {new Date(result.expires_on + "T00:00:00").toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </strong>
+          </p>
+        )}
+      </div>
+    </CardContent>
+  </Card>
+);
+
 const HelpFooter = () => (
   <div className="pt-4 border-t text-center text-xs text-muted-foreground">
     Need help? Contact Luis Torres at{" "}
@@ -151,6 +184,10 @@ const AccessCode = () => {
           setError("We couldn't find a reservation matching that information. Please double-check and try again.");
         } else if (msg.includes("reservation_inactive")) {
           setError("This reservation is no longer active. Please contact us if you believe this is an error.");
+        } else if (msg.includes("recurring_code_paused")) {
+          setError("This access code is currently paused. Please contact us if you believe this is an error.");
+        } else if (msg.includes("recurring_code_expired")) {
+          setError("This access code has expired. Please contact us to renew your access.");
         } else if (msg.includes("access_code_locked_until_event_day")) {
           setError("Your venue access will be released one hour before your event begins. Please return to this page at that time.");
         } else if (msg.includes("reservation_number_or_email_required")) {
@@ -286,6 +323,7 @@ const AccessCode = () => {
 
   // STATE 2 — access released: door code, instructions, guest report, rules, details
   if (result && result.code) {
+    const isRecurring = !!result.is_recurring;
     const formBooking: GuestReportFormBooking = {
       id: result.booking_id,
       reservation_number: result.reservation_number,
@@ -399,13 +437,16 @@ const AccessCode = () => {
             </CardContent>
           </Card>
 
-          <div className="pt-2">
-            <h2 className="text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4">
-              Before Your Reservation Ends
-            </h2>
-            <GuestReportForm booking={formBooking} onSubmitted={() => setReportSubmitted(true)} />
-          </div>
+          {!isRecurring && (
+            <div className="pt-2">
+              <h2 className="text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground mb-4">
+                Before Your Reservation Ends
+              </h2>
+              <GuestReportForm booking={formBooking} onSubmitted={() => setReportSubmitted(true)} />
+            </div>
+          )}
 
+          {!isRecurring && (
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800">
             <CardHeader>
               <CardTitle className="text-lg">Enjoyed the Venue?</CardTitle>
@@ -422,6 +463,7 @@ const AccessCode = () => {
               </a>
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader>
@@ -437,19 +479,21 @@ const AccessCode = () => {
                   {title}
                 </p>
               ))}
-              <div className="pt-2 border-t">
-                <p className="text-sm font-semibold mb-1">Final Venue Check</p>
-                <p className="text-sm text-muted-foreground">
-                  A Guest Report is required after every event. It confirms that the venue was
-                  restored, all guests left, and the entrance was locked. Cameras and noise sensors
-                  monitor the venue. Serious violations may result in the event ending without a
-                  refund.
-                </p>
-              </div>
+              {!isRecurring && (
+                <div className="pt-2 border-t">
+                  <p className="text-sm font-semibold mb-1">Final Venue Check</p>
+                  <p className="text-sm text-muted-foreground">
+                    A Guest Report is required after every event. It confirms that the venue was
+                    restored, all guests left, and the entrance was locked. Cameras and noise sensors
+                    monitor the venue. Serious violations may result in the event ending without a
+                    refund.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
-          <ReservationDetails result={result} />
+          {isRecurring ? <RecurringDetails result={result} /> : <ReservationDetails result={result} />}
 
           <Button variant="outline" className="w-full" onClick={resetLookup}>
             Look up another reservation

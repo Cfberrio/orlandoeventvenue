@@ -27,6 +27,7 @@ import {
 } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
+import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -133,6 +134,9 @@ export default function AdminDashboard() {
 
       {/* Venue Access Code admin card */}
       <AccessCodeAdminCard />
+
+      {/* Recurring access codes (FCG, Global, Guest) */}
+      <RecurringAccessCodesCard />
 
 
 

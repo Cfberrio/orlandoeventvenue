@@ -48,6 +48,26 @@ function makeLockedRow(overrides: Record<string, unknown> = {}) {
   return makeRow({ code: null, label: null, access_released: false, ...overrides });
 }
 
+// Recurring access codes (OEV-R… numbers) are always released and carry no
+// booking/report fields.
+function makeRecurringRow(overrides: Record<string, unknown> = {}) {
+  return makeRow({
+    booking_id: "rec-1111-2222-3333",
+    reservation_number: "OEV-RFCG01",
+    full_name: "FCG",
+    email: null,
+    phone: null,
+    event_date: "2026-08-03",
+    start_time: null,
+    end_time: null,
+    event_type: null,
+    host_report_step: null,
+    is_recurring: true,
+    expires_on: "2027-02-03",
+    ...overrides,
+  });
+}
+
 const renderAt = (url: string) =>
   render(
     <MemoryRouter initialEntries={[url]}>
@@ -201,6 +221,53 @@ describe("AccessCode — already-submitted state", () => {
     expect(screen.queryByText(/Venue Checklist/i)).not.toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
     expect(screen.getByText(/OEV-TEST01/)).toBeInTheDocument();
+  });
+});
+
+describe("AccessCode — recurring access codes", () => {
+  it("shows the door code and instructions without the guest report", async () => {
+    rpcMock.mockResolvedValueOnce({ data: makeRecurringRow(), error: null });
+
+    renderAt("/accesscode");
+    await lookup("OEV-RFCG01");
+
+    expect(await screen.findByText(/Your Access Is Ready/i)).toBeInTheDocument();
+    expect(screen.getAllByText("1234").length).toBeGreaterThan(0);
+    expect(screen.getByText(/How to Enter the Venue/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wi-Fi Information/i)).toBeInTheDocument();
+    expect(screen.getByText(/Venue Rules/i)).toBeInTheDocument();
+    // Recurring details instead of one-time reservation details
+    expect(screen.getByText(/Recurring Access Details/i)).toBeInTheDocument();
+    expect(screen.getByText("OEV-RFCG01")).toBeInTheDocument();
+    expect(screen.getByText(/February 3, 2027/i)).toBeInTheDocument();
+    // No guest report, no review CTA, no final venue check
+    expect(screen.queryByText(/Venue Checklist/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Guest Report/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Reservation Details/i)).not.toBeInTheDocument();
+  });
+
+  it("handles recurring_code_paused", async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "recurring_code_paused" },
+    });
+
+    renderAt("/accesscode");
+    await lookup("OEV-RFCG01");
+
+    expect(await screen.findByText(/currently paused/i)).toBeInTheDocument();
+  });
+
+  it("handles recurring_code_expired", async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "recurring_code_expired" },
+    });
+
+    renderAt("/accesscode");
+    await lookup("OEV-RGST01");
+
+    expect(await screen.findByText(/has expired/i)).toBeInTheDocument();
   });
 });
 
