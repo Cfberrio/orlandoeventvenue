@@ -73,7 +73,7 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
 Welcome to Orlando Event Venue!
 3847 E Colonial Dr, Orlando, FL 32803
 
-Wifi - User: GlobalChurch / Password: Orlandoministry
+Wifi - User: TMOBILE-9371 / Password: 7km6r7y5ybn
 
 Step-by-Step Venue Access:
 

@@ -428,11 +428,11 @@ const AccessCode = () => {
             <CardContent className="text-sm space-y-1">
               <p>
                 <span className="text-muted-foreground">Network:</span>{" "}
-                <strong className="font-mono">GlobalChurch</strong>
+                <strong className="font-mono">TMOBILE-9371</strong>
               </p>
               <p>
                 <span className="text-muted-foreground">Password:</span>{" "}
-                <strong className="font-mono">Orlandoministry</strong>
+                <strong className="font-mono">7km6r7y5ybn</strong>
               </p>
             </CardContent>
           </Card>
