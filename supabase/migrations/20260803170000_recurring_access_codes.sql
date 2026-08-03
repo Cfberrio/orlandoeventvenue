@@ -42,11 +42,11 @@ CREATE POLICY "Admin can delete recurring_access_codes"
   USING (public.has_role(auth.uid(), 'admin'::app_role));
 
 -- Seed the three codes from the Aug 2026 request.
--- FCG email pending confirmation with Maria (GHL) — lookup works by number.
+-- Email is optional — the reservation number alone is the credential.
 INSERT INTO public.recurring_access_codes
   (reservation_number, holder_name, email, valid_from, expires_on, notes)
 VALUES
-  ('OEV-RFCG01', 'FCG', NULL, '2026-08-03', '2027-02-03', 'Recurring weekly tenant. Email pending confirmation with Maria (check GHL).'),
+  ('OEV-RFCG01', 'FCG', NULL, '2026-08-03', '2027-02-03', 'Recurring weekly tenant.'),
   ('OEV-RGLB01', 'Global', 'orlandoeventvenue@gmail.com', '2026-08-03', '2027-02-03', 'Global Ministries, Inc. — parent organization.'),
   ('OEV-RGST01', 'Guest', 'grouptrellis@gmail.com', '2026-08-03', '2027-02-03', 'Internal/staff access (Trellis).')
 ON CONFLICT (reservation_number) DO NOTHING;
