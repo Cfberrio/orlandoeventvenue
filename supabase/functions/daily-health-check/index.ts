@@ -12,6 +12,8 @@ interface BookingDetail {
   event_date: string;
   guest_name?: string;
   guest_email?: string;
+  payment_status?: string;
+  waiting_since?: string;
 }
 
 interface FailedJobDetail {
@@ -350,7 +352,43 @@ serve(async (req) => {
     }
 
     // =====================================================
-    // 6c. HIGH: Policy mismatches (website bookings with wrong policy)
+    // 6c. Bookings stuck in pending_review: >48h waiting for the admin
+    // checklist, or already fully paid without anyone approving. The balance
+    // chain keeps charging regardless of confirmation, so a paid-but-unapproved
+    // booking gets NO communication jobs until someone completes the checklist.
+    // =====================================================
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 3600000).toISOString();
+
+    const { data: stalePendingReview } = await supabase
+      .from("bookings")
+      .select("id, reservation_number, event_date, full_name, payment_status, created_at")
+      .eq("status", "pending_review")
+      .or(`created_at.lt.${fortyEightHoursAgo},payment_status.eq.fully_paid`)
+      .limit(10);
+
+    if (stalePendingReview && stalePendingReview.length > 0) {
+      const paid = stalePendingReview.filter(b =>
+        b.payment_status === "deposit_paid" || b.payment_status === "fully_paid"
+      );
+      const severity: 'CRITICAL' | 'HIGH' = paid.length > 0 ? "CRITICAL" : "HIGH";
+      console.log(`[${severity}] Found ${stalePendingReview.length} stale pending_review bookings (${paid.length} with payments)`);
+      issues.push({
+        type: "stale_pending_review",
+        severity,
+        count: stalePendingReview.length,
+        description: `${stalePendingReview.length} bookings stuck in pending_review (>48h or already paid). No communication jobs exist until the admin checklist is completed — I02 and the 30/7/1 chain will NOT fire.`,
+        bookings: stalePendingReview.map(b => ({
+          reservation_number: b.reservation_number,
+          event_date: b.event_date,
+          guest_name: b.full_name,
+          payment_status: b.payment_status,
+          waiting_since: b.created_at,
+        })),
+      });
+    }
+
+    // =====================================================
+    // 6d. HIGH: Policy mismatches (website bookings with wrong policy)
     // =====================================================
     const { data: policyMismatches } = await supabase
       .from("bookings")

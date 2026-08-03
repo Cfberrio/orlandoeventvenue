@@ -1,10 +1,43 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+const ALERT_EMAIL = "orlandoglobalministries@gmail.com";
+
+// After this many days past event end without a submitted host report, the
+// booking is force-transitioned to post_event so it can't sit in in_progress
+// forever. The host report stays incomplete — payroll must review it manually.
+const HOST_REPORT_TIMEOUT_DAYS = 10;
+
+async function sendTimeoutAlert(reservationNumber: string, eventDate: string): Promise<void> {
+  try {
+    const gmailUser = Deno.env.get("GMAIL_USER");
+    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    if (!gmailUser || !gmailPassword) return;
+
+    const client = new SMTPClient({
+      connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: gmailUser, password: gmailPassword } },
+    });
+
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#d97706;">⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber}</h2><p><b>Event date:</b> ${eventDate}</p><p>Staff never submitted the host report, so the booking was force-transitioned to <b>post_event</b> after ${HOST_REPORT_TIMEOUT_DAYS} days.</p><p style="color:#dc2626;"><b>The host report remains INCOMPLETE — review before payroll.</b></p><p style="color:#666;">No GHL sync was performed for this transition (no automations fired).</p></body></html>`;
+
+    await client.send({
+      from: `"OEV Alert" <${gmailUser}>`,
+      to: ALERT_EMAIL,
+      subject: `⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber} forced to post_event`,
+      html,
+    });
+    await client.close();
+    console.log(`[TIMEOUT] Alert sent for ${reservationNumber}`);
+  } catch (alertErr) {
+    console.error("[TIMEOUT] Failed to send alert:", alertErr);
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -44,6 +77,7 @@ serve(async (req) => {
 
     const now = new Date();
     const transitionedBookings: string[] = [];
+    const forcedTimeoutBookings: string[] = [];
     const pendingHostReport: string[] = [];
     const pendingTime: string[] = [];
 
@@ -73,7 +107,11 @@ serve(async (req) => {
       const eventEndPlus24h = new Date(eventEndDateTime.getTime() + 24 * 60 * 60 * 1000);
       const has24hPassed = now >= eventEndPlus24h;
 
-      console.log(`Booking ${booking.reservation_number}: hostReportCompleted=${hostReportCompleted}, has24hPassed=${has24hPassed}, eventEndPlus24h=${eventEndPlus24h.toISOString()}`);
+      // Timeout: force transition when the host report never arrives
+      const timeoutAt = new Date(eventEndDateTime.getTime() + HOST_REPORT_TIMEOUT_DAYS * 24 * 60 * 60 * 1000);
+      const timeoutPassed = now >= timeoutAt;
+
+      console.log(`Booking ${booking.reservation_number}: hostReportCompleted=${hostReportCompleted}, has24hPassed=${has24hPassed}, timeoutPassed=${timeoutPassed}, eventEndPlus24h=${eventEndPlus24h.toISOString()}`);
 
       // Check both conditions
       if (hostReportCompleted && has24hPassed) {
@@ -117,6 +155,42 @@ serve(async (req) => {
         }
 
         transitionedBookings.push(booking.reservation_number);
+      } else if (!hostReportCompleted && timeoutPassed) {
+        // Force transition: staff never submitted the host report and the
+        // timeout window elapsed. Deliberately NO sync-to-ghl here — these are
+        // old bookings and no GHL automation may fire because of this cleanup.
+        console.log(`[TIMEOUT] Forcing ${booking.reservation_number} to post_event (no host report after ${HOST_REPORT_TIMEOUT_DAYS}d)`);
+
+        const { error: forceError } = await supabase
+          .from('bookings')
+          .update({
+            lifecycle_status: 'post_event',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', booking.id);
+
+        if (forceError) {
+          console.error(`Error force-updating booking ${booking.reservation_number}:`, forceError);
+          continue;
+        }
+
+        await supabase.from('booking_events').insert({
+          booking_id: booking.id,
+          event_type: 'auto_lifecycle_post_event_forced',
+          channel: 'system',
+          metadata: {
+            previous_status: 'in_progress',
+            new_status: 'post_event',
+            reason: `host_report_timeout_${HOST_REPORT_TIMEOUT_DAYS}d`,
+            host_report_completed: false,
+            ghl_synced: false,
+            triggered_at: now.toISOString()
+          }
+        });
+
+        await sendTimeoutAlert(booking.reservation_number, booking.event_date);
+
+        forcedTimeoutBookings.push(booking.reservation_number);
       } else if (!hostReportCompleted) {
         pendingHostReport.push(booking.reservation_number);
       } else if (!has24hPassed) {
@@ -129,6 +203,7 @@ serve(async (req) => {
       checked: bookings.length,
       transitioned: transitionedBookings.length,
       transitioned_bookings: transitionedBookings,
+      forced_timeout: forcedTimeoutBookings,
       pending_host_report: pendingHostReport,
       pending_24h: pendingTime
     };
