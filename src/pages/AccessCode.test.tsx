@@ -163,6 +163,11 @@ describe("AccessCode — STATE 2 (access released)", () => {
     expect(screen.getByText(/Venue Rules/i)).toBeInTheDocument();
     expect(screen.getByText(/Reservation Details/i)).toBeInTheDocument();
     expect(screen.getByText("OEV-TEST01")).toBeInTheDocument();
+    // Full rule tables with fees (per access-page spec doc)
+    expect(screen.getByText(/maximum of 90 guests/i)).toBeInTheDocument();
+    expect(screen.getByText(/\$500 and risk of the event being shut down/i)).toBeInTheDocument();
+    expect(screen.getByText(/Pets are not allowed/i)).toBeInTheDocument();
+    expect(screen.getByText("$250")).toBeInTheDocument();
   });
 
   it("renders all nine checklist items", async () => {

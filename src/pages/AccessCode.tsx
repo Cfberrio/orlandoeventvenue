@@ -27,16 +27,97 @@ interface AccessCodeResult {
   expires_on?: string | null;
 }
 
-const GOOGLE_REVIEW_URL =
-  "https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTIwOS4wIKXMDSoASAFQAw%3D%3D";
+const GOOGLE_REVIEW_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
 
-const VENUE_RULE_CATEGORIES = [
-  "Capacity and Reservation Time",
-  "Tables, Chairs, and Trash",
-  "Alcohol, Drugs, and Smoking",
-  "Catering and Kitchen Use",
-  "Decorations and Venue Equipment",
-  "Noise, Doors, and Pets",
+// Venue rules mirror the access-page spec doc (ClickUp 8cqnrff-32097) verbatim.
+const VENUE_RULES: { title: string; rules: { rule: string; fee?: string }[] }[] = [
+  {
+    title: "Capacity and Reservation Time",
+    rules: [
+      {
+        rule: "The venue holds a maximum of 90 guests. Do not exceed this limit.",
+        fee: "$500 and risk of the event being shut down",
+      },
+      {
+        rule: "Your booked time includes setup and breakdown. Together, they should use no more than 50% of the reservation.",
+        fee: "$350 per additional hour",
+      },
+      {
+        rule: "The venue must be fully restored before the reservation ends.",
+        fee: "Additional $300 if the space is not restored",
+      },
+    ],
+  },
+  {
+    title: "Tables, Chairs, and Trash",
+    rules: [
+      { rule: "You are responsible for setting up and breaking down the tables and chairs." },
+      {
+        rule: "Return all tables and chairs to their original arrangement before leaving.",
+        fee: "$400 if not restored",
+      },
+      {
+        rule: "Bag all trash and place it on the back patio. Do not leave trash inside. Our team handles the cleaning.",
+      },
+    ],
+  },
+  {
+    title: "Alcohol, Drugs, and Smoking",
+    rules: [
+      {
+        rule: "All alcohol service must be arranged through Orlando Event Venue. Outside alcohol, outside bartenders, and bringing your own alcohol are not allowed. Guests must be 21 or older to drink.",
+        fee: "$500 and possible event termination without a refund",
+      },
+      {
+        rule: "Drugs are not allowed anywhere on the property.",
+        fee: "$500, immediate termination, and possible law enforcement notification",
+      },
+      {
+        rule: "Smoking and vaping are not allowed indoors or in the immediate outdoor area.",
+        fee: "$500",
+      },
+    ],
+  },
+  {
+    title: "Catering and Kitchen Use",
+    rules: [
+      {
+        rule: "Outside caterers are welcome but must be approved. Professional caterers must provide proof of insurance.",
+      },
+      {
+        rule: "Cooking is not allowed on site. The prep kitchen may only be used for staging and reheating.",
+        fee: "$500 for cooking or using an unapproved caterer",
+      },
+    ],
+  },
+  {
+    title: "Decorations and Venue Equipment",
+    rules: [
+      { rule: "Glitter, confetti, rice, and sparklers are not allowed.", fee: "$500" },
+      {
+        rule: "Do not use nails, staples, tape that leaves residue, or open flames unless approved in advance.",
+        fee: "$400 per violation",
+      },
+      {
+        rule: "The stage, screens, and audio or visual equipment may only be used with the matching production package.",
+        fee: "$400 per violation",
+      },
+      {
+        rule: "Damage to the venue, furniture, or equipment will be charged at the repair or replacement cost.",
+        fee: "$400 minimum",
+      },
+    ],
+  },
+  {
+    title: "Noise, Doors, and Pets",
+    rules: [
+      {
+        rule: "Keep music and noise within local noise limits. Doors must remain closed after 9:00 PM.",
+        fee: "$350 and possible termination for severe violations",
+      },
+      { rule: "Pets are not allowed. Documented service animals are welcome.", fee: "$250" },
+    ],
+  },
 ];
 
 function formatTime(time: string | null | undefined): string | null {
@@ -473,11 +554,31 @@ const AccessCode = () => {
                 charged when a rule is violated.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
-              {VENUE_RULE_CATEGORIES.map((title) => (
-                <p key={title} className="text-sm font-semibold">
-                  {title}
-                </p>
+            <CardContent className="space-y-5">
+              {VENUE_RULES.map((category) => (
+                <div key={category.title}>
+                  <p className="text-sm font-semibold mb-2">{category.title}</p>
+                  <div className="overflow-x-auto rounded-md border">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/40 text-left">
+                          <th className="p-2 font-medium text-muted-foreground">Rule</th>
+                          <th className="p-2 font-medium text-muted-foreground w-[38%]">
+                            Fee or consequence
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {category.rules.map((row) => (
+                          <tr key={row.rule} className="border-b last:border-b-0 align-top">
+                            <td className="p-2">{row.rule}</td>
+                            <td className="p-2 text-muted-foreground">{row.fee ?? "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
               ))}
               {!isRecurring && (
                 <div className="pt-2 border-t">
