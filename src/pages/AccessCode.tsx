@@ -28,51 +28,13 @@ interface AccessCodeResult {
 const GOOGLE_REVIEW_URL =
   "https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTIwOS4wIKXMDSoASAFQAw%3D%3D";
 
-const VENUE_RULES: { title: string; items: string[] }[] = [
-  {
-    title: "Capacity and Reservation Time",
-    items: [
-      "Maximum occupancy is 90 guests — $200 fee.",
-      "Your reservation time includes setup, the event, breakdown, and the final venue check. Overtime is billed at $200 per hour past your scheduled end time.",
-    ],
-  },
-  {
-    title: "Tables, Chairs, and Trash",
-    items: [
-      "Return all tables and chairs to their original placement — $150 fee if not restored.",
-      "Bag all trash and place it on the back patio. Nothing may be left inside the venue.",
-    ],
-  },
-  {
-    title: "Alcohol, Drugs, and Smoking",
-    items: [
-      "No outside alcohol or outside bartenders. Bar service is available as a paid add-on — $250 fee.",
-      "No drugs — $300 fee.",
-      "No smoking — $300 cleaning fee.",
-    ],
-  },
-  {
-    title: "Catering and Kitchen Use",
-    items: [
-      "Professional caterers must carry liability insurance. Commercially prepared food is permitted — $300 fee for violations.",
-      "No on-site cooking unless pre-approved.",
-    ],
-  },
-  {
-    title: "Decorations and Venue Equipment",
-    items: [
-      "No glitter, confetti, or rice — $300 cleaning fee.",
-      "No nails, staples, residue tape, or open flames — $200 damage fee.",
-      "Guest is responsible for any damage caused during the event — repair costs, $200 minimum.",
-    ],
-  },
-  {
-    title: "Noise, Doors, and Pets",
-    items: [
-      "Amplified music must stay within city ordinance limits. Keep the entrance door closed during your event.",
-      "No pets. Only certified service animals are allowed — $100 cleaning fee.",
-    ],
-  },
+const VENUE_RULE_CATEGORIES = [
+  "Capacity and Reservation Time",
+  "Tables, Chairs, and Trash",
+  "Alcohol, Drugs, and Smoking",
+  "Catering and Kitchen Use",
+  "Decorations and Venue Equipment",
+  "Noise, Doors, and Pets",
 ];
 
 function formatTime(time: string | null | undefined): string | null {
@@ -469,19 +431,11 @@ const AccessCode = () => {
                 charged when a rule is violated.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              {VENUE_RULES.map((section) => (
-                <div key={section.title}>
-                  <p className="text-sm font-semibold mb-1">{section.title}</p>
-                  <ul className="space-y-1">
-                    {section.items.map((item, i) => (
-                      <li key={i} className="text-sm text-muted-foreground flex items-start">
-                        <span className="mr-2 text-primary">•</span>
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+            <CardContent className="space-y-3">
+              {VENUE_RULE_CATEGORIES.map((title) => (
+                <p key={title} className="text-sm font-semibold">
+                  {title}
+                </p>
               ))}
               <div className="pt-2 border-t">
                 <p className="text-sm font-semibold mb-1">Final Venue Check</p>
