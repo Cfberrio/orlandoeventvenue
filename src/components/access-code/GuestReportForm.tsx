@@ -1,14 +1,10 @@
 import { useState, useRef } from 'react';
 import { useGuestReport } from '@/hooks/useGuestReport';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Upload, CheckCircle2, AlertCircle, Camera, X, ExternalLink } from 'lucide-react';
-import { format } from 'date-fns';
+import { Loader2, Upload, CheckCircle2, AlertCircle, X, Camera } from 'lucide-react';
 
 interface MediaFile {
   fieldId: string;
@@ -30,79 +26,97 @@ interface Props {
   onSubmitted: () => void;
 }
 
+const CHECKLIST = [
+  { id: 'trash', en: 'All trash is bagged and placed on the back patio. Nothing is left inside.', es: 'Toda la basura está embolsada y colocada en el patio trasero. No queda nada adentro.' },
+  { id: 'tables_chairs', en: 'All tables and chairs are broken down and returned to their original placement.', es: 'Todas las mesas y sillas están desmontadas y devueltas a su lugar original.' },
+  { id: 'kitchen', en: 'The prep kitchen has been checked.', es: 'La cocina de preparación fue revisada.' },
+  { id: 'bathrooms', en: 'Both bathrooms have been checked.', es: 'Ambos baños fueron revisados.' },
+  { id: 'personal_items', en: 'All personal items have been removed.', es: 'Todos los artículos personales fueron retirados.' },
+  { id: 'equipment', en: 'All remotes and venue equipment have been returned.', es: 'Todos los controles y equipos del venue fueron devueltos.' },
+  { id: 'guests_left', en: 'All guests have left the venue.', es: 'Todos los invitados salieron del venue.' },
+  { id: 'lights_off', en: 'All lights are turned off.', es: 'Todas las luces están apagadas.' },
+  { id: 'door_locked', en: 'The entrance door is locked.', es: 'La puerta de entrada quedó cerrada con llave.' },
+] as const;
+
+const REQUIRED_PHOTOS = [
+  {
+    fieldId: 'guest_main_area_media',
+    titleEn: 'Photo 1: Main Venue Space',
+    titleEs: 'Foto 1: Espacio Principal del Venue',
+    descEn: 'Turn the lights on temporarily and take a clear photo showing the restored main venue space.',
+    descEs: 'Enciende las luces temporalmente y toma una foto clara del espacio principal restaurado.',
+    uploadLabel: 'Venue main space with lights on',
+  },
+  {
+    fieldId: 'guest_front_door_media',
+    titleEn: 'Photo 2: Locked Entrance',
+    titleEs: 'Foto 2: Entrada Cerrada con Llave',
+    descEn: 'After leaving, lock the entrance and take a clear photo confirming that the venue has been secured.',
+    descEs: 'Después de salir, cierra la entrada con llave y toma una foto clara confirmando que el venue quedó asegurado.',
+    uploadLabel: 'Entrance door locked',
+  },
+] as const;
+
 const GuestReportForm = ({ booking, onSubmitted }: Props) => {
   const { submitting, submitReport } = useGuestReport();
 
-  const [guestName, setGuestName] = useState(booking.full_name || '');
-  const [guestEmail, setGuestEmail] = useState(booking.email || '');
-  const [guestPhone, setGuestPhone] = useState(booking.phone || '');
-
+  const [checked, setChecked] = useState<Record<string, boolean>>({});
   const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([]);
-
-  const [confirmAreaClean, setConfirmAreaClean] = useState(false);
-  const [confirmTrashBagged, setConfirmTrashBagged] = useState(false);
-  const [confirmBathroomsOk, setConfirmBathroomsOk] = useState(false);
-  const [confirmDoorClosed, setConfirmDoorClosed] = useState(false);
-
-  const [issueDescription, setIssueDescription] = useState('');
 
   const fileInputRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
 
   const handleFileChange = (fieldId: string, files: FileList | null) => {
-    if (!files) return;
-    const newFiles: MediaFile[] = Array.from(files).map((file) => ({
-      fieldId,
-      file,
-      preview: URL.createObjectURL(file),
-    }));
-    setMediaFiles((prev) => [...prev, ...newFiles]);
+    if (!files || files.length === 0) return;
+    const file = files[0];
+    setMediaFiles((prev) => {
+      // One photo per field — replace any existing one
+      const next = prev.filter((f) => {
+        if (f.fieldId === fieldId) {
+          URL.revokeObjectURL(f.preview);
+          return false;
+        }
+        return true;
+      });
+      return [...next, { fieldId, file, preview: URL.createObjectURL(file) }];
+    });
   };
 
-  const removeFile = (index: number) => {
+  const removeFile = (fieldId: string) => {
     setMediaFiles((prev) => {
-      const next = [...prev];
-      URL.revokeObjectURL(next[index].preview);
-      next.splice(index, 1);
+      const next = prev.filter((f) => {
+        if (f.fieldId === fieldId) {
+          URL.revokeObjectURL(f.preview);
+          return false;
+        }
+        return true;
+      });
       return next;
     });
   };
 
-  const getFilesForField = (fieldId: string) => mediaFiles.filter((f) => f.fieldId === fieldId);
+  const getFileForField = (fieldId: string) => mediaFiles.find((f) => f.fieldId === fieldId);
 
-  const validateForm = () => {
-    const required = [
-      { id: 'guest_front_door_media', min: 1 },
-      { id: 'guest_main_area_media', min: 1 },
-      { id: 'guest_rack_media', min: 1 },
-      { id: 'guest_bathrooms_media', min: 2 },
-      { id: 'guest_kitchen_trash_media', min: 1 },
-    ];
-    for (const r of required) {
-      if (getFilesForField(r.id).length < r.min) return false;
-    }
-    if (!confirmAreaClean || !confirmTrashBagged || !confirmBathroomsOk || !confirmDoorClosed) return false;
-    return true;
-  };
+  const checklistComplete = CHECKLIST.every((item) => checked[item.id]);
+  const photosComplete = REQUIRED_PHOTOS.every((p) => !!getFileForField(p.fieldId));
+  const formValid = checklistComplete && photosComplete;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateForm()) return;
-
-    const hasIssue = issueDescription.trim().length > 0 || getFilesForField('guest_issue_media').length > 0;
+    if (!formValid) return;
 
     const success = await submitReport(
       booking.id,
       booking.reservation_number,
       {
-        guest_name: guestName,
-        guest_email: guestEmail,
-        guest_phone: guestPhone,
-        guest_confirm_area_clean: confirmAreaClean,
-        guest_confirm_trash_bagged: confirmTrashBagged,
-        guest_confirm_bathrooms_ok: confirmBathroomsOk,
-        guest_confirm_door_closed: confirmDoorClosed,
-        issue_description: issueDescription,
-        has_issue: hasIssue,
+        guest_name: booking.full_name || '',
+        guest_email: booking.email || '',
+        guest_phone: booking.phone || '',
+        guest_confirm_area_clean: !!checked['tables_chairs'],
+        guest_confirm_trash_bagged: !!checked['trash'],
+        guest_confirm_bathrooms_ok: !!checked['bathrooms'],
+        guest_confirm_door_closed: !!checked['door_locked'],
+        issue_description: '',
+        has_issue: false,
       },
       mediaFiles.map((f) => ({ fieldId: f.fieldId, file: f.file })),
       { rating: 0, comment: '' },
@@ -111,251 +125,131 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
     if (success) onSubmitted();
   };
 
-  const MediaUploadSection = ({
-    fieldId, titleEn, titleEs, descEn, descEs, minFiles, maxFiles,
-  }: {
-    fieldId: string; titleEn: string; titleEs: string;
-    descEn: string; descEs: string; minFiles: number; maxFiles: number;
-  }) => {
-    const files = getFilesForField(fieldId);
-    const isValid = files.length >= minFiles;
-    return (
-      <div className="space-y-3 p-4 border rounded-lg">
-        <div className="flex items-start justify-between">
-          <div>
-            <h4 className="font-medium">{titleEn}</h4>
-            <p className="text-sm text-muted-foreground">{titleEs}</p>
-          </div>
-          {isValid && <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
-        </div>
-        <p className="text-sm text-muted-foreground">{descEn}</p>
-        <p className="text-xs text-muted-foreground italic">{descEs}</p>
-        <div className="flex flex-wrap gap-2">
-          {files.map((f, idx) => (
-            <div key={idx} className="relative w-20 h-20">
-              {f.file.type.startsWith('image/') ? (
-                <img src={f.preview} alt="" className="w-full h-full object-cover rounded" />
-              ) : (
-                <div className="w-full h-full bg-muted rounded flex items-center justify-center">
-                  <Camera className="h-6 w-6 text-muted-foreground" />
-                </div>
-              )}
-              <button
-                type="button"
-                onClick={() => removeFile(mediaFiles.indexOf(f))}
-                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          ))}
-          {files.length < maxFiles && (
-            <button
-              type="button"
-              onClick={() => fileInputRefs.current[fieldId]?.click()}
-              className="w-20 h-20 border-2 border-dashed border-muted-foreground/30 rounded flex flex-col items-center justify-center hover:border-primary/50 transition-colors"
-            >
-              <Upload className="h-5 w-5 text-muted-foreground" />
-              <span className="text-xs text-muted-foreground mt-1">Add</span>
-            </button>
-          )}
-        </div>
-        <input
-          ref={(el) => (fileInputRefs.current[fieldId] = el)}
-          type="file"
-          accept="image/*,video/*"
-          multiple={maxFiles > 1}
-          className="hidden"
-          onChange={(e) => handleFileChange(fieldId, e.target.files)}
-        />
-        {!isValid && (
-          <p className="text-xs text-destructive">
-            {minFiles === 1 ? 'At least 1 file required' : `At least ${minFiles} files required`}
-          </p>
-        )}
-      </div>
-    );
-  };
-
   return (
     <div className="max-w-2xl mx-auto">
-      <Card className="mb-6">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Post-Event Report / Reporte Post-Evento</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Confirmation Code / Código</p>
-              <p className="font-semibold">{booking.reservation_number}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Event Date / Fecha</p>
-              <p className="font-semibold">
-                {booking.event_date ? format(new Date(booking.event_date + 'T00:00:00'), 'MMM d, yyyy') : '-'}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
-          <CardHeader><CardTitle className="text-lg">Your Information / Tu Información</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="guest_name">Your Name / Tu Nombre</Label>
-              <Input id="guest_name" value={guestName} onChange={(e) => setGuestName(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="guest_email">Email</Label>
-              <Input id="guest_email" type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="guest_phone">Phone / Teléfono</Label>
-              <Input id="guest_phone" type="tel" value={guestPhone} onChange={(e) => setGuestPhone(e.target.value)} required />
-            </div>
-          </CardContent>
+          <CardHeader>
+            <CardTitle className="text-xl">Complete Your Guest Report</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Your reservation is not complete until the venue has been restored, locked, and the
+              Guest Report has been submitted. Leave enough time to complete every item below before
+              your reservation ends.
+            </p>
+            <p className="text-xs text-muted-foreground italic">
+              Tu reservación no está completa hasta que el venue haya sido restaurado, cerrado con
+              llave y el Guest Report haya sido enviado.
+            </p>
+          </CardHeader>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Photos & Videos / Fotos y Videos</CardTitle>
+            <CardTitle className="text-lg">Venue Checklist</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Please upload photos or videos of each area. / Por favor sube fotos o videos de cada área.
+              Confirm each item in the Guest Report. / Confirma cada punto del reporte.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <MediaUploadSection
-              fieldId="guest_front_door_media"
-              titleEn="1. Front Door Closed" titleEs="Puerta Principal Cerrada"
-              descEn="Upload a clear photo or short video of the front door fully closed."
-              descEs="Sube una foto o video corto de la puerta principal completamente cerrada."
-              minFiles={1} maxFiles={1}
-            />
-            <MediaUploadSection
-              fieldId="guest_main_area_media"
-              titleEn="2. Main Event Area" titleEs="Área Principal del Evento"
-              descEn="Show the stage and screen. All tables and chairs must be picked up and cleared."
-              descEs="Muestra la tarima y la pantalla. Todas las mesas y sillas deben estar recogidas."
-              minFiles={1} maxFiles={3}
-            />
-            <MediaUploadSection
-              fieldId="guest_rack_media"
-              titleEn="3. Tables & Chairs on Rack" titleEs="Mesas y Sillas en el Rack"
-              descEn="Show tables and chairs properly organized on the rack."
-              descEs="Muestra las mesas y sillas organizadas correctamente en el rack."
-              minFiles={1} maxFiles={3}
-            />
-            <MediaUploadSection
-              fieldId="guest_bathrooms_media"
-              titleEn="4. Bathrooms (Both)" titleEs="Baños (Ambos)"
-              descEn="Show both bathrooms clean and picked up."
-              descEs="Muestra ambos baños limpios y ordenados."
-              minFiles={2} maxFiles={4}
-            />
-            <MediaUploadSection
-              fieldId="guest_kitchen_trash_media"
-              titleEn="5. Kitchen: Trash Gathered" titleEs="Cocina: Basura Reunida"
-              descEn="Show all trash bags in the kitchen gathered and tied."
-              descEs="Muestra todas las bolsas de basura en la cocina reunidas y amarradas."
-              minFiles={1} maxFiles={3}
-            />
+            {CHECKLIST.map((item) => (
+              <div key={item.id} className="flex items-start space-x-3">
+                <Checkbox
+                  id={`check_${item.id}`}
+                  checked={!!checked[item.id]}
+                  onCheckedChange={(v) => setChecked((prev) => ({ ...prev, [item.id]: v === true }))}
+                />
+                <label htmlFor={`check_${item.id}`} className="text-sm leading-relaxed cursor-pointer">
+                  {item.en}
+                  <br />
+                  <span className="text-muted-foreground text-xs">{item.es}</span>
+                </label>
+              </div>
+            ))}
           </CardContent>
         </Card>
 
         <Card>
-          <CardHeader><CardTitle className="text-lg">Confirmations / Confirmaciones</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-start space-x-3">
-              <Checkbox id="confirm_area" checked={confirmAreaClean} onCheckedChange={(v) => setConfirmAreaClean(v === true)} />
-              <Label htmlFor="confirm_area" className="text-sm leading-relaxed cursor-pointer">
-                I confirm the main event area is clean and all tables and chairs are picked up.<br />
-                <span className="text-muted-foreground">Confirmo que el área principal está limpia y todas las mesas y sillas están recogidas.</span>
-              </Label>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Checkbox id="confirm_trash" checked={confirmTrashBagged} onCheckedChange={(v) => setConfirmTrashBagged(v === true)} />
-              <Label htmlFor="confirm_trash" className="text-sm leading-relaxed cursor-pointer">
-                I confirm all trash is bagged and placed in the kitchen.<br />
-                <span className="text-muted-foreground">Confirmo que toda la basura está embolsada y colocada en la cocina.</span>
-              </Label>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Checkbox id="confirm_bathrooms" checked={confirmBathroomsOk} onCheckedChange={(v) => setConfirmBathroomsOk(v === true)} />
-              <Label htmlFor="confirm_bathrooms" className="text-sm leading-relaxed cursor-pointer">
-                I confirm both bathrooms are left in acceptable condition.<br />
-                <span className="text-muted-foreground">Confirmo que ambos baños quedaron en condiciones aceptables.</span>
-              </Label>
-            </div>
-            <div className="flex items-start space-x-3">
-              <Checkbox id="confirm_door" checked={confirmDoorClosed} onCheckedChange={(v) => setConfirmDoorClosed(v === true)} />
-              <Label htmlFor="confirm_door" className="text-sm leading-relaxed cursor-pointer">
-                I confirm the front door is properly closed upon leaving.<br />
-                <span className="text-muted-foreground">Confirmo que la puerta principal quedó cerrada al salir.</span>
-              </Label>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader><CardTitle className="text-lg">Issue Report (Optional) / Reporte de Problemas (Opcional)</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="issue_description">Describe any issue, damage, or problem / Describe cualquier problema o daño</Label>
-              <Textarea
-                id="issue_description"
-                value={issueDescription}
-                onChange={(e) => setIssueDescription(e.target.value)}
-                placeholder="Optional - Describe any issues you'd like us to review..."
-                rows={4}
-              />
-            </div>
-            <MediaUploadSection
-              fieldId="guest_issue_media"
-              titleEn="Issue Photos/Videos" titleEs="Fotos/Videos del Problema"
-              descEn="If reporting an issue, upload any photos or videos that help us understand it."
-              descEs="Si estás reportando un problema, sube fotos o videos que nos ayuden a entenderlo."
-              minFiles={0} maxFiles={5}
-            />
-          </CardContent>
-        </Card>
-
-        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800">
           <CardHeader>
-            <CardTitle className="text-lg">Leave a Review / Deja una Reseña</CardTitle>
-            <p className="text-sm text-muted-foreground">How was your experience? / ¿Cómo fue tu experiencia?</p>
+            <CardTitle className="text-lg">Upload Two Required Photos</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Make sure both photos are uploaded before submitting the Guest Report. / Asegúrate de
+              subir ambas fotos antes de enviar el reporte.
+            </p>
           </CardHeader>
           <CardContent className="space-y-4">
-            <p className="text-sm">We'd love to hear about your experience! Click the button below to leave us a Google review.</p>
-            <p className="text-sm text-muted-foreground">¡Nos encantaría conocer tu experiencia! Haz clic en el botón de abajo para dejarnos una reseña en Google.</p>
-            <a
-              href="https://www.google.com/maps/place/Orlando+Event+Venue/@28.5546949,-81.3364816,17z/data=!3m1!4b1!4m6!3m5!1s0x88e7658349956c29:0x14dd97040d50b24f!8m2!3d28.5546949!4d-81.3364816!16s%2Fg%2F11wn71fmqr?entry=ttu&g_ep=EgoyMDI1MTIwOS4wIKXMDSoASAFQAw%3D%3D"
-              target="_blank" rel="noopener noreferrer" className="block"
-            >
-              <Button type="button" size="lg" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-                <ExternalLink className="mr-2 h-5 w-5" />
-                Leave Google Review / Dejar Reseña en Google
-              </Button>
-            </a>
-            <p className="text-xs text-center text-muted-foreground">Opens in a new window / Se abre en una nueva ventana</p>
+            {REQUIRED_PHOTOS.map((photo) => {
+              const file = getFileForField(photo.fieldId);
+              return (
+                <div key={photo.fieldId} className="space-y-3 p-4 border rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h4 className="font-medium">{photo.titleEn}</h4>
+                      <p className="text-sm text-muted-foreground">{photo.titleEs}</p>
+                    </div>
+                    {file && <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{photo.descEn}</p>
+                  <p className="text-xs text-muted-foreground italic">{photo.descEs}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {file ? (
+                      <div className="relative w-24 h-24">
+                        {file.file.type.startsWith('image/') ? (
+                          <img src={file.preview} alt={photo.uploadLabel} className="w-full h-full object-cover rounded" />
+                        ) : (
+                          <div className="w-full h-full bg-muted rounded flex items-center justify-center">
+                            <Camera className="h-6 w-6 text-muted-foreground" />
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => removeFile(photo.fieldId)}
+                          className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-0.5"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fileInputRefs.current[photo.fieldId]?.click()}
+                        className="w-full py-6 border-2 border-dashed border-muted-foreground/30 rounded flex flex-col items-center justify-center hover:border-primary/50 transition-colors"
+                      >
+                        <Upload className="h-5 w-5 text-muted-foreground" />
+                        <span className="text-xs text-muted-foreground mt-1">
+                          Upload: {photo.uploadLabel}
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                  <input
+                    ref={(el) => (fileInputRefs.current[photo.fieldId] = el)}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    aria-label={photo.uploadLabel}
+                    onChange={(e) => handleFileChange(photo.fieldId, e.target.files)}
+                  />
+                  {!file && <p className="text-xs text-destructive">This photo is required</p>}
+                </div>
+              );
+            })}
           </CardContent>
         </Card>
 
-        <Button type="submit" className="w-full" size="lg" disabled={!validateForm() || submitting}>
+        <Button type="submit" className="w-full" size="lg" disabled={!formValid || submitting}>
           {submitting ? (
             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</>
           ) : (
-            'Submit Report / Enviar Reporte'
+            'Submit Guest Report / Enviar Reporte'
           )}
         </Button>
 
-        {!validateForm() && (
+        {!formValid && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Please complete all required fields and upload all required photos before submitting.<br />
-              <span className="text-sm">Por favor completa todos los campos requeridos y sube todas las fotos requeridas antes de enviar.</span>
+              Complete the checklist and upload both required photos before submitting.<br />
+              <span className="text-sm">Completa el checklist y sube las dos fotos requeridas antes de enviar.</span>
             </AlertDescription>
           </Alert>
         )}

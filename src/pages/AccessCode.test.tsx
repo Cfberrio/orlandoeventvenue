@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 
@@ -22,22 +22,30 @@ import AccessCode from "./AccessCode";
 
 const rpcMock = supabase.rpc as unknown as ReturnType<typeof vi.fn>;
 
-// Helper to build mock RPC response row
+// Helper to build mock RPC response row.
+// The server decides the page state: code present => access released (STATE 2),
+// code null => not yet available (STATE 1).
 function makeRow(overrides: Record<string, unknown> = {}) {
   return {
     code: "1234",
-    label: "Lockbox Code",
+    label: "Door Code",
+    access_released: true,
     booking_id: "bbb-1111-2222-3333",
     reservation_number: "OEV-TEST01",
     full_name: "Maria Rodriguez",
     email: "maria@example.com",
     phone: "5551234",
     event_date: "2026-08-15",
+    start_time: "14:00:00",
     end_time: "23:00:00",
     event_type: "wedding-reception",
     host_report_step: "pending",
     ...overrides,
   };
+}
+
+function makeLockedRow(overrides: Record<string, unknown> = {}) {
+  return makeRow({ code: null, label: null, access_released: false, ...overrides });
 }
 
 const renderAt = (url: string) =>
@@ -48,18 +56,17 @@ const renderAt = (url: string) =>
   );
 
 beforeEach(() => {
-  // Fake only Date — leaves setTimeout/microtasks real so userEvent works.
-  vi.useFakeTimers({ toFake: ["Date"] });
   rpcMock.mockReset();
 });
 
-afterEach(() => {
-  vi.useRealTimers();
-});
+async function lookup(reservation = "OEV-TEST01") {
+  const user = userEvent.setup();
+  await user.type(screen.getByLabelText(/Reservation Number/i), reservation);
+  await user.click(screen.getByRole("button", { name: /ENTER/i }));
+}
 
 describe("AccessCode — landing form", () => {
   it("renders both inputs and submit button on first visit", () => {
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     renderAt("/accesscode");
     expect(screen.getByLabelText(/Reservation Number/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/Email Address/i)).toBeInTheDocument();
@@ -68,7 +75,6 @@ describe("AccessCode — landing form", () => {
 
   it("shows error when both inputs are empty", async () => {
     const user = userEvent.setup();
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     renderAt("/accesscode");
     await user.click(screen.getByRole("button", { name: /ENTER/i }));
     expect(
@@ -77,147 +83,134 @@ describe("AccessCode — landing form", () => {
   });
 });
 
-describe("AccessCode — gate code view (BEFORE event end_time)", () => {
-  it("shows the gate access code when now < event end", async () => {
-    // event ends 2026-08-15 23:00. Test runs at 18:00 — BEFORE end.
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
-    rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
+describe("AccessCode — STATE 1 (before access is available)", () => {
+  it("shows the not-available message with reservation details when code is null", async () => {
+    rpcMock.mockResolvedValueOnce({ data: makeLockedRow(), error: null });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
+    await lookup();
 
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
-
-    expect(await screen.findByText("1234")).toBeInTheDocument();
-    expect(screen.getByText("Lockbox Code")).toBeInTheDocument();
+    expect(await screen.findByText(/Your Access Is Not Available Yet/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/released one hour before your event begins/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Important Reminder/i)).toBeInTheDocument();
+    // Reservation details stay visible at the bottom
+    expect(screen.getByText(/Reservation Details/i)).toBeInTheDocument();
+    expect(screen.getByText("OEV-TEST01")).toBeInTheDocument();
     expect(screen.getByText(/Maria Rodriguez/)).toBeInTheDocument();
-    expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
+    // No code, no report form
+    expect(screen.queryByText("1234")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Venue Checklist/i)).not.toBeInTheDocument();
   });
 
-  it("shows locked message when server blocks code before event day", async () => {
-    // Server-side gate: RPC raises access_code_locked_until_event_day
-    // for lookups before the event date (America/New_York).
-    vi.setSystemTime(new Date("2026-08-12T10:00:00"));
+  it("shows the one-hour message when a legacy server gate still raises the locked error", async () => {
     rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: "access_code_locked_until_event_day" },
     });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup();
 
     expect(
-      await screen.findByText(/available on the day of your event/i),
+      await screen.findByText(/released one hour before your event begins/i),
     ).toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
   });
-
-  it("shows gate code 1 minute BEFORE end_time", async () => {
-    vi.setSystemTime(new Date("2026-08-15T22:59:00"));
-    rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
-
-    const user = userEvent.setup();
-    renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
-
-    expect(await screen.findByText("1234")).toBeInTheDocument();
-    expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
-  });
-
-  it("defaults to 23:59 when end_time is null", async () => {
-    // null end_time -> event ends at 2026-08-15 23:59. Test at 22:00 -> before end.
-    vi.setSystemTime(new Date("2026-08-15T22:00:00"));
-    rpcMock.mockResolvedValueOnce({ data: makeRow({ end_time: null }), error: null });
-
-    const user = userEvent.setup();
-    renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
-
-    expect(await screen.findByText("1234")).toBeInTheDocument();
-    expect(screen.queryByText(/Post-Event Report/i)).not.toBeInTheDocument();
-  });
 });
 
-describe("AccessCode — guest report view (AFTER event end_time)", () => {
-  it("shows guest report form 1 minute AFTER end_time", async () => {
-    // event ends 23:00. Test at 23:01 -> after end.
-    vi.setSystemTime(new Date("2026-08-15T23:01:00"));
+describe("AccessCode — STATE 2 (access released)", () => {
+  it("shows the door code, entry steps, guest report, rules, and reservation details", async () => {
     rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup();
 
-    expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
-    expect(screen.queryByText("1234")).not.toBeInTheDocument();
-    expect(screen.getByText(/Front Door Closed/i)).toBeInTheDocument();
-    expect(screen.getAllByText(/Main Event Area/i).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Kitchen.*Trash/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Your Access Is Ready/i)).toBeInTheDocument();
+    // Code shows in the code card and again inside entry step 2
+    expect(screen.getAllByText("1234").length).toBeGreaterThan(0);
+    expect(screen.getByText(/How to Enter the Venue/i)).toBeInTheDocument();
+    expect(screen.getByText(/How to Turn On the Lights/i)).toBeInTheDocument();
+    expect(screen.getByText(/Wi-Fi Information/i)).toBeInTheDocument();
+    // Guest report embedded (checklist + two photos)
+    expect(screen.getByText(/Complete Your Guest Report/i)).toBeInTheDocument();
+    expect(screen.getByText(/Venue Checklist/i)).toBeInTheDocument();
+    expect(screen.getByText(/Upload Two Required Photos/i)).toBeInTheDocument();
+    expect(screen.getByText(/Photo 1: Main Venue Space/i)).toBeInTheDocument();
+    expect(screen.getByText(/Photo 2: Locked Entrance/i)).toBeInTheDocument();
+    // Rules + details always at the bottom
+    expect(screen.getByText(/Venue Rules/i)).toBeInTheDocument();
+    expect(screen.getByText(/Reservation Details/i)).toBeInTheDocument();
+    expect(screen.getByText("OEV-TEST01")).toBeInTheDocument();
   });
 
-  it("shows guest report 5 minutes after end_time (matches user's spec)", async () => {
-    vi.setSystemTime(new Date("2026-08-15T23:05:00"));
+  it("renders all nine checklist items", async () => {
     rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup();
 
-    expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
-    expect(screen.queryByText("1234")).not.toBeInTheDocument();
+    await screen.findByText(/Venue Checklist/i);
+    expect(screen.getByText(/All trash is bagged and placed on the back patio/i)).toBeInTheDocument();
+    expect(screen.getByText(/tables and chairs are broken down/i)).toBeInTheDocument();
+    expect(screen.getByText(/prep kitchen has been checked/i)).toBeInTheDocument();
+    expect(screen.getByText(/Both bathrooms have been checked/i)).toBeInTheDocument();
+    expect(screen.getByText(/personal items have been removed/i)).toBeInTheDocument();
+    expect(screen.getByText(/remotes and venue equipment have been returned/i)).toBeInTheDocument();
+    expect(screen.getByText(/All guests have left the venue/i)).toBeInTheDocument();
+    expect(screen.getByText(/All lights are turned off/i)).toBeInTheDocument();
+    expect(screen.getByText(/entrance door is locked/i)).toBeInTheDocument();
   });
 
-  it("shows guest report 1 day after event", async () => {
-    vi.setSystemTime(new Date("2026-08-16T10:00:00"));
+  it("keeps the submit button disabled until checklist and photos are complete", async () => {
     rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
 
     const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup();
 
-    expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
+    const submit = await screen.findByRole("button", { name: /Submit Guest Report/i });
+    expect(submit).toBeDisabled();
+
+    // Check all nine checklist items — still disabled (photos missing)
+    for (const checkbox of screen.getAllByRole("checkbox")) {
+      await user.click(checkbox);
+    }
+    expect(submit).toBeDisabled();
+
+    // Upload both required photos — now enabled
+    const photo = new File(["img"], "photo.jpg", { type: "image/jpeg" });
+    await user.upload(screen.getByLabelText("Venue main space with lights on"), photo);
+    await user.upload(screen.getByLabelText("Entrance door locked"), photo);
+    expect(submit).toBeEnabled();
   });
 });
 
 describe("AccessCode — already-submitted state", () => {
   it("shows 'Report Already Submitted' when host_report_step === 'completed'", async () => {
-    vi.setSystemTime(new Date("2026-08-16T10:00:00"));
     rpcMock.mockResolvedValueOnce({
       data: makeRow({ host_report_step: "completed" }),
       error: null,
     });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-TEST01");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup();
 
     expect(await screen.findByText(/Report Already Submitted/i)).toBeInTheDocument();
-    // No form sections render
-    expect(screen.queryByText(/Front Door Closed/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Confirmations \/ Confirmaciones/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Venue Checklist/i)).not.toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
-    // reservation # shown
     expect(screen.getByText(/OEV-TEST01/)).toBeInTheDocument();
   });
 });
 
 describe("AccessCode — query param auto-lookup", () => {
   it("auto-runs lookup when ?res= query param present", async () => {
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
 
     renderAt("/accesscode?res=OEV-TEST01");
 
-    expect(await screen.findByText("1234")).toBeInTheDocument();
+    expect(await screen.findByText(/Your Access Is Ready/i)).toBeInTheDocument();
     expect(rpcMock).toHaveBeenCalledWith(
       "get_access_code_for_reservation",
       { p_reservation_number: "OEV-TEST01", p_email: null },
@@ -225,40 +218,35 @@ describe("AccessCode — query param auto-lookup", () => {
   });
 
   it("auto-runs lookup when ?email= query param present", async () => {
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
 
     renderAt("/accesscode?email=maria@example.com");
 
-    expect(await screen.findByText("1234")).toBeInTheDocument();
+    expect(await screen.findByText(/Your Access Is Ready/i)).toBeInTheDocument();
     expect(rpcMock).toHaveBeenCalledWith(
       "get_access_code_for_reservation",
       { p_reservation_number: null, p_email: "maria@example.com" },
     );
   });
 
-  it("auto-routes to report form when query param + event already ended", async () => {
-    vi.setSystemTime(new Date("2026-08-16T10:00:00"));
-    rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
+  it("auto-routes to STATE 1 when query param present and access not yet released", async () => {
+    rpcMock.mockResolvedValueOnce({ data: makeLockedRow(), error: null });
 
     renderAt("/accesscode?res=OEV-TEST01");
 
-    expect(await screen.findByText(/Post-Event Report/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Your Access Is Not Available Yet/i)).toBeInTheDocument();
   });
 });
 
 describe("AccessCode — error states from RPC", () => {
   it("handles reservation_not_found", async () => {
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: "reservation_not_found" },
     });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-NOPE");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup("OEV-NOPE");
 
     expect(
       await screen.findByText(/couldn't find a reservation/i),
@@ -266,16 +254,13 @@ describe("AccessCode — error states from RPC", () => {
   });
 
   it("handles reservation_inactive", async () => {
-    vi.setSystemTime(new Date("2026-08-15T18:00:00"));
     rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: "reservation_inactive" },
     });
 
-    const user = userEvent.setup();
     renderAt("/accesscode");
-    await user.type(screen.getByLabelText(/Reservation Number/i), "OEV-CXLD");
-    await user.click(screen.getByRole("button", { name: /ENTER/i }));
+    await lookup("OEV-CXLD");
 
     expect(
       await screen.findByText(/no longer active/i),
