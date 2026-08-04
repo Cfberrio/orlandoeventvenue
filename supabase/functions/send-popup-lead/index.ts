@@ -11,8 +11,12 @@ interface PopupLeadData {
   fullName: string;
   email: string;
   phone: string;
-  eventType?: string | null;
+  /** ISO date (YYYY-MM-DD) the contact is planning for */
+  eventDate?: string | null;
 }
+
+/** GHL custom field key holding the lead's planned event date */
+const EVENT_DATE_FIELD_KEY = "oev_event_date";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -58,11 +62,12 @@ serve(async (req) => {
         ? `+${rawDigits}`
         : rawDigits;
 
-    const eventType = data.eventType?.trim() || "";
     const tags = ["popup"];
-    if (eventType) {
-      tags.push(`event-type:${eventType.toLowerCase().replace(/\s+/g, "-")}`);
-    }
+
+    const eventDate = data.eventDate?.trim() || "";
+    const customFields = eventDate
+      ? [{ key: EVENT_DATE_FIELD_KEY, field_value: eventDate }]
+      : undefined;
 
     const ghlRes = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
       method: "POST",
@@ -78,6 +83,7 @@ serve(async (req) => {
         email: data.email.trim().toLowerCase(),
         phone: formattedPhone,
         tags,
+        ...(customFields ? { customFields } : {}),
       }),
     });
 

@@ -1722,6 +1722,8 @@ export type Database = {
       }
       popup_leads: {
         Row: {
+          consent_given: boolean
+          consent_text: string | null
           coupon_code: string | null
           created_at: string | null
           email: string
@@ -1732,9 +1734,13 @@ export type Database = {
           full_name: string
           id: string
           is_converted: boolean | null
+          lead_source: string | null
+          phone: string | null
           preferred_event_date: string | null
         }
         Insert: {
+          consent_given?: boolean
+          consent_text?: string | null
           coupon_code?: string | null
           created_at?: string | null
           email: string
@@ -1745,9 +1751,13 @@ export type Database = {
           full_name: string
           id?: string
           is_converted?: boolean | null
+          lead_source?: string | null
+          phone?: string | null
           preferred_event_date?: string | null
         }
         Update: {
+          consent_given?: boolean
+          consent_text?: string | null
           coupon_code?: string | null
           created_at?: string | null
           email?: string
@@ -1758,6 +1768,8 @@ export type Database = {
           full_name?: string
           id?: string
           is_converted?: boolean | null
+          lead_source?: string | null
+          phone?: string | null
           preferred_event_date?: string | null
         }
         Relationships: []

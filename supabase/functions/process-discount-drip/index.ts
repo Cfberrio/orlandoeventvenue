@@ -6,11 +6,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Both delays are measured from Email 1 (sent at submission), matching the
+// OEV Lead Magnet spec: E02 at 18h, E03 at 36h after the form is submitted.
 const EMAIL_2_DELAY_HOURS = 18;
-const EMAIL_3_DELAY_HOURS = 30;
+const EMAIL_3_DELAY_HOURS = 36;
 const MAX_LEADS_PER_RUN = 50;
 // DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
-const DEFAULT_POPUP_COUPON_CODE = "HOST100";
+const DEFAULT_POPUP_COUPON_CODE = "PLAN50";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -104,7 +106,7 @@ serve(async (req) => {
     }
 
     // =============================
-    // EMAIL 3 CANDIDATES (30h after Email 2)
+    // EMAIL 3 CANDIDATES (36h after Email 1 / submission)
     // =============================
     const email3Cutoff = new Date(now.getTime() - EMAIL_3_DELAY_HOURS * 60 * 60 * 1000).toISOString();
 
@@ -114,7 +116,7 @@ serve(async (req) => {
       .eq("is_converted", false)
       .not("email_2_sent_at", "is", null)
       .is("email_3_sent_at", null)
-      .lte("email_2_sent_at", email3Cutoff)
+      .lte("email_1_sent_at", email3Cutoff)
       .limit(MAX_LEADS_PER_RUN);
 
     if (email3Error) {

@@ -11,33 +11,38 @@ import { Checkbox } from "@/components/ui/checkbox";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Loader2, Gift, CheckCircle2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 
 const POPUP_DELAY_MS = 5000;
-const LOCAL_STORAGE_KEY = "popup_discount_shown";
-const COUPON_CODE = "HOST100";
+// New key so visitors who dismissed the old $100 popup still see the kit offer once.
+const LOCAL_STORAGE_KEY = "popup_kit_shown";
+const COUPON_CODE = "PLAN50";
+const CONSENT_TEXT =
+  "I agree to receive booking-related and promotional SMS & emails from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out.";
+
+type FieldErrors = {
+  firstName?: string;
+  email?: string;
+  phone?: string;
+  eventDate?: string;
+};
 
 export default function DiscountPopup() {
   const [isOpen, setIsOpen] = useState(false);
-  const [fullName, setFullName] = useState("");
+  const [firstName, setFirstName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [eventType, setEventType] = useState("");
+  const [eventDate, setEventDate] = useState("");
   const [consent, setConsent] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
+
+  const todayISO = new Date().toISOString().split("T")[0];
 
   useEffect(() => {
     const alreadyShown = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -57,17 +62,29 @@ export default function DiscountPopup() {
     }
   };
 
+  const clearFieldError = (field: keyof FieldErrors) => {
+    setFieldErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const errors: { email?: string; phone?: string } = {};
+    const errors: FieldErrors = {};
+
+    if (!firstName.trim()) {
+      errors.firstName = "Enter your first name.";
+    }
 
     if (!email.trim() || !EMAIL_REGEX.test(email.trim())) {
-      errors.email = "Please enter a valid email address";
+      errors.email = "Enter a valid email address.";
     }
 
     if (!phone.trim() || !isValidPhone(phone)) {
-      errors.phone = "Please enter a valid US phone number (10 digits)";
+      errors.phone = "Enter a valid mobile phone number.";
+    }
+
+    if (!eventDate) {
+      errors.eventDate = "Select your event date.";
     }
 
     if (Object.keys(errors).length > 0) {
@@ -76,71 +93,66 @@ export default function DiscountPopup() {
     }
 
     setFieldErrors({});
-
-    if (!fullName.trim()) {
-      toast({ title: "Please enter your name", variant: "destructive" });
-      return;
-    }
-
     setSubmitting(true);
 
-    try {
-      const { error: insertError } = await supabase.
-      from("popup_leads" as any).
-      insert({
-        full_name: fullName.trim(),
-        email: email.trim().toLowerCase(),
-        event_type: eventType || null,
-        coupon_code: COUPON_CODE
-      });
-
-      // Handle unique constraint violation (duplicate email).
-      // Decision: still sync to GHL so tags stay current, but do NOT
-      // re-send email #1 to avoid spamming the returning visitor.
-      if (insertError) {
-        const pgCode = (insertError as any)?.code;
-        if (pgCode === "23505") {
-          toast({ title: "You're already on the list! Check your email for your credit code." });
-          supabase.functions
-            .invoke("send-popup-lead", {
-              body: {
-                fullName: fullName.trim(),
-                email: email.trim().toLowerCase(),
-                phone: phone.trim(),
-                eventType: eventType || null,
-              },
-            })
-            .then(({ error }) => {
-              if (error) console.error("GHL popup lead error:", error);
-            });
-          setSubmitted(true);
-          localStorage.setItem(LOCAL_STORAGE_KEY, "true");
-          return;
-        }
-        console.error("Error saving lead:", insertError);
-        toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
-        return;
-      }
-
-      // Send to GHL with tag "popup" (fire-and-forget)
+    const syncToGhl = () => {
       supabase.functions
         .invoke("send-popup-lead", {
           body: {
-            fullName: fullName.trim(),
+            fullName: firstName.trim(),
             email: email.trim().toLowerCase(),
             phone: phone.trim(),
-            eventType: eventType || null,
+            eventDate,
           },
         })
         .then(({ error }) => {
           if (error) console.error("GHL popup lead error:", error);
         });
+    };
+
+    try {
+      const { error: insertError } = await supabase.
+      from("popup_leads" as any).
+      insert({
+        full_name: firstName.trim(),
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        preferred_event_date: eventDate,
+        coupon_code: COUPON_CODE,
+        consent_given: true,
+        consent_text: CONSENT_TEXT,
+        lead_source: "website_popup"
+      });
+
+      // Handle unique constraint violation (duplicate email).
+      // Decision: still sync to GHL so the contact stays current, but do NOT
+      // re-send email #1 or restart the sequence for a returning visitor.
+      if (insertError) {
+        const pgCode = (insertError as any)?.code;
+        if (pgCode === "23505") {
+          toast({ title: "You're already on the list! Check your email for your Event Planning Kit and $50 OFF code." });
+          syncToGhl();
+          setSubmitted(true);
+          localStorage.setItem(LOCAL_STORAGE_KEY, "true");
+          return;
+        }
+        console.error("Error saving lead:", insertError);
+        toast({
+          title: "We could not submit your information.",
+          description: "Check the fields above and try again. If it still does not work, call or text 407 974 5979.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Send to GHL with tag "popup" (fire-and-forget)
+      syncToGhl();
 
       // Send Email 1 immediately (fire-and-forget, don't block the UI)
       supabase.functions.
       invoke("send-discount-email", {
         body: {
-          full_name: fullName.trim(),
+          full_name: firstName.trim(),
           email: email.trim().toLowerCase(),
           coupon_code: COUPON_CODE,
           email_number: 1
@@ -148,15 +160,19 @@ export default function DiscountPopup() {
       }).
       then(({ error: emailError }) => {
         if (emailError) {
-          console.error("Error sending discount email #1:", emailError);
+          console.error("Error sending kit email #1:", emailError);
         }
       });
 
       setSubmitted(true);
       localStorage.setItem(LOCAL_STORAGE_KEY, "true");
     } catch (error) {
-      console.error("Discount popup submit error:", error);
-      toast({ title: "Something went wrong. Please try again.", variant: "destructive" });
+      console.error("Kit popup submit error:", error);
+      toast({
+        title: "We could not submit your information.",
+        description: "Check the fields above and try again. If it still does not work, call or text 407 974 5979.",
+        variant: "destructive"
+      });
     } finally {
       setSubmitting(false);
     }
@@ -164,43 +180,47 @@ export default function DiscountPopup() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md bg-card border-border">
+      <DialogContent className="sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto">
         {!submitted ?
         <>
-            <DialogHeader className="text-center space-y-3">
-              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-                <Gift className="h-7 w-7 text-primary" />
-              </div>
-              <DialogTitle className="text-2xl font-bold text-center">
-                Get $100 Off Your Event at Orlando Event Venue
+            <DialogHeader className="text-center space-y-2">
+              <DialogTitle className="text-2xl font-bold text-center leading-tight">
+                🆓 Free Event Planning Kit
+                <span className="block text-primary">💰 $50 OFF Your Booking</span>
               </DialogTitle>
               <DialogDescription className="text-center text-base">
-                Apply it when you reserve any open date. We'll text + email your code in 60 seconds.
+                Get the complete checklist for planning your event in our space. We'll email and text it to you with your $50 OFF code.
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleSubmit} className="space-y-4 mt-2">
               <div className="space-y-2">
-                <Label htmlFor="popup-name">Name</Label>
+                <Label htmlFor="popup-first-name">First name</Label>
                 <Input
-                id="popup-name"
-                placeholder="Your full name"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                disabled={submitting} />
-
+                id="popup-first-name"
+                placeholder="First name"
+                value={firstName}
+                onChange={(e) => {
+                  setFirstName(e.target.value);
+                  clearFieldError("firstName");
+                }}
+                disabled={submitting}
+                className={fieldErrors.firstName ? "border-destructive" : ""} />
+                {fieldErrors.firstName && (
+                  <p className="text-sm text-destructive">{fieldErrors.firstName}</p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-email">Email</Label>
+                <Label htmlFor="popup-email">Email address</Label>
                 <Input
                 id="popup-email"
                 type="email"
-                placeholder="your@email.com"
+                placeholder="Email address"
                 value={email}
                 onChange={(e) => {
                   setEmail(e.target.value);
-                  if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                  clearFieldError("email");
                 }}
                 disabled={submitting}
                 className={fieldErrors.email ? "border-destructive" : ""} />
@@ -210,15 +230,15 @@ export default function DiscountPopup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-phone">Phone (so we can text your code)</Label>
+                <Label htmlFor="popup-phone">Mobile phone</Label>
                 <Input
                 id="popup-phone"
                 type="tel"
-                placeholder="(407) 123-4567"
+                placeholder="Mobile phone"
                 value={phone}
                 onChange={(e) => {
                   setPhone(formatPhoneNumber(e.target.value));
-                  if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: undefined }));
+                  clearFieldError("phone");
                 }}
                 maxLength={14}
                 inputMode="numeric"
@@ -230,23 +250,21 @@ export default function DiscountPopup() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="popup-event-type">What kind of event?</Label>
-                <Select
-                  value={eventType}
-                  onValueChange={setEventType}
-                  disabled={submitting}
-                >
-                  <SelectTrigger id="popup-event-type">
-                    <SelectValue placeholder="Select event type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Corporate">Corporate</SelectItem>
-                    <SelectItem value="Workshop">Workshop</SelectItem>
-                    <SelectItem value="Birthday or Celebration">Birthday or Celebration</SelectItem>
-                    <SelectItem value="Non-Profit Gathering">Non-Profit Gathering</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="popup-event-date">What date are you planning for?</Label>
+                <Input
+                id="popup-event-date"
+                type="date"
+                min={todayISO}
+                value={eventDate}
+                onChange={(e) => {
+                  setEventDate(e.target.value);
+                  clearFieldError("eventDate");
+                }}
+                disabled={submitting}
+                className={fieldErrors.eventDate ? "border-destructive" : ""} />
+                {fieldErrors.eventDate && (
+                  <p className="text-sm text-destructive">{fieldErrors.eventDate}</p>
+                )}
               </div>
 
               <div className="flex items-start space-x-2">
@@ -258,7 +276,7 @@ export default function DiscountPopup() {
                   required
                 />
                 <Label htmlFor="popup-consent" className="text-[11px] font-normal cursor-pointer leading-snug text-muted-foreground">
-                  I agree to receive booking-related and promotional SMS & emails from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out. <span className="text-destructive">*</span>
+                  {CONSENT_TEXT} <span className="text-destructive">*</span>
                 </Label>
               </div>
 
@@ -269,7 +287,7 @@ export default function DiscountPopup() {
                     Sending...
                   </> :
 
-              "Send My $100"
+              "Send My Kit + $50 OFF"
               }
               </Button>
             </form>
@@ -280,29 +298,25 @@ export default function DiscountPopup() {
               <CheckCircle2 className="h-7 w-7 text-green-500" />
             </div>
             <h3 className="text-xl font-bold">
-              Your $100 is on its way.
+              Your Event Planning Kit + $50 OFF Are on the Way
             </h3>
             <p className="text-muted-foreground">
-              Check your email + text in the next 60 seconds.
+              Check your email and text for your Event Planning Kit and your code for $50 OFF your venue rental.
             </p>
-            <div className="space-y-2 text-sm text-foreground text-left mt-4">
-              <p>
-                <strong>Already know your date?</strong> Book it now: open dates aren't held until 50% is in.
-              </p>
-              <p>
-                <strong>Want to see the space first?</strong> Book your tour online.
-              </p>
+            <p className="text-sm text-foreground">
+              <strong>Already know your date?</strong> Only 50% of total is needed to book.
+            </p>
+            <div className="flex flex-col gap-2 mt-4">
+              <Button asChild size="lg">
+                <a href="/book">Begin Your Booking</a>
+              </Button>
+              <Button asChild variant="outline">
+                <a href="/schedule-tour">Book a Tour</a>
+              </Button>
             </div>
             <p className="text-sm text-muted-foreground mt-4">
-              Questions? Call or text 407-974-5979.
+              Questions or did not receive the kit? Call or text 407 974 5979.
             </p>
-            <Button
-            onClick={() => handleOpenChange(false)}
-            variant="outline"
-            className="mt-4">
-
-              Close
-            </Button>
           </div>
         }
       </DialogContent>

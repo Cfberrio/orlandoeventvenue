@@ -339,6 +339,8 @@ export default function Analytics() {
                   <TableHead>Date</TableHead>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Phone</TableHead>
+                  <TableHead>Event date</TableHead>
                   <TableHead>Coupon</TableHead>
                   <TableHead className="text-center">Emails Sent</TableHead>
                   <TableHead>Status</TableHead>
@@ -348,7 +350,7 @@ export default function Analytics() {
               <TableBody>
                 {pagedLeads.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No popup leads yet
                     </TableCell>
                   </TableRow>
@@ -378,6 +380,16 @@ export default function Analytics() {
                         <TableCell className="font-medium">{lead.full_name}</TableCell>
                         <TableCell>
                           <div className="text-sm">{lead.email}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">{lead.phone || "—"}</div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="text-sm">
+                            {lead.preferred_event_date
+                              ? format(new Date(`${lead.preferred_event_date}T00:00:00`), "MM/dd/yyyy")
+                              : "—"}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline" className="text-xs">

@@ -13,6 +13,7 @@ import SmsTerms from "./pages/SmsTerms";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfUse from "./pages/TermsOfUse";
 import ScheduleTour from "./pages/ScheduleTour";
+import PlanningKit from "./pages/PlanningKit";
 import StripeConnectCallback from "./pages/StripeConnectCallback";
 import { lazy, Suspense } from "react";
 
@@ -76,6 +77,7 @@ const App = () => (
                 }
               />
               <Route path="/schedule-tour" element={<ScheduleTour />} />
+              <Route path="/planning-kit" element={<PlanningKit />} />
               <Route path="/stripe/connect/callback" element={<StripeConnectCallback />} />
               
               {/* Admin Routes - Protected */}
