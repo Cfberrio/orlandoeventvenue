@@ -333,7 +333,26 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         // Don't fail the booking creation if sync fails
       }
 
-      // Step 5: Populate revenue items
+      // Step 5: E01 confirmation email to the client. External clients get no
+      // payment emails (paid via the external platform), so this is their only
+      // creation-time communication; without it a booking made >30 days out
+      // stays silent until the 30-day GHL check-in. Function is idempotent
+      // (one send per booking, guarded by the external_confirmation_sent event).
+      try {
+        const { error: e01Error } = await supabase.functions.invoke(
+          "send-external-booking-confirmation",
+          { body: { booking_id: booking.id } },
+        );
+        if (e01Error) {
+          console.error("send-external-booking-confirmation failed:", e01Error);
+          toast.error("Booking created, but the confirmation email may not have been sent");
+        }
+      } catch (e01Err) {
+        console.error("Error sending E01 confirmation:", e01Err);
+        toast.error("Booking created, but the confirmation email may not have been sent");
+      }
+
+      // Step 6: Populate revenue items
       try {
         console.log("Populating revenue items for booking:", booking.id);
         const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
