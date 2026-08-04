@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      _cron_backup_20260803: {
+        Row: {
+          active: boolean | null
+          backed_up_at: string | null
+          command: string | null
+          jobid: number | null
+          jobname: string | null
+          schedule: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          backed_up_at?: string | null
+          command?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          schedule?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          backed_up_at?: string | null
+          command?: string | null
+          jobid?: number | null
+          jobname?: string | null
+          schedule?: string | null
+        }
+        Relationships: []
+      }
       availability_block_reminders: {
         Row: {
           block_id: string
@@ -1759,6 +1786,48 @@ export type Database = {
         }
         Relationships: []
       }
+      recurring_access_codes: {
+        Row: {
+          created_at: string
+          email: string | null
+          expires_on: string
+          holder_name: string
+          id: string
+          notes: string | null
+          reservation_number: string
+          status: string
+          updated_at: string
+          updated_by: string | null
+          valid_from: string
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          expires_on: string
+          holder_name: string
+          id?: string
+          notes?: string | null
+          reservation_number: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          expires_on?: string
+          holder_name?: string
+          id?: string
+          notes?: string | null
+          reservation_number?: string
+          status?: string
+          updated_at?: string
+          updated_by?: string | null
+          valid_from?: string
+        }
+        Relationships: []
+      }
       scheduled_jobs: {
         Row: {
           attempts: number
@@ -2504,17 +2573,21 @@ export type Database = {
       get_access_code_for_reservation: {
         Args: { p_email?: string; p_reservation_number?: string }
         Returns: {
+          access_released: boolean
           booking_id: string
           code: string
           email: string
           end_time: string
           event_date: string
           event_type: string
+          expires_on: string
           full_name: string
           host_report_step: string
+          is_recurring: boolean
           label: string
           phone: string
           reservation_number: string
+          start_time: string
         }[]
       }
       get_bar_package_label: { Args: { p_package: string }; Returns: string }
