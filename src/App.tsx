@@ -8,6 +8,7 @@ import { StaffSessionProvider } from "@/hooks/useStaffSession";
 import Index from "./pages/Index";
 import Book from "./pages/Book";
 import BookingConfirmation from "./pages/BookingConfirmation";
+import InvoicePayment from "./pages/InvoicePayment";
 import Auth from "./pages/Auth";
 import SmsTerms from "./pages/SmsTerms";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
@@ -61,6 +62,8 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/book" element={<Book />} />
               <Route path="/booking-confirmation" element={<BookingConfirmation />} />
+              <Route path="/invoice-paid" element={<InvoicePayment />} />
+              <Route path="/invoice-cancelled" element={<InvoicePayment cancelled />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/contact" element={<Navigate to={{ pathname: "/", hash: "#contact" }} replace />} />
               <Route path="/sms-terms" element={<SmsTerms />} />

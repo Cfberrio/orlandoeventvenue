@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { getFrontendUrl } from "../_shared/config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -539,6 +540,41 @@ serve(async (req) => {
           : `${draftErrors.length} errors in the Gmail draft agent (composio-gmail-webhook) in the last 24 hours. Inbound emails may be going unanswered.`,
         failed_jobs: failedDetails.slice(0, 10),
         error_groups: groupByFunction(failedDetails),
+      });
+    }
+
+    // =====================================================
+    // 7c. Stripe payment redirect target reachable
+    // =====================================================
+    // Balance/invoice/addon Stripe sessions redirect customers to
+    // FRONTEND_URL (or its fallback) after paying. If that site is down or
+    // unpublished, every payer lands on an error page right after being
+    // charged — exactly the Aug 2026 "lovable error at checkout" incident
+    // (the fallback pointed at a Lovable subdomain that never existed).
+    try {
+      const redirectTarget = `${getFrontendUrl()}/booking-confirmation`;
+      const res = await fetch(redirectTarget, {
+        method: "GET",
+        redirect: "follow",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        console.log(`[CRITICAL] Payment redirect target returned ${res.status}: ${redirectTarget}`);
+        issues.push({
+          type: "payment_redirect_unreachable",
+          severity: "CRITICAL",
+          count: 1,
+          description: `Post-payment confirmation page ${redirectTarget} returned HTTP ${res.status}. Every customer paying a balance/invoice right now hits an error page after being charged. Check that the site is published and FRONTEND_URL points to the live domain.`,
+        });
+      }
+    } catch (redirectError) {
+      const message = redirectError instanceof Error ? redirectError.message : String(redirectError);
+      console.log(`[CRITICAL] Payment redirect target unreachable: ${message}`);
+      issues.push({
+        type: "payment_redirect_unreachable",
+        severity: "CRITICAL",
+        count: 1,
+        description: `Post-payment confirmation page could not be reached (${message}). Every customer paying a balance/invoice right now hits an error page after being charged. Check that the site is published and FRONTEND_URL points to the live domain.`,
       });
     }
 

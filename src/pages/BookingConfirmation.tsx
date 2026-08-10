@@ -24,6 +24,7 @@ interface BookingDetails {
   full_name: string;
   email: string;
   payment_status: string;
+  balance_total_charged: number | null;
 }
 
 const BookingConfirmation = () => {
@@ -38,6 +39,8 @@ const BookingConfirmation = () => {
   const bookingId = searchParams.get("booking_id");
   const cancelled = searchParams.get("cancelled");
   const paymentType = searchParams.get("type");
+  const isBalance = paymentType === "balance";
+  const isAddon = paymentType === "addon";
 
   useEffect(() => {
     const fetchBooking = async () => {
@@ -52,7 +55,7 @@ const BookingConfirmation = () => {
 
       const { data, error: fetchError } = await supabase
         .from("bookings")
-        .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status")
+        .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged")
         .eq("id", bookingId)
         .maybeSingle();
 
@@ -108,6 +111,11 @@ const BookingConfirmation = () => {
 
   // Payment cancelled/failed
   if (cancelled || error) {
+    // Balance and addon payments come from an emailed/texted Stripe link tied
+    // to an existing booking — sending these customers to /book would start a
+    // brand-new booking instead of retrying their payment.
+    const isExistingBookingPayment = isBalance || isAddon;
+
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
         <Navigation />
@@ -116,28 +124,48 @@ const BookingConfirmation = () => {
             <div className="flex justify-center">
               <XCircle className="h-20 w-20 text-destructive" />
             </div>
-            
+
             <div>
               <h1 className="text-3xl font-bold mb-2">Payment {cancelled ? "Cancelled" : "Failed"}</h1>
               <p className="text-lg text-muted-foreground">
-                {cancelled 
-                  ? "Your payment was cancelled. No charges were made." 
+                {cancelled
+                  ? "Your payment was cancelled. No charges were made."
                   : error || "Something went wrong with your payment."}
               </p>
             </div>
 
             <Card className="p-6 bg-accent/30">
-              <p className="text-sm text-muted-foreground mb-4">
-                Don't worry - your booking details have been saved. You can try again or contact us for assistance.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button onClick={() => navigate("/book")}>
-                  Try Again
-                </Button>
-                <Button variant="outline" onClick={() => navigate("/")}>
-                  Return Home
-                </Button>
-              </div>
+              {isExistingBookingPayment ? (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Your booking is safe. To try again, reopen the payment link from your
+                    email or text message. If the link has expired, contact us and we'll
+                    send you a fresh one.
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    (407) 974-5979 &middot; Orlandoeventvenue@gmail.com
+                  </p>
+                  <div className="flex justify-center">
+                    <Button variant="outline" onClick={() => navigate("/")}>
+                      Return Home
+                    </Button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Don't worry - your booking details have been saved. You can try again or contact us for assistance.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <Button onClick={() => navigate("/book")}>
+                      Try Again
+                    </Button>
+                    <Button variant="outline" onClick={() => navigate("/")}>
+                      Return Home
+                    </Button>
+                  </div>
+                </>
+              )}
             </Card>
           </div>
         </div>
@@ -150,7 +178,222 @@ const BookingConfirmation = () => {
     const eventDate = new Date(booking.event_date + 'T00:00:00');
     const balanceDueDate = addDays(eventDate, -15);
     const isDepositPaid = booking.payment_status === "deposit_paid";
+    const balanceCharged = Number(booking.balance_total_charged ?? booking.balance_amount);
 
+    // ----- Balance payment success -----
+    if (isBalance) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+          <Navigation />
+          <div className="container mx-auto px-4 py-12 md:py-20">
+            <div className="max-w-3xl mx-auto space-y-8">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <CheckCircle2 className="h-20 w-20 text-green-500" />
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold">Balance Paid — You're All Set!</h1>
+                <p className="text-lg text-muted-foreground">
+                  Your booking is now fully paid
+                </p>
+              </div>
+
+              <Card className="p-6 bg-primary/5 border-primary/20">
+                <div className="text-center space-y-3">
+                  <p className="text-sm font-medium text-muted-foreground">Your Reservation Number</p>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-3xl md:text-4xl font-mono font-bold tracking-wider">
+                      {booking.reservation_number || "Pending..."}
+                    </span>
+                    {booking.reservation_number && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={copyReservationNumber}
+                        className="h-10 w-10"
+                      >
+                        {copied ? (
+                          <Check className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <Copy className="h-5 w-5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Booking Details</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Event Date</p>
+                      <p className="font-medium">{format(eventDate, "EEEE, MMMM d, yyyy")}</p>
+                    </div>
+                  </div>
+                  {booking.booking_type === "hourly" && booking.start_time && booking.end_time && (
+                    <div className="flex items-center gap-3">
+                      <Clock className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="text-sm text-muted-foreground">Time</p>
+                        <p className="font-medium">{booking.start_time} - {booking.end_time}</p>
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Guests</p>
+                      <p className="font-medium">{booking.number_of_guests} guests</p>
+                    </div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Event Type</p>
+                    <p className="font-medium capitalize">{(booking.event_type || "").replace(/_/g, " ")}</p>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-accent/30">
+                <h2 className="text-lg font-semibold mb-4">Payment Summary</h2>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Total Booking Cost</span>
+                    <span className="font-medium">${Number(booking.total_amount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-green-600">
+                    <span>Deposit Paid</span>
+                    <span className="font-bold">${Number(booking.deposit_amount).toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-green-600">
+                    <span>
+                      Balance Paid
+                      {booking.balance_total_charged != null && (
+                        <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
+                      )}
+                    </span>
+                    <span className="font-bold">${balanceCharged.toFixed(2)}</span>
+                  </div>
+                  <div className="border-t pt-3">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium">Remaining Balance</span>
+                      <span className="text-xl font-bold">$0.00</span>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold mb-4">What's Next?</h2>
+                <ul className="space-y-3 text-sm">
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">1</span>
+                    <span>A payment confirmation email is on its way to <strong>{booking.email}</strong></span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">2</span>
+                    <span>Access instructions will be sent 72 hours before your event</span>
+                  </li>
+                  <li className="flex items-start gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">3</span>
+                    <span>Questions? Reply to any of our emails or call (407) 974-5979</span>
+                  </li>
+                </ul>
+              </Card>
+
+              <div className="flex justify-center">
+                <Button size="lg" onClick={() => navigate("/")}>
+                  Return to Home
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ----- Add-on payment success -----
+    if (isAddon) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+          <Navigation />
+          <div className="container mx-auto px-4 py-12 md:py-20">
+            <div className="max-w-3xl mx-auto space-y-8">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <CheckCircle2 className="h-20 w-20 text-green-500" />
+                </div>
+                <h1 className="text-3xl md:text-4xl font-bold">Payment Received!</h1>
+                <p className="text-lg text-muted-foreground">
+                  Your add-on payment has been applied to your booking
+                </p>
+              </div>
+
+              <Card className="p-6 bg-primary/5 border-primary/20">
+                <div className="text-center space-y-3">
+                  <p className="text-sm font-medium text-muted-foreground">Your Reservation Number</p>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-3xl md:text-4xl font-mono font-bold tracking-wider">
+                      {booking.reservation_number || "Pending..."}
+                    </span>
+                    {booking.reservation_number && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={copyReservationNumber}
+                        className="h-10 w-10"
+                      >
+                        {copied ? (
+                          <Check className="h-5 w-5 text-green-500" />
+                        ) : (
+                          <Copy className="h-5 w-5" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6">
+                <h2 className="text-lg font-semibold mb-4">Booking Details</h2>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-center gap-3">
+                    <Calendar className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Event Date</p>
+                      <p className="font-medium">{format(eventDate, "EEEE, MMMM d, yyyy")}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <Users className="h-5 w-5 text-muted-foreground" />
+                    <div>
+                      <p className="text-sm text-muted-foreground">Guests</p>
+                      <p className="font-medium">{booking.number_of_guests} guests</p>
+                    </div>
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-accent/30">
+                <p className="text-sm text-muted-foreground">
+                  A receipt will be emailed to <strong>{booking.email}</strong> shortly.
+                  If anything looks off, just reply to any of our emails or call (407) 974-5979.
+                </p>
+              </Card>
+
+              <div className="flex justify-center">
+                <Button size="lg" onClick={() => navigate("/")}>
+                  Return to Home
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ----- Deposit success (original flow) -----
     return (
       <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
         <Navigation />
@@ -178,9 +421,9 @@ const BookingConfirmation = () => {
                     {booking.reservation_number || "Pending..."}
                   </span>
                   {booking.reservation_number && (
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={copyReservationNumber}
                       className="h-10 w-10"
                     >
@@ -227,7 +470,7 @@ const BookingConfirmation = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Event Type</p>
-                  <p className="font-medium capitalize">{booking.event_type.replace(/_/g, " ")}</p>
+                  <p className="font-medium capitalize">{(booking.event_type || "").replace(/_/g, " ")}</p>
                 </div>
               </div>
             </Card>
@@ -238,11 +481,11 @@ const BookingConfirmation = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Total Booking Cost</span>
-                  <span className="font-medium">${booking.total_amount.toFixed(2)}</span>
+                  <span className="font-medium">${Number(booking.total_amount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-green-600">
                   <span>Deposit Paid (50%)</span>
-                  <span className="font-bold">${booking.deposit_amount.toFixed(2)}</span>
+                  <span className="font-bold">${Number(booking.deposit_amount).toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-3">
                   <div className="flex justify-between items-center">
@@ -252,7 +495,7 @@ const BookingConfirmation = () => {
                         Due by {format(balanceDueDate, "MMMM d, yyyy")}
                       </p>
                     </div>
-                    <span className="text-xl font-bold">${booking.balance_amount.toFixed(2)}</span>
+                    <span className="text-xl font-bold">${Number(booking.balance_amount).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -272,7 +515,7 @@ const BookingConfirmation = () => {
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">3</span>
-                  <span>Your balance of <strong>${booking.balance_amount.toFixed(2)}</strong> will be charged on <strong>{format(balanceDueDate, "MMMM d, yyyy")}</strong></span>
+                  <span>Your balance of <strong>${Number(booking.balance_amount).toFixed(2)}</strong> will be charged on <strong>{format(balanceDueDate, "MMMM d, yyyy")}</strong></span>
                 </li>
                 <li className="flex items-start gap-3">
                   <span className="flex-shrink-0 w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-medium">4</span>

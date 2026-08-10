@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { getFrontendUrl } from "../_shared/config.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -169,7 +170,7 @@ serve(async (req) => {
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
 
     // Get the origin for redirect URLs
-    const origin = Deno.env.get("FRONTEND_URL") || "https://vsvsgesgqjtwutadcshi.lovable.app";
+    const origin = getFrontendUrl();
 
     // Create Checkout Session for balance payment
     const session = await stripe.checkout.sessions.create({

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { getFrontendUrl } from "../_shared/config.ts";
 
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
@@ -99,7 +100,7 @@ async function sendInternalPaymentEmail(
   const paymentLabel = paymentType === "deposit" ? "Deposit (50%)" : "Balance (Remaining 50%)";
   const subjectPrefix = paymentType === "deposit" ? "Deposit" : "Balance";
   
-  const adminUrl = `https://vsvsgesgqjtwutadcshi.lovable.app/admin/bookings/${booking.id}`;
+  const adminUrl = `${getFrontendUrl()}/admin/bookings/${booking.id}`;
 
   const formatDate = (dateString: string | null) => {
     if (!dateString) return "N/A";
