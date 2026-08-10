@@ -547,10 +547,14 @@ serve(async (req) => {
     // 7c. Stripe payment redirect target reachable
     // =====================================================
     // Balance/invoice/addon Stripe sessions redirect customers to
-    // FRONTEND_URL (or its fallback) after paying. If that site is down or
-    // unpublished, every payer lands on an error page right after being
-    // charged — exactly the Aug 2026 "lovable error at checkout" incident
-    // (the fallback pointed at a Lovable subdomain that never existed).
+    // FRONTEND_URL (or its fallback) after paying. If that target stops
+    // serving the app, every payer lands on a broken page right after being
+    // charged — the Aug 2026 "lovable error at checkout" incident.
+    //
+    // A 200 is NOT enough: the .com domain is a parked GoDaddy lander that
+    // answers 200 and bounces to /lander, and would sail through a status-only
+    // check. So require the SPA mount point in the body — parking pages and
+    // Lovable's "Project not found" both lack it.
     try {
       const redirectTarget = `${getFrontendUrl()}/booking-confirmation`;
       const res = await fetch(redirectTarget, {
@@ -558,13 +562,19 @@ serve(async (req) => {
         redirect: "follow",
         signal: AbortSignal.timeout(10000),
       });
-      if (!res.ok) {
-        console.log(`[CRITICAL] Payment redirect target returned ${res.status}: ${redirectTarget}`);
+      const body = res.ok ? await res.text() : "";
+      const servesApp = body.includes('id="root"');
+
+      if (!res.ok || !servesApp) {
+        const reason = res.ok
+          ? `responded 200 but did not serve the app (no SPA mount point found — likely a parked domain or a placeholder page)`
+          : `returned HTTP ${res.status}`;
+        console.log(`[CRITICAL] Payment redirect target ${reason}: ${redirectTarget}`);
         issues.push({
           type: "payment_redirect_unreachable",
           severity: "CRITICAL",
           count: 1,
-          description: `Post-payment confirmation page ${redirectTarget} returned HTTP ${res.status}. Every customer paying a balance/invoice right now hits an error page after being charged. Check that the site is published and FRONTEND_URL points to the live domain.`,
+          description: `Post-payment confirmation page ${redirectTarget} ${reason}. Every customer paying a balance/invoice right now hits a broken page after being charged. Check that the site is published and FRONTEND_URL points to the domain that actually serves the app.`,
         });
       }
     } catch (redirectError) {
