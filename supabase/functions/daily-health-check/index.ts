@@ -504,6 +504,45 @@ serve(async (req) => {
     }
 
     // =====================================================
+    // 7b. Gmail draft agent errors (composio-gmail-webhook)
+    // =====================================================
+    const { data: draftErrors } = await supabase
+      .from("gmail_draft_log")
+      .select("id, from_email, subject, error_detail, created_at")
+      .eq("decision", "error")
+      .gt("created_at", twentyFourHoursAgo)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (draftErrors && draftErrors.length > 0) {
+      const creditErrors = draftErrors.filter(e =>
+        (e.error_detail || "").toLowerCase().includes("credit balance")
+      );
+      console.log(`[${creditErrors.length ? "CRITICAL" : "HIGH"}] Found ${draftErrors.length} gmail draft errors in last 24h`);
+
+      const failedDetails: FailedJobDetail[] = draftErrors.map(e => ({
+        reservation_number: e.from_email || "unknown sender",
+        event_date: (e.subject || "").slice(0, 60),
+        job_type: "gmail_draft",
+        error_message: (e.error_detail || "unknown error").slice(0, 200),
+        failed_at: e.created_at,
+        attempts: 1,
+        function_name: "composio-gmail-webhook",
+      }));
+
+      issues.push({
+        type: "gmail_draft_errors",
+        severity: creditErrors.length > 0 ? "CRITICAL" : "HIGH",
+        count: draftErrors.length,
+        description: creditErrors.length > 0
+          ? `Anthropic API credits exhausted — ${creditErrors.length} inbound emails got NO draft reply. Recharge at console.anthropic.com > Billing. This also affects Discipline Rift if it shares the key.`
+          : `${draftErrors.length} errors in the Gmail draft agent (composio-gmail-webhook) in the last 24 hours. Inbound emails may be going unanswered.`,
+        failed_jobs: failedDetails.slice(0, 10),
+        error_groups: groupByFunction(failedDetails),
+      });
+    }
+
+    // =====================================================
     // 8. Send alert email if issues found
     // =====================================================
     if (issues.length > 0) {

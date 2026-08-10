@@ -152,6 +152,25 @@ function parseAddr(raw: unknown): { name: string; email: string } {
 const AUTOMATED_SENDER_RE = /no-?reply|do-?not-?reply|noreply|mailer-daemon|postmaster|notifications?@|alerts?@|billing@|invoice\+?@|receipts?@|bounce/i;
 const SKIP_CATEGORIES = new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
 
+// Website contact form notifications are sent by send-contact-form FROM the brand's own
+// address TO itself, so they would die at the anti-echo check. Subject is always
+// "Contact Form - <topic>" (never "Re:") — detect those and process them with the real
+// lead (parsed from the notification body) as the sender.
+const CONTACT_FORM_SUBJECT_RE = /^contact form\b/i;
+
+function isContactFormNotification(fromEmail: string, brandEmail: string, subject: string): boolean {
+  return fromEmail === brandEmail && CONTACT_FORM_SUBJECT_RE.test(subject.trim());
+}
+
+function parseContactFormLead(rawBody: string, plainText: string): { name: string; email: string } | null {
+  const mailto = rawBody.match(/mailto:([^"'>\s?]+@[^"'>\s?]+)/i);
+  const textEmail = plainText.match(/Email:\s*\n?\s*([^\s@]+@[^\s@]+\.[^\s@]+)/i);
+  const email = (mailto?.[1] ?? textEmail?.[1] ?? "").toLowerCase().trim();
+  if (!email) return null;
+  const name = plainText.match(/From:\s*\n?\s*([^\n]+)/i)?.[1]?.trim() ?? "";
+  return { name, email };
+}
+
 function nowInTZ(tz: string) {
   const now = new Date();
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -268,6 +287,7 @@ async function processEvent(supabase: any, logId: string, ctx: {
   messageId: string; threadId: string;
   fromName: string; fromEmail: string;
   subject: string; snippet: string;
+  isContactForm?: boolean;
 }) {
   const patch = async (fields: Record<string, unknown>) => {
     await supabase.from("gmail_draft_log").update({ ...fields, updated_at: new Date().toISOString() }).eq("id", logId);
@@ -289,10 +309,23 @@ async function processEvent(supabase: any, logId: string, ctx: {
     const last = msgs[msgs.length - 1];
     const lastFrom = parseAddr(last?.sender ?? last?.from).email;
 
-    if (lastFrom && lastFrom === ctx.brandEmail.toLowerCase()) {
+    if (lastFrom && lastFrom === ctx.brandEmail.toLowerCase() && !ctx.isContactForm) {
       await patch({ decision: "skip", skip_reason: "last message in thread is from the brand (already answered)" });
       return;
     }
+
+    if (ctx.isContactForm) {
+      const rawBody = (last?.messageText ?? last?.preview?.body ?? "").toString();
+      const lead = parseContactFormLead(rawBody, emailBodyToText(rawBody));
+      if (!lead || lead.email === ctx.brandEmail.toLowerCase()) {
+        await patch({ decision: "error", error_detail: "contact form: could not parse lead email from notification body" });
+        return;
+      }
+      ctx.fromEmail = lead.email;
+      ctx.fromName = lead.name;
+      await patch({ from_email: lead.email });
+    }
+
     const headersArr = last?.payload?.headers ?? [];
     if (Array.isArray(headersArr) && headersArr.some((h: any) => /^list-unsubscribe$/i.test(h?.name ?? ""))) {
       await patch({ decision: "skip", skip_reason: "List-Unsubscribe header (bulk/marketing sender)" });
@@ -321,6 +354,13 @@ async function processEvent(supabase: any, logId: string, ctx: {
     blocks.push(`CURRENT_DATETIME (live, business local time):\n${JSON.stringify(timeCtx)}`);
     if (grounding) blocks.push(`${grounding.label} (live data from the business database, loaded seconds ago):\n${JSON.stringify(grounding.data, null, 2)}`);
     if (contactCtx) blocks.push(`${contactCtx.label}:\n${contactCtx.data ? JSON.stringify(contactCtx.data, null, 2) : "none found for this sender"}`);
+    if (ctx.isContactForm) {
+      blocks.push(
+        "NOTE: This inbound is a website contact form submission forwarded to our own inbox. " +
+        "The real customer is the SENDER below (parsed from the form). Write the reply to them; " +
+        "ignore that the raw email technically came from our own address.",
+      );
+    }
     blocks.push(`SENDER: ${ctx.fromName ? `${ctx.fromName} <${ctx.fromEmail}>` : ctx.fromEmail}`);
     blocks.push(`SUBJECT: ${ctx.subject || "(no subject)"}`);
     blocks.push(`THREAD_HISTORY (chronological, last ${HISTORY_LIMIT} messages, quoted text stripped):\n${JSON.stringify(history, null, 2)}`);
@@ -463,16 +503,21 @@ Deno.serve(async (req) => {
     return json(200, { ok: true, skipped: reason });
   };
 
-  if (from.email && from.email === brandEmail) return await skip("self (anti-echo)");
+  const isContactForm = isContactFormNotification(from.email, brandEmail, subject);
+
+  if (from.email && from.email === brandEmail && !isContactForm) return await skip("self (anti-echo)");
   if (AUTOMATED_SENDER_RE.test(from.email)) return await skip(`automated sender: ${from.email}`);
   for (const l of labels) {
     if (SKIP_CATEGORIES.has(l)) return await skip(`gmail category: ${l}`);
-    if (l === "SENT" || l === "DRAFT") return await skip(`label: ${l}`);
+    // self-sent contact form notifications carry SENT (SMTP from own account) — still process them
+    if (l === "SENT" && !isContactForm) return await skip(`label: ${l}`);
+    if (l === "DRAFT") return await skip(`label: ${l}`);
   }
 
   const work = processEvent(supabase, logId, {
     brand, brandEmail, messageId, threadId,
     fromName: from.name, fromEmail: from.email, subject, snippet,
+    isContactForm,
   });
   if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) EdgeRuntime.waitUntil(work);
   else await work;
