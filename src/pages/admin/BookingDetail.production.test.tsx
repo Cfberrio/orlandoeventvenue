@@ -18,7 +18,7 @@ vi.mock("@/hooks/use-toast", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({ update: updateMock }),
-    functions: { invoke: (...a: unknown[]) => invokeMock(...a) },
+    functions: { invoke: () => invokeMock() },
   },
 }));
 
@@ -26,7 +26,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 // events. The component wiring under test (validate -> toast -> update) is
 // unchanged; only the presentational package picker is swapped.
 vi.mock("@/components/ui/select", () => {
-  const React = require("react");
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const React = (globalThis as any).__React ?? (0, eval)("require")("react");
   const Ctx = React.createContext<(v: string) => void>(() => {});
   return {
     Select: ({ value, onValueChange, children }: any) =>
