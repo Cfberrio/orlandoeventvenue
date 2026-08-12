@@ -25,9 +25,8 @@ vi.mock("@/integrations/supabase/client", () => ({
 // Replace radix Select with a native <select> so tests never touch pointer
 // events. The component wiring under test (validate -> toast -> update) is
 // unchanged; only the presentational package picker is swapped.
-vi.mock("@/components/ui/select", () => {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const React = (globalThis as any).__React ?? (0, eval)("require")("react");
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
   const Ctx = React.createContext<(v: string) => void>(() => {});
   return {
     Select: ({ value, onValueChange, children }: any) =>
