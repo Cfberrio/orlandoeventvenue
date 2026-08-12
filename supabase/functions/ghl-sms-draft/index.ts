@@ -503,6 +503,21 @@ Deno.serve(async (req) => {
         if (!lastInbound) { summary.skipped++; continue; }
         const inboundMessageId = lastInbound.id;
 
+        // GHL-side dedupe, independent of our database: if an [AI DRAFT ...] internal
+        // comment already exists AFTER this inbound message, it was already answered.
+        // Internal comments are not in chMsgs (channelOf returns null for them), so
+        // scan the raw `all` array. Costs no extra API call.
+        const lastInboundAt = Date.parse(lastInbound.dateAdded ?? lastInbound.createdAt ?? 0) || 0;
+        const lastAiDraftAt = all.reduce((acc: number, m: any) => {
+          const t = (m?.messageType ?? m?.type ?? "").toString().toUpperCase();
+          if (!t.includes("INTERNAL_COMMENT")) return acc;
+          const bodyText = (m?.body ?? m?.message ?? "").toString().trimStart();
+          if (!bodyText.startsWith("[AI DRAFT")) return acc;
+          const at = Date.parse(m?.dateAdded ?? m?.createdAt ?? 0) || 0;
+          return at > acc ? at : acc;
+        }, 0);
+        if (lastAiDraftAt > lastInboundAt) { summary.skipped++; continue; }
+
         const { data: dup } = await supabase
           .from("sms_draft_log")
           .select("id")
@@ -511,16 +526,34 @@ Deno.serve(async (req) => {
           .limit(1);
         if ((dup?.length ?? 0) > 0) { summary.skipped++; continue; }
 
+        // Claim this inbound message BEFORE doing any work. The unique index on
+        // (conversation_id, inbound_message_id) makes a concurrent cron run fail
+        // here instead of posting a second draft. Row is updated below with the
+        // real decision once the run finishes.
+        const { error: claimErr } = await supabase.from("sms_draft_log").insert({
+          brand_id: brandRow.id, channel, ghl_location_id,
+          contact_id: conv.contactId, conversation_id: conv.id,
+          inbound_message_id: inboundMessageId,
+          inbound_message: (lastInbound.body ?? lastInbound.message ?? "").toString().slice(0, 500),
+          decision: "processing", model: MODEL,
+        });
+        if (claimErr) {
+          // unique violation = another run already claimed this message
+          console.log("claim skipped", conv.id, inboundMessageId, claimErr.message);
+          summary.skipped++;
+          continue;
+        }
+        const logKey = (q: any) =>
+          q.eq("conversation_id", conv.id).eq("inbound_message_id", inboundMessageId);
+
         const prompt = await getPrompt(channel);
         if (!prompt) {
           summary.errors++;
-          await supabase.from("sms_draft_log").insert({
-            brand_id: brandRow.id, channel, ghl_location_id,
-            contact_id: conv.contactId, conversation_id: conv.id,
-            inbound_message_id: inboundMessageId,
+          await logKey(supabase.from("sms_draft_log").update({
+            channel, ghl_location_id, contact_id: conv.contactId,
             inbound_message: (lastInbound.body ?? lastInbound.message ?? "").toString().slice(0, 500),
             decision: "error", error_detail: `no active ${channel} prompt`, model: MODEL,
-          });
+          }));
           continue;
         }
 
@@ -534,12 +567,11 @@ Deno.serve(async (req) => {
           inboundText = (lastInbound.body ?? lastInbound.message ?? "").toString();
         }
         if (!inboundText.trim() && !inboundSubject) {
-          await supabase.from("sms_draft_log").insert({
-            brand_id: brandRow.id, channel, ghl_location_id,
-            contact_id: conv.contactId, conversation_id: conv.id,
-            inbound_message_id: inboundMessageId, inbound_message: "",
+          await logKey(supabase.from("sms_draft_log").update({
+            channel, ghl_location_id, contact_id: conv.contactId,
+            inbound_message: "",
             decision: "skip", reasoning: "empty inbound body", model: MODEL,
-          });
+          }));
           summary.skipped++;
           continue;
         }
@@ -667,13 +699,10 @@ Deno.serve(async (req) => {
           summary.skipped++;
         }
 
-        await supabase.from("sms_draft_log").insert({
-          brand_id: brandRow.id,
+        await logKey(supabase.from("sms_draft_log").update({
           channel,
           ghl_location_id,
           contact_id: conv.contactId,
-          conversation_id: conv.id,
-          inbound_message_id: inboundMessageId,
           inbound_message: channel === "email"
             ? `[${inboundSubject ?? "no subject"}] ${inboundText}`.slice(0, 4000)
             : inboundText,
@@ -690,7 +719,7 @@ Deno.serve(async (req) => {
           scheduled_message_id: null,
           scheduled_for: null,
           error_detail,
-        });
+        }));
       } catch (e) {
         console.error("conv error", conv?.id, e);
         summary.errors++;
