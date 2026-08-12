@@ -18,15 +18,15 @@ vi.mock("@/hooks/use-toast", () => ({
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
     from: () => ({ update: updateMock }),
-    functions: { invoke: (...a: unknown[]) => invokeMock(...a) },
+    functions: { invoke: () => invokeMock() },
   },
 }));
 
 // Replace radix Select with a native <select> so tests never touch pointer
 // events. The component wiring under test (validate -> toast -> update) is
 // unchanged; only the presentational package picker is swapped.
-vi.mock("@/components/ui/select", () => {
-  const React = require("react");
+vi.mock("@/components/ui/select", async () => {
+  const React = await import("react");
   const Ctx = React.createContext<(v: string) => void>(() => {});
   return {
     Select: ({ value, onValueChange, children }: any) =>
