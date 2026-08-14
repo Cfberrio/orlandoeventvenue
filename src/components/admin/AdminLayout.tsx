@@ -61,15 +61,19 @@ export default function AdminLayout() {
         "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out",
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        <div className="flex items-center justify-between h-16 px-4 border-b border-border">
+        <div className="flex items-center justify-between h-16 px-4 bg-primary border-b border-primary">
           <div className="flex items-center gap-2 min-w-0">
-            <img src={oevLogoIcon} alt="Orlando Event Venue" className="h-8 w-auto shrink-0" />
-            <h1 className="text-lg font-semibold text-foreground whitespace-nowrap">OEV Admin</h1>
+            <img
+              src={oevLogoIcon}
+              alt="Orlando Event Venue"
+              className="h-8 w-8 shrink-0 rounded-md bg-white object-contain p-0.5"
+            />
+            <h1 className="text-lg font-semibold text-primary-foreground whitespace-nowrap">OEV Admin</h1>
           </div>
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="lg:hidden"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden text-primary-foreground hover:bg-white/10 hover:text-primary-foreground"
             onClick={() => setSidebarOpen(false)}
           >
             <X className="h-5 w-5" />

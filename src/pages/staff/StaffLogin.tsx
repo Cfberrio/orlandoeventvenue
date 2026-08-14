@@ -103,10 +103,10 @@ export default function StaffLogin() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary via-primary to-primary/70 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <img src={oevLogoIcon} alt="Orlando Event Venue" className="h-12 w-auto mx-auto mb-2" />
+          <img src={oevLogoIcon} alt="Orlando Event Venue" className="h-20 w-auto mx-auto" />
           <CardTitle className="text-2xl">Staff Login</CardTitle>
           <CardDescription>
             Enter your staff email to access your assigned bookings
