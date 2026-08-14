@@ -8,6 +8,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useStaffSession } from "@/hooks/useStaffSession";
+import oevLogoIcon from "@/assets/oev-logo-icon.png";
 
 export default function StaffLogin() {
   const [email, setEmail] = useState("");
@@ -105,6 +106,7 @@ export default function StaffLogin() {
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
+          <img src={oevLogoIcon} alt="Orlando Event Venue" className="h-12 w-auto mx-auto mb-2" />
           <CardTitle className="text-2xl">Staff Login</CardTitle>
           <CardDescription>
             Enter your staff email to access your assigned bookings

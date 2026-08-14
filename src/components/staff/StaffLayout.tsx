@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useStaffSession } from "@/hooks/useStaffSession";
 import { useNavigate } from "react-router-dom";
+import oevLogoIcon from "@/assets/oev-logo-icon.png";
 
 const baseNavItems = [
   { to: "/staff", icon: CalendarDays, label: "My Bookings", end: true },
@@ -50,7 +51,10 @@ export default function StaffLayout() {
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-border">
-          <h1 className="text-lg font-semibold text-foreground">OEV Staff</h1>
+          <div className="flex items-center gap-2 min-w-0">
+            <img src={oevLogoIcon} alt="Orlando Event Venue" className="h-8 w-auto shrink-0" />
+            <h1 className="text-lg font-semibold text-foreground whitespace-nowrap">OEV Staff</h1>
+          </div>
           <Button 
             variant="ghost" 
             size="icon" 
