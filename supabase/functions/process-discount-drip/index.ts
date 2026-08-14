@@ -6,60 +6,20 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// OEV Lead Magnet spec: Email 2 goes out at 8 AM Orlando time the day after the
-// form is submitted; Email 3 goes out 24 hours after Email 2 actually shipped.
-// Sending at a fixed local hour keeps these out of the middle of the night,
-// which a plain "N hours after signup" delay cannot guarantee.
-const EMAIL_2_SEND_HOUR_ET = 8;
+// OEV Lead Magnet spec (ClickUp 8cqnrff-11737): the sequence pairs one email
+// with one SMS at each step. The SMS half lives in GoHighLevel workflows fired
+// by the `popup` tag, so these delays MUST stay in sync with the GHL delays or
+// the two halves drift apart.
+//   E01 + S01 - immediately on submit
+//   E02 + S02 - 24 hours after E01
+//   E03 + S03 - 48 hours after E01 (= 24 hours after E02)
+// Email 3 is measured from when Email 2 actually shipped, not from signup, so a
+// delayed Email 2 can never make both emails fire back to back.
+const EMAIL_2_DELAY_HOURS = 24;
 const EMAIL_3_DELAY_HOURS = 24;
-const ORLANDO_TZ = "America/New_York";
 const MAX_LEADS_PER_RUN = 50;
 // DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
 const DEFAULT_POPUP_COUPON_CODE = "PLAN50";
-
-/**
- * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
- * DST-aware, so it stays correct across the March and November switches.
- */
-function tzOffsetMs(date: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false,
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
-  const asIfUtc = Date.UTC(
-    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
-    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
-  );
-  return asIfUtc - date.getTime();
-}
-
-/** Calendar date in Orlando (YYYY-MM-DD) for a given instant. */
-function orlandoDateParts(date: Date): { year: number; month: number; day: number } {
-  const dtf = new Intl.DateTimeFormat("en-CA", {
-    timeZone: ORLANDO_TZ,
-    year: "numeric", month: "2-digit", day: "2-digit",
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
-  return { year: Number(parts.year), month: Number(parts.month), day: Number(parts.day) };
-}
-
-/**
- * The instant of 8 AM Orlando time on the day after `signupUtc`.
- * Two passes: build the wall-clock time as if it were UTC, then correct by the
- * offset that actually applies at that moment.
- */
-function nextMorningInOrlando(signupUtc: Date): Date {
-  const { year, month, day } = orlandoDateParts(signupUtc);
-  const naive = Date.UTC(year, month - 1, day + 1, EMAIL_2_SEND_HOUR_ET, 0, 0);
-  const firstGuess = new Date(naive - tzOffsetMs(new Date(naive), ORLANDO_TZ));
-  // Re-resolve once in case the first guess landed on the other side of a DST switch.
-  return new Date(naive - tzOffsetMs(firstGuess, ORLANDO_TZ));
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -77,14 +37,11 @@ serve(async (req) => {
     const results = { email2_sent: 0, email3_sent: 0, converted: 0, errors: 0 };
 
     // =============================
-    // EMAIL 2 CANDIDATES (8 AM Orlando time, the day after signup)
+    // EMAIL 2 CANDIDATES (24h after Email 1 went out)
     // =============================
-    // Coarse SQL filter first: the shortest possible wait is 8 hours (someone who
-    // signs up just before midnight). The exact 8 AM check happens below, in the
-    // venue's timezone, because SQL cannot express "next morning locally".
-    const email2Cutoff = new Date(now.getTime() - 8 * 60 * 60 * 1000).toISOString();
+    const email2Cutoff = new Date(now.getTime() - EMAIL_2_DELAY_HOURS * 60 * 60 * 1000).toISOString();
 
-    const { data: email2Candidates, error: email2Error } = await supabase
+    const { data: email2Leads, error: email2Error } = await supabase
       .from("popup_leads")
       .select("id, full_name, email, coupon_code, email_1_sent_at")
       .eq("is_converted", false)
@@ -97,12 +54,7 @@ serve(async (req) => {
       console.error("Error fetching email 2 candidates:", email2Error);
     }
 
-    const email2Leads = (email2Candidates ?? []).filter((lead) => {
-      const dueAt = nextMorningInOrlando(new Date(lead.email_1_sent_at));
-      return now >= dueAt;
-    });
-
-    if (email2Leads.length > 0) {
+    if (email2Leads && email2Leads.length > 0) {
       console.log(`Found ${email2Leads.length} leads needing Email 2`);
 
       for (const lead of email2Leads) {
@@ -161,7 +113,7 @@ serve(async (req) => {
     }
 
     // =============================
-    // EMAIL 3 CANDIDATES (24h after Email 2 went out)
+    // EMAIL 3 CANDIDATES (24h after Email 2 went out = 48h into the sequence)
     // =============================
     const email3Cutoff = new Date(now.getTime() - EMAIL_3_DELAY_HOURS * 60 * 60 * 1000).toISOString();
 

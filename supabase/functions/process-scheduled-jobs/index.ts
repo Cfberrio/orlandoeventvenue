@@ -58,19 +58,16 @@ serve(async (req) => {
       });
     }
 
-    if (!pendingJobs || pendingJobs.length === 0) {
-      console.log("No pending jobs to process");
-      return new Response(JSON.stringify({ 
-        success: true, 
-        processed: 0,
-        message: "No pending jobs"
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    console.log(`Found ${pendingJobs.length} pending jobs to process`);
+    // NOTE: do NOT return early when there are no pending jobs. The standalone
+    // cleaning reminders and the lead-magnet discount drip run at the end of this
+    // handler on every tick; returning here silently skipped them on most runs,
+    // which is what made the OEV lead sequence fire days late and in bursts.
+    const jobs = pendingJobs ?? [];
+    console.log(
+      jobs.length === 0
+        ? "No pending jobs to process (continuing to reminders + discount drip)"
+        : `Found ${jobs.length} pending jobs to process`
+    );
 
     const results = {
       processed: 0,
@@ -81,7 +78,7 @@ serve(async (req) => {
       details: [] as { job_id: string; job_type: string; status: string; error?: string }[],
     };
 
-    for (const job of pendingJobs) {
+    for (const job of jobs) {
       results.processed++;
       console.log(`Processing job ${job.id}: ${job.job_type} for booking ${job.booking_id}`);
 
