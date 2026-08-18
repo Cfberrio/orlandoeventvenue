@@ -128,7 +128,8 @@ serve(async (req) => {
     });
 
     const copy = RESPONSE_COPY[data.response];
-    const subject = `${copy.label}: ${data.staffName} · ${data.reservationNumber}`;
+    const subjectLabel = copy.label.replace(/^[^\w]+\s*/u, "");
+    const subject = `${subjectLabel}: ${data.staffName} - ${data.reservationNumber}`;
 
     await client.send({
       from: gmailUser,
