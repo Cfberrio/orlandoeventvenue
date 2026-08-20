@@ -4,6 +4,7 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { emailBodyToText } from "../_shared/email-body.ts";
+import { loadVenueServices } from "../_shared/venue-grounding.ts";
 import {
   type ContactFormFields,
   isContactFormNotification,
@@ -216,9 +217,18 @@ async function loadOevBookingContext(supabase: any, email: string) {
   } catch (e) { console.error("booking context error", e); return null; }
 }
 
-async function loadBrandGrounding(supabase: any, brand: string): Promise<{ label: string; data: unknown } | null> {
-  if (brand === "OEV" || brand === "RV") return { label: "VENUE_AVAILABILITY", data: await loadVenueAvailability(supabase) };
-  return null;
+async function loadBrandGrounding(supabase: any, brand: string): Promise<{ label: string; data: unknown }[]> {
+  if (brand !== "OEV" && brand !== "RV") return [];
+  // Availability answers "when", services answer "what's included / what does it cost".
+  // Without the second block the agent escalates amenity questions it can already answer.
+  const [availability, services] = await Promise.all([
+    loadVenueAvailability(supabase),
+    loadVenueServices(supabase),
+  ]);
+  return [
+    { label: "VENUE_AVAILABILITY", data: availability },
+    { label: "VENUE_SERVICES_AND_PRICING", data: services },
+  ];
 }
 
 async function loadContactContext(supabase: any, brand: string, email: string): Promise<{ label: string; data: unknown } | null> {
@@ -304,7 +314,9 @@ async function processEvent(supabase: any, logId: string, ctx: {
 
     const blocks: string[] = [];
     blocks.push(`CURRENT_DATETIME (live, business local time):\n${JSON.stringify(timeCtx)}`);
-    if (grounding) blocks.push(`${grounding.label} (live data from the business database, loaded seconds ago):\n${JSON.stringify(grounding.data, null, 2)}`);
+    for (const g of grounding) {
+      blocks.push(`${g.label} (live data from the business database, loaded seconds ago):\n${JSON.stringify(g.data, null, 2)}`);
+    }
     if (contactCtx) blocks.push(`${contactCtx.label}:\n${contactCtx.data ? JSON.stringify(contactCtx.data, null, 2) : "none found for this sender"}`);
     if (ctx.isContactForm) {
       blocks.push(
