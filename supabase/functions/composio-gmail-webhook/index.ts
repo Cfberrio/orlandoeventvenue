@@ -3,6 +3,13 @@
 // HARD RULE: this function can NEVER send email. Allowlist below has no send tools.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { emailBodyToText } from "../_shared/email-body.ts";
+import {
+  type ContactFormFields,
+  isContactFormNotification,
+  parseContactFormFields,
+  resolveContactFormLead,
+} from "../_shared/contact-form.ts";
 
 declare const EdgeRuntime: { waitUntil(p: Promise<unknown>): void } | undefined;
 
@@ -100,48 +107,6 @@ async function composioExecute(toolSlug: string, args: Record<string, unknown>):
   return j?.data ?? j;
 }
 
-function htmlToText(html: string): string {
-  let s = String(html);
-  s = s.replace(/<style[\s\S]*?<\/style>/gi, " ");
-  s = s.replace(/<script[\s\S]*?<\/script>/gi, " ");
-  s = s.replace(/<head[\s\S]*?<\/head>/gi, " ");
-  s = s.replace(/<blockquote[\s\S]*$/gi, " ");
-  s = s.replace(/<div[^>]+gmail_quote[\s\S]*$/gi, " ");
-  s = s.replace(/<br\s*\/?>/gi, "\n");
-  s = s.replace(/<\/(p|div|tr|li|h[1-6])>/gi, "\n");
-  s = s.replace(/<[^>]+>/g, " ");
-  s = s.replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#0?39;/g, "'");
-  s = s.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{3,}/g, "\n\n");
-  return s.trim();
-}
-
-function stripQuotedReplyText(text: string): string {
-  const markers = [
-    /^On .{5,160} wrote:\s*$/m,
-    /^El .{5,160} escribió:\s*$/m,
-    /^-{2,}\s*(Original Message|Mensaje original)\s*-{2,}/im,
-    /^_{5,}\s*$/m,
-    /^From:\s.+/m,
-    /^De:\s.+/m,
-  ];
-  let cut = text.length;
-  for (const re of markers) {
-    const m = re.exec(text);
-    if (m && m.index > 40 && m.index < cut) cut = m.index;
-  }
-  let out = text.slice(0, cut);
-  out = out.split("\n").filter((l) => !/^\s*>/.test(l)).join("\n");
-  return out.trim();
-}
-
-function emailBodyToText(raw: unknown): string {
-  const str = (raw ?? "").toString();
-  const looksHtml = /<[a-z!][\s\S]*>/i.test(str);
-  const text = looksHtml ? htmlToText(str) : str;
-  return stripQuotedReplyText(text).slice(0, 6000);
-}
-
 function parseAddr(raw: unknown): { name: string; email: string } {
   const s = (raw ?? "").toString();
   const m = s.match(/^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$/);
@@ -151,25 +116,6 @@ function parseAddr(raw: unknown): { name: string; email: string } {
 
 const AUTOMATED_SENDER_RE = /no-?reply|do-?not-?reply|noreply|mailer-daemon|postmaster|notifications?@|alerts?@|billing@|invoice\+?@|receipts?@|bounce/i;
 const SKIP_CATEGORIES = new Set(["CATEGORY_PROMOTIONS", "CATEGORY_SOCIAL", "CATEGORY_FORUMS"]);
-
-// Website contact form notifications are sent by send-contact-form FROM the brand's own
-// address TO itself, so they would die at the anti-echo check. Subject is always
-// "Contact Form - <topic>" (never "Re:") — detect those and process them with the real
-// lead (parsed from the notification body) as the sender.
-const CONTACT_FORM_SUBJECT_RE = /^contact form\b/i;
-
-function isContactFormNotification(fromEmail: string, brandEmail: string, subject: string): boolean {
-  return fromEmail === brandEmail && CONTACT_FORM_SUBJECT_RE.test(subject.trim());
-}
-
-function parseContactFormLead(rawBody: string, plainText: string): { name: string; email: string } | null {
-  const mailto = rawBody.match(/mailto:([^"'>\s?]+@[^"'>\s?]+)/i);
-  const textEmail = plainText.match(/Email:\s*\n?\s*([^\s@]+@[^\s@]+\.[^\s@]+)/i);
-  const email = (mailto?.[1] ?? textEmail?.[1] ?? "").toLowerCase().trim();
-  if (!email) return null;
-  const name = plainText.match(/From:\s*\n?\s*([^\n]+)/i)?.[1]?.trim() ?? "";
-  return { name, email };
-}
 
 function nowInTZ(tz: string) {
   const now = new Date();
@@ -314,10 +260,16 @@ async function processEvent(supabase: any, logId: string, ctx: {
       return;
     }
 
+    // Contact form notifications carry the submission as a labelled field list, so the
+    // quoted-reply stripper must stay off for them (it would cut at "From:").
+    const stripQuotes = !ctx.isContactForm;
+    let formFields: ContactFormFields | null = null;
+
     if (ctx.isContactForm) {
       const rawBody = (last?.messageText ?? last?.preview?.body ?? "").toString();
-      const lead = parseContactFormLead(rawBody, emailBodyToText(rawBody));
-      if (!lead || lead.email === ctx.brandEmail.toLowerCase()) {
+      formFields = parseContactFormFields(emailBodyToText(rawBody, { stripQuotes: false }));
+      const lead = resolveContactFormLead(rawBody, formFields, ctx.brandEmail.toLowerCase());
+      if (!lead) {
         await patch({ decision: "error", error_detail: "contact form: could not parse lead email from notification body" });
         return;
       }
@@ -335,9 +287,9 @@ async function processEvent(supabase: any, logId: string, ctx: {
     const history = msgs.slice(-HISTORY_LIMIT).map((m: any) => ({
       from: parseAddr(m.sender ?? m.from).email || "(unknown)",
       at: m.messageTimestamp ?? null,
-      text: emailBodyToText(m.messageText ?? m.preview?.body ?? "").slice(0, 1800),
+      text: emailBodyToText(m.messageText ?? m.preview?.body ?? "", { stripQuotes }).slice(0, 1800),
     }));
-    const latestText = emailBodyToText(last?.messageText ?? last?.preview?.body ?? ctx.snippet);
+    const latestText = emailBodyToText(last?.messageText ?? last?.preview?.body ?? ctx.snippet, { stripQuotes });
 
     const { data: brandRow } = await supabase.from("brand").select("id").eq("code", ctx.brand).maybeSingle();
     if (!brandRow) { await patch({ decision: "error", error_detail: `brand not found: ${ctx.brand}` }); return; }
@@ -358,7 +310,15 @@ async function processEvent(supabase: any, logId: string, ctx: {
       blocks.push(
         "NOTE: This inbound is a website contact form submission forwarded to our own inbox. " +
         "The real customer is the SENDER below (parsed from the form). Write the reply to them; " +
-        "ignore that the raw email technically came from our own address.",
+        "ignore that the raw email technically came from our own address. " +
+        "Everything the customer told us is in CONTACT_FORM_SUBMISSION below — treat it as their " +
+        "message and answer it directly. Never ask them to resend details that already appear there.",
+      );
+      const filled = formFields && Object.values(formFields).some((v) => v);
+      blocks.push(
+        filled
+          ? `CONTACT_FORM_SUBMISSION (structured fields as the customer filled them in):\n${JSON.stringify(formFields, null, 2)}`
+          : "CONTACT_FORM_SUBMISSION: could not parse the form fields — read LATEST_INBOUND_EMAIL below instead.",
       );
     }
     blocks.push(`SENDER: ${ctx.fromName ? `${ctx.fromName} <${ctx.fromEmail}>` : ctx.fromEmail}`);
