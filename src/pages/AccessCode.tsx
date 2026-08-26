@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { KeyRound, Loader2, ShieldCheck, CheckCircle2, Clock, Lightbulb, Wifi, DoorOpen } from "lucide-react";
+import { KeyRound, Loader2, ShieldCheck, CheckCircle2, Clock, Lightbulb, Wifi, ExternalLink, DoorOpen } from "lucide-react";
 import GuestReportForm, { GuestReportFormBooking } from "@/components/access-code/GuestReportForm";
 
 interface AccessCodeResult {
@@ -26,6 +26,8 @@ interface AccessCodeResult {
   is_recurring?: boolean;
   expires_on?: string | null;
 }
+
+const GOOGLE_REVIEW_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
 
 // Venue rules mirror the access-page spec doc (ClickUp 8cqnrff-32097) verbatim.
 const VENUE_RULES: { title: string; rules: { rule: string; fee?: string }[] }[] = [
@@ -325,6 +327,12 @@ const AccessCode = () => {
             <p className="text-muted-foreground text-sm mb-6">
               ¡Gracias! Tu reservación está completa. Nuestro equipo revisará tu reporte pronto.
             </p>
+            <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="block mb-3">
+              <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Leave a Google Review
+              </Button>
+            </a>
             <Button variant="outline" className="w-full" onClick={resetLookup}>
               Look up another reservation
             </Button>
@@ -517,6 +525,25 @@ const AccessCode = () => {
               </h2>
               <GuestReportForm booking={formBooking} onSubmitted={() => setReportSubmitted(true)} />
             </div>
+          )}
+
+          {!isRecurring && (
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 border-2 border-blue-200 dark:border-blue-800">
+            <CardHeader>
+              <CardTitle className="text-lg">Enjoyed the Venue?</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm">
+                A quick Google review helps future hosts find Orlando Event Venue.
+              </p>
+              <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="block">
+                <Button type="button" className="w-full bg-blue-600 hover:bg-blue-700 text-white">
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  Leave a Google Review
+                </Button>
+              </a>
+            </CardContent>
+          </Card>
           )}
 
           <Card>
