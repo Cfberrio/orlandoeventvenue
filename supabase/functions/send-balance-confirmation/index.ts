@@ -3,6 +3,21 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import {
+  BRAND,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  linkButton,
+  numberedList,
+  para,
+  referenceModule,
+  signature,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -140,7 +155,7 @@ function formatEventType(eventType: string): string {
 }
 
 function generateEmailHTML(booking: BalanceEmailData): string {
-  const firstName = booking.full_name.split(" ")[0];
+  const firstName = escapeHtml(booking.full_name.split(" ")[0]);
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
   const formattedEventType = formatEventType(booking.event_type);
@@ -148,172 +163,50 @@ function generateEmailHTML(booking: BalanceEmailData): string {
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
     : "All Day";
 
-  const detailRow = (label: string, value: string) => `
-          <tr>
-            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">${label}</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${value}</span>
-            </td>
-          </tr>`;
+  const eventPageUrl = "https://orlandoeventvenue.org/accesscode";
 
-  const card = (title: string, body: string) => `
-      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">${title}</p>
-        ${body}
-      </div>`;
+  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
+  // section P02. Do not reword — design carries emphasis, never the wording.
+  const body =
+    heroModule({
+      display: displayTitle("Your Event Is Fully Paid", { size: 34 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(`Your final payment is in. Your event is fully paid, and there is nothing more to pay. Thank you.`) +
+      para(`From here on, everything is about getting ready for event day, and it all lives on your Event Page:`) +
+      linkButton(eventPageUrl) +
+      para(`Enter your reservation number when prompted. There you will find:`) +
+      numberedList([
+        `Your venue access instructions.`,
+        `Your live door code.`,
+        `Wifi.`,
+        `The venue rules.`,
+        `Your Before You Leave checklist.`,
+        `Your Guest Report.`,
+      ]) +
+      para(`Your door code appears one hour before your event begins.`) +
+      para(`We will stay in touch as your date approaches. You will get a quick check in seven days out, a preparation reminder the day before, and your full access instructions one hour before you start.`) +
+      para(`Please make sure whoever arrives first also has your Event Page link and reservation number.`) +
+      signature({ phone: true }),
+    ) +
+    gap() +
+    referenceModule([
+      ["Reservation Number", escapeHtml(booking.reservation_number)],
+      ["Event Date", formattedDate],
+      ["Event Time", timeRange],
+      ["Event Type", formattedEventType],
+      ["Booking Type", formattedBookingType],
+      ["Guest Count", String(booking.number_of_guests)],
+    ]);
 
-  const accessCard = `
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Your Access Page
-        </p>
-        <p style="margin:0 0 8px;font-size:13px;line-height:1.65;color:#6B7280;">
-          One link, used before and after the event.
-        </p>
-        <p style="margin:0 0 10px;font-size:14px;line-height:1.5;">
-          <a href="https://orlandoeventvenue.org/accesscode" style="color:#14ADE6;text-decoration:none;font-weight:bold;">https://orlandoeventvenue.org/accesscode</a>
-        </p>
-        <p style="margin:0 0 4px;font-size:12px;color:#6B7280;">Enter your reservation number on the page:</p>
-        <p style="margin:0 0 12px;font-size:16px;color:#111827;font-weight:bold;letter-spacing:.5px;">${booking.reservation_number}</p>
-        <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:14px;">
-          <li style="margin:0 0 6px;"><strong>Before / during your event:</strong> the page shows your live door code + Wi-Fi. The code rotates per booking.</li>
-          <li style="margin:0;"><strong>After your event ends:</strong> the same page becomes your Guest Report (2 min, photos of the venue) and your review link.</li>
-        </ul>
-        <p style="margin:12px 0 0;font-size:13px;line-height:1.6;color:#6B7280;">
-          The day before your event you'll get a short text with the access link, and again 1 hour before.
-        </p>
-      </div>`;
-
-  const entrySteps = `
-        <ol style="margin:0;padding:0 0 0 20px;color:#374151;line-height:1.7;font-size:14px;">
-          <li style="margin:0 0 6px;">Arrive at Colonial Town Center and look for the <strong>GLOBAL</strong> sign with <strong>3847</strong> displayed.</li>
-          <li style="margin:0 0 6px;">Facing the GLOBAL sign, go to the door on the <strong>left side</strong> of the building.</li>
-          <li style="margin:0 0 6px;">Find the <strong>black lockbox</strong> with the touchscreen keypad.</li>
-          <li style="margin:0 0 6px;">Tap the screen to wake it, then enter the code from the access page.</li>
-          <li style="margin:0 0 6px;">Open the lockbox and retrieve the <strong>magnetic key</strong>.</li>
-          <li style="margin:0 0 6px;">Tap the magnetic key on the sensor on the <strong>right side</strong> of the door.</li>
-          <li style="margin:0 0 6px;">Return the key to the lockbox immediately and close it.</li>
-          <li style="margin:0;">Inside, locate the remote labeled <strong>"Light"</strong> on the left wall. Left-side buttons turn lights on. Return the remote when done.</li>
-        </ol>`;
-
-  const beforeYouLeave = `
-        <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:14px;">
-          <li style="margin:0 0 6px;">Turn off all lights (right-side buttons on the light pad).</li>
-          <li style="margin:0 0 6px;">Place all trash bags on the back patio. No trash inside.</li>
-          <li style="margin:0 0 6px;">Restore tables and chairs to the original layout.</li>
-          <li style="margin:0 0 6px;">Take all personal items with you.</li>
-          <li style="margin:0;">Lock the door securely.</li>
-        </ul>`;
-
-  const afterYouLeave = `
-        <p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">
-          Head back to the same access page. Once your booking ends, it switches to show the <strong>Guest Report</strong> (a quick photo walkthrough so we can close out your reservation) and a quick review link. Same URL, same reservation number:
-        </p>
-        <p style="margin:10px 0 0;font-size:14px;line-height:1.5;">
-          <a href="https://orlandoeventvenue.org/accesscode" style="color:#14ADE6;text-decoration:none;font-weight:bold;">https://orlandoeventvenue.org/accesscode</a>
-        </p>
-        <p style="margin:10px 0 0;font-size:13px;line-height:1.6;color:#6B7280;">
-          You'll also get a short text reminder 24 hours later if you haven't left a review yet.
-        </p>`;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>You're Set: Access Instructions for Event Day | Orlando Event Venue</title>
-  <meta name="description" content="Fully paid. Here's how access works on event day, and what to do after.">
-</head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    Fully paid. Here's how access works on event day, and what to do after.
-  </div>
-  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
-      <h1 style="margin:0;font-size:24px;letter-spacing:.2px;line-height:1.25;">
-        You're <span style="color:#14ADE6;">Set</span>
-      </h1>
-      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
-        Orlando Event Venue
-      </p>
-    </div>
-    <div style="padding:28px;">
-      <p style="margin:0;font-size:16px;">
-        Hi <strong>${firstName}</strong>,
-      </p>
-      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        You're set. Final payment is in, your booking at Orlando Event Venue is fully paid, and we're looking forward to hosting you.
-      </p>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:18px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Payment Received
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          <tr>
-            <td style="padding:10px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Amount Paid</span><br>
-              <span style="font-size:18px;color:#0B0F19;font-weight:800;">${formatCurrency(booking.amount_paid)}</span>
-            </td>
-          </tr>
-        </table>
-      </div>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Your Booking
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          ${detailRow("Reservation #", booking.reservation_number)}
-          ${detailRow("Event Date", formattedDate)}
-          ${detailRow("Event Time", timeRange)}
-          ${detailRow("Booking Type", formattedBookingType)}
-          ${detailRow("Guests", String(booking.number_of_guests))}
-          ${detailRow("Event Type", formattedEventType)}
-        </table>
-      </div>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Payment Summary
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          ${detailRow("Total", formatCurrency(booking.total_amount))}
-          ${detailRow("First 50%", formatCurrency(booking.deposit_amount))}
-          ${detailRow("Second 50%", formatCurrency(booking.balance_amount))}
-          <tr>
-            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Status</span><br>
-              <span style="display:inline-block;margin-top:6px;font-size:12px;font-weight:800;padding:6px 10px;border-radius:999px;background:rgba(20,173,230,.10);color:#14ADE6;border:1px solid rgba(20,173,230,.25);">
-                Fully Paid
-              </span>
-            </td>
-          </tr>
-        </table>
-      </div>
-      ${accessCard}
-      ${card("Entry Steps (once you have the code from the access page)", entrySteps)}
-      ${card("Before You Leave", beforeYouLeave)}
-      ${card("After You Leave", afterYouLeave)}
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.65;color:#374151;">
-        If anything needs to change before event day, reply here.
-      </p>
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
-        Reservation #: <strong>${booking.reservation_number}</strong><br>
-        Orlando Event Venue Team<br>
-        <strong>407-974-5979</strong><br>
-        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
-        orlandoeventvenue@gmail.com<br>
-        3847 E Colonial Dr, Orlando, FL 32803
-      </p>
-    </div>
-    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
-      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
-      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
-      <p style="margin:6px 0 0;">(407) 974-5979</p>
-      <p style="margin:10px 0 0;">Please keep this email for your records.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+  return emailShell({
+    title: "Your Event Is Fully Paid",
+    preview: "No further payment is needed. Here is how to get ready.",
+    body,
+    footerNote: "Itemized receipt is attached as PDF.",
+  });
 }
 
 async function generateBalanceReceiptPDF(booking: BalanceEmailData, processingFeePct: number): Promise<Uint8Array> {
@@ -510,14 +403,7 @@ serve(async (req) => {
       console.error("Failed to fetch processing fee, using default 3.5%:", e);
     }
 
-    // denomailer 1.6.0's quoted-printable encoder turns whitespace-only lines into a
-    // literal "=20" that renders as visible junk in the email. Our template produces
-    // whitespace-only lines from indentation around ${...} interpolations. Strip
-    // trailing whitespace per line so the encoder never sees a whitespace-only line.
-    const emailHTML = generateEmailHTML(booking)
-      .split("\n")
-      .map((line) => line.replace(/[ \t]+$/, ""))
-      .join("\n");
+    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking));
 
     let pdfBase64: string | null = null;
     try {
@@ -542,8 +428,8 @@ serve(async (req) => {
       // lines WITHOUT a leading-whitespace fold ("...Ven=\r\nue?="). That malformed header
       // makes Gmail treat the rest of the headers as body and render the whole MIME as raw
       // text. ASCII subjects stay on one valid line.
-      subject: `You're Set - Access Instructions for Event Day | Orlando Event Venue`,
-      content: "You're set. Please view this email in an HTML-compatible email client.",
+      subject: `Your Event Is Fully Paid`,
+      content: "Your final payment is in. Your event is fully paid, and there is nothing more to pay. Please view this email in an HTML-compatible email client.",
       html: emailHTML,
       attachments: pdfBase64
         ? [

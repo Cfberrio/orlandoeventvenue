@@ -1,6 +1,21 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {
+  BRAND,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  linkButton,
+  numberedList,
+  para,
+  referenceModule,
+  signature,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -74,124 +89,56 @@ function formatDate(dateString: string): string {
 
 const REVIEW_LINK = "https://g.page/r/CU-yUA0El90UEAE/review";
 
+const SUBJECT = "Thank You for Hosting. One Quick Step to Close Out Your Event";
+
 /**
  * Generate Guest Feedback Email HTML
  */
 function generateGuestFeedbackHTML(reservationNumber: string, guestName: string, eventDate: string): string {
   const formattedDate = formatDate(eventDate);
   const reportUrl = `https://orlandoeventvenue.org/accesscode`;
+  const safeName = escapeHtml(guestName);
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Guest Report Required | Orlando Event Venue</title>
-  <meta name="description" content="There's one final step remaining after your event.">
-</head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    There's one final step remaining after your event.
-  </div>
-  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
-      <h1 style="margin:0;font-size:24px;letter-spacing:.2px;line-height:1.25;">
-        Guest Report <span style="color:#14ADE6;">Required</span>
-      </h1>
-      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
-        Orlando Event Venue
-      </p>
-    </div>
-    <div style="padding:28px;">
-      <p style="margin:0;font-size:16px;">
-        Hi <strong>${guestName}</strong>,
-      </p>
-      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        We hope your event went well.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        To officially close out your reservation, please complete your <strong>Guest Report</strong>.
-      </p>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:18px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Reservation Details
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          <tr>
-            <td style="padding:10px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Reservation #</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${reservationNumber}</span>
-            </td>
-          </tr>
-          <tr>
-            <td style="padding:10px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">Event Date</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${formattedDate}</span>
-            </td>
-          </tr>
-        </table>
-      </div>
-      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Complete Your Guest Report Here
-        </p>
-        <div style="text-align:center;margin:10px 0 8px;">
-          <a href="${reportUrl}"
-             style="display:inline-block;background:#14ADE6;color:#0B0F19;text-decoration:none;padding:14px 30px;border-radius:10px;font-size:16px;font-weight:bold;letter-spacing:.2px;">
-            Complete Guest Report
-          </a>
-        </div>
-        <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
-          If the button doesn't work, copy and paste this link into your browser:<br>
-          <span style="word-break:break-all;color:#14ADE6;">${reportUrl}</span>
-        </p>
-      </div>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">
-          This report takes about <strong>2 to 3 minutes</strong> and includes photos or videos of the front door, main area, tables/chairs, bathrooms, and kitchen, plus a few final checkboxes.
-        </p>
-        <p style="margin:12px 0 0;font-size:14px;line-height:1.65;color:#374151;">
-          After submitting, please reply <strong>DONE</strong> to this email.
-        </p>
-        <p style="margin:12px 0 0;font-size:14px;line-height:1.65;color:#374151;">
-          If you had any issues, reply here and let us know.
-        </p>
-      </div>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Optional Review
-        </p>
-        <p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">
-          If you have a moment, we'd appreciate a quick review of your experience.
-        </p>
-        <div style="text-align:center;margin:12px 0 0;">
-          <a href="${REVIEW_LINK}"
-             style="display:inline-block;background:#FFFFFF;color:#14ADE6;text-decoration:none;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:bold;border:1px solid rgba(20,173,230,.45);">
-            Leave a Review
-          </a>
-        </div>
-        <p style="margin:10px 0 0;font-size:12px;line-height:1.45;color:#6B7280;text-align:center;">
-          Or copy/paste: <span style="word-break:break-all;color:#14ADE6;">${REVIEW_LINK}</span>
-        </p>
-      </div>
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
-        Orlando Event Venue Team<br>
-        <strong>407-974-5979</strong><br>
-        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
-        orlandoeventvenue@gmail.com<br>
-        3847 E Colonial Dr, Orlando, FL 32803
-      </p>
-    </div>
-    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
-      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
-      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
-      <p style="margin:6px 0 0;">(407) 974-5979</p>
-      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
+  // section S06. Do not reword — design carries emphasis, never the wording.
+  const body =
+    heroModule({
+      display: displayTitle(SUBJECT, { size: 32 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${safeName}</strong>,</p>` +
+      para(`Thank you for choosing Orlando Event Venue, and thank you for trusting us to host your event. It genuinely means a lot.`) +
+      para(`Now that your reservation has ended, there is one last step: your Guest Report. It is how we confirm the venue was closed out properly, and it takes about two minutes on your Event Page:`) +
+      linkButton(reportUrl) +
+      para(`Before you submit, just make sure:`) +
+      numberedList([
+        `Everyone has left.`,
+        `The lights are off.`,
+        `The trash is on the back patio with nothing left inside.`,
+        `The tables and chairs are back in their original arrangement.`,
+        `The prep kitchen and both bathrooms are checked.`,
+        `Your personal items and equipment are cleared.`,
+        `The entrance is locked.`,
+      ]) +
+      para(`Then upload a few quick photos. The report shows you exactly which ones.`) +
+      para(`Your reservation stays open until we receive it, so please complete it while you are still on site if you can.`) +
+      para(`One more thing. If your event went well, an honest Google review is the single biggest way you can help future hosts find us. We would be grateful:`) +
+      linkButton(REVIEW_LINK) +
+      para(`Thank you again for hosting with us.`) +
+      signature({ phone: true }),
+    ) +
+    gap() +
+    referenceModule([
+      ["Reservation Number", escapeHtml(reservationNumber)],
+      ["Event Date", formattedDate],
+    ]);
+
+  return emailShell({
+    title: SUBJECT,
+    preview: "Submit your Guest Report and tell us how it went.",
+    body,
+  });
 }
 
 serve(async (req) => {
@@ -282,16 +229,16 @@ serve(async (req) => {
       },
     });
 
-    const emailHTML = generateGuestFeedbackHTML(
+    const emailHTML = sanitizeForSmtp(generateGuestFeedbackHTML(
       booking.reservation_number,
       booking.full_name,
       booking.event_date
-    );
+    ));
 
     await client.send({
       from: gmailUser,
       to: booking.email,
-      subject: `Guest Report Needed to Close Out Your Reservation | Orlando Event Venue`,
+      subject: SUBJECT,
       content: "Please view this email in an HTML-compatible email client.",
       html: emailHTML,
     });

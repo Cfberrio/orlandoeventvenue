@@ -1,6 +1,21 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  BRAND,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  linkButton,
+  numberedList,
+  para,
+  referenceModule,
+  sanitizeForSmtp,
+  signature,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -50,105 +65,56 @@ function formatBookingType(bookingType: string): string {
 
 function generateE01HTML(booking: ExternalBookingRow): string {
   // full_name for externals is "Real Name - External": first word = real first name
-  const firstName = (booking.full_name || "there").split(" ")[0];
+  const firstName = escapeHtml((booking.full_name || "there").split(" ")[0]);
   const formattedDate = booking.event_date ? formatDate(booking.event_date) : "";
   const eventTime = booking.start_time && booking.end_time
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
     : "All Day";
-  const formattedEventType = booking.event_type ? formatEventType(booking.event_type) : "";
+  const formattedEventType = booking.event_type ? escapeHtml(formatEventType(booking.event_type)) : "";
   const formattedBookingType = booking.booking_type ? formatBookingType(booking.booking_type) : "";
+  const reservationNumber = escapeHtml(booking.reservation_number || "");
 
-  const detailRow = (label: string, value: string) => `
-          <tr>
-            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">${label}</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${value}</span>
-            </td>
-          </tr>`;
+  const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Your Orlando Event Venue Booking Is Confirmed</title>
-  <meta name="description" content="We have your reservation. Here is what happens next.">
-</head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    We have your reservation. Here is what happens next.
-  </div>
-  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
-      <h1 style="margin:0;font-size:24px;letter-spacing:.2px;line-height:1.25;">
-        Booking <span style="color:#14ADE6;">Confirmed</span>
-      </h1>
-      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
-        Orlando Event Venue
-      </p>
-    </div>
-    <div style="padding:28px;">
-      <p style="margin:0;font-size:16px;">
-        Hi <strong>${firstName}</strong>,
-      </p>
-      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Your booking at Orlando Event Venue is confirmed, and we are looking forward to hosting you.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Your payment is handled through the company or platform where you reserved, so there is nothing to pay us directly. On our side, we take care of everything about the event itself: your planning, venue access, event day support, closing, and Guest Report.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        About a month out, we will check in on the few details that affect how we prepare the space:
-      </p>
-      <ul style="margin:8px 0 0;padding-left:22px;font-size:15px;line-height:1.65;color:#374151;">
-        <li>Whether alcohol will be served.</li>
-        <li>Any audio and visual needs.</li>
-        <li>Any additional services you would like to add.</li>
-      </ul>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Everything else is in your hands, so that is all we will ask about.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        The most useful thing to do today is save your Event Page. It is the single place that holds your venue instructions, live door code, Wifi, venue rules, the Before You Leave checklist, and your Guest Report:
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;">
-        <a href="https://orlandoeventvenue.org/accesscode" style="color:#14ADE6;font-weight:bold;">orlandoeventvenue.org/accesscode</a>
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Enter your reservation number when prompted. Your live door code appears there one hour before your event begins.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Questions or changes? Reply here or call 407 974 5979.
-      </p>
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
-        Luis and the Orlando Event Venue Team<br>
-        <strong>407 974 5979</strong><br>
-        orlandoeventvenue@gmail.com
-      </p>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:18px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          For Reference
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          ${detailRow("Reservation Number", booking.reservation_number || "")}
-          ${detailRow("Event Date", formattedDate)}
-          ${detailRow("Event Time", eventTime)}
-          ${detailRow("Event Type", formattedEventType)}
-          ${detailRow("Booking Type", formattedBookingType)}
-          ${detailRow("Guest Count", String(booking.number_of_guests ?? ""))}
-        </table>
-      </div>
-    </div>
-    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
-      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
-      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
-      <p style="margin:6px 0 0;">(407) 974-5979</p>
-      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
+  // section E01. Do not reword — design carries emphasis, never the wording.
+  const body =
+    heroModule({
+      display: displayTitle("Your Orlando Event Venue Booking Is Confirmed", { size: 34 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(`Your booking at Orlando Event Venue is confirmed, and we are looking forward to hosting you.`) +
+      para(`Your payment is handled through the company or platform where you reserved, so there is nothing to pay us directly. On our side, we take care of everything about the event itself: your planning, venue access, event day support, closing, and Guest Report.`) +
+      para(`About a month out, we will check in on the few details that affect how we prepare the space:`) +
+      numberedList([
+        `Whether alcohol will be served.`,
+        `Any audio and visual needs.`,
+        `Any additional services you would like to add.`,
+      ]) +
+      para(`Everything else is in your hands, so that is all we will ask about.`) +
+      para(`The most useful thing to do today is save your Event Page. It is the single place that holds your venue instructions, live door code, Wifi, venue rules, the Before You Leave checklist, and your Guest Report:`) +
+      linkButton(accessCodeUrl) +
+      para(`Enter your reservation number when prompted. Your live door code appears there one hour before your event begins.`) +
+      para(`Questions or changes? Reply here or call 407 974 5979.`) +
+      signature(),
+    ) +
+    gap() +
+    referenceModule([
+      ["Reservation Number", reservationNumber],
+      ["Event Date", formattedDate],
+      ["Event Time", eventTime],
+      ["Event Type", formattedEventType],
+      ["Booking Type", formattedBookingType],
+      ["Guest Count", String(booking.number_of_guests ?? "")],
+    ]);
+
+  return emailShell({
+    title: "Your Orlando Event Venue Booking Is Confirmed",
+    preview: "We have your reservation. Here is what happens next.",
+    body,
+  });
 }
 
 /**
@@ -240,10 +206,7 @@ serve(async (req) => {
 
     // Strip trailing whitespace per line: denomailer's quoted-printable encoder
     // renders whitespace-only lines as a literal "=20" in the email body.
-    const emailHTML = generateE01HTML(booking as ExternalBookingRow)
-      .split("\n")
-      .map((line) => line.replace(/[ \t]+$/, ""))
-      .join("\n");
+    const emailHTML = sanitizeForSmtp(generateE01HTML(booking as ExternalBookingRow));
 
     await client.send({
       from: gmailUser,

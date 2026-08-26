@@ -3,6 +3,18 @@ import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import {
+  BRAND,
+  detailTable,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  para,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
@@ -434,62 +446,46 @@ serve(async (req) => {
             const receiptLineItems = feeAmt > 0
               ? [...baseLineItems, { label: `Processing Fee (${feePct}%)`, amount: feeAmt }]
               : baseLineItems;
-            const receiptItemRows = receiptLineItems.map((item: { label: string; amount: number }) =>
-              `<tr>
-<td style="padding:8px 0;color:#374151;font-size:14px;">${item.label}</td>
-<td style="padding:8px 0;text-align:right;font-size:14px;"><strong>$${Number(item.amount).toFixed(2)}</strong></td>
-</tr>`
-            ).join("");
+            const receiptRows: Array<[string, string]> = receiptLineItems.map(
+              (item: { label: string; amount: number }) =>
+                [escapeHtml(item.label), `$${Number(item.amount).toFixed(2)}`] as [string, string],
+            );
+            receiptRows.push(["Total Paid", amtFormatted]);
             const descBlock = inv.description
-              ? `<p style="margin:15px 0 0;font-size:14px;color:#666;line-height:1.6;">${inv.description}</p>`
+              ? `<p style="margin:0 0 12px;font-size:14px;color:${BRAND.muted};line-height:1.6;">${escapeHtml(inv.description)}</p>`
               : "";
+
+            const customerBody =
+              heroModule({
+                display: displayTitle("Payment Confirmation", { size: 36 }),
+              }) +
+              gap() +
+              textModule(
+                `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${escapeHtml(custName)}</strong>,</p>` +
+                para(`Thank you for your payment! Your invoice has been successfully processed. Here's a summary of your transaction:`) +
+                `<div style="background:${BRAND.softBlue};border-radius:14px;padding:22px;text-align:center;margin:22px 0 0;">` +
+                `<p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:${BRAND.accentDeep};text-transform:uppercase;letter-spacing:1.5px;">Payment Complete</p>` +
+                `<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:32px;font-weight:bold;color:${BRAND.success};">${amtFormatted}</p>` +
+                `</div>` +
+                `<p style="margin:20px 0 4px;font-size:20px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;color:${BRAND.ink};">${escapeHtml(inv.title)}</p>` +
+                descBlock +
+                detailTable(receiptRows) +
+                para(`Please keep this email as your receipt. If you have any questions, simply reply to this email and we'll be happy to help.`) +
+                para(`<strong>Orlando Event Venue</strong>`),
+              );
+
+            const customerHTML = sanitizeForSmtp(emailShell({
+              title: "Payment Confirmation",
+              preview: `Thank you for your payment of ${amtFormatted}. Invoice ${inv.invoice_number} is now paid.`,
+              body: customerBody,
+            }));
 
             await smtpClient.send({
               from: gmailUser,
               to: inv.customer_email,
               subject: `Payment Confirmation: ${inv.invoice_number} | Orlando Event Venue`,
               content: `Thank you for your payment of ${amtFormatted} for "${inv.title}". Invoice ${inv.invoice_number} is now paid.`,
-              html: `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-<h1 style="margin:0;font-size:28px;letter-spacing:1px;">PAYMENT CONFIRMATION</h1>
-<p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-<p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">Reference: ${inv.invoice_number}</p>
-</div>
-<div style="padding:30px;">
-<p style="margin:0;font-size:16px;">Hi <strong>${custName}</strong>,</p>
-<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Thank you for your payment! Your invoice has been successfully processed. Here's a summary of your transaction:</p>
-<div style="background:#ecfdf5;border:2px solid #10b981;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
-<p style="margin:0 0 6px;font-size:12px;color:#065f46;text-transform:uppercase;letter-spacing:1px;">Payment Complete</p>
-<p style="margin:0;font-size:32px;font-weight:bold;color:#059669;">${amtFormatted}</p>
-</div>
-<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
-<h2 style="margin:0 0 4px;font-size:20px;color:#111827;">${inv.title}</h2>
-${descBlock}
-<table width="100%" style="margin:16px 0 0;border-collapse:collapse;">
-<tr style="border-bottom:1px solid #e5e7eb;">
-<td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
-<td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
-</tr>
-${receiptItemRows}
-<tr style="border-top:2px solid #111827;">
-<td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Paid</td>
-<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#059669;">${amtFormatted}</td>
-</tr>
-</table>
-</div>
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">Please keep this email as your receipt. If you have any questions, simply reply to this email and we'll be happy to help.</p>
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
-</div>
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
-</div></body></html>`,
+              html: customerHTML,
             });
 
             await smtpClient.close();

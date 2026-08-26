@@ -3,6 +3,19 @@ import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import {
+  BRAND,
+  detailTable,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  para,
+  primaryButton,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -33,7 +46,7 @@ function buildInvoiceEmailHTML(
   totalAmount: string,
   paymentUrl: string
 ): string {
-  const firstName = customerName.split(" ")[0];
+  const firstName = escapeHtml(customerName.split(" ")[0]);
   const formattedDate = new Date(eventDate).toLocaleDateString("en-US", {
     weekday: "long",
     year: "numeric",
@@ -41,80 +54,39 @@ function buildInvoiceEmailHTML(
     day: "numeric",
   });
 
-  const itemRows = lineItems
-    .map(
-      (item) =>
-        `<tr>
-<td style="padding:8px 0;color:#666;">${item.label}</td>
-<td style="padding:8px 0;text-align:right;"><strong>${item.amount}</strong></td>
-</tr>`
-    )
-    .join("");
+  const detailRows: Array<[string, string]> = [
+    ["Service", "Amount"],
+    ...lineItems.map((item) => [escapeHtml(item.label), escapeHtml(item.amount)] as [string, string]),
+    ["Total Due", totalAmount],
+  ];
 
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+  const body =
+    heroModule({
+      display: displayTitle("Additional Services", { size: 36 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(
+        `Great news! Additional services have been added to your event on <strong>${formattedDate}</strong>. Here's a quick breakdown of what's been included:`,
+      ) +
+      detailTable(detailRows) +
+      para(
+        `To confirm these add-ons, please complete payment using the button below. Once paid, everything will be set for your event day!`,
+      ) +
+      primaryButton("Complete Payment", paymentUrl) +
+      `<p style="margin:14px 0 0;font-size:11.5px;line-height:1.5;color:${BRAND.muted};text-align:center;font-family:Arial,Helvetica,sans-serif;">If the button doesn't work, copy and paste this link:<br><a href="${paymentUrl}" style="word-break:break-all;color:${BRAND.accent};text-decoration:none;">${paymentUrl}</a></p>` +
+      para(
+        `If you have any questions about these services, just reply to this email and we'll be happy to help.`,
+      ) +
+      para(`<strong>Orlando Event Venue Team</strong>`),
+    );
 
-<div style="background:#111827;padding:30px;color:white;">
-<h1 style="margin:0;font-size:24px;">Additional Services</h1>
-<p style="margin:10px 0 0;">We've added new services to your upcoming event.</p>
-<p style="margin:10px 0 0;font-size:12px;">Reservation ${reservationNumber}</p>
-</div>
-
-<div style="padding:30px;">
-
-<p style="margin:0;">Hi <strong>${firstName}</strong>,</p>
-
-<p style="margin:15px 0;font-size:15px;line-height:1.6;">
-Great news! Additional services have been added to your event on <strong>${formattedDate}</strong>. Here's a quick breakdown of what's been included:
-</p>
-
-<table width="100%" style="margin:20px 0;border-collapse:collapse;">
-<tr style="border-bottom:1px solid #ddd;">
-<td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
-<td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
-</tr>
-${itemRows}
-<tr style="border-top:2px solid #111827;">
-<td style="padding:12px 0;font-weight:bold;font-size:16px;">Total Due</td>
-<td style="padding:12px 0;text-align:right;font-weight:bold;font-size:16px;">${totalAmount}</td>
-</tr>
-</table>
-
-<p style="margin:20px 0;font-size:15px;line-height:1.6;">
-To confirm these add-ons, please complete payment using the button below. Once paid, everything will be set for your event day!
-</p>
-
-<div style="text-align:center;margin:30px 0;">
-<a href="${paymentUrl}" style="display:inline-block;background:#0284c7;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Complete Payment</a>
-</div>
-
-<p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">
-If the button doesn't work, copy and paste this link:<br/>
-<a href="${paymentUrl}" style="color:#0284c7;word-break:break-all;">${paymentUrl}</a>
-</p>
-
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;">
-If you have any questions about these services, just reply to this email and we'll be happy to help.
-</p>
-
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue Team</strong></p>
-
-</div>
-
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email, please keep it for your records.</p>
-</div>
-
-</div>
-</body>
-</html>`;
+  return emailShell({
+    title: "Additional Services",
+    preview: "We've added new services to your upcoming event.",
+    body,
+  });
 }
 
 serve(async (req: Request) => {
@@ -363,14 +335,14 @@ serve(async (req: Request) => {
 
         const totalWithFeeCents = baseAmountCents + feeCents;
         const totalFormatted = `$${(totalWithFeeCents / 100).toFixed(2)}`;
-        const emailHTML = buildInvoiceEmailHTML(
+        const emailHTML = sanitizeForSmtp(buildInvoiceEmailHTML(
           customer_name,
           reservation_number,
           event_date,
           emailLineItems,
           totalFormatted,
           session.url
-        );
+        ));
 
         await client.send({
           from: gmailUser,

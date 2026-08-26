@@ -3,6 +3,20 @@ import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import {
+  BRAND,
+  detailTable,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  para,
+  primaryButton,
+  referenceModule,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,86 +44,47 @@ function buildInvoiceEmailHTML(
   totalAmount: string,
   paymentUrl: string
 ): string {
-  const firstName = customerName ? customerName.split(" ")[0] : "Customer";
-  const descBlock = description
-    ? `<p style="margin:15px 0 0;font-size:14px;color:#666;line-height:1.6;">${description}</p>`
-    : "";
+  const firstName = escapeHtml(customerName ? customerName.split(" ")[0] : "Customer");
+  const safeTitle = escapeHtml(title);
 
-  const itemRows = lineItems
-    .map(
-      (item) =>
-        `<tr>
-<td style="padding:8px 0;color:#374151;font-size:14px;">${item.label}</td>
-<td style="padding:8px 0;text-align:right;font-size:14px;"><strong>$${Number(item.amount).toFixed(2)}</strong></td>
-</tr>`
-    )
-    .join("");
+  // Copy restored verbatim from the pre-redesign template. Only the layout
+  // changed — do not reword, add or remove a visible phrase.
+  const detailRows: Array<[string, string]> = [
+    ["Service", "Amount"],
+    ...lineItems.map(
+      (item) => [escapeHtml(item.label), `$${Number(item.amount).toFixed(2)}`] as [string, string],
+    ),
+    ["Total Due", totalAmount],
+  ];
 
-  return `<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+  const body =
+    heroModule({
+      display: displayTitle("Invoice", { size: 42 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(
+        `You have a new invoice from Orlando Event Venue. Please review the details below and complete your payment at your earliest convenience.`,
+      ) +
+      `<p style="margin:22px 0 0;font-size:20px;font-weight:bold;font-family:Arial,Helvetica,sans-serif;color:${BRAND.ink};">${safeTitle}</p>` +
+      (description ? para(escapeHtml(description)) : "") +
+      `<div style="margin:16px 0 0;">${detailTable(detailRows)}</div>` +
+      primaryButton("Pay Now", paymentUrl) +
+      `<p style="margin:14px 0 0;font-size:11.5px;line-height:1.5;color:${BRAND.muted};text-align:center;font-family:Arial,Helvetica,sans-serif;">If the button doesn't work, copy and paste this link:<br><a href="${paymentUrl}" style="word-break:break-all;color:${BRAND.accent};text-decoration:none;">${paymentUrl}</a></p>` +
+      para(
+        `If you have any questions about this invoice, simply reply to this email and we'll be happy to help.`,
+      ) +
+      para(`<strong>Orlando Event Venue</strong>`),
+    ) +
+    gap() +
+    referenceModule([["Reference", escapeHtml(invoiceNumber)]]);
 
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-  <h1 style="margin:0;font-size:28px;letter-spacing:1px;">INVOICE</h1>
-  <p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-  <p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">Reference: ${invoiceNumber}</p>
-</div>
-
-<div style="padding:30px;">
-
-<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
-
-<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">
-You have a new invoice from Orlando Event Venue. Please review the details below and complete your payment at your earliest convenience.
-</p>
-
-<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
-  <h2 style="margin:0 0 4px;font-size:20px;color:#111827;">${title}</h2>
-  ${descBlock}
-
-  <table width="100%" style="margin:16px 0 0;border-collapse:collapse;">
-    <tr style="border-bottom:1px solid #e5e7eb;">
-      <td style="padding:8px 0;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Service</td>
-      <td style="padding:8px 0;text-align:right;color:#666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Amount</td>
-    </tr>
-    ${itemRows}
-    <tr style="border-top:2px solid #111827;">
-      <td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td>
-      <td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#111827;">${totalAmount}</td>
-    </tr>
-  </table>
-</div>
-
-<div style="text-align:center;margin:30px 0;">
-  <a href="${paymentUrl}" style="display:inline-block;background:#0284c7;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Now</a>
-</div>
-
-<p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">
-If the button doesn't work, copy and paste this link:<br/>
-<a href="${paymentUrl}" style="color:#0284c7;word-break:break-all;">${paymentUrl}</a>
-</p>
-
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">
-If you have any questions about this invoice, simply reply to this email and we'll be happy to help.
-</p>
-
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
-
-</div>
-
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
-
-</div>
-</body>
-</html>`;
+  return emailShell({
+    title: `Invoice ${invoiceNumber}`,
+    preview: "You have a new invoice from Orlando Event Venue.",
+    body,
+  });
 }
 
 serve(async (req: Request) => {
@@ -289,7 +264,7 @@ serve(async (req: Request) => {
             ? [...rawLineItems, { label: FEE_LABEL, amount: feeCents / 100 }]
             : [{ label: invoice.title, amount: Number(invoice.amount) }, { label: FEE_LABEL, amount: feeCents / 100 }];
 
-        const emailHTML = buildInvoiceEmailHTML(
+        const emailHTML = sanitizeForSmtp(buildInvoiceEmailHTML(
           customer_name || invoice.customer_name || "Customer",
           invoice.invoice_number,
           invoice.title,
@@ -297,7 +272,7 @@ serve(async (req: Request) => {
           emailLineItems,
           totalWithFeeFormatted,
           session.url
-        );
+        ));
 
         await client.send({
           from: gmailUser,

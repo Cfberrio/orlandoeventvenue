@@ -1,6 +1,19 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {
+  BRAND,
+  CONTACT,
+  detailTable,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  para,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,64 +45,35 @@ function generateCancellationEmailHTML(booking: BookingData): string {
     day: 'numeric'
   });
 
-  return `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-</head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;">
+  const body =
+    heroModule({
+      display: displayTitle("Booking Cancelled", { color: BRAND.danger, size: 38 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hello <strong>${escapeHtml(firstName)}</strong>,</p>` +
+      para(`Your booking at Orlando Event Venue has been cancelled.`) +
+      `<p style="margin:20px 0 10px;font-family:Arial,Helvetica,sans-serif;font-size:12px;font-weight:bold;color:${BRAND.muted};text-transform:uppercase;letter-spacing:1px;">Cancelled Booking Details</p>` +
+      detailTable([
+        ["Reservation", escapeHtml(booking.reservation_number)],
+        ["Event Date", eventDate],
+        ["Event Type", escapeHtml(booking.event_type)],
+      ]) +
+      para(`If you have any questions or would like to rebook, please contact us:`) +
+      para(
+        `<strong>Email:</strong> <a href="mailto:${CONTACT.email}" style="color:${BRAND.accent};text-decoration:none;">${CONTACT.email}</a><br>` +
+        `<strong>Phone:</strong> <a href="tel:+14079745979" style="color:${BRAND.accent};text-decoration:none;">${CONTACT.phone}</a>`,
+      ) +
+      para(`We are sorry to see your booking cancelled. We hope to serve you in the future.`) +
+      para(`<strong>Orlando Event Venue Team</strong>`),
+    );
 
-<div style="background:#dc2626;padding:30px;text-align:center;color:white;">
-<h1 style="margin:0;font-size:24px;">Booking Cancelled</h1>
-<p style="margin:10px 0 0;">Reservation ${booking.reservation_number}</p>
-</div>
-
-<div style="padding:30px;">
-
-<p style="margin:0;">Hello <strong>${firstName}</strong>,</p>
-
-<p style="margin:15px 0;">
-Your booking at Orlando Event Venue has been cancelled.
-</p>
-
-<div style="background:#f9fafb;border:1px solid #ddd;padding:20px;margin:20px 0;">
-<p style="margin:0 0 10px;font-weight:bold;color:#666;">CANCELLED BOOKING DETAILS</p>
-<p style="margin:5px 0;"><strong>Reservation:</strong> ${booking.reservation_number}</p>
-<p style="margin:5px 0;"><strong>Event Date:</strong> ${eventDate}</p>
-<p style="margin:5px 0;"><strong>Event Type:</strong> ${booking.event_type}</p>
-</div>
-
-<p style="margin:20px 0 10px;">
-If you have any questions or would like to rebook, please contact us:
-</p>
-
-<div style="background:#eff6ff;border:1px solid #bfdbfe;padding:15px;margin:0 0 20px;">
-<p style="margin:5px 0;color:#1e40af;"><strong>Email:</strong> orlandoglobalministries@gmail.com</p>
-<p style="margin:5px 0;color:#1e40af;"><strong>Phone:</strong> (407) 555-0123</p>
-</div>
-
-<p style="margin:20px 0 10px;">
-We are sorry to see your booking cancelled. We hope to serve you in the future.
-</p>
-
-<p style="margin:10px 0 0;">
-<strong>Orlando Event Venue Team</strong>
-</p>
-
-</div>
-
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;text-align:center;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated notification.</p>
-</div>
-
-</div>
-</body>
-</html>`;
+  return emailShell({
+    title: "Booking Cancelled",
+    preview: `Your booking at Orlando Event Venue has been cancelled.`,
+    body,
+    accent: BRAND.danger,
+  });
 }
 
 serve(async (req) => {
@@ -241,7 +225,7 @@ serve(async (req) => {
           },
         });
 
-        const emailHTML = generateCancellationEmailHTML(booking as BookingData);
+        const emailHTML = sanitizeForSmtp(generateCancellationEmailHTML(booking as BookingData));
 
         await client.send({
           from: gmailUser,

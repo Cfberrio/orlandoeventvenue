@@ -1,5 +1,22 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import {
+  BRAND,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  linkButton,
+  numberedList,
+  para,
+  referenceModule,
+  sanitizeForSmtp,
+  signature,
+  textModule,
+} from "../_shared/email-layout.ts";
+
+const REMINDER_SUBJECT = "Your Event Access Page";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,149 +73,67 @@ function getTomorrowDate(): string {
  */
 function buildReminderHTML(block: BlockWithBooking, date: string): string {
   const booking = block.bookings;
-  const firstName = booking.full_name.split(' ')[0];
-  
+  const firstName = escapeHtml(booking.full_name.split(' ')[0]);
+
   const timeInfo = block.block_type === "hourly" && block.start_time && block.end_time
     ? `${formatTime(block.start_time)} - ${formatTime(block.end_time)}`
     : "All day";
-  
+
   const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
-  const reservationNumber = (booking as { reservation_number?: string }).reservation_number;
-  const reservationLine = reservationNumber
-    ? `\n\nYour reservation number: ${reservationNumber}`
-    : "";
+  const rawReservationNumber = (booking as { reservation_number?: string }).reservation_number;
+  const reservationNumber = rawReservationNumber ? escapeHtml(rawReservationNumber) : undefined;
 
-  const accessInstructions = `Orlando Event Venue: Access Instructions & Rules
+  const referenceRows: Array<[string, string]> = [];
+  if (reservationNumber) referenceRows.push(["Reservation Number", reservationNumber]);
+  referenceRows.push(
+    ["Event Date", formatDate(date)],
+    ["Event Time", timeInfo],
+    ["Event Type", escapeHtml(formatEventType(booking.event_type))],
+    ["Guest Count", String(booking.number_of_guests)],
+  );
 
-Welcome to Orlando Event Venue!
-3847 E Colonial Dr, Orlando, FL 32803
+  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
+  // section S04. Access instructions live only on the Event Page — never here.
+  const body =
+    heroModule({
+      display: displayTitle(REMINDER_SUBJECT, { size: 38 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(`Your event is tomorrow.`) +
+      para(`Your door code and complete instructions for entering the venue are available only on your Event Page:`) +
+      linkButton(accessCodeUrl) +
+      para(`Enter your reservation number when prompted.`) +
+      para(`Your Event Page includes:`) +
+      numberedList([
+        `Your live door code when it becomes available.`,
+        `Complete instructions for entering the venue.`,
+        `Wifi information.`,
+        `The venue rules.`,
+        `Your Before You Leave checklist.`,
+        `Your Guest Report.`,
+      ]) +
+      para(`Your live door code will appear on the page one hour before your event begins.`) +
+      para(`Please make sure whoever arrives first has the Event Page link and your reservation number.`) +
+      para(`Need help? Call or text 407 974 5979.`) +
+      signature(),
+    ) +
+    gap() +
+    referenceModule(referenceRows);
 
-Wifi - User: TMOBILE-9371 / Password: 7km6r7y5ybn
+  return sanitizeForSmtp(emailShell({
+    title: REMINDER_SUBJECT,
+    preview: "Your door code and complete entry instructions will be available on your Event Page.",
+    body,
+  }));
+}
 
-Step-by-Step Venue Access:
-
-1. Locate the Entrance
-   Arrive at Colonial Event Space in Colonial Town Center. Look for the Global sign with the number 3847 displayed.
-
-2. Venue Entry & Lockbox Access
-   Facing the Global sign, go to the door on the left side of the building.
-   On the wall near the entrance, you will find a black lockbox with a touchscreen keypad.
-   Touch the screen first to light it up, then enter your access code.
-
-   👉 Get your current access code here: ${accessCodeUrl}${reservationLine}
-
-   Unlock the box and retrieve the Magnetic Key.
-
-3. Unlock the Door
-   Tap the magnetic key on the sensor (located on the right side of the door).
-   After unlocking, return the key to the lockbox and close it.
-
-4. Enter the Venue
-   Open the door and step inside.
-   On the left wall, locate the remote labeled "Light".
-   Point it at the lights and press the left-side buttons to turn them on.
-    Return the remote to its original spot after use.
- 
- Contact: Luis Torres 407-974-5979`;
-
-  return `
-<table style="margin:0;padding:28px 12px;" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f3f4f6">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="margin:0;padding:0;" align="center">
-<table style="max-width:680px;background:#ffffff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 12px 30px rgba(15,23,42,0.10);overflow:hidden;" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="background:linear-gradient(135deg,#111827,#1f2937);padding:22px 26px;color:#ffffff;text-align:left;font-family:Verdana,Arial,sans-serif;">
-<div style="padding-left: 0px!important;; padding-left: 0px!important;; padding-left: 0px!important;; font-size:18px;font-weight:800;letter-spacing:0.2px;margin:0;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Your Booking Starts Soon</strong></p>
-</div>
-<div style="padding-left: 0px!important;; padding-left: 0px!important;; padding-left: 0px!important;; margin-top:6px;font-size:13px;line-height:1.6;color:#e5e7eb;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Quick reminder: your booking starts soon. Here are access notes and details for your event.</p>
-</div>
-<table style="margin-top:12px;" cellpadding="0" cellspacing="0" border="0">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="background:#16a34a;color:#dcfce7;border-radius:999px;padding:6px 10px;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;font-weight:800;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Tomorrow</strong></p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-<tr>
-<td colspan="1" rowspan="1" style="padding:22px 26px 14px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;color:#111827;">
-<p style="margin:0px; line-height: 1.7;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">Hi <strong>${firstName}</strong>,</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px 0 12px 0;font-size: 14px;color: #374151;">We're excited to host you tomorrow. We hope you have an amazing event. Here's everything you need in one place so you can arrive confidently.</p>
-
-<table style="border:1px solid #e5e7eb;background:#ffffff;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="padding:14px 14px;">
-<div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Event Details</strong></p>
-</div>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Event:</strong> ${booking.event_type}</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Date:</strong> ${formatDate(date)}</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Time:</strong> ${timeInfo}</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Guests:</strong> ${booking.number_of_guests}</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-<table style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="padding:14px 14px;">
-<div style="padding-left: 0px!important;; font-size:12px;text-transform:uppercase;letter-spacing:0.10em;color:#6b7280;font-weight:800;margin:0 0 8px 0;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>Access / Arrival Notes</strong></p>
-</div>
-<div style="margin:0 0 14px 0;text-align:center;">
-<a href="${accessCodeUrl}" style="display:inline-block;background:#111827;color:#ffffff;text-decoration:none;font-weight:700;font-size:14px;padding:12px 22px;border-radius:8px;">🔑 Get Your Access Code</a>
-<p style="margin:8px 0 0 0;font-size:12px;color:#6b7280;">Enter your reservation number${reservationNumber ? ` <strong>${reservationNumber}</strong>` : ""} to view the current lockbox code.</p>
-</div>
-<div style="padding-left: 0px!important;; font-size:14px;line-height:1.75;color:#111827;white-space:pre-line;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;">${accessInstructions}</p>
-</div>
-
-</td>
-</tr>
-</tbody>
-</table>
-
-<table style="border:1px solid #e5e7eb;background:#f9fafb;border-radius:12px;margin:0 0 12px 0;" width="100%" cellpadding="0" cellspacing="0" border="0">
-<tbody>
-<tr>
-<td colspan="1" rowspan="1" style="padding:14px 14px;">
-<div style="padding-left: 0px!important;; font-size:14px;font-weight:900;margin:0 0 8px 0;color:#111827;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;"><strong>What happens next</strong></p>
-</div>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Arrive a few minutes early so you can start on time and maximize your booking window.</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Follow all venue rules to avoid fees.</p>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;">• Need help fast? Reply to this email and we'll help immediately.</p>
-</td>
-</tr>
-</tbody>
-</table>
-
-<div style="padding-left: 0px!important;; border-top:1px solid #e5e7eb;margin:16px 0;"></div>
-<p style="margin:0px; line-height: 1.75;padding-left: 0px!important;margin: 0px;font-size: 14px;color: #374151;"><strong>Orlando Event Venue Team</strong></p>
-</td>
-</tr>
-<tr>
-<td colspan="1" rowspan="1" style="padding:0 26px 20px 26px;text-align:left;font-family:Verdana,Arial,sans-serif;font-size:11px;line-height:1.6;color:#9ca3af;">
-<p style="margin:0px; padding-left: 0px!important;margin: 0px;">Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803<br>This is an automated email, please keep it for your records.</p>
-</td>
-</tr>
-</tbody>
-</table>
-</td>
-</tr>
-</tbody>
-</table>
-  `.trim();
+function formatEventType(eventType: string): string {
+  return eventType
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
 }
 
 /**
@@ -322,7 +257,7 @@ async function sendViaSendGrid(block: BlockWithBooking, htmlContent: string): Pr
       body: JSON.stringify({
         personalizations: [{
           to: [{ email: booking.email, name: booking.full_name }],
-          subject: "Orlando Event Venue: Starting Soon (Access Notes Inside)",
+          subject: REMINDER_SUBJECT,
         }],
         from: { email: fromEmail, name: "Orlando Event Venue" },
         content: [{

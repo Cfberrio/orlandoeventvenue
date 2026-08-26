@@ -3,6 +3,21 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
+import {
+  BRAND,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  linkButton,
+  numberedList,
+  para,
+  referenceModule,
+  signature,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,128 +177,51 @@ function formatEventType(eventType: string): string {
 }
 
 function generateEmailHTML(booking: BookingEmailData): string {
-  const firstName = booking.full_name.split(" ")[0];
+  const firstName = escapeHtml(booking.full_name.split(" ")[0]);
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
   const formattedEventType = formatEventType(booking.event_type);
 
-  const detailRow = (label: string, value: string) => `
-          <tr>
-            <td style="padding:8px 0;border-top:1px solid #E5E7EB;">
-              <span style="font-size:12px;color:#6B7280;">${label}</span><br>
-              <span style="font-size:14px;color:#111827;font-weight:bold;">${value}</span>
-            </td>
-          </tr>`;
+  const eventTime = booking.start_time && booking.end_time
+    ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
+    : "All Day";
 
-  const card = (title: string, body: string) => `
-      <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:16px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">${title}</p>
-        ${body}
-      </div>`;
+  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
+  // section I01. Do not reword — design carries emphasis, never the wording.
+  const body =
+    heroModule({
+      display: displayTitle("We Received Your First Payment", { size: 34 }),
+    }) +
+    gap() +
+    textModule(
+      `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
+      para(`Thank you. We have received your first fifty percent, and your booking is now with our team for review.`) +
+      numberedList([
+        `We take a quick look at the timing, guest count, and venue setup to make sure everything about your event will run smoothly, and we will be back in touch within about 24 hours to confirm.`,
+        `Until you hear from us, please hold off on sending invitations or making any arrangements you cannot get back. And if anything about your event has changed since you booked, just reply here so we review the right details.`,
+        `In the meantime, you can start getting familiar with your Event Page. It is the one place that will hold everything you need as your date gets closer. That includes your planning details, venue instructions, live door code on event day, the Before You Leave checklist, and your Guest Report:`,
+      ]) +
+      linkButton("https://orlandoeventvenue.org/accesscode") +
+      para(`Enter your reservation number when prompted.`) +
+      para(`We will reach out the moment your review is complete.`) +
+      signature({ phone: true, email: true }),
+    ) +
+    gap() +
+    referenceModule([
+      ["Reservation Number", escapeHtml(booking.reservation_number)],
+      ["Event Date", formattedDate],
+      ["Event Time", eventTime],
+      ["Event Type", formattedEventType],
+      ["Booking Type", formattedBookingType],
+      ["Guest Count", String(booking.number_of_guests)],
+    ]);
 
-  const includedList = `
-        <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:14px;">
-          <li>Up to 90 guests</li>
-          <li>10 tables + 90 chairs</li>
-          <li>Prep kitchen (staging + re-heating only, no on-site cooking)</li>
-          <li>2 bathrooms</li>
-          <li>Free parking</li>
-        </ul>`;
-
-  const agreementIntro = `
-        <p style="margin:0 0 10px;font-size:14px;line-height:1.65;color:#374151;">
-          By booking, you agree to these terms. We share them up front so there are no surprises. Cameras and noise sensors monitor the event; severe violations may terminate the event without refund.
-        </p>`;
-  const agreementList = `
-        <ul style="margin:0;padding:0 0 0 18px;color:#374151;line-height:1.7;font-size:13px;">
-          <li style="margin:0 0 6px;">Maximum 90 guests: $500. Local authorities may shut down the event.</li>
-          <li style="margin:0 0 6px;">Setup + breakdown = 50% of your booked time, combined. Overtime: $350/hour + $300 cleaning if not restored.</li>
-          <li style="margin:0 0 6px;">All alcohol through our bar service. No outside alcohol, no outside bartenders, no BYOB. Guests 21+ to consume: $500 + possible termination without refund.</li>
-          <li style="margin:0 0 6px;">No drugs: $500 + immediate termination. Law enforcement may be notified.</li>
-          <li style="margin:0 0 6px;">No smoking or vaping indoors or in the immediate outdoor surroundings: $500 cleaning/deodorizing.</li>
-          <li style="margin:0 0 6px;">No pets (service animals welcome with documentation): $250 cleaning.</li>
-          <li style="margin:0 0 6px;">No on-site cooking (prep kitchen is for staging + re-heating). Outside caterers must show proof of liability insurance: $500 for unauthorized cooking or unapproved caterers.</li>
-          <li style="margin:0 0 6px;">No glitter, confetti, rice, or sparklers: $500 cleaning.</li>
-          <li style="margin:0 0 6px;">Music + noise within local ordinances. Doors closed after 9 PM: $350 + possible termination if severe.</li>
-          <li style="margin:0 0 6px;">No nails, staples, residue tape, or open flames unless pre-approved. Stage/screens/AV require the matching production add-on: $400 per violation.</li>
-          <li style="margin:0 0 6px;">Damage to venue, furniture, or equipment: repair/replacement at cost, $400 minimum.</li>
-          <li style="margin:0;">Tables + chairs must be restored to original layout: $400 if not restored.</li>
-        </ul>`;
-
-  return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Orlando Event Venue: 50% Received</title>
-  <meta name="description" content="We've got your 50%. Your date is being held. We'll confirm within 24 hours.">
-</head>
-<body style="margin:0;padding:0;background:#F3F4F6;font-family:Arial,Helvetica,sans-serif;color:#111827;">
-  <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;line-height:0;mso-hide:all;">
-    We've got your 50%. Your date is being held. We'll confirm within 24 hours.
-  </div>
-  <div style="max-width:600px;margin:20px auto;background:#FFFFFF;padding:0;border:1px solid #E5E7EB;border-radius:14px;overflow:hidden;box-shadow:0 10px 24px rgba(17,24,39,.10);">
-    <div style="background:#0B0F19;padding:34px 28px;text-align:center;color:#FFFFFF;">
-      <h1 style="margin:0;font-size:24px;letter-spacing:.2px;line-height:1.25;">
-        50% <span style="color:#14ADE6;">Received</span>
-      </h1>
-      <p style="margin:10px 0 0;font-size:14px;line-height:1.5;color:rgba(255,255,255,.78);">
-        Orlando Event Venue
-      </p>
-    </div>
-    <div style="padding:28px;">
-      <p style="margin:0;font-size:16px;">
-        Hi <strong>${firstName}</strong>,
-      </p>
-      <p style="margin:14px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Welcome to Orlando Event Venue. We've got your 50%, and your date is being held.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Here's the deal: we'll review your booking details (timing, capacity, venue readiness) and confirm within about <strong>24 hours</strong>. Hold off on invitations until we confirm. It saves trouble if anything needs to shift.
-      </p>
-      <p style="margin:12px 0 0;font-size:15px;line-height:1.65;color:#374151;">
-        Save this email. It's the one place where everything you need before event day lives: reservation #, payment timeline, day-of rules, and what to expect. From here on, most reminders arrive as short texts. Email stays for receipts, your payment link, and your access instructions.
-      </p>
-      <div style="background:#FFFFFF;border:1px solid #E5E7EB;border-radius:12px;padding:16px;margin:18px 0 0;">
-        <p style="margin:0 0 10px;font-size:12px;color:#6B7280;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">
-          Your Booking
-        </p>
-        <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
-          ${detailRow("Reservation #", booking.reservation_number)}
-          ${detailRow("Event Type", formattedEventType)}
-          ${detailRow("Date", formattedDate)}
-          ${detailRow("Guest Count", String(booking.number_of_guests))}
-          ${detailRow("Booking Type", formattedBookingType)}
-        </table>
-      </div>
-      ${card("What's Included", includedList)}
-      ${card("Catering", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Zero restrictions: bring any caterer you want. Professional caterers must show proof of liability insurance.</p>`)}
-      ${card("Bar Service", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">All alcohol service runs through us. Packages and add-ons are on our website.</p>`)}
-      ${card("Wi-Fi", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Wi-Fi credentials will be on your access page along with your door code on event day, and both update together.</p>`)}
-      ${card("Payment Timeline", `<p style="margin:0;font-size:14px;line-height:1.65;color:#374151;">Your remaining 50% is due <strong>15 days before your event</strong>. We'll send a secure payment link by email with a short text reminder. Your full access instructions arrive with that final-payment email.</p>`)}
-      ${card("Your Agreement at a Glance", `${agreementIntro}${agreementList}`)}
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.65;color:#374151;">
-        If guest count, timing, or event needs change, just reply to this email and we'll update your booking.
-      </p>
-      <p style="margin:18px 0 0;font-size:14px;line-height:1.6;color:#374151;">
-        Reservation #: <strong>${booking.reservation_number}</strong><br>
-        Orlando Event Venue Team<br>
-        <strong>407-974-5979</strong><br>
-        <span style="color:#14ADE6;">orlandoeventvenue.org</span><br>
-        orlandoeventvenue@gmail.com<br>
-        3847 E Colonial Dr, Orlando, FL 32803
-      </p>
-    </div>
-    <div style="padding:18px 26px;background:#F9FAFB;font-size:11px;color:#6B7280;border-top:1px solid #E5E7EB;">
-      <p style="margin:0;font-weight:bold;color:#111827;">Orlando Event Venue Team</p>
-      <p style="margin:6px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-      <p style="margin:6px 0 0;">orlandoeventvenue@gmail.com</p>
-      <p style="margin:6px 0 0;">(407) 974-5979</p>
-      <p style="margin:10px 0 0;">This is an automated email. Please keep it for your records. Itemized receipt is attached as PDF.</p>
-    </div>
-  </div>
-</body>
-</html>`;
+  return emailShell({
+    title: "We Received Your First Payment",
+    preview: "Your booking is now being reviewed by our team.",
+    body,
+    footerNote: "Itemized receipt is attached as PDF.",
+  });
 }
 
 async function generateDepositReceiptPDF(booking: BookingEmailData, processingFeePct: number): Promise<Uint8Array> {
@@ -487,14 +425,7 @@ serve(async (req) => {
       console.error("Failed to fetch processing fee, using default 3.5%:", e);
     }
 
-    // denomailer 1.6.0's quoted-printable encoder turns whitespace-only lines into a
-    // literal "=20" that renders as visible junk in the email. Our template produces
-    // whitespace-only lines from indentation around ${...} interpolations. Strip
-    // trailing whitespace per line so the encoder never sees a whitespace-only line.
-    const emailHTML = generateEmailHTML(booking)
-      .split("\n")
-      .map((line) => line.replace(/[ \t]+$/, ""))
-      .join("\n");
+    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking));
 
     let pdfBase64: string | null = null;
     try {
@@ -514,8 +445,8 @@ serve(async (req) => {
     await client.send({
       from: gmailUser,
       to: booking.email,
-      subject: `50% Received | Orlando Event Venue`,
-      content: "We've got your 50%. Please view this email in an HTML-compatible email client. Itemized receipt attached as PDF.",
+      subject: `We Received Your First Payment`,
+      content: "We have received your first fifty percent, and your booking is now with our team for review. Please view this email in an HTML-compatible email client. Itemized receipt attached as PDF.",
       html: emailHTML,
       attachments: pdfBase64
         ? [

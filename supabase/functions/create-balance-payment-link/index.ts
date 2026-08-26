@@ -3,6 +3,19 @@ import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import {
+  BRAND,
+  detailTable,
+  displayTitle,
+  emailShell,
+  escapeHtml,
+  gap,
+  heroModule,
+  para,
+  primaryButton,
+  sanitizeForSmtp,
+  textModule,
+} from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -283,55 +296,45 @@ serve(async (req) => {
           const processingFeeFormatted = fmtCurrency(feeCents / 100);
           const paymentUrl = session.url;
 
-          const emailHTML = `<!DOCTYPE html><html><head><meta charset="UTF-8"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:white;padding:0;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-<div style="background:#111827;padding:40px 30px;text-align:center;color:white;">
-<h1 style="margin:0;font-size:28px;letter-spacing:1px;">BALANCE PAYMENT</h1>
-<p style="margin:12px 0 0;font-size:16px;color:#d4d4d8;">Orlando Event Venue</p>
-<p style="margin:8px 0 0;font-size:13px;color:#9ca3af;">Reservation ${booking.reservation_number || ""}</p>
-</div>
-<div style="padding:30px;">
-<p style="margin:0;font-size:16px;">Hi <strong>${firstName}</strong>,</p>
-<p style="margin:15px 0;font-size:15px;line-height:1.6;color:#374151;">Your remaining balance for your upcoming event is ready for payment. Please complete your payment at your earliest convenience to confirm your reservation.</p>
-<div style="background:#fffbeb;border:2px solid #d97706;border-radius:8px;padding:24px;text-align:center;margin:25px 0;">
-<p style="margin:0 0 6px;font-size:12px;color:#92400e;text-transform:uppercase;letter-spacing:1px;">Remaining Balance Due</p>
-<p style="margin:0;font-size:32px;font-weight:bold;color:#d97706;">${balanceTotalFormatted}</p>
-</div>
-<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
-<p style="margin:0 0 12px;font-weight:bold;font-size:15px;color:#111827;">Event Details</p>
-<table width="100%" style="border-collapse:collapse;font-size:14px;">
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Event Date</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${eventDate}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Event Time</td><td style="padding:8px 0;text-align:right;color:#111827;">${timeRange}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Event Type</td><td style="padding:8px 0;text-align:right;color:#111827;">${booking.event_type || "N/A"}</td></tr>
-<tr><td style="padding:8px 0;color:#666;">Guests</td><td style="padding:8px 0;text-align:right;color:#111827;">${booking.number_of_guests || "N/A"}</td></tr>
-</table>
-</div>
-<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:25px 0;">
-<p style="margin:0 0 12px;font-weight:bold;font-size:15px;color:#111827;">Payment Summary</p>
-<table width="100%" style="border-collapse:collapse;font-size:14px;">
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Total Amount</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${totalFormatted}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Deposit Paid</td><td style="padding:8px 0;text-align:right;color:#059669;font-weight:bold;">${depositFormatted}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">Remaining Balance</td><td style="padding:8px 0;text-align:right;color:#111827;font-weight:bold;">${balanceBaseFormatted}</td></tr>
-<tr style="border-bottom:1px solid #e5e7eb;"><td style="padding:8px 0;color:#666;">${FEE_LABEL}</td><td style="padding:8px 0;text-align:right;color:#111827;">${processingFeeFormatted}</td></tr>
-<tr style="border-top:2px solid #111827;"><td style="padding:12px 0;font-weight:bold;font-size:16px;color:#111827;">Total Due</td><td style="padding:12px 0;text-align:right;font-weight:bold;font-size:22px;color:#d97706;">${balanceTotalFormatted}</td></tr>
-</table>
-</div>
-<div style="text-align:center;margin:30px 0;">
-<a href="${paymentUrl}" style="display:inline-block;background:#d97706;color:white;text-decoration:none;padding:14px 40px;border-radius:6px;font-size:16px;font-weight:bold;letter-spacing:0.5px;">Pay Balance Now</a>
-</div>
-<p style="font-size:12px;color:#999;text-align:center;line-height:1.5;">If the button doesn't work, copy and paste this link:<br/><a href="${paymentUrl}" style="color:#d97706;word-break:break-all;">${paymentUrl}</a></p>
-<p style="margin:25px 0 10px;border-top:1px solid #ddd;padding-top:20px;font-size:14px;line-height:1.6;color:#374151;">This payment link expires in 24 hours. If you have any questions, simply reply to this email and we'll be happy to help.</p>
-<p style="margin:10px 0 0;"><strong>Orlando Event Venue</strong></p>
-</div>
-<div style="padding:20px 30px;background:#f9fafb;font-size:11px;color:#999;border-top:1px solid #ddd;">
-<p style="margin:0;font-weight:bold;color:#666;">Orlando Event Venue Team</p>
-<p style="margin:5px 0 0;">3847 E Colonial Dr, Orlando, FL 32803</p>
-<p style="margin:5px 0 0;">Orlandoeventvenue@gmail.com</p>
-<p style="margin:5px 0 0;">(407) 974-5979</p>
-<p style="margin:8px 0 0;">This is an automated email. Please keep it for your records.</p>
-</div>
-</div></body></html>`;
+          const emailBody =
+            heroModule({
+              display: displayTitle("Balance Payment", { size: 40 }),
+            }) +
+            gap() +
+            textModule(
+              `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${escapeHtml(firstName)}</strong>,</p>` +
+              para(`Your remaining balance for your upcoming event is ready for payment. Please complete your payment at your earliest convenience to confirm your reservation.`) +
+              `<div style="background:#FFFBEB;border:2px solid ${BRAND.amber};border-radius:14px;padding:22px;text-align:center;margin:22px 0 0;">` +
+              `<p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#92400E;text-transform:uppercase;letter-spacing:1.5px;">Remaining Balance Due</p>` +
+              `<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:32px;font-weight:bold;color:${BRAND.amber};">${balanceTotalFormatted}</p>` +
+              `</div>` +
+              `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Event Details</p>` +
+              detailTable([
+                ["Event Date", eventDate],
+                ["Event Time", timeRange],
+                ["Event Type", escapeHtml(booking.event_type || "N/A")],
+                ["Guests", escapeHtml(String(booking.number_of_guests || "N/A"))],
+              ]) +
+              `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Payment Summary</p>` +
+              detailTable([
+                ["Total Amount", totalFormatted],
+                ["Deposit Paid", depositFormatted],
+                ["Remaining Balance", balanceBaseFormatted],
+                [FEE_LABEL, processingFeeFormatted],
+                ["Total Due", balanceTotalFormatted],
+              ]) +
+              primaryButton("Pay Balance Now", paymentUrl) +
+              `<p style="margin:14px 0 0;font-size:12px;color:${BRAND.muted};text-align:center;line-height:1.5;">If the button doesn't work, copy and paste this link:<br><a href="${paymentUrl}" style="color:${BRAND.amber};word-break:break-all;">${paymentUrl}</a></p>` +
+              para(`This payment link expires in <strong>24 hours</strong>. If you have any questions, simply reply to this email and we'll be happy to help.`) +
+              para(`<strong>Orlando Event Venue</strong>`),
+            );
+
+          const emailHTML = sanitizeForSmtp(emailShell({
+            title: "Balance Payment",
+            preview: `Your remaining balance of ${balanceTotalFormatted} is ready for payment.`,
+            body: emailBody,
+            footerNote: "This payment link expires 24 hours after it was created.",
+          }));
 
           const smtpClient = new SMTPClient({
             connection: {
