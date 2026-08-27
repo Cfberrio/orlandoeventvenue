@@ -74,6 +74,8 @@ import {
   type StaffAssignment,
 } from "@/hooks/useAdminData";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
+import BookingEditDialog from "@/components/admin/BookingEditDialog";
+import BookingEditHistoryCard from "@/components/admin/BookingEditHistoryCard";
 import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
 import StaffHoursEditDialog from "@/components/admin/StaffHoursEditDialog";
 import BarServiceCard from "@/components/admin/BarServiceCard";
@@ -147,6 +149,9 @@ export default function BookingDetail() {
 
   // Event hours edit dialog state
   const [eventHoursOpen, setEventHoursOpen] = useState(false);
+
+  // Booking details edit dialog state
+  const [editDetailsOpen, setEditDetailsOpen] = useState(false);
 
   // Per-person staff hours edit dialog state
   const [editingAssignment, setEditingAssignment] = useState<StaffAssignment | null>(null);
@@ -865,9 +870,20 @@ export default function BookingDetail() {
             {/* Contact Information */}
             <Card className="border-l-4 border-l-blue-500">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <User className="h-5 w-5 text-blue-500" />
-                  Contact Information
+                <CardTitle className="flex items-center justify-between gap-2 text-lg">
+                  <span className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-blue-500" />
+                    Contact Information
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditDetailsOpen(true)}
+                    disabled={booking.status === "cancelled"}
+                  >
+                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                    Edit
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -899,9 +915,20 @@ export default function BookingDetail() {
             {/* Event Details */}
             <Card className="border-l-4 border-l-purple-500">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <CalendarIcon className="h-5 w-5 text-purple-500" />
-                  Event Details
+                <CardTitle className="flex items-center justify-between gap-2 text-lg">
+                  <span className="flex items-center gap-2">
+                    <CalendarIcon className="h-5 w-5 text-purple-500" />
+                    Event Details
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setEditDetailsOpen(true)}
+                    disabled={booking.status === "cancelled"}
+                  >
+                    <Pencil className="mr-2 h-3.5 w-3.5" />
+                    Edit
+                  </Button>
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -1246,6 +1273,8 @@ export default function BookingDetail() {
                 )}
               </CardContent>
             </Card>
+
+            <BookingEditHistoryCard bookingId={booking.id} />
           </div>
         </TabsContent>
 
@@ -2460,6 +2489,14 @@ export default function BookingDetail() {
         endTime={booking.end_time}
         open={eventHoursOpen}
         onOpenChange={setEventHoursOpen}
+      />
+
+      {/* Booking Details Edit Dialog */}
+      <BookingEditDialog
+        booking={booking}
+        open={editDetailsOpen}
+        onOpenChange={setEditDetailsOpen}
+        onReschedule={() => setRescheduleOpen(true)}
       />
 
       {/* Per-Person Staff Hours Edit Dialog */}

@@ -1036,6 +1036,72 @@ export function useUpdateBookingTimes() {
   });
 }
 
+/** One field-level change recorded in the booking edit audit trail. */
+export interface BookingFieldChange {
+  field: string;
+  label: string;
+  from: string | number | null;
+  to: string | number | null;
+}
+
+/**
+ * Edits non-scheduling booking details (contact info, event type, guest count,
+ * client notes) and writes an audit row to booking_events.
+ *
+ * Date, times and money fields are intentionally NOT editable here: date/time go
+ * through reschedule-booking (conflict checks + job shifting) and payment fields
+ * are driven by Stripe.
+ */
+export function useUpdateBookingDetails() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      bookingId,
+      updates,
+      changes,
+    }: {
+      bookingId: string;
+      updates: Record<string, unknown>;
+      changes: BookingFieldChange[];
+    }) => {
+      const { data: authData } = await supabase.auth.getUser();
+      const actor = authData?.user ?? null;
+
+      const { error } = await supabase
+        .from("bookings")
+        .update(updates)
+        .eq("id", bookingId);
+      if (error) throw error;
+
+      // Audit trail. A failed audit insert must not read as a failed edit —
+      // the booking row is already updated — but it must be surfaced.
+      const { error: auditError } = await supabase.from("booking_events").insert({
+        booking_id: bookingId,
+        event_type: "booking_details_edited",
+        channel: "admin",
+        metadata: {
+          changes,
+          actor_id: actor?.id ?? null,
+          actor_email: actor?.email ?? null,
+          edited_at: new Date().toISOString(),
+        } as unknown as Json,
+      });
+      if (auditError) {
+        console.error("Booking edit saved but audit log failed:", auditError);
+      }
+
+      return { auditLogged: !auditError };
+    },
+    onSuccess: (_, { bookingId }) => {
+      queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["booking-events", bookingId] });
+      // Keep the GHL contact/appointment in step with the new client details.
+      syncToGHL(bookingId);
+    },
+  });
+}
+
 export function useUpdateStaffAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
