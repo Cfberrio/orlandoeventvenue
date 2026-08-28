@@ -2,7 +2,9 @@ import { useRef } from "react";
 import { MapPin } from "lucide-react";
 import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 import { MM } from "@/lib/marketingMotion";
-import heroBg from "@/assets/hero-bg-new.jpg";
+/* Renovated event space, stage and full-wall display — the shot that shows the
+ * scale of the room. Washed out by .hero-bg::after so the ink text still reads. */
+import heroBg from "@/assets/venue/event-stage-01-2048.webp";
 
 const REVIEWS_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
 const MAPS_URL =

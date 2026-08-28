@@ -10,35 +10,52 @@ import {
   CarouselPrevious,
 } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
-import gallery1 from "@/assets/gallery-1.png";
-import gallery2 from "@/assets/gallery-2.png";
-import gallery3 from "@/assets/gallery-3.png";
-import gallery4 from "@/assets/gallery-4.png";
 import gallery5 from "@/assets/gallery-5.png";
 import gallery6 from "@/assets/gallery-6.png";
-import gallery7 from "@/assets/gallery-7.png";
 import gallery8 from "@/assets/gallery-8.png";
 import gallery9 from "@/assets/gallery-9.png";
 import galleryConferences from "@/assets/gallery-conferences.jpg";
 import galleryEvents from "@/assets/gallery-events.jpg";
 import tourPhoto from "@/assets/schedule-tour-bg.jpg";
+import welcomeDetail from "@/assets/venue/welcome-detail-portrait.webp";
+import welcomeDetail2x from "@/assets/venue/welcome-detail-portrait-2x.webp";
+import mainEntrance from "@/assets/venue/main-entrance-2048.webp";
+import mainEntrance2x from "@/assets/venue/main-entrance-4096.webp";
+import eventStage01 from "@/assets/venue/event-stage-01-2048.webp";
+import eventStage01_2x from "@/assets/venue/event-stage-01-4096.webp";
+import eventStage02 from "@/assets/venue/event-stage-02-2048.webp";
+import eventStage02_2x from "@/assets/venue/event-stage-02-4096.webp";
+import eventAcoustic01 from "@/assets/venue/event-acoustic-01-2048.webp";
+import eventAcoustic01_2x from "@/assets/venue/event-acoustic-01-4096.webp";
+import eventBackWall from "@/assets/venue/event-back-wall-2048.webp";
+import eventBackWall2x from "@/assets/venue/event-back-wall-4096.webp";
 
-const IMAGES = [
-  { url: gallery1, title: "Welcome Area" },
-  { url: gallery2, title: "Main Entrance" },
-  { url: gallery3, title: "Presentation Setup" },
-  { url: gallery4, title: "Event Space" },
-  { url: gallery5, title: "Storage Area" },
-  { url: gallery6, title: "Restroom Facilities" },
-  { url: gallery7, title: "Event Setup" },
-  { url: gallery8, title: "Venue Exterior" },
-  { url: gallery9, title: "Prep Kitchen" },
-  { url: galleryConferences, title: "Conference" },
-  { url: galleryEvents, title: "Events" },
+/* Renovated areas first, then the rooms the renovation did not touch, then the
+ * event photography. `full` feeds the lightbox and wide screens; `position`
+ * tunes the fixed-height card crop so the subject survives object-fit: cover
+ * instead of us cropping the photograph itself. */
+const IMAGES: {
+  url: string;
+  full: string;
+  title: string;
+  position?: string;
+}[] = [
+  { url: welcomeDetail, full: welcomeDetail2x, title: "Welcome Area", position: "center 32%" },
+  { url: mainEntrance, full: mainEntrance2x, title: "Main Entrance" },
+  { url: eventStage01, full: eventStage01_2x, title: "Presentation Setup" },
+  { url: eventStage02, full: eventStage02_2x, title: "Event Space" },
+  { url: eventAcoustic01, full: eventAcoustic01_2x, title: "Acoustic Wall" },
+  { url: eventBackWall, full: eventBackWall2x, title: "Open Floor" },
+  { url: gallery9, full: gallery9, title: "Prep Kitchen" },
+  { url: gallery6, full: gallery6, title: "Restroom Facilities" },
+  { url: gallery5, full: gallery5, title: "Storage Area" },
+  { url: gallery8, full: gallery8, title: "Venue Exterior" },
+  { url: galleryConferences, full: galleryConferences, title: "Conference" },
+  { url: galleryEvents, full: galleryEvents, title: "Events" },
 ];
 
 const GalleryTours = () => {
-  const [selected, setSelected] = useState<{ url: string; title: string } | null>(null);
+  const [selected, setSelected] = useState<(typeof IMAGES)[number] | null>(null);
 
   return (
     <>
@@ -66,7 +83,18 @@ const GalleryTours = () => {
                       onClick={() => setSelected(image)}
                       aria-label={`Open ${image.title}`}
                     >
-                      <img src={image.url} alt={image.title} loading="lazy" />
+                      <img
+                        src={image.url}
+                        srcSet={
+                          image.full === image.url
+                            ? undefined
+                            : `${image.url} 2048w, ${image.full} 4096w`
+                        }
+                        sizes="(max-width: 960px) 78vw, 33vw"
+                        style={image.position ? { objectPosition: image.position } : undefined}
+                        alt={`${image.title} at Orlando Event Venue`}
+                        loading="lazy"
+                      />
                       <span className="gcap">{image.title}</span>
                     </button>
                   </CarouselItem>
@@ -114,7 +142,7 @@ const GalleryTours = () => {
           {selected && (
             <div className="lightbox">
               <DialogTitle className="sr-only">{selected.title}</DialogTitle>
-              <img src={selected.url} alt={selected.title} />
+              <img src={selected.full} alt={`${selected.title} at Orlando Event Venue`} />
               <p>{selected.title}</p>
             </div>
           )}

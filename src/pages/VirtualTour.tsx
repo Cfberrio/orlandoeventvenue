@@ -5,33 +5,30 @@ import { useGSAP } from "@gsap/react";
 import { Observer } from "gsap/Observer";
 import * as THREE from "three";
 import { X, ChevronLeft, ChevronRight, Move } from "lucide-react";
-import entrance from "@/assets/tour/entrance.jpg";
-import lobby from "@/assets/tour/lobby.jpg";
-import lounge from "@/assets/tour/lounge.jpg";
-import mainHall from "@/assets/tour/main-hall.jpg";
-import flexRoom from "@/assets/tour/flex-room.jpg";
-import kitchen from "@/assets/tour/kitchen.jpg";
-import storage from "@/assets/tour/storage.jpg";
-import restroom from "@/assets/tour/restroom.jpg";
+import { TOUR_SCENES as SCENES, sceneLabel } from "@/lib/tourScenes";
 
 gsap.registerPlugin(useGSAP, Observer);
 
-const SCENES = [
-  { src: entrance, title: "Venue Exterior", desc: "Your guests arrive here: easy access and parking right outside." },
-  { src: lobby, title: "Welcome Area", desc: "A warm first impression with our signature wood-slat wall." },
-  { src: lounge, title: "Main Entrance", desc: "Marble accents and smart TV displays greet you on the way in." },
-  { src: mainHall, title: "Presentation Setup", desc: "Stage, dual projection screens and flexible seating for your event." },
-  { src: flexRoom, title: "Event Space", desc: "An open flex room that adapts to your layout." },
-  { src: kitchen, title: "Prep Kitchen", desc: "Full prep kitchen for catering and bar service." },
-  { src: storage, title: "Storage Area", desc: "Tables and chairs on hand: setup and teardown made easy." },
-  { src: restroom, title: "Restroom Facilities", desc: "Clean, modern restrooms for your guests." },
-];
+/* Radians of "push past the edge of the photo" that walk you to the next
+ * viewpoint. Makes a plain touch swipe move through the venue once you have
+ * run out of photo to look at. */
+const EDGE_STEP = 0.34;
 
 // Panorama geometry: the photo is bent onto the inside of a cylinder around the camera
 const R = 10;
 const FOV_DEF = 62;
 const FOV_MIN = 42;
 const FOV_MAX = 84;
+/* Horizontal field we try to keep whatever the viewport shape is. The camera
+ * FOV is vertical, so a phone held upright would otherwise show a keyhole of
+ * the room; opening the FOV shows more of the same photograph instead. */
+const H_FOV_MIN = THREE.MathUtils.degToRad(46);
+
+/** Vertical FOV that holds H_FOV_MIN at this aspect, never past FOV_MAX. */
+const fitFov = (aspect: number) => {
+  const wanted = 2 * Math.atan(Math.tan(H_FOV_MIN / 2) / Math.max(aspect, 0.1));
+  return gsap.utils.clamp(FOV_DEF, FOV_MAX, THREE.MathUtils.radToDeg(wanted));
+};
 
 interface Room {
   group: THREE.Group;
@@ -154,11 +151,15 @@ const VirtualTour = () => {
         });
       });
 
+      /* Returns how much horizontal look was refused by the edge of the photo,
+       * so a drag that runs out of picture can turn into a step instead. */
       const clampLook = () => {
         const r = rooms[stateRef.current.index];
-        if (!r) return;
+        if (!r) return 0;
+        const wanted = L.tYaw;
         L.tYaw = gsap.utils.clamp(-r.hHalf * 0.6, r.hHalf * 0.6, L.tYaw);
         L.tPitch = gsap.utils.clamp(-r.vHalf * 0.45, r.vHalf * 0.45, L.tPitch);
+        return wanted - L.tYaw;
       };
 
       // Render loop: ease the camera toward its targets + idle sway
@@ -180,11 +181,14 @@ const VirtualTour = () => {
       };
       gsap.ticker.add(tick);
 
-      // Street-view grab: drag right → look left, with fling inertia on release
+      // Street-view grab: drag right → look left, with fling inertia on release.
+      // Keep dragging once the photo runs out and you walk to the next viewpoint.
+      let edge = 0;
       const observer = Observer.create({
         target: mount,
         type: "touch,pointer",
         onPress: () => {
+          edge = 0;
           L.lastInteract = performance.now();
           setHintVisible(false);
         },
@@ -193,10 +197,23 @@ const VirtualTour = () => {
           const k = THREE.MathUtils.degToRad(camera.fov) / mount.clientHeight;
           L.tYaw += self.deltaX * k;
           L.tPitch += self.deltaY * k;
-          clampLook();
+          const spill = clampLook();
           L.lastInteract = performance.now();
+          // A reversal starts the count over, so a wobble at the edge does nothing
+          if (spill === 0 || spill * edge < 0) edge = spill;
+          else edge += spill;
+          if (Math.abs(edge) > EDGE_STEP) {
+            // Yaw grows when you look left, so spilling positive means "go back"
+            const dir: 1 | -1 = edge > 0 ? -1 : 1;
+            edge = 0;
+            api.current?.goTo(
+              (stateRef.current.index + dir + SCENES.length) % SCENES.length,
+              dir
+            );
+          }
         },
         onRelease: (self) => {
+          edge = 0;
           if (stateRef.current.animating) return;
           const k = THREE.MathUtils.degToRad(camera.fov) / mount.clientHeight;
           L.tYaw += self.velocityX * k * 0.12;
@@ -211,9 +228,12 @@ const VirtualTour = () => {
         const h = mount.clientHeight;
         renderer.setSize(w, h);
         camera.aspect = w / h;
+        L.tFov = fitFov(camera.aspect);
+        clampLook();
         camera.updateProjectionMatrix();
       };
       window.addEventListener("resize", onResize);
+      L.tFov = L.fov = fitFov(camera.aspect);
 
       // Walk to another room: dolly toward the wall, pass "through" it, glide into the next
       api.current = {
@@ -226,7 +246,7 @@ const VirtualTour = () => {
           const nxt = rooms[next];
           L.tYaw = 0;
           L.tPitch = 0;
-          L.tFov = FOV_DEF;
+          L.tFov = fitFov(camera.aspect);
 
           nxt.panelMat.opacity = 0;
           nxt.envMat.opacity = 0;
@@ -316,7 +336,7 @@ const VirtualTour = () => {
       onDoubleClick={() => step(1)}
       className="fixed inset-0 overflow-hidden bg-black outline-none select-none touch-none cursor-grab active:cursor-grabbing"
       role="application"
-      aria-label="OEV 3D virtual tour. Drag to look around, scroll to zoom, arrow keys or double-click to move between rooms."
+      aria-label="OEV 3D virtual tour. Drag or swipe to look around, keep dragging past the edge to walk on, scroll to zoom, arrow keys or double-click to move between viewpoints."
     >
       {/* WebGL canvas */}
       <div ref={mountRef} className="absolute inset-0" />
@@ -340,46 +360,58 @@ const VirtualTour = () => {
         <p className="text-xs font-semibold tracking-[0.25em] text-white/80 uppercase">
           OEV · Virtual Tour
         </p>
-        <Link
-          to="/#gallery"
-          aria-label="Exit tour"
-          className="rounded-full bg-white/10 p-2 text-white backdrop-blur transition hover:bg-white/25"
-        >
-          <X className="h-5 w-5" />
-        </Link>
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* Booking stays reachable from every viewpoint, clear of the photo's
+              centre and of the scene controls at the bottom. */}
+          <Link
+            to="/book"
+            className="rounded-full bg-primary px-4 py-2 text-sm font-bold text-primary-foreground shadow-lg transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:px-5"
+          >
+            Book Now
+          </Link>
+          <Link
+            to="/#gallery"
+            aria-label="Exit tour"
+            className="rounded-full bg-white/10 p-2 text-white backdrop-blur transition hover:bg-white/25"
+          >
+            <X className="h-5 w-5" />
+          </Link>
+        </div>
       </div>
 
       {/* Drag hint */}
       {hintVisible && ready && (
         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
           <div className="flex items-center gap-2 rounded-full bg-black/50 px-4 py-2 text-sm text-white/90 backdrop-blur">
-            <Move className="h-4 w-4" /> Drag to look · scroll to zoom · double-click to walk
+            <Move className="h-4 w-4" /> Drag to look · keep dragging to walk on
           </div>
         </div>
       )}
 
       {/* Bottom UI */}
       <div className="absolute inset-x-0 bottom-0 z-20 flex flex-col items-center gap-4 p-4 sm:p-6">
-        <div className="max-w-xl text-center">
-          <h1 className="text-xl font-bold text-white sm:text-2xl">{SCENES[index].title}</h1>
+        <div className="max-w-xl text-center" aria-live="polite">
+          <h1 className="text-xl font-bold text-white sm:text-2xl">
+            {sceneLabel(SCENES[index])}
+          </h1>
           <p className="mt-1 hidden text-sm text-white/70 sm:block">{SCENES[index].desc}</p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={() => step(-1)}
-            aria-label="Previous room"
-            className="rounded-full bg-white/10 p-3 text-white backdrop-blur transition hover:bg-white/25"
+            aria-label="Previous viewpoint"
+            className="rounded-full bg-white/10 p-4 text-white backdrop-blur transition hover:bg-white/25 sm:p-3"
           >
-            <ChevronLeft className="h-5 w-5" />
+            <ChevronLeft className="h-6 w-6 sm:h-5 sm:w-5" />
           </button>
 
           <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 backdrop-blur">
             {SCENES.map((s, i) => (
               <button
-                key={s.title}
+                key={s.id}
                 onClick={() => goTo(i, i > stateRef.current.index ? 1 : -1)}
-                aria-label={`Go to ${s.title}`}
+                aria-label={`Go to ${sceneLabel(s)}`}
                 aria-current={i === index}
                 className={`h-2 rounded-full transition-all duration-300 ${
                   i === index ? "w-6 bg-white" : "w-2 bg-white/40 hover:bg-white/70"
@@ -390,15 +422,15 @@ const VirtualTour = () => {
 
           <button
             onClick={() => step(1)}
-            aria-label="Next room"
-            className="rounded-full bg-primary p-3 text-primary-foreground shadow-lg transition hover:brightness-110"
+            aria-label="Next viewpoint"
+            className="rounded-full bg-primary p-4 text-primary-foreground shadow-lg transition hover:brightness-110 sm:p-3"
           >
-            <ChevronRight className="h-5 w-5" />
+            <ChevronRight className="h-6 w-6 sm:h-5 sm:w-5" />
           </button>
         </div>
 
         <p className="text-[11px] text-white/50">
-          {index + 1} / {SCENES.length} · drag to look · scroll to zoom · arrows to move
+          {index + 1} / {SCENES.length} · drag to look · keep dragging to walk · arrows to move
         </p>
       </div>
     </div>
