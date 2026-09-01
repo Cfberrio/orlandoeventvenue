@@ -1,5 +1,7 @@
 import { usePromoBandMotion } from "@/lib/marketingMotion";
-import venuePhoto from "@/assets/gallery-4.png";
+/* Same "Event Space" frame the gallery carousel uses. */
+import venuePhoto from "@/assets/venue/event-stage-02-2048.webp";
+import venuePhoto2x from "@/assets/venue/event-stage-02-4096.webp";
 
 const CHECKLIST = [
   "90 chairs + 10 tables",
@@ -52,7 +54,13 @@ const PromoBand = () => {
               <small>deposit</small>
             </span>
             <div className="promo-photo">
-              <img src={venuePhoto} alt="The OEV event space set up for an event" loading="lazy" />
+              <img
+                src={venuePhoto}
+                srcSet={`${venuePhoto} 2048w, ${venuePhoto2x} 4096w`}
+                sizes="(max-width: 960px) 92vw, 40vw"
+                alt="The OEV event space set up for an event"
+                loading="lazy"
+              />
             </div>
           </div>
         </div>
