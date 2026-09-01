@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Menu, Rotate3d, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
 import oevLogoIcon from "@/assets/oev-logo-icon.png";
 
 const NAV_ITEMS = [
@@ -37,9 +37,6 @@ const OevNav = () => {
               {item.label}
             </a>
           ))}
-          <a className="btn btn-ghost btn-nav btn-tour" href="/tour">
-            <Rotate3d size={16} aria-hidden /> 3D Virtual Tour
-          </a>
           <a className="btn btn-primary btn-nav" href="/book">
             Book Now
           </a>
@@ -62,13 +59,6 @@ const OevNav = () => {
               {item.label}
             </a>
           ))}
-          <a
-            className="btn btn-ghost btn-tour"
-            href="/tour"
-            onClick={() => setOpen(false)}
-          >
-            <Rotate3d size={18} aria-hidden /> 3D Virtual Tour
-          </a>
           <a className="btn btn-primary" href="/book" onClick={() => setOpen(false)}>
             Book Now
           </a>

@@ -13,6 +13,7 @@ describe("OevHero", () => {
       "href",
       "/schedule-tour",
     );
+    expect(screen.getByRole("link", { name: /3D Virtual Tour/i })).toHaveAttribute("href", "/tour");
   });
 
   it("renders the four stat counters", () => {

@@ -10,14 +10,6 @@ describe("OevNav", () => {
     expect(screen.getByRole("link", { name: "Gallery" })).toHaveAttribute("href", "#gallery");
     expect(screen.getAllByRole("link", { name: "Book Now" })[0]).toHaveAttribute("href", "/book");
   });
-
-  it("links to the 3D virtual tour", () => {
-    render(<OevNav />);
-    expect(screen.getAllByRole("link", { name: /3D Virtual Tour/i })[0]).toHaveAttribute(
-      "href",
-      "/tour",
-    );
-  });
 });
 
 describe("MobileBar", () => {

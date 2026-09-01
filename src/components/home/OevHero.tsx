@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { MapPin } from "lucide-react";
+import { MapPin, Rotate3d } from "lucide-react";
 import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 import { MM } from "@/lib/marketingMotion";
 /* Renovated event space, stage and full-wall display — the shot that shows the
@@ -183,6 +183,9 @@ const OevHero = () => {
           </a>
           <a className="btn btn-ghost btn-lg" href="/schedule-tour">
             Schedule a Tour
+          </a>
+          <a className="btn btn-ghost btn-lg btn-tour" href="/tour">
+            <Rotate3d size={20} aria-hidden /> 3D Virtual Tour
           </a>
         </div>
         <p className="hero-note">Flat pricing · No hidden fees · No catering restrictions</p>
