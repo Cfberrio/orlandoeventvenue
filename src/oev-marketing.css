@@ -247,6 +247,24 @@
   padding: 10px 22px;
   font-size: 14px;
 }
+.oev .btn-tour {
+  white-space: nowrap;
+}
+.oev .btn-tour svg {
+  flex: none;
+}
+/* desktop nav gets tight once the tour button is in the row */
+@media (max-width: 1120px) {
+  .oev .nav-links {
+    gap: 14px;
+  }
+  .oev .nav-links > a:not(.btn) {
+    font-size: 13.5px;
+  }
+  .oev .btn-nav {
+    padding: 10px 16px;
+  }
+}
 .oev .nav-burger {
   display: none;
   background: none;
