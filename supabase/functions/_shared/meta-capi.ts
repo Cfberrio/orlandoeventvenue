@@ -23,6 +23,22 @@ import {
 
 const GRAPH_VERSION = "v23.0";
 
+/**
+ * Hard ceiling on the Graph API call.
+ *
+ * sendCheckoutStarted and sendPurchase are awaited inside the payment path:
+ * create-checkout blocks on it before handing the guest their Stripe URL, and
+ * stripe-webhook blocks on it before acking Stripe. try/catch covers a Graph
+ * API that FAILS; it does nothing for one that HANGS. Without this, a stalled
+ * Meta request shows the guest "Failed to process payment" for a checkout
+ * session that was in fact created, and delays the webhook ack past Stripe's
+ * own timeout into a redelivery.
+ *
+ * An abort is journaled as 'error', which the 23505 branch above treats as
+ * retryable — so the event is recoverable, while the sale never waits on Meta.
+ */
+const GRAPH_TIMEOUT_MS = 5000;
+
 function sourceUrl(path = "/book"): string {
   return `${getFrontendUrl()}${path}`;
 }
@@ -133,6 +149,7 @@ export async function deliverMetaEvent(opts: {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
+        signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS),
       },
     );
     const json = await res.json().catch(() => ({}));
