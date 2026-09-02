@@ -103,6 +103,13 @@ export type Database = {
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
           },
+          {
+            foreignKeyName: "availability_block_reminders_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       availability_blocks: {
@@ -155,6 +162,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "availability_blocks_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
         ]
@@ -286,6 +300,13 @@ export type Database = {
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
           },
+          {
+            foreignKeyName: "booking_addon_invoices_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       booking_attachments: {
@@ -338,6 +359,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_attachments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
         ]
@@ -476,6 +504,13 @@ export type Database = {
             referencedColumns: ["booking_id"]
           },
           {
+            foreignKeyName: "booking_cleaning_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+          {
             foreignKeyName: "booking_cleaning_reports_cleaner_id_fkey"
             columns: ["cleaner_id"]
             isOneToOne: false
@@ -529,6 +564,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
         ]
@@ -607,6 +649,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_host_reports_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
           {
@@ -749,6 +798,13 @@ export type Database = {
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
           },
+          {
+            foreignKeyName: "booking_revenue_items_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       booking_reviews: {
@@ -795,6 +851,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
         ]
@@ -909,6 +972,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
           {
@@ -1322,6 +1392,62 @@ export type Database = {
           },
         ]
       }
+      consent_record: {
+        Row: {
+          action: string
+          advertising: boolean
+          analytics: boolean
+          anonymous_id: string | null
+          client_ip: string | null
+          created_at: string
+          essential: boolean
+          id: string
+          page_url: string | null
+          policy_version: string
+          preferences: boolean
+          user_agent: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          action: string
+          advertising?: boolean
+          analytics?: boolean
+          anonymous_id?: string | null
+          client_ip?: string | null
+          created_at?: string
+          essential?: boolean
+          id?: string
+          page_url?: string | null
+          policy_version: string
+          preferences?: boolean
+          user_agent?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          action?: string
+          advertising?: boolean
+          analytics?: boolean
+          anonymous_id?: string | null
+          client_ip?: string | null
+          created_at?: string
+          essential?: boolean
+          id?: string
+          page_url?: string | null
+          policy_version?: string
+          preferences?: boolean
+          user_agent?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_record_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_visitor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       discount_coupons: {
         Row: {
           applies_to: string
@@ -1718,7 +1844,71 @@ export type Database = {
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
           },
+          {
+            foreignKeyName: "maintenance_tickets_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
         ]
+      }
+      meta_event_delivery: {
+        Row: {
+          attempts: number
+          booking_id: string | null
+          channel: string
+          created_at: string
+          currency: string | null
+          error: string | null
+          event_name: string
+          event_time: string | null
+          id: string
+          lead_id: string | null
+          meta_event_id: string
+          request: Json | null
+          response: Json | null
+          status: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          attempts?: number
+          booking_id?: string | null
+          channel?: string
+          created_at?: string
+          currency?: string | null
+          error?: string | null
+          event_name: string
+          event_time?: string | null
+          id?: string
+          lead_id?: string | null
+          meta_event_id: string
+          request?: Json | null
+          response?: Json | null
+          status?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          attempts?: number
+          booking_id?: string | null
+          channel?: string
+          created_at?: string
+          currency?: string | null
+          error?: string | null
+          event_name?: string
+          event_time?: string | null
+          id?: string
+          lead_id?: string | null
+          meta_event_id?: string
+          request?: Json | null
+          response?: Json | null
+          status?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: []
       }
       popup_leads: {
         Row: {
@@ -1890,6 +2080,13 @@ export type Database = {
             columns: ["booking_id"]
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "scheduled_jobs_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
             referencedColumns: ["booking_id"]
           },
         ]
@@ -2336,6 +2533,13 @@ export type Database = {
             referencedColumns: ["booking_id"]
           },
           {
+            foreignKeyName: "stripe_connect_transfers_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+          {
             foreignKeyName: "stripe_connect_transfers_internal_invoice_id_fkey"
             columns: ["internal_invoice_id"]
             isOneToOne: false
@@ -2383,6 +2587,217 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "stripe_event_log_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
+      tracking_event: {
+        Row: {
+          anonymous_id: string | null
+          booking_id: string | null
+          client_ip: string | null
+          created_at: string
+          email: string | null
+          event_id: string | null
+          event_name: string
+          id: string
+          lead_id: string | null
+          occurred_at: string
+          page_url: string | null
+          props: Json | null
+          referrer: string | null
+          session_id: string | null
+          user_agent: string | null
+          visitor_id: string | null
+        }
+        Insert: {
+          anonymous_id?: string | null
+          booking_id?: string | null
+          client_ip?: string | null
+          created_at?: string
+          email?: string | null
+          event_id?: string | null
+          event_name: string
+          id?: string
+          lead_id?: string | null
+          occurred_at?: string
+          page_url?: string | null
+          props?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          visitor_id?: string | null
+        }
+        Update: {
+          anonymous_id?: string | null
+          booking_id?: string | null
+          client_ip?: string | null
+          created_at?: string
+          email?: string | null
+          event_id?: string | null
+          event_name?: string
+          id?: string
+          lead_id?: string | null
+          occurred_at?: string
+          page_url?: string | null
+          props?: Json | null
+          referrer?: string | null
+          session_id?: string | null
+          user_agent?: string | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_event_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_visitor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_session: {
+        Row: {
+          anonymous_id: string
+          id: string
+          landing_page: string | null
+          last_activity_at: string
+          referrer: string | null
+          started_at: string
+          utm: Json | null
+          visitor_id: string | null
+        }
+        Insert: {
+          anonymous_id: string
+          id: string
+          landing_page?: string | null
+          last_activity_at?: string
+          referrer?: string | null
+          started_at?: string
+          utm?: Json | null
+          visitor_id?: string | null
+        }
+        Update: {
+          anonymous_id?: string
+          id?: string
+          landing_page?: string | null
+          last_activity_at?: string
+          referrer?: string | null
+          started_at?: string
+          utm?: Json | null
+          visitor_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_session_visitor_id_fkey"
+            columns: ["visitor_id"]
+            isOneToOne: false
+            referencedRelation: "tracking_visitor"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tracking_visitor: {
+        Row: {
+          ad_consent: boolean | null
+          analytics_consent: boolean | null
+          anonymous_id: string
+          booking_id: string | null
+          consent_updated_at: string | null
+          email: string | null
+          fbc: string | null
+          fbp: string | null
+          first_landing_page: string | null
+          first_referrer: string | null
+          first_seen_at: string
+          first_touch_at: string | null
+          first_utm: Json | null
+          id: string
+          last_ip: string | null
+          last_seen_at: string
+          last_touch_at: string | null
+          last_user_agent: string | null
+          last_utm: Json | null
+          lead_id: string | null
+        }
+        Insert: {
+          ad_consent?: boolean | null
+          analytics_consent?: boolean | null
+          anonymous_id: string
+          booking_id?: string | null
+          consent_updated_at?: string | null
+          email?: string | null
+          fbc?: string | null
+          fbp?: string | null
+          first_landing_page?: string | null
+          first_referrer?: string | null
+          first_seen_at?: string
+          first_touch_at?: string | null
+          first_utm?: Json | null
+          id?: string
+          last_ip?: string | null
+          last_seen_at?: string
+          last_touch_at?: string | null
+          last_user_agent?: string | null
+          last_utm?: Json | null
+          lead_id?: string | null
+        }
+        Update: {
+          ad_consent?: boolean | null
+          analytics_consent?: boolean | null
+          anonymous_id?: string
+          booking_id?: string | null
+          consent_updated_at?: string | null
+          email?: string | null
+          fbc?: string | null
+          fbp?: string | null
+          first_landing_page?: string | null
+          first_referrer?: string | null
+          first_seen_at?: string
+          first_touch_at?: string | null
+          first_utm?: Json | null
+          id?: string
+          last_ip?: string | null
+          last_seen_at?: string
+          last_touch_at?: string | null
+          last_user_agent?: string | null
+          last_utm?: Json | null
+          lead_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tracking_visitor_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tracking_visitor_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "tracking_visitor_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "tracking_visitor_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "popup_leads"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2524,6 +2939,13 @@ export type Database = {
             referencedRelation: "v_bar_service_bookings"
             referencedColumns: ["booking_id"]
           },
+          {
+            foreignKeyName: "booking_staff_assignments_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
         ]
       }
       v_bar_service_bookings: {
@@ -2567,6 +2989,128 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      v_booking_funnel_daily: {
+        Row: {
+          book_landing_views: number | null
+          booking_started: number | null
+          bookings_created: number | null
+          checkouts_started: number | null
+          day: string | null
+          deposits_paid: number | null
+          leads: number | null
+        }
+        Relationships: []
+      }
+      v_channel_performance: {
+        Row: {
+          avg_contract_value: number | null
+          campaign: string | null
+          channel: string | null
+          contract_revenue: number | null
+          paid_bookings: number | null
+        }
+        Relationships: []
+      }
+      v_meta_creative_geo_performance: {
+        Row: {
+          contract_revenue: number | null
+          creative: string | null
+          geo_adset: string | null
+          paid_bookings: number | null
+        }
+        Relationships: []
+      }
+      v_meta_creative_performance: {
+        Row: {
+          avg_contract_value: number | null
+          contract_revenue: number | null
+          creative: string | null
+          deposit_revenue: number | null
+          first_paid_booking: string | null
+          meta_ad_id: string | null
+          most_recent_paid_booking: string | null
+          paid_bookings: number | null
+        }
+        Relationships: []
+      }
+      v_meta_delivery_health: {
+        Row: {
+          day: string | null
+          event_name: string | null
+          events: number | null
+          reported_value: number | null
+          status: string | null
+        }
+        Relationships: []
+      }
+      v_meta_geo_performance: {
+        Row: {
+          avg_contract_value: number | null
+          contract_revenue: number | null
+          deposit_revenue: number | null
+          geo_adset: string | null
+          meta_adset_id: string | null
+          paid_bookings: number | null
+        }
+        Relationships: []
+      }
+      v_paid_booking_attribution: {
+        Row: {
+          ad_consent: boolean | null
+          balance_amount: number | null
+          booking_created_at: string | null
+          booking_id: string | null
+          booking_origin: Database["public"]["Enums"]["booking_origin"] | null
+          booking_status: Database["public"]["Enums"]["booking_status"] | null
+          booking_type: Database["public"]["Enums"]["booking_type"] | null
+          campaign: string | null
+          channel: string | null
+          contract_total: number | null
+          creative: string | null
+          currency: string | null
+          deposit_base: number | null
+          deposit_charged: number | null
+          deposit_paid_at: string | null
+          event_date: string | null
+          event_type: string | null
+          fbc: string | null
+          fbp: string | null
+          first_landing_page: string | null
+          first_referrer: string | null
+          first_touch_ad: string | null
+          first_touch_ad_id: string | null
+          first_touch_adset: string | null
+          first_touch_adset_id: string | null
+          first_touch_at: string | null
+          first_touch_campaign: string | null
+          first_touch_campaign_id: string | null
+          first_touch_medium: string | null
+          first_touch_placement: string | null
+          first_touch_source: string | null
+          geo_adset: string | null
+          last_touch_ad: string | null
+          last_touch_ad_id: string | null
+          last_touch_adset: string | null
+          last_touch_adset_id: string | null
+          last_touch_at: string | null
+          last_touch_campaign: string | null
+          last_touch_campaign_id: string | null
+          last_touch_medium: string | null
+          last_touch_placement: string | null
+          last_touch_source: string | null
+          meta_ad_id: string | null
+          meta_adset_id: string | null
+          meta_campaign_id: string | null
+          meta_delivery_status: string | null
+          meta_placement: string | null
+          meta_purchase_event_id: string | null
+          meta_skip_reason: string | null
+          number_of_guests: number | null
+          payment_status: Database["public"]["Enums"]["payment_status"] | null
+          reservation_number: string | null
+        }
+        Relationships: []
       }
     }
     Functions: {
@@ -2828,12 +3372,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2857,11 +3401,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2882,11 +3426,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2907,11 +3451,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -2924,11 +3468,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
