@@ -193,8 +193,6 @@ export default function BookingEditDialog({ booking, open, onOpenChange, onResch
         bookingId: booking.id,
         updates,
         changes,
-        actorId: user?.id ?? null,
-        actorEmail: user?.email ?? null,
       });
       toast({
         title: "Booking updated",
