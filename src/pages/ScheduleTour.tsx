@@ -2,11 +2,19 @@ import { useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
 import heroBg from "@/assets/hero-bg-new.jpg";
+import { trackTourPageViewed } from "@/lib/tracking/funnel";
 
 const IFRAME_SRC = "https://api.leadconnectorhq.com/widget/bookings/oev-tour";
 const EMBED_SCRIPT_SRC = "https://link.msgsndr.com/js/form_embed.js";
 
 const ScheduleTour = () => {
+  // Named milestone on top of the generic page_viewed: booking a tour is a
+  // distinct intent signal and deserves its own row in the funnel. The GHL
+  // iframe owns the submission itself, so this is the last thing we can see.
+  useEffect(() => {
+    trackTourPageViewed();
+  }, []);
+
   useEffect(() => {
     const existingScript = document.querySelector(`script[src="${EMBED_SCRIPT_SRC}"]`);
     if (existingScript) return;

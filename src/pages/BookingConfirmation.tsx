@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, Loader2, Calendar, Clock, Users, Copy, Check } f
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { trackPurchase } from "@/lib/analytics";
+import { trackPurchase as trackMetaPurchase } from "@/lib/tracking/funnel";
 
 interface BookingDetails {
   id: string;
@@ -55,7 +56,7 @@ const BookingConfirmation = () => {
 
       const { data, error: fetchError } = await supabase
         .from("bookings")
-        .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged")
+        .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged, deposit_total_charged")
         .eq("id", bookingId)
         .maybeSingle();
 
@@ -80,6 +81,17 @@ const BookingConfirmation = () => {
       // too and must not count as new bookings.
       if (sessionId && !cancelled && !paymentType) {
         trackPurchase(data);
+        // Meta Purchase, browser half. The authoritative half comes from
+        // stripe-webhook with the same evt_purchase_<booking_id>, so Meta
+        // collapses the pair; this one exists because the browser event
+        // carries _fbp/_fbc, which materially raises match quality.
+        // Value is the deposit actually charged, matching GA4 — never the
+        // contract total, which would double-count against the balance.
+        trackMetaPurchase(
+          data.id,
+          Number(data.deposit_total_charged ?? data.deposit_amount ?? 0),
+          { email: data.email, eventType: data.event_type },
+        );
       }
     };
 

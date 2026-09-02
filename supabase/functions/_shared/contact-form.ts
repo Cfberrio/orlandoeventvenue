@@ -17,6 +17,14 @@ export interface ContactFormData {
   transactionalConsent: boolean;
   marketingConsent: boolean;
   timestamp: string;
+  /**
+   * Meta dedup id minted by the browser (src/lib/tracking/funnel.ts
+   * trackContactFormLead). The Pixel fires the browser half of the Lead with
+   * this id and send-contact-form sends the CAPI half with the same one, so
+   * Meta collapses them into a single action. Absent = no CAPI Lead is sent.
+   * Never rendered into the notification email.
+   */
+  metaEventId?: string;
 }
 
 /** Field labels written by the template and recognized by the parser. */

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
 import { usePricing } from "@/hooks/usePricing";
+import { trackBookingCreated, trackCheckoutStarted } from "@/lib/tracking/funnel";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -56,8 +57,21 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
       const result = await createBooking.mutateAsync(data);
       const newBookingId = result.bookingId;
       setBookingId(newBookingId);
-      
+
       console.log("Booking created:", newBookingId);
+
+      // CompleteRegistration: the bookings row now exists. This is also the
+      // moment the anonymous visitor is stitched to a real person — the
+      // booking id and email go onto the tracking_visitor row, so a return
+      // from another device still resolves to this guest.
+      trackBookingCreated(newBookingId, {
+        email: data.email ?? null,
+        eventType: data.eventType ?? null,
+        bookingType: data.bookingType ?? null,
+        depositTotal,
+        contractTotal: data.pricing?.total ?? null,
+      });
+
       console.log("Creating Stripe checkout session...");
 
       // Create Stripe checkout session
@@ -83,6 +97,15 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
 
       // Redirect to Stripe Checkout
       if (checkoutData?.url) {
+        // InitiateCheckout, browser half — fired only once the session really
+        // exists, and immediately before we leave the page. track.ts posts
+        // with keepalive precisely so this survives the navigation.
+        // The server half was already sent by create-checkout with the same
+        // event id, so Meta counts one action, not two.
+        trackCheckoutStarted(newBookingId, depositTotal, {
+          email: data.email ?? null,
+          eventType: data.eventType ?? null,
+        });
         window.location.href = checkoutData.url;
       } else {
         throw new Error("No checkout URL returned");

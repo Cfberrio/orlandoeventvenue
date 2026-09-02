@@ -5,6 +5,7 @@ import {
   generateContactFormHTML,
   generateContactFormText,
 } from "../_shared/contact-form.ts";
+import { sendLead } from "../_shared/meta-capi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -98,6 +99,24 @@ serve(async (req) => {
     await client.close();
 
     console.log("Contact form email sent successfully to:", gmailUser);
+
+    // Meta Lead, server half. Deliberately here — after the honeypot, after
+    // validation and after the email actually sent — so a bot submission never
+    // reaches the ad account. The event id was minted by the browser, which
+    // fired the Pixel half with the same string, so Meta dedupes the pair.
+    if (data.metaEventId) {
+      try {
+        await sendLead({
+          eventId: data.metaEventId,
+          fullName: data.name,
+          email: data.email,
+          phone: data.phone ?? null,
+          contentName: "Contact Form",
+        });
+      } catch (metaError) {
+        console.error("[send-contact-form] Meta Lead failed:", metaError);
+      }
+    }
 
     // Upsert GHL contact — fire-and-forget after email success
     // Uses /contacts/upsert to create or update by email; avoids 400 when contact exists

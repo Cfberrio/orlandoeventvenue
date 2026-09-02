@@ -17,6 +17,7 @@ import {
   type Block,
   type Section,
 } from "@/lib/planningKitContent";
+import { trackPlanningKitViewed } from "@/lib/tracking/funnel";
 
 type KitApi = ReturnType<typeof usePlanningKitState>;
 
@@ -304,6 +305,9 @@ const PlanningKit = () => {
 
   useEffect(() => {
     document.title = "Your Event Planning Kit | Orlando Event Venue";
+    // The kit is the payoff of the PLAN50 lead magnet, so reaching this page
+    // is the milestone that says the magnet worked.
+    trackPlanningKitViewed();
   }, []);
 
   const handleDownload = async () => {

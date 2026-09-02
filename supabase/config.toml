@@ -147,3 +147,10 @@ schedule = "0 * * * *"
 # Processes recurring invoices due at 3 PM Orlando time
 [functions.process-recurring-invoices.cron]
 schedule = "0 19,20 * * *"
+
+# First-party tracking collector. Public by necessity: it must accept events
+# from anonymous visitors who have no Supabase session. Its defences are inside
+# the function (payload cap, event allowlist, format-checked ids, and an
+# existence check on the booking/lead before anything reaches Meta).
+[functions.track-event]
+verify_jwt = false

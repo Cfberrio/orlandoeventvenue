@@ -8,6 +8,7 @@ export default defineConfig({
     include: [
       "supabase/functions/_tests/split-payment.test.ts",
       "supabase/functions/_tests/invoice-fee-integrity.test.ts",
+      "supabase/functions/_tests/meta-core.test.ts",
     ],
   },
 });

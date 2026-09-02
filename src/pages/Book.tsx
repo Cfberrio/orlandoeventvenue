@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { format } from "date-fns";
 import Navigation from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
@@ -9,6 +10,14 @@ import AddOnsStep from "@/components/booking/AddOnsStep";
 import SummaryStep from "@/components/booking/SummaryStep";
 import ContactPoliciesStep from "@/components/booking/ContactPoliciesStep";
 import PaymentStep from "@/components/booking/PaymentStep";
+import {
+  trackAddonsSelected,
+  trackBookLandingViewed,
+  trackBookingTypeSelected,
+  trackContactInfoCompleted,
+  trackEventDetailsCompleted,
+  trackSummaryViewed,
+} from "@/lib/tracking/funnel";
 
 export interface BookingFormData {
   // Step 1
@@ -100,6 +109,13 @@ const Book = () => {
     }
   }, [searchParams]);
 
+  // Top of the booking funnel. Fired once per mount, not per step, so it is a
+  // clean denominator for the conversion rate in v_booking_funnel_daily.
+  useEffect(() => {
+    trackBookLandingViewed(searchParams.get("type"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateFormData = useCallback((data: Partial<BookingFormData>) => {
     setFormData((prev) => ({ ...prev, ...data }));
   }, []);
@@ -109,8 +125,45 @@ const Book = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
+  // Funnel milestone for the step the guest is LEAVING. Firing on advance
+  // rather than on render means a back-navigation to re-read a step does not
+  // re-count it, and a step the guest abandoned never counts at all.
+  // Steps 1-5 only: step 6 (Payment) owns its own events, because only it
+  // knows the booking id and the amount actually charged.
+  const emitStepCompleted = (step: number) => {
+    switch (step) {
+      case 1:
+        if (formData.bookingType) {
+          trackBookingTypeSelected(formData.bookingType, formData.pricing?.total ?? null);
+        }
+        break;
+      case 2:
+        trackEventDetailsCompleted({
+          eventType: formData.eventType ?? null,
+          guests: formData.numberOfGuests ?? null,
+          eventDate: formData.date ? format(formData.date, "yyyy-MM-dd") : null,
+        });
+        break;
+      case 3:
+        trackAddonsSelected({
+          package: formData.package ?? null,
+          setup_breakdown: formData.setupBreakdown ?? false,
+          tablecloths: formData.tablecloths ?? false,
+          bar_package: formData.barPackage ?? null,
+        });
+        break;
+      case 4:
+        trackSummaryViewed(formData.pricing?.total ?? null);
+        break;
+      case 5:
+        trackContactInfoCompleted(formData.email ?? null);
+        break;
+    }
+  };
+
   const nextStep = () => {
     if (currentStep < totalSteps) {
+      emitStepCompleted(currentStep);
       goToStep(currentStep + 1);
     }
   };

@@ -13,6 +13,7 @@ import { Loader2, Send, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
+import { trackContactFormLead } from "@/lib/tracking/funnel";
 import contactBg1 from "@/assets/contact-bg-1.jpg";
 import contactBg2 from "@/assets/contact-bg-2.jpg";
 import contactBg3 from "@/assets/contact-bg-3.jpg";
@@ -70,6 +71,12 @@ const ContactForm = () => {
     setSubmitStatus("idle");
 
     try {
+      // Meta Lead, browser half. The id is minted here and handed to the edge
+      // function, which sends the server half with the SAME id after its
+      // honeypot and validation pass — so a bot never reaches the ad account
+      // and Meta still counts one Lead, not two.
+      const metaEventId = trackContactFormLead(formData.email.trim(), formData.subject);
+
       const { error } = await supabase.functions.invoke("send-contact-form", {
         body: {
           name: formData.name,
@@ -82,6 +89,7 @@ const ContactForm = () => {
           transactionalConsent: formData.transactionalConsent,
           marketingConsent: formData.marketingConsent,
           timestamp: new Date().toISOString(),
+          metaEventId,
         },
       });
 

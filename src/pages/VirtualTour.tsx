@@ -6,6 +6,7 @@ import { Observer } from "gsap/Observer";
 import * as THREE from "three";
 import { X, ChevronLeft, ChevronRight, Move } from "lucide-react";
 import { TOUR_SCENES as SCENES, sceneLabel } from "@/lib/tourScenes";
+import { trackVirtualTourViewed } from "@/lib/tracking/funnel";
 
 gsap.registerPlugin(useGSAP, Observer);
 
@@ -46,6 +47,13 @@ const VirtualTour = () => {
   const [index, setIndex] = useState(0);
   const [ready, setReady] = useState(false);
   const [hintVisible, setHintVisible] = useState(true);
+
+  // High-intent signal: opening the 3D tour is the strongest thing a visitor
+  // does before starting a booking, and it is the obvious seed for a Meta
+  // retargeting audience.
+  useEffect(() => {
+    trackVirtualTourViewed();
+  }, []);
 
   // Mirrors of react state readable from three/gsap callbacks without stale closures
   const stateRef = useRef({ index: 0, animating: false });

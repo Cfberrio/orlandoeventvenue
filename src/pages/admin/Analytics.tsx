@@ -20,6 +20,8 @@ import {
   Mail,
   MailCheck,
 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import MetaAttributionPanel from "@/components/admin/MetaAttributionPanel";
 import { usePopupAnalytics } from "@/hooks/useAdminData";
 import { format, startOfMonth, startOfWeek, subMonths, isAfter, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -138,19 +140,27 @@ export default function Analytics() {
     (currentPage + 1) * ITEMS_PER_PAGE
   );
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
-        <div className="p-8 text-center text-muted-foreground">Loading analytics...</div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-foreground">Analytics</h1>
 
+      <Tabs defaultValue="popup" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="popup">Popup Leads</TabsTrigger>
+          <TabsTrigger value="ads">Ad Attribution</TabsTrigger>
+        </TabsList>
+
+        {/* Ad attribution reads its own SQL views and does not depend on the
+            popup-lead query, so it stays usable while that one is loading. */}
+        <TabsContent value="ads">
+          <MetaAttributionPanel />
+        </TabsContent>
+
+        <TabsContent value="popup" className="space-y-6">
+      {isLoading ? (
+        <div className="p-8 text-center text-muted-foreground">Loading analytics...</div>
+      ) : (
+      <>
       {/* Top Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -483,6 +493,10 @@ export default function Analytics() {
           )}
         </CardContent>
       </Card>
+      </>
+      )}
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

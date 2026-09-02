@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { sendCheckoutStarted } from "../_shared/meta-capi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -159,6 +160,18 @@ serve(async (req: Request) => {
       })
       .eq("id", bookingId);
     if (feeUpdateError) console.error("Failed to persist deposit fee on booking:", feeUpdateError);
+
+    // Meta InitiateCheckout, server half. Deliberately AFTER the fee update so
+    // the reported value is the amount actually being charged. The event id is
+    // derived from the booking id, so re-entering checkout for the same
+    // booking is deduplicated by Meta rather than counted twice.
+    // Never allowed to break checkout: a missed ad event is recoverable, a
+    // customer who cannot pay is not.
+    try {
+      await sendCheckoutStarted(bookingId);
+    } catch (metaError) {
+      console.error("[create-checkout] Meta InitiateCheckout failed:", metaError);
+    }
 
     return new Response(
       JSON.stringify({

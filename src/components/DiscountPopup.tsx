@@ -15,6 +15,7 @@ import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
+import { trackPopupLead } from "@/lib/tracking/funnel";
 
 const POPUP_DELAY_MS = 5000;
 // New key so visitors who dismissed the old $100 popup still see the kit offer once.
@@ -111,7 +112,10 @@ export default function DiscountPopup() {
     };
 
     try {
-      const { error: insertError } = await supabase.
+      // `select("id")` is what makes the Meta Lead possible: track-event
+      // refuses to mirror a Lead unless the popup_leads row it names really
+      // exists, so a forged id cannot write into the ad account.
+      const { data: insertedLead, error: insertError } = await supabase.
       from("popup_leads" as any).
       insert({
         full_name: firstName.trim(),
@@ -122,7 +126,9 @@ export default function DiscountPopup() {
         consent_given: true,
         consent_text: CONSENT_TEXT,
         lead_source: "website_popup"
-      });
+      }).
+      select("id").
+      maybeSingle();
 
       // Handle unique constraint violation (duplicate email).
       // Decision: still sync to GHL so the contact stays current, but do NOT
@@ -144,6 +150,12 @@ export default function DiscountPopup() {
         });
         return;
       }
+
+      // Meta Lead — only for a genuinely new lead. The 23505 branch above
+      // returns early, so a returning visitor re-submitting the same email
+      // correctly reports no new Lead rather than inflating the metric.
+      const newLeadId = (insertedLead as { id?: string } | null)?.id;
+      if (newLeadId) trackPopupLead(newLeadId, email.trim().toLowerCase());
 
       // Send to GHL with tag "popup" (fire-and-forget)
       syncToGhl();

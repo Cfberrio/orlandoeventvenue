@@ -15,6 +15,7 @@ import {
   sanitizeForSmtp,
   textModule,
 } from "../_shared/email-layout.ts";
+import { sendPurchase } from "../_shared/meta-capi.ts";
 
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
@@ -1045,6 +1046,21 @@ serve(async (req) => {
         }
 
         console.log("Booking updated successfully:", data);
+
+        // Meta Purchase, server half — the authoritative one. This branch is
+        // reached only by the call that actually flipped the booking to
+        // deposit_paid (the deposit_paid_at guard above returns early on a
+        // retry), and meta_event_delivery.meta_event_id is UNIQUE besides, so
+        // a webhook redelivery can never produce a second Purchase.
+        //
+        // The balance payment and add-on invoices deliberately do NOT send
+        // one: one booking is one conversion, or every channel would look
+        // twice as efficient as it is.
+        try {
+          await sendPurchase(bookingId);
+        } catch (metaError) {
+          console.error("[stripe-webhook] Meta Purchase failed:", metaError);
+        }
 
         // Reconciliation guard: Stripe's charged total must equal the persisted deposit_total_charged.
         if (data.deposit_total_charged != null && Math.abs(amountPaid - Number(data.deposit_total_charged)) > 0.01) {

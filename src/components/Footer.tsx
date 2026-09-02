@@ -1,6 +1,7 @@
 import { MapPin, Phone } from "lucide-react";
 import { Link } from "react-router-dom";
 import oevLogoFull from "@/assets/oev-logo-full.png";
+import { openConsentManager } from "@/lib/tracking/consent";
 const Footer = () => {
   return <footer className="bg-black text-white py-12">
       <div className="container mx-auto px-4">
@@ -44,6 +45,16 @@ const Footer = () => {
               <Link to="/terms-of-use" className="hover:underline hover:opacity-100 transition-opacity">
                 Terms of Use
               </Link>
+              <span>|</span>
+              {/* Re-opens the cookie banner in "manage" mode. Required for any
+                  banner to be revisitable after the first dismissal. */}
+              <button
+                type="button"
+                onClick={() => openConsentManager()}
+                className="hover:underline hover:opacity-100 transition-opacity"
+              >
+                Cookie Settings
+              </button>
             </div>
             <p>Copyright © 2026 Orlando Event Venue. All rights reserved.</p>
           </div>

@@ -48,6 +48,7 @@ import StaffInventory from "./pages/staff/StaffInventory";
 import StaffStandaloneList from "./pages/staff/StaffStandaloneList";
 import StandaloneCleaningReportForm from "./pages/staff/StandaloneCleaningReportForm";
 import StaffPayments from "./pages/staff/StaffPayments";
+import { TrackingRoot } from "@/components/tracking/TrackingRoot";
 const queryClient = new QueryClient();
 
 const App = () => (
@@ -58,6 +59,11 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            {/* Page views, Meta Pixel and the cookie banner. Must sit INSIDE
+                the router (it reads the location) and outside <Routes> so it
+                survives every navigation. It excludes /admin and /staff
+                itself — see TrackingRoot. */}
+            <TrackingRoot />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/book" element={<Book />} />
