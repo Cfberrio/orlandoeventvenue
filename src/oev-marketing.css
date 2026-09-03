@@ -466,6 +466,18 @@
   margin-top: 36px;
   flex-wrap: wrap;
 }
+/* primary hero CTA: alone on its line, wider and lifted so it wins the eye */
+.oev .hero-cta-alt {
+  margin-top: 14px;
+}
+.oev .btn-hero {
+  padding: 20px 56px;
+  font-size: 19px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+.oev .btn-hero:hover {
+  transform: translateY(-2px);
+}
 .oev .btn-tour {
   white-space: nowrap;
 }

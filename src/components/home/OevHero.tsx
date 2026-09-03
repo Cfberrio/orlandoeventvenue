@@ -177,10 +177,14 @@ const OevHero = () => {
           </div>
         </div>
 
-        <div className="hero-cta-row">
-          <a className="btn btn-primary btn-lg" href="/book">
+        {/* Book Now sits alone on its own centered line so it reads as THE action;
+         * tour/visit drop to a quieter second row. */}
+        <div className="hero-cta-row hero-cta-main">
+          <a className="btn btn-primary btn-lg btn-hero" href="/book">
             Book Now
           </a>
+        </div>
+        <div className="hero-cta-row hero-cta-alt">
           <a className="btn btn-ghost btn-lg" href="/schedule-tour">
             Schedule a Tour
           </a>
