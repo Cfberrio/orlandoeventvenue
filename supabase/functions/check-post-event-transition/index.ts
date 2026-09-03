@@ -14,7 +14,39 @@ const ALERT_EMAIL = "orlandoglobalministries@gmail.com";
 // forever. The host report stays incomplete — payroll must review it manually.
 const HOST_REPORT_TIMEOUT_DAYS = 10;
 
-async function sendTimeoutAlert(reservationNumber: string, eventDate: string): Promise<void> {
+const ORLANDO_TZ = "America/New_York";
+
+/**
+ * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
+ */
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
+  const asIfUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
+  );
+  return asIfUtc - date.getTime();
+}
+
+/**
+ * Converts a date + time interpreted as Orlando local time (DST-aware) to UTC.
+ * Without this the runtime parses the naive string as UTC, so every window here
+ * opened 4h (EDT) or 5h (EST) too early.
+ */
+function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
+  const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
+  const offset = tzOffsetMs(new Date(asUtcMs), ORLANDO_TZ);
+  return new Date(asUtcMs - offset);
+}
+
+async function sendTimeoutAlert(reservationNumber: string, eventDate: string, ghlSynced = false): Promise<void> {
   try {
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
@@ -24,7 +56,7 @@ async function sendTimeoutAlert(reservationNumber: string, eventDate: string): P
       connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: gmailUser, password: gmailPassword } },
     });
 
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#d97706;">⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber}</h2><p><b>Event date:</b> ${eventDate}</p><p>Staff never submitted the host report, so the booking was force-transitioned to <b>post_event</b> after ${HOST_REPORT_TIMEOUT_DAYS} days.</p><p style="color:#dc2626;"><b>The host report remains INCOMPLETE — review before payroll.</b></p><p style="color:#666;">No GHL sync was performed for this transition (no automations fired).</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#d97706;">⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber}</h2><p><b>Event date:</b> ${eventDate}</p><p>Staff never submitted the host report, so the booking was force-transitioned to <b>post_event</b> after ${HOST_REPORT_TIMEOUT_DAYS} days.</p><p style="color:#dc2626;"><b>The host report remains INCOMPLETE — review before payroll.</b></p><p style="color:#666;">${ghlSynced ? 'GHL received a state-only sync (sync_reason=host_report_timeout) — no guest automations should fire.' : 'No GHL sync was performed for this transition (no automations fired).'}</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -96,11 +128,11 @@ serve(async (req) => {
       let eventEndDateTime: Date;
       
       if (booking.booking_type === 'daily' || !booking.end_time) {
-        // Daily booking: use event_date at 23:59:59
-        eventEndDateTime = new Date(`${booking.event_date}T23:59:59`);
+        // Daily booking: use event_date at 23:59:59 Orlando time
+        eventEndDateTime = orlandoLocalToUTC(booking.event_date, '23:59:59');
       } else {
-        // Hourly booking: use event_date + end_time
-        eventEndDateTime = new Date(`${booking.event_date}T${booking.end_time}`);
+        // Hourly booking: use event_date + end_time, Orlando time
+        eventEndDateTime = orlandoLocalToUTC(booking.event_date, booking.end_time);
       }
 
       // Add 24 hours
@@ -157,8 +189,10 @@ serve(async (req) => {
         transitionedBookings.push(booking.reservation_number);
       } else if (!hostReportCompleted && timeoutPassed) {
         // Force transition: staff never submitted the host report and the
-        // timeout window elapsed. Deliberately NO sync-to-ghl here — these are
-        // old bookings and no GHL automation may fire because of this cleanup.
+        // timeout window elapsed. GHL is only told about it when
+        // GHL_SYNC_FORCED_TIMEOUT=true, and then with sync_reason set so the
+        // GHL workflows can filter the cleanup out instead of firing guest
+        // automations for an event that is already 10 days old.
         console.log(`[TIMEOUT] Forcing ${booking.reservation_number} to post_event (no host report after ${HOST_REPORT_TIMEOUT_DAYS}d)`);
 
         const { error: forceError } = await supabase
@@ -174,6 +208,30 @@ serve(async (req) => {
           continue;
         }
 
+        // State-only GHL sync, opt-in until the GHL workflows carry the
+        // sync_reason filter. Off => byte-for-byte the previous behaviour.
+        const forcedSyncEnabled = Deno.env.get('GHL_SYNC_FORCED_TIMEOUT') === 'true';
+        let ghlSynced = false;
+        let ghlSyncError: string | null = null;
+
+        if (forcedSyncEnabled) {
+          try {
+            const { error: syncError } = await supabase.functions.invoke('sync-to-ghl', {
+              body: { booking_id: booking.id, sync_reason: 'host_report_timeout' }
+            });
+            if (syncError) {
+              ghlSyncError = syncError.message;
+              console.error(`[TIMEOUT] sync-to-ghl failed for ${booking.reservation_number}:`, syncError);
+            } else {
+              ghlSynced = true;
+              console.log(`[TIMEOUT] Synced ${booking.reservation_number} to GHL (sync_reason=host_report_timeout)`);
+            }
+          } catch (syncErr) {
+            ghlSyncError = syncErr instanceof Error ? syncErr.message : String(syncErr);
+            console.error(`[TIMEOUT] sync-to-ghl exception for ${booking.reservation_number}:`, syncErr);
+          }
+        }
+
         await supabase.from('booking_events').insert({
           booking_id: booking.id,
           event_type: 'auto_lifecycle_post_event_forced',
@@ -183,12 +241,14 @@ serve(async (req) => {
             new_status: 'post_event',
             reason: `host_report_timeout_${HOST_REPORT_TIMEOUT_DAYS}d`,
             host_report_completed: false,
-            ghl_synced: false,
+            ghl_sync_enabled: forcedSyncEnabled,
+            ghl_synced: ghlSynced,
+            ghl_sync_error: ghlSyncError,
             triggered_at: now.toISOString()
           }
         });
 
-        await sendTimeoutAlert(booking.reservation_number, booking.event_date);
+        await sendTimeoutAlert(booking.reservation_number, booking.event_date, ghlSynced);
 
         forcedTimeoutBookings.push(booking.reservation_number);
       } else if (!hostReportCompleted) {

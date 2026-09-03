@@ -58,32 +58,7 @@ async function logCriticalError(supabase: any, bookingId: string, functionName: 
     console.error("Failed to log critical error:", logErr);
   }
 }
-// We'll use a simple -5 hours offset (EST) for consistency
-const ORLANDO_OFFSET_HOURS = -5;
-
-/**
- * Converts a date string (YYYY-MM-DD) and time string (HH:MM:SS) to Orlando local time
- * and returns the equivalent UTC Date object
- */
-function toOrlandoUTC(dateStr: string, timeStr: string): Date {
-  // Parse as Orlando local time
-  const localDateTimeStr = `${dateStr}T${timeStr}`;
-  const localDate = new Date(localDateTimeStr);
-  
-  // Convert Orlando local to UTC: add the offset (since Orlando is behind UTC)
-  // If Orlando is at 09:00, UTC is 14:00 (09:00 - (-5) = 14:00)
-  const utcTime = localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000);
-  return new Date(utcTime);
-}
-
-/**
- * Gets current time in Orlando timezone
- */
-function getNowInOrlando(): Date {
-  const now = new Date();
-  // Shift to Orlando time for comparison
-  return new Date(now.getTime() + (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
-}
+const ORLANDO_TZ = "America/New_York";
 
 /**
  * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
@@ -106,12 +81,12 @@ function tzOffsetMs(date: Date, timeZone: string): number {
 
 /**
  * Converts a date + time string interpreted as Orlando local time (America/New_York,
- * DST-aware) to the corresponding UTC Date. Used ONLY by the one_hour_report
- * scheduling; the host_report_step flow keeps the legacy fixed -5 offset.
+ * DST-aware) to the corresponding UTC Date. Used by every schedule computed here:
+ * the host_report_step milestones and the one_hour_report.
  */
 function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
   const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
-  const offset = tzOffsetMs(new Date(asUtcMs), "America/New_York");
+  const offset = tzOffsetMs(new Date(asUtcMs), ORLANDO_TZ);
   return new Date(asUtcMs - offset);
 }
 
@@ -229,15 +204,15 @@ serve(async (req) => {
     if (booking.booking_type === "daily") {
       // Daily bookings: use start_time if provided, else default 10:00 AM Orlando time
       const startTimeStr = booking.start_time || "10:00:00";
-      eventStartOrlando = toOrlandoUTC(booking.event_date, startTimeStr);
+      eventStartOrlando = orlandoLocalToUTC(booking.event_date, startTimeStr);
       console.log(`Daily booking - Orlando start time: ${startTimeStr}`);
     } else if (booking.start_time) {
       // Hourly bookings with start_time
-      eventStartOrlando = toOrlandoUTC(booking.event_date, booking.start_time);
+      eventStartOrlando = orlandoLocalToUTC(booking.event_date, booking.start_time);
       console.log(`Hourly booking - start: ${booking.start_time}`);
     } else {
       // Fallback: 10:00 AM Orlando time
-      eventStartOrlando = toOrlandoUTC(booking.event_date, "10:00:00");
+      eventStartOrlando = orlandoLocalToUTC(booking.event_date, "10:00:00");
       console.log(`Hourly booking without times - using fallback: 10:00 AM`);
     }
 
@@ -492,7 +467,7 @@ serve(async (req) => {
               jobs_created: newJobs,
               event_start: eventStartOrlando.toISOString(),
               booking_type: booking.booking_type,
-              orlando_offset: ORLANDO_OFFSET_HOURS,
+              orlando_timezone: ORLANDO_TZ,
             },
           });
 

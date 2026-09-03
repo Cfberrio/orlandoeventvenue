@@ -59,18 +59,35 @@ async function logCriticalError(supabase: any, bookingId: string, functionName: 
   }
 }
 
-// Orlando offset hours (EST = -5)
-const ORLANDO_OFFSET_HOURS = -5;
+const ORLANDO_TZ = "America/New_York";
 
 /**
- * Converts a date string (YYYY-MM-DD) and time string (HH:MM:SS) to Orlando local time
- * and returns the equivalent UTC Date object
+ * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
+ */
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
+  const asIfUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
+  );
+  return asIfUtc - date.getTime();
+}
+
+/**
+ * Converts a date string (YYYY-MM-DD) and time string (HH:MM:SS) interpreted as
+ * Orlando local time (DST-aware) to the equivalent UTC Date.
  */
 function toOrlandoUTC(dateStr: string, timeStr: string): Date {
-  const localDateTimeStr = `${dateStr}T${timeStr}`;
-  const localDate = new Date(localDateTimeStr);
-  const utcTime = localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000);
-  return new Date(utcTime);
+  const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
+  const offset = tzOffsetMs(new Date(asUtcMs), ORLANDO_TZ);
+  return new Date(asUtcMs - offset);
 }
 
 serve(async (req) => {

@@ -72,10 +72,9 @@ verify_jwt = false
 [functions.send-internal-booking-reminders]
 verify_jwt = false
 
-# Cron job: Run daily at 8:00 AM Orlando time (13:00 UTC)
-# Sends 1-day reminders for internal bookings
-[functions.send-internal-booking-reminders.cron]
-schedule = "0 13 * * *"
+# Scheduling lives in pg_cron, NOT here: [functions.*.cron] blocks are inert in
+# this project. See supabase/migrations/20260903200000_internal_booking_reminders_cron.sql
+# (job "send-internal-booking-reminders-8am-orlando", 08:00 Orlando, DST-aware).
 
 [functions.daily-health-check]
 verify_jwt = false

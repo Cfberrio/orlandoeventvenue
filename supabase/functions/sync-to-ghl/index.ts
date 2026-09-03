@@ -350,7 +350,7 @@ serve(async (req) => {
   }
 
   try {
-    const { booking_id, force_host_report_completed } = await req.json();
+    const { booking_id, force_host_report_completed, sync_reason } = await req.json();
 
     if (!booking_id) {
       return new Response(
@@ -445,12 +445,23 @@ serve(async (req) => {
     console.log("Building snapshot for booking:", booking_id);
     const snapshot = await buildBookingSnapshot(supabaseUrl, supabaseServiceKey, booking_id, { force_host_report_completed: String(force_host_report_completed) });
 
+    // sync_reason lets the caller label a state-only sync (e.g. the 10-day host
+    // report timeout cleanup). GHL workflows must filter on it so a cleanup
+    // never fires guest-facing automations. Default "booking_update" preserves
+    // the payload every existing caller already sends.
+    const syncReason = typeof sync_reason === "string" && sync_reason ? sync_reason : "booking_update";
+    const payload = {
+      ...snapshot,
+      sync_reason: syncReason,
+      automation_suppressed: syncReason !== "booking_update" ? "true" : "false",
+    };
+
     // Send to GHL
-    console.log("Sending snapshot to GHL:", ghlWebhookUrl);
+    console.log(`Sending snapshot to GHL (sync_reason=${syncReason}):`, ghlWebhookUrl);
     const ghlResponse = await fetch(ghlWebhookUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(snapshot),
+      body: JSON.stringify(payload),
     });
 
     if (!ghlResponse.ok) {

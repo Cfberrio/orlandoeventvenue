@@ -198,11 +198,42 @@ serve(async (req) => {
       }
     }
 
+    // The RPC shifts pending jobs by WHOLE DAYS only, so a reschedule that also
+    // moves end_time leaves guest_feedback_post_event at the old time of day.
+    // Recompute it from the new date + end_time instead of trusting the shift.
+    let guestFeedbackRescheduled = false;
+    try {
+      const gfResponse = await fetch(
+        `${supabaseUrl}/functions/v1/schedule-guest-feedback`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ booking_id, force_reschedule: true }),
+        }
+      );
+
+      if (gfResponse.ok) {
+        guestFeedbackRescheduled = true;
+        console.log("Guest feedback job rescheduled for new date");
+      } else {
+        console.error(
+          "schedule-guest-feedback failed:",
+          await gfResponse.text()
+        );
+      }
+    } catch (gfError) {
+      console.error("schedule-guest-feedback exception:", gfError);
+    }
+
     // Return success response
     return new Response(
       JSON.stringify({
         ...rpcResult,
         host_report_rescheduled: hostReportRescheduled,
+        guest_feedback_rescheduled: guestFeedbackRescheduled,
       }),
       {
         status: 200,

@@ -59,15 +59,41 @@ async function logCriticalError(supabase: any, bookingId: string, functionName: 
   }
 }
 
-// Orlando timezone offset: UTC-5 (EST)
-const ORLANDO_OFFSET_HOURS = -5;
+const ORLANDO_TZ = "America/New_York";
+
+/**
+ * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
+ */
+function tzOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit",
+    hour12: false,
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
+  const asIfUtc = Date.UTC(
+    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
+    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
+  );
+  return asIfUtc - date.getTime();
+}
+
+/**
+ * Converts a date + time interpreted as Orlando local time (DST-aware) to UTC.
+ */
+function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
+  const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
+  const offset = tzOffsetMs(new Date(asUtcMs), ORLANDO_TZ);
+  return new Date(asUtcMs - offset);
+}
 
 /**
  * Converts a date string to Orlando local midnight UTC
  */
 function getOrlandoMidnight(dateStr: string): Date {
-  const localDate = new Date(`${dateStr}T00:00:00`);
-  return new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
+  return orlandoLocalToUTC(dateStr, "00:00:00");
 }
 
 serve(async (req) => {
@@ -160,13 +186,10 @@ serve(async (req) => {
         let runAt: Date;
         if (booking.start_time) {
           // Combine event_date with start_time (Orlando local -> UTC)
-          const localDateTimeStr = `${booking.event_date}T${booking.start_time}`;
-          const localDate = new Date(localDateTimeStr);
-          runAt = new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
+          runAt = orlandoLocalToUTC(booking.event_date, booking.start_time);
         } else {
           // Daily booking: use 6 AM Orlando time
-          const localDate = new Date(`${booking.event_date}T06:00:00`);
-          runAt = new Date(localDate.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000));
+          runAt = orlandoLocalToUTC(booking.event_date, "06:00:00");
         }
 
         const { error: lifecycleJobError } = await supabase
@@ -255,7 +278,12 @@ serve(async (req) => {
     // Calculate days until event (using Orlando timezone)
     const now = new Date();
     const eventDateOrlando = getOrlandoMidnight(booking.event_date);
-    const nowOrlandoMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    // Today's date as seen in Orlando, not on the (UTC) runtime clock — between
+    // 19:00 and 24:00 Orlando those are different days.
+    const orlandoToday = new Intl.DateTimeFormat("en-CA", {
+      timeZone: ORLANDO_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(now);
+    const nowOrlandoMidnight = getOrlandoMidnight(orlandoToday);
     
     const diffMs = eventDateOrlando.getTime() - nowOrlandoMidnight.getTime();
     const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -355,8 +383,8 @@ serve(async (req) => {
       console.log("Long notice booking (>15 days) - scheduling 3 balance payment retries");
 
       // Calculate the first retry at T-15 days (9 AM Orlando time)
-      const eventDateObj = new Date(booking.event_date + "T09:00:00");
-      const fifteenDaysBefore = new Date(eventDateObj.getTime() - (ORLANDO_OFFSET_HOURS * 60 * 60 * 1000) - 15 * 24 * 60 * 60 * 1000);
+      const eventDateObj = orlandoLocalToUTC(booking.event_date, "09:00:00");
+      const fifteenDaysBefore = new Date(eventDateObj.getTime() - 15 * 24 * 60 * 60 * 1000);
       
       // Retry 1: T-15 days
       const retry1At = fifteenDaysBefore;
