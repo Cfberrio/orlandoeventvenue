@@ -79,6 +79,7 @@ import BookingEditHistoryCard from "@/components/admin/BookingEditHistoryCard";
 import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
 import StaffHoursEditDialog from "@/components/admin/StaffHoursEditDialog";
 import BarServiceCard from "@/components/admin/BarServiceCard";
+import GuestReportPhotos from "@/components/admin/GuestReportPhotos";
 import { usePricing } from "@/hooks/usePricing";
 import { getAssignmentHours } from "@/lib/assignmentHours";
 
@@ -1924,6 +1925,9 @@ export default function BookingDetail() {
                       </div>
                     </div>
                   </div>
+
+                  {/* Photos the guest uploaded with the report */}
+                  <GuestReportPhotos attachments={attachments} />
 
                   {/* Issues */}
                   {hostReport.has_issue && (
