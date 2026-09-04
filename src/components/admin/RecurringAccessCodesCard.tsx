@@ -138,8 +138,10 @@ const RecurringAccessCodesCard = () => {
       toast.error("Name and reservation number are required");
       return;
     }
-    if (!/^OEV-R/i.test(number)) {
-      toast.error("Recurring numbers must start with OEV-R (e.g. OEV-RFCG01)");
+    // Any combination of letters and numbers is allowed (SyncUp 09/04). Dashes
+    // stay legal for readability — the public lookup ignores them anyway.
+    if (!/^[A-Z0-9-]+$/.test(number) || !/[A-Z0-9]/.test(number)) {
+      toast.error("Reservation number can only contain letters, numbers and dashes");
       return;
     }
     setAdding(true);

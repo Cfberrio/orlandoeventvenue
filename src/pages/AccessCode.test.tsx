@@ -325,6 +325,35 @@ describe("AccessCode — error states from RPC", () => {
     ).toBeInTheDocument();
   });
 
+  it("handles access_window_closed (6 hours after the reservation ends)", async () => {
+    rpcMock.mockResolvedValueOnce({
+      data: null,
+      error: { message: "access_window_closed" },
+    });
+
+    renderAt("/accesscode");
+    await lookup("OEV-TEST01");
+
+    expect(
+      await screen.findByText(/closed 6 hours after your reservation ended/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("1234")).not.toBeInTheDocument();
+  });
+
+  it("sends the reservation number to the server verbatim when it carries a # or no dash", async () => {
+    rpcMock.mockResolvedValueOnce({ data: makeRow(), error: null });
+
+    renderAt("/accesscode");
+    await lookup("#OEVTEST01");
+
+    expect(await screen.findByText(/Your Access Is Ready/i)).toBeInTheDocument();
+    // Normalization lives in the RPC; the page must not mangle the input.
+    expect(rpcMock).toHaveBeenCalledWith(
+      "get_access_code_for_reservation",
+      { p_reservation_number: "#OEVTEST01", p_email: null },
+    );
+  });
+
   it("handles reservation_inactive", async () => {
     rpcMock.mockResolvedValueOnce({
       data: null,

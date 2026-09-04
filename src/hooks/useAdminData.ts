@@ -649,7 +649,11 @@ export function useBookingHostReports(bookingId: string) {
       const { data, error } = await supabase
         .from("booking_host_reports")
         .select("*")
-        .eq("booking_id", bookingId);
+        .eq("booking_id", bookingId)
+        // A booking can carry more than one submitted report (double submits are
+        // in production data). BookingDetail renders [0], so show the newest.
+        .order("submitted_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false });
       if (error) throw error;
       return data as HostReport[];
     },

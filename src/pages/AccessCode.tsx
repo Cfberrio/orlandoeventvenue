@@ -269,6 +269,10 @@ const AccessCode = () => {
           setError("This access code is currently paused. Please contact us if you believe this is an error.");
         } else if (msg.includes("recurring_code_expired")) {
           setError("This access code has expired. Please contact us to renew your access.");
+        } else if (msg.includes("access_window_closed")) {
+          setError(
+            "This access page closed 6 hours after your reservation ended. Please contact us if you still need help.",
+          );
         } else if (msg.includes("access_code_locked_until_event_day")) {
           setError("Your venue access will be released one hour before your event begins. Please return to this page at that time.");
         } else if (msg.includes("reservation_number_or_email_required")) {
