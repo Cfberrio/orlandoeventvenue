@@ -16,7 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { Repeat, Loader2, Copy, Pause, Play, Trash2, CalendarPlus, Plus } from "lucide-react";
+import { Repeat, Loader2, Copy, Pause, Play, Trash2, Plus } from "lucide-react";
 
 interface RecurringCode {
   id: string;
@@ -25,7 +25,8 @@ interface RecurringCode {
   email: string | null;
   status: "active" | "paused";
   valid_from: string;
-  expires_on: string;
+  /** NULL means the code never expires — that is what new codes get. */
+  expires_on: string | null;
   notes: string | null;
 }
 
@@ -37,13 +38,8 @@ function formatDate(d: string): string {
   });
 }
 
-function addSixMonths(from: Date): string {
-  const d = new Date(from);
-  d.setMonth(d.getMonth() + 6);
-  return d.toISOString().slice(0, 10);
-}
-
 function isExpired(code: RecurringCode): boolean {
+  if (!code.expires_on) return false;
   const today = new Date().toISOString().slice(0, 10);
   return code.expires_on < today;
 }
@@ -106,14 +102,6 @@ const RecurringAccessCodesCard = () => {
     );
   };
 
-  const renew = (code: RecurringCode) => {
-    void updateCode(
-      code.id,
-      { expires_on: addSixMonths(new Date()), status: "active" },
-      `${code.holder_name} renewed for 6 months`,
-    );
-  };
-
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setBusyId(deleteTarget.id);
@@ -151,7 +139,8 @@ const RecurringAccessCodesCard = () => {
       holder_name: name,
       email: newEmail.trim() || null,
       valid_from: new Date().toISOString().slice(0, 10),
-      expires_on: addSixMonths(new Date()),
+      // No expiration — the code stays valid until it is paused or deleted.
+      expires_on: null,
       updated_by: userData?.user?.id ?? null,
     } as never);
     setAdding(false);
@@ -159,7 +148,7 @@ const RecurringAccessCodesCard = () => {
       toast.error("Could not create code", { description: error.message });
       return;
     }
-    toast.success(`${number} created (valid 6 months)`);
+    toast.success(`${number} created (no expiration)`);
     setNewName("");
     setNewNumber("");
     setNewEmail("");
@@ -183,7 +172,7 @@ const RecurringAccessCodesCard = () => {
         </CardTitle>
         <CardDescription>
           Permanent reservation numbers for recurring tenants and internal staff (FCG, Global,
-          Guest). Each code works on the public access page for 6 months and can be paused or
+          Guest). Each code works on the public access page indefinitely and can be paused or
           removed at any time.
         </CardDescription>
       </CardHeader>
@@ -221,8 +210,8 @@ const RecurringAccessCodesCard = () => {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground truncate">
-                      {code.email || "No email on file"} · {formatDate(code.valid_from)} –{" "}
-                      {formatDate(code.expires_on)}
+                      {code.email || "No email on file"} · since {formatDate(code.valid_from)} ·{" "}
+                      {code.expires_on ? `expires ${formatDate(code.expires_on)}` : "no expiration"}
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -248,15 +237,6 @@ const RecurringAccessCodesCard = () => {
                       ) : (
                         <Play className="w-3.5 h-3.5" />
                       )}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={busy}
-                      onClick={() => renew(code)}
-                      title="Renew 6 months from today"
-                    >
-                      <CalendarPlus className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                       size="sm"
@@ -313,7 +293,7 @@ const RecurringAccessCodesCard = () => {
             <div className="flex items-center gap-2">
               <Button size="sm" onClick={handleAdd} disabled={adding}>
                 {adding ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : null}
-                Create (valid 6 months)
+                Create
               </Button>
               <Button size="sm" variant="ghost" onClick={() => setShowAdd(false)}>
                 Cancel
