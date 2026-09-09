@@ -167,7 +167,7 @@ curl -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/sync-ghl-cal
 
 ```bash
 curl -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
-  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "x-voice-agent-secret: $VOICE_AGENT_WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"booking_type":"daily","date":"2026-01-31"}'
 ```

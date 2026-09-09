@@ -1434,16 +1434,21 @@ serve(async (req) => {
 
 /*
 ====================================
-VERIFICACIÓN Y TESTING
+VERIFICATION AND TESTING
 ====================================
 
-1. Test modo debug (muestra configuración DB):
+Export the secret before running any of these. Never paste it into a file — it is
+stored in Supabase > Edge Functions > Secrets as VOICE_AGENT_WEBHOOK_SECRET:
+
+export VOICE_AGENT_WEBHOOK_SECRET='...'
+
+1. Debug-mode test (shows DB configuration):
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability?debug_env=1" \
-  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "x-voice-agent-secret: $VOICE_AGENT_WEBHOOK_SECRET" \
   -d ""
 
-Esperado:
+Expected:
 {
   "ok": false,
   "error": "debug_env",
@@ -1455,14 +1460,14 @@ Esperado:
   }
 }
 
-2. Test normal (fecha ocupada):
+2. Normal test (date already booked):
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
-  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "x-voice-agent-secret: $VOICE_AGENT_WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"booking_type":"daily","date":"2026-01-31"}'
 
-Respuesta esperada:
+Expected response:
 {
   "ok": true,
   "available": false,
@@ -1477,32 +1482,32 @@ Respuesta esperada:
   "debug": { ... }
 }
 
-3. Test fecha disponible:
+3. Available-date test:
 
 curl -sS -X POST "https://vsvsgesgqjtwutadcshi.supabase.co/functions/v1/voice-check-availability" \
-  -H "x-voice-agent-secret: oev_live_9fK3Qw7N2mX8VtR1pL6cH0sY4aJ5uE7gD3zB8nC1rT6vP2kM9xW5qS0hL7yU4cA2dF8jG1eH6iK3oP9rN5tV7wX0zY2" \
+  -H "x-voice-agent-secret: $VOICE_AGENT_WEBHOOK_SECRET" \
   -H "Content-Type: application/json" \
   -d '{"booking_type":"daily","date":"2026-02-15"}'
 
-Respuesta esperada: Todos los campos de mensaje deben decir "That date looks available"
+Expected response: every message field must read "That date looks available"
 
 ====================================
-CONFIGURACIÓN DEL GHL VOICE AGENT
+GHL VOICE AGENT CONFIGURATION
 ====================================
 
-IMPORTANTE: GHL Voice AI NO soporta Response Mapping en Custom Actions.
+IMPORTANT: GHL Voice AI does NOT support Response Mapping in Custom Actions.
 
-Esta función incluye el mensaje en MÚLTIPLES CAMPOS para maximizar compatibilidad:
+This function returns the message in MULTIPLE FIELDS to maximize compatibility:
 - say
-- message (campo estándar más común)
+- message (the most common standard field)
 - text
 - response
 - result
 - status_message
 
-GHL Voice AI debería leer automáticamente al menos uno de estos campos.
+GHL Voice AI should automatically read at least one of these fields.
 
-Prompt simplificado para GHL Voice Agent:
+Simplified prompt for the GHL Voice Agent:
 
 You are a booking assistant for Orlando Event Venue.
 
@@ -1517,9 +1522,9 @@ When a customer asks about availability:
 
 Always be clear and helpful. If the system reports an error, apologize and offer to transfer to a human agent.
 
-Diagnóstico:
-- Si debug muestra has_supabase_url:false, revisa los secrets en Supabase
-- La función consulta directamente la DB de bookings (NO usa GHL API)
-- Los campos múltiples (message, text, response, result) permiten que GHL Voice AI lea automáticamente el mensaje
-- Si el Voice Agent sigue sin leer: verifica que el Custom Action esté configurado correctamente en GHL
+Diagnostics:
+- If debug shows has_supabase_url:false, check the Supabase secrets
+- The function queries the bookings DB directly (it does NOT use the GHL API)
+- The multiple fields (message, text, response, result) let GHL Voice AI read the message automatically
+- If the Voice Agent still does not read it: verify the Custom Action is configured correctly in GHL
 */
