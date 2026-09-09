@@ -137,7 +137,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo enviar tu respuesta. Por favor intenta de nuevo.",
+        description: "Could not send your response. Please try again.",
         variant: "destructive",
       });
     }
@@ -167,7 +167,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo remover la asignación. Por favor intenta de nuevo.",
+        description: "Could not remove the assignment. Please try again.",
         variant: "destructive",
       });
     }

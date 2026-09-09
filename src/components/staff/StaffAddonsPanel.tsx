@@ -12,7 +12,7 @@ export default function StaffAddonsPanel({ booking }: { booking: AddonSource }) 
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
           <Package className="h-5 w-5" />
-          <span>Add-ons del cliente</span>
+          <span>Client add-ons</span>
         </CardTitle>
       </CardHeader>
       <CardContent>

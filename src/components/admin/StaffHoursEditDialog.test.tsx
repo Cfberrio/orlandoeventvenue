@@ -26,9 +26,9 @@ describe("StaffHoursEditDialog", () => {
 
   it("saves a per-person override", async () => {
     render(<StaffHoursEditDialog assignment={assignment} bookingId="b1" open onOpenChange={() => {}} />);
-    await userEvent.type(screen.getByLabelText(/inicio/i), "14:00");
-    await userEvent.type(screen.getByLabelText(/fin/i), "20:00");
-    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await userEvent.type(screen.getByLabelText(/start/i), "14:00");
+    await userEvent.type(screen.getByLabelText(/end/i), "20:00");
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({ id: "a1", bookingId: "b1", scheduledStartTime: "14:00", scheduledEndTime: "20:00" }),
     );
@@ -43,7 +43,7 @@ describe("StaffHoursEditDialog", () => {
         onOpenChange={() => {}}
       />,
     );
-    await userEvent.click(screen.getByRole("button", { name: /restablecer|reset/i }));
+    await userEvent.click(screen.getByRole("button", { name: /reset/i }));
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({ id: "a1", bookingId: "b1", scheduledStartTime: null, scheduledEndTime: null }),
     );
@@ -66,16 +66,16 @@ describe("StaffHoursEditDialog", () => {
         onOpenChange={() => {}}
       />,
     );
-    expect((screen.getByLabelText(/inicio/i) as HTMLInputElement).value).toBe("15:00");
-    expect((screen.getByLabelText(/fin/i) as HTMLInputElement).value).toBe("21:00");
+    expect((screen.getByLabelText(/start/i) as HTMLInputElement).value).toBe("15:00");
+    expect((screen.getByLabelText(/end/i) as HTMLInputElement).value).toBe("21:00");
   });
 
   it("shows a destructive toast when saving fails", async () => {
     mutateAsync.mockRejectedValueOnce(new Error("boom"));
     render(<StaffHoursEditDialog assignment={assignment} bookingId="b1" open onOpenChange={() => {}} />);
-    await userEvent.type(screen.getByLabelText(/inicio/i), "14:00");
-    await userEvent.type(screen.getByLabelText(/fin/i), "20:00");
-    await userEvent.click(screen.getByRole("button", { name: /guardar/i }));
+    await userEvent.type(screen.getByLabelText(/start/i), "14:00");
+    await userEvent.type(screen.getByLabelText(/end/i), "20:00");
+    await userEvent.click(screen.getByRole("button", { name: /save/i }));
     await waitFor(() => expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })));
   });
 });

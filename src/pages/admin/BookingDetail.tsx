@@ -1413,7 +1413,7 @@ export default function BookingDetail() {
                   👥 Staff Assignments
                 </div>
                 <Button variant="outline" size="sm" onClick={() => setEventHoursOpen(true)}>
-                  Editar horario del evento
+                  Edit event schedule
                 </Button>
               </CardTitle>
               <p className="text-sm text-muted-foreground">
@@ -1503,7 +1503,7 @@ export default function BookingDetail() {
                                 size="icon"
                                 className="h-6 w-6"
                                 onClick={() => setEditingAssignment(assignment)}
-                                title="Editar horas"
+                                title="Edit hours"
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
@@ -1729,7 +1729,7 @@ export default function BookingDetail() {
                         </>
                       )}
 
-                      {/* Si NO es Custodial ni Assistant: Solo botón */}
+                      {/* Neither Custodial nor Assistant: button only */}
                       {!isCustodialRole && !isAssistantRole && (
                         <div className="flex justify-end">
                           <Button onClick={handleAddAssignment}>

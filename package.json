@@ -10,7 +10,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:edge": "vitest run --config vitest.edge.config.ts"
+    "test:edge": "vitest run --config vitest.edge.config.ts",
+    "check:english": "node scripts/check-english-only.mjs"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

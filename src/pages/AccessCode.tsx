@@ -328,9 +328,6 @@ const AccessCode = () => {
             <p className="text-muted-foreground mb-4">
               Thank you! Your reservation is now complete. Our team will review your report shortly.
             </p>
-            <p className="text-muted-foreground text-sm mb-6">
-              ¡Gracias! Tu reservación está completa. Nuestro equipo revisará tu reporte pronto.
-            </p>
             <a href={GOOGLE_REVIEW_URL} target="_blank" rel="noopener noreferrer" className="block mb-3">
               <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
                 <ExternalLink className="mr-2 h-4 w-4" />
@@ -356,9 +353,6 @@ const AccessCode = () => {
             <h2 className="text-xl font-semibold mb-2">Report Already Submitted</h2>
             <p className="text-muted-foreground mb-4">
               We received your Guest Report for reservation <strong>{result.reservation_number}</strong>. Thank you.
-            </p>
-            <p className="text-muted-foreground text-sm mb-6">
-              Ya recibimos tu Guest Report. Gracias.
             </p>
             <Button variant="outline" className="w-full" onClick={resetLookup}>
               Look up another reservation

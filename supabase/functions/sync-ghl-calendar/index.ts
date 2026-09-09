@@ -791,7 +791,7 @@ function getGhlConfig(): GhlConfig {
   const calendarId = (Deno.env.get("GHL_CALENDAR_ID") ?? "").trim();
   const assignedUserId = (Deno.env.get("GHL_ASSIGNED_USER_ID") ?? "").trim();
   
-  // Token fingerprint (primeros 8 + últimos 4 chars)
+  // Token fingerprint (first 8 + last 4 chars)
   const tokenFingerprint = token.length > 12 
     ? token.slice(0, 8) + "..." + token.slice(-4)
     : null;

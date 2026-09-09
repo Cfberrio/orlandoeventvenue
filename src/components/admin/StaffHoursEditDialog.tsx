@@ -41,25 +41,25 @@ export default function StaffHoursEditDialog({ assignment, bookingId, open, onOp
 
   const save = async () => {
     if (!isValidTimeRange(start, end)) {
-      toast({ title: "Horario inválido", description: "La hora de fin debe ser después del inicio.", variant: "destructive" });
+      toast({ title: "Invalid schedule", description: "The end time must be after the start time.", variant: "destructive" });
       return;
     }
     try {
       await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: start, scheduledEndTime: end });
-      toast({ title: "Horas del staff actualizadas" });
+      toast({ title: "Staff hours updated" });
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "No se pudo actualizar", description: "Intenta de nuevo.", variant: "destructive" });
+      toast({ title: "Could not update", description: "Try again.", variant: "destructive" });
     }
   };
 
   const reset = async () => {
     try {
       await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: null, scheduledEndTime: null });
-      toast({ title: "Horas restablecidas al horario del evento" });
+      toast({ title: "Hours reset to the event schedule" });
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "No se pudo restablecer", description: "Intenta de nuevo.", variant: "destructive" });
+      toast({ title: "Could not reset", description: "Try again.", variant: "destructive" });
     }
   };
 
@@ -67,25 +67,25 @@ export default function StaffHoursEditDialog({ assignment, bookingId, open, onOp
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar horas del staff</DialogTitle>
-          <DialogDescription>Da a este staff un horario propio. Vacío = hereda el horario del evento.</DialogDescription>
+          <DialogTitle>Edit staff hours</DialogTitle>
+          <DialogDescription>Give this staff member their own schedule. Leave empty to inherit the event schedule.</DialogDescription>
         </DialogHeader>
         <p className="text-xs text-muted-foreground">
-          Horario heredado del evento: {inherited.start?.slice(0, 5)} a {inherited.end?.slice(0, 5)}
+          Inherited from the event: {inherited.start?.slice(0, 5)} to {inherited.end?.slice(0, 5)}
         </p>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="staff-start">Inicio</Label>
+            <Label htmlFor="staff-start">Start</Label>
             <Input id="staff-start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="staff-end">Fin</Label>
+            <Label htmlFor="staff-end">End</Label>
             <Input id="staff-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
         <DialogFooter className="gap-2">
-          <Button variant="ghost" onClick={reset} disabled={isPending}>Restablecer</Button>
-          <Button onClick={save} disabled={isPending}>Guardar</Button>
+          <Button variant="ghost" onClick={reset} disabled={isPending}>Reset</Button>
+          <Button onClick={save} disabled={isPending}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

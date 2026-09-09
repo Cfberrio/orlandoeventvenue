@@ -37,7 +37,7 @@ describe("marketingMotion", () => {
 
   it("useMarketingMotion renders without crashing and keeps content visible when no media matches", () => {
     render(<Page />);
-    // setup.ts mocks matchMedia matches:false → ningún contexto corre → contenido intacto
+    // setup.ts mocks matchMedia matches:false → no context runs → content stays intact
     expect(screen.getByText("reveal")).toBeVisible();
     expect(screen.getByText("90")).toBeVisible();
   });

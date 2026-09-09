@@ -202,7 +202,7 @@ function findNextAvailableSlots(
  */
 function generateAgentNotes(available: boolean, nextSlots: FreeSlot[], requestedDate: string): string {
   if (available) {
-    return `Según el calendario, esa fecha y hora parece disponible. Para confirmar definitivamente, el cliente debe completar la reserva en nuestro sitio web orlando-event-venue.lovable.app/book.`;
+    return `Based on the calendar, that date and time looks available. To confirm it for certain, the customer needs to complete the booking on our website orlandoeventvenue.org/book.`;
   } else if (nextSlots.length > 0) {
     const firstSlot = new Date(nextSlots[0].start);
     const options: Intl.DateTimeFormatOptions = { 
@@ -213,10 +213,10 @@ function generateAgentNotes(available: boolean, nextSlots: FreeSlot[], requested
       minute: '2-digit',
       timeZone: TIMEZONE
     };
-    const formatted = firstSlot.toLocaleDateString('es-US', options);
-    return `Esa fecha u hora no está disponible según el calendario. La próxima disponibilidad es ${formatted}. Para reservar, el cliente debe usar el sitio web orlando-event-venue.lovable.app/book.`;
+    const formatted = firstSlot.toLocaleDateString('en-US', options);
+    return `That date or time is not available according to the calendar. The next availability is ${formatted}. To book, the customer needs to use the website orlandoeventvenue.org/book.`;
   } else {
-    return `No encontré disponibilidad cercana en el calendario. El cliente debe contactarnos directamente o revisar el sitio web para fechas alternativas.`;
+    return `I did not find nearby availability on the calendar. The customer should contact us directly or check the website for alternative dates.`;
   }
 }
 

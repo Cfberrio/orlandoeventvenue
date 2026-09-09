@@ -77,7 +77,7 @@ export default function StaffBookingDetail() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo enviar tu respuesta. Por favor intenta de nuevo.",
+        description: "Could not send your response. Please try again.",
         variant: "destructive",
       });
     }
@@ -110,7 +110,7 @@ export default function StaffBookingDetail() {
     } catch (error) {
       toast({
         title: "Error",
-        description: "No se pudo remover la asignación. Por favor intenta de nuevo.",
+        description: "Could not remove the assignment. Please try again.",
         variant: "destructive",
       });
     }
@@ -319,7 +319,7 @@ export default function StaffBookingDetail() {
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Clock className="h-5 w-5 text-blue-600" />
-              <span>Tu horario de trabajo</span>
+              <span>Your work schedule</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -343,7 +343,7 @@ export default function StaffBookingDetail() {
             <div className="space-y-3">
               <p className="text-sm text-muted-foreground">
                 {effectiveHours.source === "override"
-                  ? "Tu horario asignado:"
+                  ? "Your assigned schedule:"
                   : "As Production staff, you are assigned to work during the package hours only:"}
               </p>
               <Badge className="bg-purple-600 text-white text-base px-4 py-2">

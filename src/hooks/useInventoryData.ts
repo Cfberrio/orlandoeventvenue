@@ -404,20 +404,20 @@ export function useUpsertInventoryFromCleaningReport() {
       // Product name to primary location mapping (exact names from inventory_products)
       const productLocationMap: Record<string, string> = {
         // Kitchen items
-        "bolsas grandes negras": "kitchen_cabinets_lower_left",
-        "bolsas de 13g (kitchen trash bags)": "kitchen_cabinets_lower_left",
-        "esponjas de lavar los platos": "kitchen_cabinets_lower_left",
+        "large black trash bags": "kitchen_cabinets_lower_left",
+        "13g bags (kitchen trash bags)": "kitchen_cabinets_lower_left",
+        "dish sponges": "kitchen_cabinets_lower_left",
         "dawn dish soap": "kitchen_cabinets_lower_left",
-        "mapo nuevo": "kitchen_cabinets_lower_left",
+        "new mop": "kitchen_cabinets_lower_left",
         // Storage rack (bulk items)
         "paper towels (marathon 4000)": "storage_rack_entrance",
         // Bathroom items
-        "bolsas pequeñas para baños": "bathroom_cabinets_womens",
-        "papel higiénico": "bathroom_cabinets_womens",
+        "small bathroom bags": "bathroom_cabinets_womens",
+        "toilet paper": "bathroom_cabinets_womens",
         "hand soap": "bathroom_cabinets_womens",
-        "toallas desinfectantes clorox": "bathroom_cabinets_womens",
-        "toallas sanitarias": "bathroom_cabinets_womens",
-        "cepillo de inodoros": "bathroom_cabinets_womens",
+        "clorox disinfecting wipes": "bathroom_cabinets_womens",
+        "sanitary pads": "bathroom_cabinets_womens",
+        "toilet brush": "bathroom_cabinets_womens",
       };
 
       for (const item of items) {

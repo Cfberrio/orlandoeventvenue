@@ -30,15 +30,15 @@ export default function EventHoursEditDialog({ bookingId, startTime, endTime, op
 
   const save = async () => {
     if (!isValidTimeRange(start, end)) {
-      toast({ title: "Horario inválido", description: "La hora de fin debe ser después del inicio.", variant: "destructive" });
+      toast({ title: "Invalid schedule", description: "The end time must be after the start time.", variant: "destructive" });
       return;
     }
     try {
       await mutateAsync({ bookingId, startTime: start, endTime: end });
-      toast({ title: "Horario del evento actualizado" });
+      toast({ title: "Event schedule updated" });
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "No se pudo actualizar", description: "Intenta de nuevo.", variant: "destructive" });
+      toast({ title: "Could not update", description: "Try again.", variant: "destructive" });
     }
   };
 
@@ -46,22 +46,22 @@ export default function EventHoursEditDialog({ bookingId, startTime, endTime, op
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Editar horario del evento</DialogTitle>
-          <DialogDescription>Cambia la hora de inicio y fin del evento. Afecta las horas derivadas de todo el staff.</DialogDescription>
+          <DialogTitle>Edit event schedule</DialogTitle>
+          <DialogDescription>Change the event start and end time. This affects every staff member’s derived hours.</DialogDescription>
         </DialogHeader>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="event-start">Inicio</Label>
+            <Label htmlFor="event-start">Start</Label>
             <Input id="event-start" type="time" value={start} onChange={(e) => setStart(e.target.value)} />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="event-end">Fin</Label>
+            <Label htmlFor="event-end">End</Label>
             <Input id="event-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={save} disabled={isPending}>Guardar</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={save} disabled={isPending}>Save</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

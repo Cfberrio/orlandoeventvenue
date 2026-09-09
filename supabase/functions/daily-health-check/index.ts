@@ -64,7 +64,7 @@ serve(async (req) => {
     const oneHourAgo = new Date(Date.now() - 3600000).toISOString();
 
     // =====================================================
-    // 1. CRITICAL: Jobs atrasados (más de 1 hora)
+    // 1. CRITICAL: overdue jobs (more than 1 hour late)
     // =====================================================
     const { data: overdueJobs, error: overdueError } = await supabase
       .from("scheduled_jobs")

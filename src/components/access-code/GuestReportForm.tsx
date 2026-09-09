@@ -27,32 +27,28 @@ interface Props {
 }
 
 const CHECKLIST = [
-  { id: 'trash', en: 'All trash is bagged and placed on the back patio. Nothing is left inside.', es: 'Toda la basura está embolsada y colocada en el patio trasero. No queda nada adentro.' },
-  { id: 'tables_chairs', en: 'All tables and chairs are broken down and returned to their original placement.', es: 'Todas las mesas y sillas están desmontadas y devueltas a su lugar original.' },
-  { id: 'kitchen', en: 'The prep kitchen has been checked.', es: 'La cocina de preparación fue revisada.' },
-  { id: 'bathrooms', en: 'Both bathrooms have been checked.', es: 'Ambos baños fueron revisados.' },
-  { id: 'personal_items', en: 'All personal items have been removed.', es: 'Todos los artículos personales fueron retirados.' },
-  { id: 'equipment', en: 'All remotes and venue equipment have been returned.', es: 'Todos los controles y equipos del venue fueron devueltos.' },
-  { id: 'guests_left', en: 'All guests have left the venue.', es: 'Todos los invitados salieron del venue.' },
-  { id: 'lights_off', en: 'All lights are turned off.', es: 'Todas las luces están apagadas.' },
-  { id: 'door_locked', en: 'The entrance door is locked.', es: 'La puerta de entrada quedó cerrada con llave.' },
+  { id: 'trash', label: 'All trash is bagged and placed on the back patio. Nothing is left inside.' },
+  { id: 'tables_chairs', label: 'All tables and chairs are broken down and returned to their original placement.' },
+  { id: 'kitchen', label: 'The prep kitchen has been checked.' },
+  { id: 'bathrooms', label: 'Both bathrooms have been checked.' },
+  { id: 'personal_items', label: 'All personal items have been removed.' },
+  { id: 'equipment', label: 'All remotes and venue equipment have been returned.' },
+  { id: 'guests_left', label: 'All guests have left the venue.' },
+  { id: 'lights_off', label: 'All lights are turned off.' },
+  { id: 'door_locked', label: 'The entrance door is locked.' },
 ] as const;
 
 const REQUIRED_PHOTOS = [
   {
     fieldId: 'guest_main_area_media',
-    titleEn: 'Photo 1: Main Venue Space',
-    titleEs: 'Foto 1: Espacio Principal del Venue',
-    descEn: 'Turn the lights on temporarily and take a clear photo showing the restored main venue space.',
-    descEs: 'Enciende las luces temporalmente y toma una foto clara del espacio principal restaurado.',
+    title: 'Photo 1: Main Venue Space',
+    desc: 'Turn the lights on temporarily and take a clear photo showing the restored main venue space.',
     uploadLabel: 'Venue main space with lights on',
   },
   {
     fieldId: 'guest_front_door_media',
-    titleEn: 'Photo 2: Locked Entrance',
-    titleEs: 'Foto 2: Entrada Cerrada con Llave',
-    descEn: 'After leaving, lock the entrance and take a clear photo confirming that the venue has been secured.',
-    descEs: 'Después de salir, cierra la entrada con llave y toma una foto clara confirmando que el venue quedó asegurado.',
+    title: 'Photo 2: Locked Entrance',
+    desc: 'After leaving, lock the entrance and take a clear photo confirming that the venue has been secured.',
     uploadLabel: 'Entrance door locked',
   },
 ] as const;
@@ -136,10 +132,6 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
               Guest Report has been submitted. Leave enough time to complete every item below before
               your reservation ends.
             </p>
-            <p className="text-xs text-muted-foreground italic">
-              Tu reservación no está completa hasta que el venue haya sido restaurado, cerrado con
-              llave y el Guest Report haya sido enviado.
-            </p>
           </CardHeader>
         </Card>
 
@@ -147,7 +139,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
           <CardHeader>
             <CardTitle className="text-lg">Venue Checklist</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Confirm each item in the Guest Report. / Confirma cada punto del reporte.
+              Confirm each item in the Guest Report.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -159,9 +151,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
                   onCheckedChange={(v) => setChecked((prev) => ({ ...prev, [item.id]: v === true }))}
                 />
                 <label htmlFor={`check_${item.id}`} className="text-sm leading-relaxed cursor-pointer">
-                  {item.en}
-                  <br />
-                  <span className="text-muted-foreground text-xs">{item.es}</span>
+                  {item.label}
                 </label>
               </div>
             ))}
@@ -172,8 +162,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
           <CardHeader>
             <CardTitle className="text-lg">Upload Two Required Photos</CardTitle>
             <p className="text-sm text-muted-foreground">
-              Make sure both photos are uploaded before submitting the Guest Report. / Asegúrate de
-              subir ambas fotos antes de enviar el reporte.
+              Make sure both photos are uploaded before submitting the Guest Report.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -183,13 +172,11 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
                 <div key={photo.fieldId} className="space-y-3 p-4 border rounded-lg">
                   <div className="flex items-start justify-between">
                     <div>
-                      <h4 className="font-medium">{photo.titleEn}</h4>
-                      <p className="text-sm text-muted-foreground">{photo.titleEs}</p>
+                      <h4 className="font-medium">{photo.title}</h4>
                     </div>
                     {file && <CheckCircle2 className="h-5 w-5 text-green-500 flex-shrink-0" />}
                   </div>
-                  <p className="text-sm text-muted-foreground">{photo.descEn}</p>
-                  <p className="text-xs text-muted-foreground italic">{photo.descEs}</p>
+                  <p className="text-sm text-muted-foreground">{photo.desc}</p>
                   <div className="flex flex-wrap gap-2">
                     {file ? (
                       <div className="relative w-24 h-24">
@@ -240,7 +227,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
           {submitting ? (
             <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Submitting...</>
           ) : (
-            'Submit Guest Report / Enviar Reporte'
+            'Submit Guest Report'
           )}
         </Button>
 
@@ -248,8 +235,7 @@ const GuestReportForm = ({ booking, onSubmitted }: Props) => {
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Complete the checklist and upload both required photos before submitting.<br />
-              <span className="text-sm">Completa el checklist y sube las dos fotos requeridas antes de enviar.</span>
+              Complete the checklist and upload both required photos before submitting.
             </AlertDescription>
           </Alert>
         )}

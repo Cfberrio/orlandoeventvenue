@@ -340,12 +340,8 @@ export default function CleaningReportForm() {
       <Card className="bg-muted/50">
         <CardContent className="py-4">
           <p className="text-sm text-muted-foreground">
-            <strong>EN:</strong> Who fills it: Assigned cleaning staff. When: After the event. 
+            Who fills it: Assigned cleaning staff. When: After the event. 
             The staff member will upload this report to the specific reservation they are assigned to.
-          </p>
-          <p className="text-sm text-muted-foreground mt-2">
-            <strong>ES:</strong> Quién lo llena: Personal de limpieza asignado. Cuándo: Después del evento. 
-            El miembro del staff subirá este reporte a la reservación específica a la que fue asignado.
           </p>
         </CardContent>
       </Card>
@@ -380,8 +376,7 @@ export default function CleaningReportForm() {
       {/* Media Uploads */}
       <MediaUploadSection
         title="Front Door Closed & Locked"
-        descriptionEN="Show the front door closed. The angle must clearly indicate it's locked (deadbolt/bar if visible)."
-        descriptionES="Muestra la puerta principal cerrada. El ángulo debe indicar claramente que está asegurada (cerrojo/barra visible si aplica)."
+        description="Show the front door closed. The angle must clearly indicate it's locked (deadbolt/bar if visible)."
         fieldId="front_door"
         files={mediaFrontDoor}
         maxFiles={1}
@@ -393,8 +388,7 @@ export default function CleaningReportForm() {
 
       <MediaUploadSection
         title="Main Event Area: Stage, Screen, All Cleared"
-        descriptionEN="Show the stage and screen. Show the entire main area clean, with no trash, no items on tables, and the floor clean."
-        descriptionES="Muestra la tarima y la pantalla. Muestra toda el área principal limpia, sin basura, sin objetos sobre las mesas y el piso limpio."
+        description="Show the stage and screen. Show the entire main area clean, with no trash, no items on tables, and the floor clean."
         fieldId="main_area"
         files={mediaMainArea}
         maxFiles={3}
@@ -406,8 +400,7 @@ export default function CleaningReportForm() {
 
       <MediaUploadSection
         title="Tables & Chairs on the Rack"
-        descriptionEN="Show tables and chairs properly stacked on the rack. Include the rack space area clean."
-        descriptionES="Muestra las mesas y sillas correctamente apiladas en el rack. Incluye el espacio del rack limpio."
+        description="Show tables and chairs properly stacked on the rack. Include the rack space area clean."
         fieldId="rack"
         files={mediaRack}
         maxFiles={3}
@@ -419,8 +412,7 @@ export default function CleaningReportForm() {
 
       <MediaUploadSection
         title="Bathrooms (Both): After Cleaning"
-        descriptionEN="Show both bathrooms clean. Show floor, toilet, sink areas clearly."
-        descriptionES="Muestra ambos baños limpios. Muestra claramente el piso, el inodoro y el lavamanos."
+        description="Show both bathrooms clean. Show floor, toilet, sink areas clearly."
         fieldId="bathrooms"
         files={mediaBathrooms}
         maxFiles={4}
@@ -433,8 +425,7 @@ export default function CleaningReportForm() {
 
       <MediaUploadSection
         title="Kitchen: Trash Removed + Cans Set Up"
-        descriptionEN="All trash bags must be gone from the kitchen and event areas. Show the two trash cans with: Current bag installed, One extra bag folded under the current bag."
-        descriptionES="Todas las bolsas de basura deben estar retiradas. Muestra los dos zafacones con: La bolsa actual instalada, Una bolsa extra doblada debajo."
+        description="All trash bags must be gone from the kitchen and event areas. Show the two trash cans with: Current bag installed, One extra bag folded under the current bag."
         fieldId="kitchen"
         files={mediaKitchen}
         maxFiles={3}
@@ -446,8 +437,7 @@ export default function CleaningReportForm() {
 
       <MediaUploadSection
         title="Deep Cleaning (Only if applicable)"
-        descriptionEN="If deep cleaning was performed, upload additional images of: Frames / wall decor cleaned, Chair rack space cleaned, Table storage clean, Any special detailed areas cleaned"
-        descriptionES="Si hubo limpieza profunda, sube imágenes de: Cuadros / decoración limpia, Espacio del rack de sillas limpio, Almacén de mesas limpio, Áreas detalladas adicionales"
+        description="If deep cleaning was performed, upload additional images of: Frames / wall decor cleaned, Chair rack space cleaned, Table storage clean, Any special detailed areas cleaned"
         fieldId="deep_cleaning"
         files={mediaDeepCleaning}
         maxFiles={6}
@@ -466,62 +456,52 @@ export default function CleaningReportForm() {
           <ChecklistItem
             checked={checkFloors}
             onCheckedChange={setCheckFloors}
-            labelEN="Floors swept and/or mopped in all used areas."
-            labelES="Pisos barridos y/o trapeados en todas las áreas utilizadas."
+            label="Floors swept and/or mopped in all used areas."
           />
           <ChecklistItem
             checked={checkBathrooms}
             onCheckedChange={setCheckBathrooms}
-            labelEN="Bathrooms cleaned (toilets, sinks, mirrors, floor)."
-            labelES="Baños limpiados (inodoros, lavamanos, espejos, piso)."
+            label="Bathrooms cleaned (toilets, sinks, mirrors, floor)."
           />
           <ChecklistItem
             checked={checkKitchen}
             onCheckedChange={setCheckKitchen}
-            labelEN="Kitchen surfaces and main working areas cleaned."
-            labelES="Superficies de cocina y áreas principales de trabajo limpias."
+            label="Kitchen surfaces and main working areas cleaned."
           />
           <ChecklistItem
             checked={checkTrashRemoved}
             onCheckedChange={setCheckTrashRemoved}
-            labelEN="All trash bags removed and disposed in the correct location."
-            labelES="Todas las bolsas de basura retiradas y llevadas al lugar correcto."
+            label="All trash bags removed and disposed in the correct location."
           />
           <ChecklistItem
             checked={checkEquipmentStored}
             onCheckedChange={setCheckEquipmentStored}
-            labelEN="All venue equipment is stored safely in its correct storage location."
-            labelES="Todo el equipo del venue está guardado de forma segura en su ubicación correcta."
+            label="All venue equipment is stored safely in its correct storage location."
           />
           <ChecklistItem
             checked={checkTablesChairs}
             onCheckedChange={setCheckTablesChairs}
-            labelEN="All chairs and tables are placed in their correct designated locations."
-            labelES="Todas las mesas y sillas están colocadas en sus ubicaciones designadas correctas."
+            label="All chairs and tables are placed in their correct designated locations."
           />
           <ChecklistItem
             checked={checkLightsOff}
             onCheckedChange={setCheckLightsOff}
-            labelEN="All lights are turned off."
-            labelES="Todas las luces están apagadas."
+            label="All lights are turned off."
           />
           <ChecklistItem
             checked={checkOfficeDoor}
             onCheckedChange={setCheckOfficeDoor}
-            labelEN="Office door is fully closed after cleaning is finalized."
-            labelES="La puerta de la oficina está completamente cerrada después de finalizar la limpieza."
+            label="Office door is fully closed after cleaning is finalized."
           />
           <ChecklistItem
             checked={checkDoorLocked}
             onCheckedChange={setCheckDoorLocked}
-            labelEN="Front door is locked and secured."
-            labelES="La puerta principal está cerrada con llave y asegurada."
+            label="Front door is locked and secured."
           />
           <ChecklistItem
             checked={checkDeepCleaning}
             onCheckedChange={setCheckDeepCleaning}
-            labelEN="Deep cleaning performed for this event."
-            labelES="Se realizó limpieza profunda para este evento."
+            label="Deep cleaning performed for this event."
           />
         </CardContent>
       </Card>
@@ -529,11 +509,10 @@ export default function CleaningReportForm() {
       {/* Inventory Check */}
       <Card>
         <CardHeader>
-          <CardTitle>Inventory Check / Verificación de Inventario</CardTitle>
+          <CardTitle>Inventory Check</CardTitle>
           <CardDescription>
-            EN: Select products from the dropdown and report their status. Items marked as "low" or "out" will trigger a restock notification.
+            Select products from the dropdown and report their status. Items marked as "low" or "out" will trigger a restock notification.
             <br />
-            ES: Selecciona productos del menú y reporta su estado. Los items marcados como "bajo" o "agotado" activarán una notificación de reabastecimiento.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -548,7 +527,7 @@ export default function CleaningReportForm() {
                 <div key={index} className="flex flex-col sm:flex-row gap-3 p-3 border rounded-lg bg-muted/30">
                   {/* Location Select */}
                   <div className="flex-1 space-y-1">
-                    <Label className="text-xs text-muted-foreground">Location / Ubicación</Label>
+                    <Label className="text-xs text-muted-foreground">Location</Label>
                     <Select
                       value={item.location_id}
                       onValueChange={(value) => {
@@ -656,7 +635,7 @@ export default function CleaningReportForm() {
               
               <Button variant="outline" size="sm" onClick={addInventoryItem}>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Item / Agregar Item
+                Add Item
               </Button>
             </>
           )}
@@ -668,9 +647,7 @@ export default function CleaningReportForm() {
         <CardHeader>
           <CardTitle>Notes / Maintenance Issues</CardTitle>
           <CardDescription>
-            EN: Maintenance issues, damages, or anything that needs follow-up.
-            <br />
-            ES: Problemas de mantenimiento, daños o cualquier cosa que requiera seguimiento.
+            Maintenance issues, damages, or anything that needs follow-up.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -705,8 +682,7 @@ export default function CleaningReportForm() {
 // Media Upload Section Component
 function MediaUploadSection({
   title,
-  descriptionEN,
-  descriptionES,
+  description,
   fieldId,
   files,
   maxFiles,
@@ -717,8 +693,7 @@ function MediaUploadSection({
   minRequired,
 }: {
   title: string;
-  descriptionEN: string;
-  descriptionES: string;
+  description: string;
   fieldId: string;
   files: string[];
   maxFiles: number;
@@ -736,8 +711,7 @@ function MediaUploadSection({
           {required && <span className="text-destructive">*</span>}
         </CardTitle>
         <CardDescription>
-          <span className="block"><strong>EN:</strong> {descriptionEN}</span>
-          <span className="block mt-1"><strong>ES:</strong> {descriptionES}</span>
+          <span className="block">{description}</span>
           {minRequired && (
             <span className="block mt-1 text-xs">Minimum {minRequired} file(s) required</span>
           )}
@@ -787,13 +761,11 @@ function MediaUploadSection({
 function ChecklistItem({
   checked,
   onCheckedChange,
-  labelEN,
-  labelES,
+  label,
 }: {
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  labelEN: string;
-  labelES: string;
+  label: string;
 }) {
   return (
     <div className="flex items-start space-x-3">
@@ -803,8 +775,7 @@ function ChecklistItem({
         className="mt-1"
       />
       <div className="space-y-1">
-        <p className="text-sm">{labelEN}</p>
-        <p className="text-xs text-muted-foreground">{labelES}</p>
+        <p className="text-sm">{label}</p>
       </div>
     </div>
   );
