@@ -1705,6 +1705,9 @@ export type Database = {
           customer_email: string
           customer_name: string | null
           description: string | null
+          discount_amount: number
+          discount_type: string | null
+          discount_value: number | null
           id: string
           invoice_number: string
           is_recurring: boolean
@@ -1720,6 +1723,7 @@ export type Database = {
           recurring_parent_id: string | null
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
+          subtotal: number | null
           title: string
           total_charged: number | null
           updated_at: string
@@ -1731,6 +1735,9 @@ export type Database = {
           customer_email: string
           customer_name?: string | null
           description?: string | null
+          discount_amount?: number
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           invoice_number?: string
           is_recurring?: boolean
@@ -1746,6 +1753,7 @@ export type Database = {
           recurring_parent_id?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          subtotal?: number | null
           title: string
           total_charged?: number | null
           updated_at?: string
@@ -1757,6 +1765,9 @@ export type Database = {
           customer_email?: string
           customer_name?: string | null
           description?: string | null
+          discount_amount?: number
+          discount_type?: string | null
+          discount_value?: number | null
           id?: string
           invoice_number?: string
           is_recurring?: boolean
@@ -1772,6 +1783,7 @@ export type Database = {
           recurring_parent_id?: string | null
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
+          subtotal?: number | null
           title?: string
           total_charged?: number | null
           updated_at?: string
@@ -1992,7 +2004,7 @@ export type Database = {
         Row: {
           created_at: string
           email: string | null
-          expires_on: string
+          expires_on: string | null
           holder_name: string
           id: string
           notes: string | null
@@ -2005,7 +2017,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email?: string | null
-          expires_on: string
+          expires_on?: string | null
           holder_name: string
           id?: string
           notes?: string | null
@@ -2018,7 +2030,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string | null
-          expires_on?: string
+          expires_on?: string | null
           holder_name?: string
           id?: string
           notes?: string | null
@@ -3123,6 +3135,10 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      claim_recurring_invoice: {
+        Args: { p_expected_next_send: string; p_invoice_id: string }
+        Returns: boolean
+      }
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
@@ -3316,6 +3332,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      normalize_reservation_number: {
+        Args: { p_value: string }
+        Returns: string
+      }
       populate_booking_revenue_items: {
         Args: { p_booking_id: string; p_is_historical?: boolean }
         Returns: undefined
