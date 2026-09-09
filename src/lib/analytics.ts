@@ -11,6 +11,29 @@ interface PurchaseBooking {
   booking_type: string;
 }
 
+/**
+ * Google Ads conversion tag. Both values come from Google Ads →
+ * Goals → Conversions → (conversion action) → Tag setup. While either
+ * field is empty only the GA4 `purchase` event fires, so this is safe
+ * to deploy before the conversion action exists.
+ * Full setup guide: docs/GOOGLE-TAGS-SETUP.md
+ */
+export const googleAds = {
+  id: "", // e.g. "AW-123456789"
+  purchaseLabel: "", // e.g. "AbCdEfGh1jKLmN0pQrS"
+};
+
+/**
+ * Registers the Google Ads tag so it drops its click cookies (_gcl_aw)
+ * on landing pages with a gclid. Call once at app startup.
+ * Returns true if the tag was configured.
+ */
+export function initGoogleAdsTag(): boolean {
+  if (typeof window.gtag !== "function" || !googleAds.id) return false;
+  window.gtag("config", googleAds.id);
+  return true;
+}
+
 const trackedKey = (bookingId: string) => `ga_purchase_${bookingId}`;
 
 /**
@@ -29,8 +52,10 @@ export function trackPurchase(booking: PurchaseBooking): boolean {
     // private mode / storage denied — rely on GA dedup
   }
 
+  const transactionId = booking.reservation_number || booking.id;
+
   window.gtag("event", "purchase", {
-    transaction_id: booking.reservation_number || booking.id,
+    transaction_id: transactionId,
     value: booking.deposit_amount,
     currency: "USD",
     items: [
@@ -41,6 +66,17 @@ export function trackPurchase(booking: PurchaseBooking): boolean {
       },
     ],
   });
+
+  // Direct Google Ads conversion — does not depend on the GA4 → Ads
+  // import chain. Google dedupes against the GA4 import by transaction_id.
+  if (googleAds.id && googleAds.purchaseLabel) {
+    window.gtag("event", "conversion", {
+      send_to: `${googleAds.id}/${googleAds.purchaseLabel}`,
+      value: booking.deposit_amount,
+      currency: "USD",
+      transaction_id: transactionId,
+    });
+  }
 
   try {
     localStorage.setItem(trackedKey(booking.id), "1");

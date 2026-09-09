@@ -339,16 +339,68 @@
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgba(255, 255, 255, 0.9),
-    rgba(255, 255, 255, 0.82) 55%,
-    #fff 100%
-  );
+  /* soft white pool under the copy keeps the ink readable without washing the
+   * whole photo out; the linear layer only feathers the edges into the page */
+  background:
+    radial-gradient(
+      120% 70% at 50% 45%,
+      rgba(255, 255, 255, 0.76) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.3),
+      rgba(255, 255, 255, 0.26) 60%,
+      rgba(255, 255, 255, 0.5) 92%,
+      #fff 100%
+    );
 }
 .oev .hero .wrap {
   position: relative;
   z-index: 1;
+}
+
+/* ===================== photo band (promo + why cards) =====================
+ * One venue photo behind two consecutive sections. The veil is opaque white
+ * at both ends — where it meets the hero above and the pricing section below —
+ * so the photo swells in and out of the page instead of butting against a
+ * visible seam. Anything that reads as a horizontal line here is a bug. */
+.oev .photo-band {
+  position: relative;
+  isolation: isolate;
+}
+.oev .photo-band-bg {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background-size: cover;
+  background-position: center;
+}
+.oev .photo-band-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      110% 55% at 50% 50%,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.3) 60%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      #fff 0%,
+      rgba(255, 255, 255, 0.92) 7%,
+      rgba(255, 255, 255, 0.42) 24%,
+      rgba(255, 255, 255, 0.34) 62%,
+      rgba(255, 255, 255, 0.8) 90%,
+      #fff 100%
+    );
+}
+/* the only copy sitting straight on the photo — a white halo instead of more veil */
+.oev .photo-band .shead h2 {
+  text-shadow: 0 2px 28px rgba(255, 255, 255, 0.95), 0 1px 4px rgba(255, 255, 255, 0.85);
 }
 .oev .hero-stars {
   display: inline-flex;

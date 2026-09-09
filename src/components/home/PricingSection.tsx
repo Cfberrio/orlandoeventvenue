@@ -27,7 +27,7 @@ const PricingSection = () => {
   const { pricing: p, isLoading } = usePricing();
 
   return (
-    <section className="band-soft" id="pricing">
+    <section id="pricing">
       <div className="wrap">
         <div className="shead">
           <h2 data-rv>Simple, transparent pricing.</h2>

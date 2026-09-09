@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Reliable Venues — Venue Partner Onboarding</title>
+<style>
+  :root{
+    --ink:#1c2421;
+    --muted:#6b7a73;
+    --line:#d7ded8;
+    --green:#14543f;
+    --green-soft:#eaf2ee;
+    --gold:#b8893b;
+    --gold-soft:#f7efe1;
+    --paper:#ffffff;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:"Helvetica Neue",Arial,sans-serif;
+    color:var(--ink);
+    font-size:11.2px;
+    line-height:1.5;
+    -webkit-print-color-adjust:exact;
+    print-color-adjust:exact;
+  }
+  h1,h2,h3{font-family:Georgia,"Times New Roman",serif;font-weight:600;margin:0;}
+  p{margin:0 0 8px 0;}
+  .page{
+    width:100%;
+    padding:0;
+    page-break-after:always;
+  }
+  .page:last-child{page-break-after:auto;}
+
+  /* ---------- COVER ---------- */
+  .cover{
+    background:var(--green);
+    color:#fff;
+    padding:120px 64px 64px 64px;
+    min-height:980px;
+    position:relative;
+    -webkit-print-color-adjust:exact;
+  }
+  .brandmark{
+    font-family:Georgia,serif;
+    font-size:22px;
+    letter-spacing:3px;
+    text-transform:uppercase;
+    color:#fff;
+    display:flex;align-items:center;gap:12px;
+  }
+  .brandmark .leaf{
+    width:26px;height:26px;border:2px solid var(--gold);
+    display:inline-block;transform:rotate(45deg);border-radius:0 12px 0 12px;
+  }
+  .cover h1{
+    font-size:52px;line-height:1.05;margin-top:200px;color:#fff;max-width:560px;
+  }
+  .cover .sub{
+    font-size:16px;color:#cfe0d8;margin-top:20px;max-width:480px;font-family:Georgia,serif;font-style:italic;
+  }
+  .cover .rule{height:3px;width:80px;background:var(--gold);margin:34px 0;}
+  .cover .meta{position:absolute;bottom:64px;left:64px;right:64px;color:#bcd2c8;font-size:12px;}
+  .cover .meta .row{display:flex;gap:48px;margin-top:14px;}
+  .cover .meta .fld{flex:1;}
+  .cover .meta .fld .lbl{text-transform:uppercase;letter-spacing:1.5px;font-size:9px;color:#8fb3a4;}
+  .cover .meta .fld .ln{border-bottom:1px solid #4d7a68;height:22px;margin-top:6px;}
+
+  /* ---------- CONTENT ---------- */
+  .content{padding:48px 56px;}
+  .kicker{text-transform:uppercase;letter-spacing:2.5px;font-size:9.5px;color:var(--gold);font-weight:700;margin-bottom:6px;}
+  .h-section{font-size:23px;color:var(--green);margin-bottom:4px;}
+  .lead{color:var(--muted);font-size:12px;max-width:640px;margin-bottom:18px;}
+
+  .sec{margin-bottom:26px;page-break-inside:avoid;}
+  .sec-head{display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid var(--green);padding-bottom:6px;margin-bottom:14px;}
+  .sec-head h2{font-size:17px;color:var(--ink);}
+  .sec-head .num{color:var(--gold);font-family:Georgia,serif;}
+  .badge{font-size:8.5px;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:20px;font-weight:700;white-space:nowrap;}
+  .badge.all{background:var(--green-soft);color:var(--green);}
+  .badge.full{background:var(--gold-soft);color:var(--gold);}
+  .sec-note{color:var(--muted);font-size:10.5px;margin:-6px 0 12px 0;}
+
+  .field{margin-bottom:12px;page-break-inside:avoid;}
+  .field .q{font-weight:600;font-size:11px;}
+  .field .q .req{color:var(--gold);}
+  .field .ex{color:#9aa8a0;font-style:italic;font-size:10px;margin:2px 0 5px 0;}
+  .line{border-bottom:1px solid var(--line);height:20px;}
+  .line.tall{height:40px;}
+  .box{border:1px solid var(--line);border-radius:5px;min-height:54px;}
+  .grid2{display:flex;gap:24px;}
+  .grid2 .field{flex:1;}
+  .grid3{display:flex;gap:18px;}
+  .grid3 .field{flex:1;}
+
+  .checks{columns:2;column-gap:28px;}
+  .check{break-inside:avoid;margin-bottom:6px;font-size:11px;}
+  .check .bx{display:inline-block;width:13px;height:13px;border:1.5px solid var(--green);border-radius:3px;margin-right:8px;vertical-align:-2px;}
+
+  .callout{background:var(--green-soft);border-left:4px solid var(--green);padding:12px 16px;border-radius:0 6px 6px 0;font-size:10.5px;color:#274b3e;margin:14px 0;}
+  .callout.gold{background:var(--gold-soft);border-left-color:var(--gold);color:#6b5223;}
+  .callout b{color:inherit;}
+
+  .tier-card{border:1.5px solid var(--line);border-radius:10px;padding:18px 20px;margin-bottom:14px;page-break-inside:avoid;}
+  .tier-card.a{border-color:var(--green);}
+  .tier-card.b{border-color:var(--gold);}
+  .tier-card .tt{display:flex;align-items:center;gap:10px;margin-bottom:6px;}
+  .tier-card .pick{width:16px;height:16px;border:2px solid var(--ink);border-radius:4px;display:inline-block;}
+  .tier-card h3{font-size:15px;}
+  .tier-card .for{font-size:10px;color:var(--muted);font-style:italic;margin-bottom:8px;}
+  .tier-card ul{margin:6px 0 0 0;padding-left:18px;}
+  .tier-card li{font-size:10.5px;margin-bottom:3px;}
+
+  .legend{display:flex;gap:18px;font-size:9.5px;color:var(--muted);margin-top:6px;}
+  .legend span{display:flex;align-items:center;gap:6px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .dot.g{background:var(--green);}
+  .dot.o{background:var(--gold);}
+
+  .toc-row{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dotted var(--line);font-size:11px;}
+  .toc-row .b{color:var(--muted);font-size:9px;}
+
+  .step{display:flex;gap:14px;margin-bottom:12px;page-break-inside:avoid;}
+  .step .n{flex:0 0 30px;height:30px;width:30px;border-radius:50%;background:var(--green);color:#fff;font-family:Georgia,serif;display:flex;align-items:center;justify-content:center;font-size:14px;}
+  .step .t b{font-size:11.5px;}
+  .step .t p{font-size:10.5px;color:var(--muted);margin:2px 0 0 0;}
+
+  .footer{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:8px;color:#9aa8a0;letter-spacing:1px;text-transform:uppercase;padding:6px 0;}
+  .smallcap{text-transform:uppercase;letter-spacing:1.5px;font-size:9px;color:var(--gold);font-weight:700;}
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page cover">
+  <div class="brandmark"><span class="leaf"></span> Reliable Venues</div>
+  <h1>Venue Partner Onboarding</h1>
+  <div class="rule"></div>
+  <div class="sub">Everything we need to build your branded booking system — in your name, your look, your rules.</div>
+  <div class="meta">
+    <div class="smallcap" style="color:#8fb3a4;">Welcome Packet</div>
+    <div class="row">
+      <div class="fld"><div class="lbl">Venue / Business</div><div class="ln"></div></div>
+      <div class="fld"><div class="lbl">Prepared on</div><div class="ln"></div></div>
+    </div>
+    <div class="row">
+      <div class="fld"><div class="lbl">Main contact</div><div class="ln"></div></div>
+      <div class="fld"><div class="lbl">Target launch date</div><div class="ln"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ WELCOME ============ -->
+<div class="page">
+<div class="content">
+  <div class="kicker">Start Here</div>
+  <h1 class="h-section">Welcome to Reliable Venues</h1>
+  <p class="lead">We turn busy venues into smooth, modern booking machines. You bring the space and the details — we build you a beautiful website, take bookings and payments online, and handle the back-and-forth automatically so you stop living in spreadsheets and texts.</p>
+
+  <p style="font-size:11.5px;">This packet is how we learn your business. Fill in what you can in plain language — <b>no tech knowledge needed.</b> If something doesn't apply to you, just write "N/A" or leave it blank and we'll sort it out together. Most owners finish in about <b>20–30 minutes</b>.</p>
+
+  <div class="sec" style="margin-top:22px;">
+    <div class="sec-head"><h2>Before you start, have these handy</h2></div>
+    <div class="checks">
+      <div class="check"><span class="bx"></span> Your logo (an image file, if you have one)</div>
+      <div class="check"><span class="bx"></span> 15–25 good photos of your space</div>
+      <div class="check"><span class="bx"></span> Your prices (rental, cleaning, deposit, fees)</div>
+      <div class="check"><span class="bx"></span> Your venue rules for guests</div>
+      <div class="check"><span class="bx"></span> Your hours and any days you're closed</div>
+      <div class="check"><span class="bx"></span> Your social media links</div>
+      <div class="check"><span class="bx"></span> Whoever should be the main point of contact</div>
+      <div class="check"><span class="bx"></span> Your cancellation / refund policy</div>
+    </div>
+  </div>
+
+  <div class="callout gold">
+    <b>The fastest way to fill this out:</b> answer the questions you know off the top of your head first, then circle back for the rest. You can email us your logo and photos separately — just check the boxes in <b>Section 2</b> so we know they're coming.
+  </div>
+
+  <div class="sec" style="margin-top:20px;">
+    <div class="sec-head"><h2>How to send it back</h2></div>
+    <p style="font-size:11px;">Type your answers right in this document, or print it and write by hand. Send the completed packet plus your logo and photos to your Reliable Venues contact. We'll review everything within 2 business days and book a 30-minute call to confirm before we start building.</p>
+  </div>
+</div>
+</div>
+
+<!-- ============ CHOOSE PACKAGE ============ -->
+<div class="page">
+<div class="content">
+  <div class="kicker">Step 1 of 2 · Pick your package</div>
+  <h1 class="h-section">Which setup is right for you?</h1>
+  <p class="lead">Choose the package that fits where your venue is today. You can always upgrade later — many partners start lean and grow into the full platform.</p>
+
+  <div class="tier-card a">
+    <div class="tt"><span class="pick"></span><h3>Package A — Full Booking Platform</h3><span class="badge all" style="background:var(--green-soft);color:var(--green);">Most popular</span></div>
+    <div class="for">Best if you want guests to book and pay online, and you want one place to run everything.</div>
+    <ul>
+      <li>A branded website with your name, colors, photos and pricing</li>
+      <li>Online booking — guests pick a date, customize, sign, and pay a deposit</li>
+      <li>Card payments that land in <b>your</b> account</li>
+      <li>Automatic messages: confirmations, reminders, balance-due, post-event thank-you</li>
+      <li>A private dashboard for your bookings, calendar, staff, cleaning and revenue</li>
+    </ul>
+  </div>
+
+  <div class="tier-card b">
+    <div class="tt"><span class="pick"></span><h3>Package B — Lead-Capture Landing Page</h3></div>
+    <div class="for">Best if you just want more inquiries and prefer to handle booking &amp; payment yourself.</div>
+    <ul>
+      <li>A beautiful one-page website that shows off your space</li>
+      <li>A contact &amp; "request a tour" form so leads reach you instantly</li>
+      <li>Photo gallery, pricing display, and a welcome-discount popup</li>
+      <li>No online booking calendar or payments — you take it from the inquiry</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <b>Which sections do I fill?</b> Use the colored tags on each section heading:
+    <div class="legend">
+      <span><span class="dot g"></span> <b style="color:var(--green);">All packages</b> — everyone fills these</span>
+      <span><span class="dot o"></span> <b style="color:var(--gold);">Full Platform only</b> — skip if you chose Package B</span>
+    </div>
+  </div>
+
+  <div class="sec" style="margin-top:18px;">
+    <div class="sec-head"><h2>What's inside</h2></div>
+    <div class="toc-row"><span>1 · Business Basics</span><span class="b">All</span></div>
+    <div class="toc-row"><span>2 · Your Brand &amp; Look</span><span class="b">All</span></div>
+    <div class="toc-row"><span>3 · Your Space</span><span class="b">All</span></div>
+    <div class="toc-row"><span>4 · Availability &amp; Booking Rules</span><span class="b">Full Platform</span></div>
+    <div class="toc-row"><span>5 · Pricing &amp; Payments</span><span class="b">Full Platform</span></div>
+    <div class="toc-row"><span>6 · Packages &amp; Add-Ons</span><span class="b">Full Platform</span></div>
+    <div class="toc-row"><span>7 · Bar &amp; Alcohol</span><span class="b">All · optional</span></div>
+    <div class="toc-row"><span>8 · Your Team &amp; Cleaning</span><span class="b">Full Platform · optional</span></div>
+    <div class="toc-row"><span>9 · Guest Entry &amp; Access</span><span class="b">Full Platform · optional</span></div>
+    <div class="toc-row"><span>10 · Messages to Your Clients</span><span class="b">Full Platform</span></div>
+    <div class="toc-row"><span>11 · Getting Paid</span><span class="b">Full Platform</span></div>
+    <div class="toc-row"><span>12 · Website &amp; Email</span><span class="b">All</span></div>
+    <div class="toc-row"><span>13 · Promotions &amp; Discounts</span><span class="b">All · optional</span></div>
+    <div class="toc-row"><span>14 · House Rules &amp; Policies</span><span class="b">All</span></div>
+    <div class="toc-row"><span>15 · Goals &amp; Launch</span><span class="b">All</span></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 1 ============ -->
+<div class="page">
+<div class="content">
+  <div class="kicker">Step 2 of 2 · Tell us about your venue</div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">1.</span> Business Basics</h2><span class="badge all">All packages</span></div>
+    <div class="sec-note">This replaces our name everywhere on your site — the footer, page titles, contracts, and emails all use these details.</div>
+
+    <div class="grid2">
+      <div class="field"><div class="q">Legal business name <span class="req">*</span></div><div class="ex">e.g. Lakeside Hall LLC</div><div class="line"></div></div>
+      <div class="field"><div class="q">Public / brand name (what guests call you) <span class="req">*</span></div><div class="ex">e.g. Lakeside Hall</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">One-line tagline <span class="req">*</span></div><div class="ex">e.g. A modern lakeside venue for weddings &amp; celebrations</div><div class="line"></div></div>
+    <div class="grid2">
+      <div class="field"><div class="q">Street address <span class="req">*</span></div><div class="ex">e.g. 1200 Lake View Dr, Suite B</div><div class="line"></div></div>
+      <div class="field"><div class="q">City, State, ZIP <span class="req">*</span></div><div class="ex">e.g. Tampa, FL 33602</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Public phone number <span class="req">*</span></div><div class="ex">e.g. 813-555-0199</div><div class="line"></div></div>
+      <div class="field"><div class="q">Public email (the inbox you check) <span class="req">*</span></div><div class="ex">e.g. hello@lakesidehall.com</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Social media links</div><div class="ex">e.g. instagram.com/lakesidehall · facebook.com/lakesidehall · TikTok · Yelp</div><div class="line"></div></div>
+    <div class="field"><div class="q">Anything special about how guests should reach you?</div><div class="ex">e.g. We answer fastest by text; tours by appointment only</div><div class="line"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 2 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">2.</span> Your Brand &amp; Look</h2><span class="badge all">All packages</span></div>
+    <div class="sec-note">This is how we make the site look like <i>you</i>, not a template. Don't worry about being a designer — describe the feeling and we'll handle the rest.</div>
+
+    <div class="field"><div class="q">Do you have a logo? <span class="req">*</span></div>
+      <div class="check"><span class="bx"></span> Yes — I'll send the image file &nbsp;&nbsp; <span class="bx"></span> No — please design a simple one for us &nbsp;&nbsp; <span class="bx"></span> I have one but it needs a refresh</div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Brand colors (if you know them)</div><div class="ex">e.g. deep teal &amp; gold — or just "warm and elegant"</div><div class="line"></div></div>
+      <div class="field"><div class="q">Overall feel <span class="req">*</span></div><div class="ex">pick a few: elegant · modern · fun · luxury · rustic · minimal · bold</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Venues or brands whose style you admire (optional)</div><div class="ex">e.g. "Like The Venue at ___'s website" — a link is perfect</div><div class="line"></div></div>
+
+    <div class="field"><div class="q">Photos of your space <span class="req">*</span></div>
+      <div class="ex">We need 15–25 high-quality photos: the main room empty, the room set up for an event, entrance, bar, restrooms, parking, and any standout features.</div>
+      <div class="check"><span class="bx"></span> I'll email the photos &nbsp;&nbsp; <span class="bx"></span> They're in a shared drive (link below) &nbsp;&nbsp; <span class="bx"></span> I need help getting photos taken</div>
+      <div class="line" style="margin-top:6px;"></div>
+    </div>
+    <div class="field"><div class="q">Walkthrough video or virtual tour link (optional)</div><div class="ex">e.g. a YouTube clip or Matterport 3D tour</div><div class="line"></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">3.</span> Your Space</h2><span class="badge all">All packages</span></div>
+    <div class="sec-note">These details power your site and, for Package A, make sure the booking form never lets someone book more guests than you can hold.</div>
+    <div class="grid3">
+      <div class="field"><div class="q">Max guest capacity <span class="req">*</span></div><div class="ex">e.g. 150</div><div class="line"></div></div>
+      <div class="field"><div class="q">Chairs included <span class="req">*</span></div><div class="ex">e.g. 150</div><div class="line"></div></div>
+      <div class="field"><div class="q">Tables included <span class="req">*</span></div><div class="ex">e.g. 15</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Square footage (optional)</div><div class="ex">e.g. 4,200 sq ft</div><div class="line"></div></div>
+      <div class="field"><div class="q">Parking</div><div class="ex">e.g. Free on-site lot, ~40 spaces</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Key amenities &amp; rules of the space <span class="req">*</span></div><div class="ex">e.g. Outside catering allowed · in-house sound system · prep kitchen · A/C · wheelchair accessible</div><div class="line tall"></div></div>
+    <div class="field"><div class="q">Top 3–4 things that make your venue special <span class="req">*</span></div><div class="ex">these become the headline highlights on your homepage — e.g. "Lakefront patio · No hidden fees · Books in 2 minutes · 5 min from downtown"</div><div class="line tall"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 4 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">4.</span> Availability &amp; Booking Rules</h2><span class="badge full">Full Platform only</span></div>
+    <div class="sec-note">How and when people can book. This keeps your calendar clean and prevents double-bookings or events with no time to reset between them.</div>
+    <div class="grid2">
+      <div class="field"><div class="q">How do you rent the space? <span class="req">*</span></div><div class="ex">by the hour · by the day · both</div><div class="line"></div></div>
+      <div class="field"><div class="q">Minimum hours per booking</div><div class="ex">e.g. 4 hours</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Operating hours (earliest start – latest end) <span class="req">*</span></div><div class="ex">e.g. 8:00 AM – 11:00 PM</div><div class="line"></div></div>
+      <div class="field"><div class="q">Days of the week available <span class="req">*</span></div><div class="ex">e.g. All days · or Mon–Thu only</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Time needed between events to reset</div><div class="ex">e.g. 1 hour buffer</div><div class="line"></div></div>
+      <div class="field"><div class="q">How far ahead must someone book?</div><div class="ex">e.g. at least 2 days before the event</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Setup / teardown time included with a booking</div><div class="ex">e.g. 1 hour before and 30 minutes after the event</div><div class="line"></div></div>
+    <div class="field"><div class="q">Dates you're always closed (holidays, owner blackout dates)</div><div class="ex">e.g. Dec 24–25, July 4 — we'll block these automatically every year</div><div class="line tall"></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">5.</span> Pricing &amp; Payments</h2><span class="badge full">Full Platform only</span></div>
+    <div class="sec-note">Write your <b>own</b> numbers in each blank. The grey examples are just to show the format — please don't leave your real prices to guesswork.</div>
+    <div class="grid3">
+      <div class="field"><div class="q">Hourly rate <span class="req">*</span></div><div class="ex">e.g. $175 / hour</div><div class="line"></div></div>
+      <div class="field"><div class="q">Daily rate <span class="req">*</span></div><div class="ex">e.g. $1,200 / day</div><div class="line"></div></div>
+      <div class="field"><div class="q">Cleaning fee <span class="req">*</span></div><div class="ex">e.g. $250</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Do you take a deposit to hold a date? <span class="req">*</span></div><div class="ex">e.g. Yes — 50% deposit · or No deposit · or Pay in full</div><div class="line"></div></div>
+      <div class="field"><div class="q">When is the rest (balance) due? <span class="req">*</span></div><div class="ex">e.g. 15 days before the event</div><div class="line"></div></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">Sales tax rate to add</div><div class="ex">e.g. 6.5% — or "none / included"</div><div class="line"></div></div>
+      <div class="field"><div class="q">Any extra fees?</div><div class="ex">e.g. $150 setup fee · $6 per tablecloth · $200 security deposit</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Your cancellation &amp; refund policy (plain English) <span class="req">*</span></div><div class="ex">e.g. Deposits are non-refundable within 30 days of the event; reschedules allowed once</div><div class="line tall"></div></div>
+    <div class="callout">We collect deposits and balances automatically and send a secure payment link when the balance is due — money goes straight into your account. You'll tell us how you want to get paid in <b>Section 11</b>.</div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 6-7 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">6.</span> Packages &amp; Add-Ons</h2><span class="badge full">Full Platform only</span></div>
+    <div class="sec-note">Extras guests can add when they book — this is an easy way to raise your average booking value. Leave blank if you don't offer any yet.</div>
+    <div class="field"><div class="q">Packages you offer</div><div class="ex">name · what's included · price — e.g. "LED Lighting — ambient color wash — $99/hr"</div>
+      <div class="box"></div></div>
+    <div class="field"><div class="q">Individual add-ons</div><div class="ex">e.g. Projector &amp; screen — $75 · Extra hour — $150 · Coordinator — $300</div>
+      <div class="box"></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">7.</span> Bar &amp; Alcohol</h2><span class="badge all">All packages · optional</span></div>
+    <div class="sec-note">Alcohol rules vary a lot by venue and license, so tell us exactly how you handle it.</div>
+    <div class="field"><div class="q">Do you offer bar service?</div>
+      <div class="check"><span class="bx"></span> Yes — we provide it &nbsp;&nbsp; <span class="bx"></span> Guests bring their own (BYOB) &nbsp;&nbsp; <span class="bx"></span> No alcohol allowed</div>
+    </div>
+    <div class="field"><div class="q">Bar packages &amp; bartender fees (if any)</div><div class="ex">e.g. Beer &amp; Wine — $22/guest (4 hrs) · Bartender — $200 each</div><div class="line tall"></div></div>
+    <div class="grid2">
+      <div class="field"><div class="q">Is outside alcohol or an outside bartender allowed?</div><div class="ex">e.g. No outside alcohol or bartenders permitted</div><div class="line"></div></div>
+      <div class="field"><div class="q">Do you hold a liquor license?</div><div class="ex">Yes / No</div><div class="line"></div></div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">8.</span> Your Team &amp; Cleaning</h2><span class="badge full">Full Platform · optional</span></div>
+    <div class="sec-note">Only if you'd like us to help you track who's working each event and what to pay them. Skip entirely if you handle staffing on your own.</div>
+    <div class="field"><div class="q">Want us to manage staff scheduling &amp; pay in your dashboard?</div>
+      <div class="check"><span class="bx"></span> Yes &nbsp;&nbsp; <span class="bx"></span> No — I'll handle staffing myself</div>
+    </div>
+    <div class="field"><div class="q">Your team (name · role · contact)</div><div class="ex">e.g. Maria — Cleaning · Carlos — Setup/AV · Jordan — Manager</div><div class="box"></div></div>
+    <div class="grid2">
+      <div class="field"><div class="q">How do you pay setup/AV staff?</div><div class="ex">e.g. $50 / hour</div><div class="line"></div></div>
+      <div class="field"><div class="q">How do you pay for cleaning?</div><div class="ex">e.g. light $40 · standard $80 · deep $150</div><div class="line"></div></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 9-10 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">9.</span> Guest Entry &amp; Access</h2><span class="badge full">Full Platform · optional</span></div>
+    <div class="sec-note">If your space uses a keypad or smart lock, we can automatically give confirmed guests their entry code — one less thing for you to coordinate.</div>
+    <div class="grid2">
+      <div class="field"><div class="q">How do guests get in?</div><div class="ex">e.g. keypad code · smart lock · I let them in · lockbox</div><div class="line"></div></div>
+      <div class="field"><div class="q">When should the code be shared?</div><div class="ex">e.g. the morning of the event</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Entry instructions for guests</div><div class="ex">e.g. The keypad is to the right of the main door; enter code then #</div><div class="line"></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">10.</span> Messages to Your Clients</h2><span class="badge full">Full Platform only</span></div>
+    <div class="sec-note">We send these automatically by email and text so you don't have to chase anyone. Check the ones you want on — we recommend all of them.</div>
+    <div class="checks">
+      <div class="check"><span class="bx"></span> <b>Booking confirmation</b> — right after they book</div>
+      <div class="check"><span class="bx"></span> <b>Deposit / payment receipt</b></div>
+      <div class="check"><span class="bx"></span> <b>Balance reminder</b> — automatically before it's due</div>
+      <div class="check"><span class="bx"></span> <b>One week before:</b> a nudge to reconnect with your client</div>
+      <div class="check"><span class="bx"></span> <b>Day-before reminder</b> with arrival details</div>
+      <div class="check"><span class="bx"></span> <b>Thank-you + review request</b> after the event</div>
+    </div>
+    <div class="callout gold" style="margin-top:12px;">
+      <b>Get more 5-star reviews:</b> most venues lose reviews because the request feels like a chore. We make it one tap and can include a small thank-you incentive. Want to offer one?
+      <div class="check" style="margin-top:6px;"><span class="bx"></span> Yes — e.g. ____________________ &nbsp;&nbsp; <span class="bx"></span> No, just ask politely</div>
+    </div>
+    <div class="field"><div class="q">Anything you want every client message to mention?</div><div class="ex">e.g. parking instructions · "music must end by 11 PM" · a thank-you from the owner</div><div class="line"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 11-12 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">11.</span> Getting Paid</h2><span class="badge full">Full Platform only</span></div>
+    <div class="sec-note">You keep your money — payments go into <b>your</b> account, not ours. You don't need to set up anything technical; just answer these and we handle the wiring.</div>
+    <div class="field"><div class="q">Do you already accept card payments online?</div>
+      <div class="check"><span class="bx"></span> Yes — through ________________ (e.g. Stripe, Square, PayPal) &nbsp;&nbsp; <span class="bx"></span> No — please help me set it up</div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">What name should appear on a customer's card statement? <span class="req">*</span></div><div class="ex">e.g. LAKESIDE HALL</div><div class="line"></div></div>
+      <div class="field"><div class="q">Best email for billing / payment setup <span class="req">*</span></div><div class="ex">e.g. billing@lakesidehall.com</div><div class="line"></div></div>
+    </div>
+    <div class="callout">Once you return this packet, we'll send you one simple, secure link to connect your payout account. It takes about 5 minutes and you'll never have to touch code or settings.</div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">12.</span> Website &amp; Email</h2><span class="badge all">All packages</span></div>
+    <div class="sec-note">Where your new site will live and the address your automatic emails come from. If any of this is unfamiliar, just tell us what you have and we'll guide you.</div>
+    <div class="field"><div class="q">Do you already have a website? <span class="req">*</span></div>
+      <div class="check"><span class="bx"></span> Yes: ________________________ &nbsp;&nbsp; <span class="bx"></span> No</div>
+    </div>
+    <div class="grid2">
+      <div class="field"><div class="q">What web address would you like? <span class="req">*</span></div><div class="ex">e.g. lakesidehall.com · or book.lakesidehall.com</div><div class="line"></div></div>
+      <div class="field"><div class="q">Who manages your domain, if you know?</div><div class="ex">e.g. GoDaddy · Squarespace · "no idea" is fine</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">What email should client messages come from? <span class="req">*</span></div><div class="ex">e.g. bookings@lakesidehall.com</div><div class="line"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ SECTION 13-15 ============ -->
+<div class="page">
+<div class="content">
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">13.</span> Promotions &amp; Discounts</h2><span class="badge all">All packages · optional</span></div>
+    <div class="sec-note">A welcome-discount popup is a proven way to capture visitors before they leave. Optional, but it works.</div>
+    <div class="grid2">
+      <div class="field"><div class="q">Want a welcome-discount popup?</div><div class="ex">Yes / No</div><div class="line"></div></div>
+      <div class="field"><div class="q">Offer text</div><div class="ex">e.g. "Get 10% off your first booking"</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">Any coupon codes to set up?</div><div class="ex">e.g. WELCOME10 — 10% off — expires Dec 31</div><div class="line"></div></div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">14.</span> House Rules &amp; Policies</h2><span class="badge all">All packages</span></div>
+    <div class="sec-note">These are the rules guests agree to when they book. We provide ready-made Privacy Policy and Terms of Use with <i>your</i> name on them — you just supply the venue-specific rules below.</div>
+    <div class="field"><div class="q">Your house rules for guests <span class="req">*</span></div><div class="ex">e.g. No confetti or glitter · no open flames · music off by 11 PM · no smoking indoors · guest responsible for damage</div><div class="box"></div></div>
+    <div class="field"><div class="q">Privacy Policy &amp; Terms of Use <span class="req">*</span></div>
+      <div class="check"><span class="bx"></span> Use Reliable Venues' standard templates with my business name &nbsp;&nbsp; <span class="bx"></span> I'll provide my own (attorney-reviewed)</div>
+    </div>
+    <div class="field"><div class="q">Are you okay sending booking confirmations and reminders by text message?</div>
+      <div class="ex">U.S. rules require this consent before we text your guests — we include the proper opt-in language for you.</div>
+      <div class="check"><span class="bx"></span> Yes &nbsp;&nbsp; <span class="bx"></span> Email only, no texting</div>
+    </div>
+  </div>
+
+  <div class="sec">
+    <div class="sec-head"><h2><span class="num">15.</span> Goals &amp; Launch</h2><span class="badge all">All packages</span></div>
+    <div class="grid2">
+      <div class="field"><div class="q">Target go-live date <span class="req">*</span></div><div class="ex">e.g. July 15, 2026</div><div class="line"></div></div>
+      <div class="field"><div class="q">Who gives final sign-off on the site? <span class="req">*</span></div><div class="ex">name &amp; email</div><div class="line"></div></div>
+    </div>
+    <div class="field"><div class="q">What does success look like in your first 90 days?</div><div class="ex">e.g. fill weekday slots · stop managing bookings by text · 10 events/month</div><div class="line"></div></div>
+    <div class="field"><div class="q">Anything else we should know?</div><div class="line tall"></div></div>
+  </div>
+</div>
+</div>
+
+<!-- ============ WHAT'S NEXT ============ -->
+<div class="page">
+<div class="content">
+  <div class="kicker">After you hit send</div>
+  <h1 class="h-section">What happens next</h1>
+  <p class="lead">Here's exactly how we turn this packet into your live booking system.</p>
+
+  <div class="step"><div class="n">1</div><div class="t"><b>Review &amp; kickoff call (2 business days)</b><p>We read everything, flag any gaps, and confirm your package and prices on a short call.</p></div></div>
+  <div class="step"><div class="n">2</div><div class="t"><b>We build your branded system</b><p>Your website, booking flow, payments, and automatic messages — all in your name, colors, and rules.</p></div></div>
+  <div class="step"><div class="n">3</div><div class="t"><b>You review a private preview</b><p>You see the whole thing before it's public and request any changes. Nothing goes live without your sign-off.</p></div></div>
+  <div class="step"><div class="n">4</div><div class="t"><b>Connect payments &amp; go live</b><p>You click one secure link to connect your payout account, we flip the switch, and you start taking bookings.</p></div></div>
+  <div class="step"><div class="n">5</div><div class="t"><b>We've got your back</b><p>We monitor your system daily and you have a direct line to us whenever you need a change.</p></div></div>
+
+  <div class="sec" style="margin-top:24px;">
+    <div class="sec-head"><h2>Quick checklist before you send</h2></div>
+    <div class="checks">
+      <div class="check"><span class="bx"></span> Picked a package (A or B)</div>
+      <div class="check"><span class="bx"></span> Filled every field marked <span class="req" style="color:var(--gold);">*</span></div>
+      <div class="check"><span class="bx"></span> Attached your logo</div>
+      <div class="check"><span class="bx"></span> Attached or linked your photos</div>
+      <div class="check"><span class="bx"></span> Wrote your house rules</div>
+      <div class="check"><span class="bx"></span> Confirmed your prices are yours, not the examples</div>
+    </div>
+  </div>
+
+  <div class="callout gold" style="margin-top:20px;text-align:center;">
+    Questions while filling this out? Reach your Reliable Venues contact anytime — we're happy to jump on a quick call and fill it in together.
+  </div>
+
+  <div style="text-align:center;margin-top:42px;">
+    <div class="brandmark" style="justify-content:center;color:var(--green);"><span class="leaf" style="border-color:var(--gold);"></span> <span style="color:var(--green);">Reliable Venues</span></div>
+    <p style="color:var(--muted);font-size:10px;margin-top:8px;">Venue Partner Onboarding · Thank you for building with us.</p>
+  </div>
+</div>
+</div>
+
+</body>
+</html>

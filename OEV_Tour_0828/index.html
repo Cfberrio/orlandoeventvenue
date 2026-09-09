@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>OEV Renovated Virtual Tour Prototype</title>
+<style>
+:root {
+  --bg: #0a0a0b;
+  --fg: #fff;
+  --muted: rgba(255,255,255,.72);
+  --panel: rgba(12,12,13,.66);
+  --line: rgba(255,255,255,.18);
+}
+* { box-sizing: border-box; }
+html, body { margin:0; width:100%; height:100%; background:var(--bg); color:var(--fg); font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow:hidden; }
+button, a { font:inherit; }
+.tour { position:relative; width:100vw; height:100dvh; background:
+  radial-gradient(circle at 50% 45%, #252528 0%, #101012 55%, #080809 100%); overflow:hidden; }
+.topbar { position:absolute; inset:0 0 auto 0; z-index:20; display:flex; align-items:center; justify-content:space-between;
+  padding:18px 22px; background:linear-gradient(to bottom, rgba(0,0,0,.62), transparent); pointer-events:none; }
+.brand { font-size:12px; letter-spacing:.18em; text-transform:uppercase; opacity:.9; }
+.close { width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background:rgba(0,0,0,.35); color:white; pointer-events:auto; cursor:pointer; }
+.stage { position:absolute; inset:68px 24px 150px; display:grid; place-items:center; perspective:1500px; touch-action:pan-y; }
+.card {
+  position:relative; max-width:min(1180px, 92vw); max-height:calc(100dvh - 230px);
+  transform-style:preserve-3d; transition:transform 580ms cubic-bezier(.2,.8,.2,1), opacity 420ms ease, filter 420ms ease;
+  will-change:transform; cursor:grab; user-select:none;
+}
+.card:active { cursor:grabbing; }
+.card img {
+  display:block; width:auto; height:auto; max-width:100%; max-height:calc(100dvh - 230px);
+  object-fit:contain; border-radius:3px; box-shadow:0 28px 75px rgba(0,0,0,.55);
+  -webkit-user-drag:none;
+}
+.card.enter-right { transform:translateX(18vw) rotateY(-17deg) scale(.92); opacity:0; filter:brightness(.72); }
+.card.enter-left  { transform:translateX(-18vw) rotateY(17deg) scale(.92); opacity:0; filter:brightness(.72); }
+.card.active { transform:translateX(0) rotateY(0) scale(1); opacity:1; }
+.vignette { pointer-events:none; position:absolute; inset:0; z-index:5; background:
+  linear-gradient(to top, rgba(0,0,0,.78) 0%, rgba(0,0,0,.1) 30%, transparent 55%),
+  linear-gradient(to right, rgba(0,0,0,.32), transparent 14%, transparent 86%, rgba(0,0,0,.32)); }
+.controls {
+  position:absolute; z-index:25; left:50%; bottom:24px; transform:translateX(-50%);
+  width:min(760px, calc(100vw - 32px)); text-align:center;
+}
+.title { font-size:clamp(17px, 2vw, 24px); font-weight:650; margin-bottom:6px; text-shadow:0 2px 16px rgba(0,0,0,.7); }
+.desc { color:var(--muted); font-size:12px; margin-bottom:14px; }
+.navrow { display:flex; align-items:center; justify-content:center; gap:12px; }
+.arrow {
+  width:38px; height:38px; border-radius:50%; border:1px solid var(--line); color:white; background:rgba(0,0,0,.44);
+  backdrop-filter:blur(12px); cursor:pointer; transition:transform .15s ease, background .15s ease;
+}
+.arrow:hover { transform:scale(1.06); background:rgba(255,255,255,.12); }
+.dots { display:flex; align-items:center; gap:7px; max-width:min(430px,55vw); overflow:auto; scrollbar-width:none; }
+.dot { width:7px; height:7px; border-radius:50%; border:0; padding:0; background:rgba(255,255,255,.35); cursor:pointer; flex:0 0 auto; }
+.dot.current { background:white; transform:scale(1.28); }
+.book {
+  position:absolute; z-index:30; right:22px; bottom:24px; display:inline-flex; align-items:center; gap:8px;
+  padding:11px 16px; border-radius:999px; color:#111; background:#fff; text-decoration:none; font-weight:700; font-size:13px;
+  box-shadow:0 12px 36px rgba(0,0,0,.28);
+}
+.hint { position:absolute; z-index:20; left:22px; bottom:26px; color:rgba(255,255,255,.58); font-size:11px; }
+@media (max-width: 720px) {
+  .stage { inset:60px 12px 170px; }
+  .card img { max-height:calc(100dvh - 250px); }
+  .book { right:50%; transform:translateX(50%); bottom:76px; }
+  .hint { display:none; }
+  .controls { bottom:18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .card { transition:opacity 160ms linear; }
+}
+</style>
+</head>
+<body>
+<div class="tour" id="tour">
+  <div class="topbar">
+    <div class="brand">OEV · Renovated Virtual Tour</div>
+    <button class="close" aria-label="Close">×</button>
+  </div>
+
+  <main class="stage" id="stage">
+    <div class="card active" id="card">
+      <img id="sceneImage" alt="">
+    </div>
+  </main>
+
+  <div class="vignette"></div>
+  <div class="hint">Drag / swipe or use arrow keys</div>
+  <a class="book" href="#" aria-label="Book now">Book Now ↗</a>
+
+  <section class="controls" aria-live="polite">
+    <div class="title" id="sceneTitle"></div>
+    <div class="desc" id="sceneDesc"></div>
+    <div class="navrow">
+      <button class="arrow" id="prev" aria-label="Previous scene">‹</button>
+      <div class="dots" id="dots"></div>
+      <button class="arrow" id="next" aria-label="Next scene">›</button>
+    </div>
+  </section>
+</div>
+
+<script>
+const scenes = [{"title": "Main Entrance", "desc": "Renovated entrance and welcome area", "slug": "main-entrance", "portrait": false, "src1": "assets/main-entrance-2048.webp", "src2": "assets/main-entrance-4096.webp", "original": "assets/main-entrance-original.jpg", "hi": "assets/main-entrance-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}, {"title": "Welcome Area", "desc": "Welcome wall detail", "slug": "welcome-detail", "portrait": true, "src1": "assets/welcome-detail-portrait.webp", "src2": "assets/welcome-detail-portrait-2x.webp", "original": "assets/welcome-detail-original.jpg", "hi": "assets/welcome-detail-2x.jpg", "w": 1365, "h": 2048, "hiw": 2730, "hih": 4096}, {"title": "Event Space", "desc": "Stage and presentation wall", "slug": "event-stage-01", "portrait": false, "src1": "assets/event-stage-01-2048.webp", "src2": "assets/event-stage-01-4096.webp", "original": "assets/event-stage-01-original.jpg", "hi": "assets/event-stage-01-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}, {"title": "Event Space", "desc": "Alternate stage view", "slug": "event-stage-02", "portrait": false, "src1": "assets/event-stage-02-2048.webp", "src2": "assets/event-stage-02-4096.webp", "original": "assets/event-stage-02-original.jpg", "hi": "assets/event-stage-02-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}, {"title": "Event Space", "desc": "Acoustic wall and open floor", "slug": "event-acoustic-01", "portrait": false, "src1": "assets/event-acoustic-01-2048.webp", "src2": "assets/event-acoustic-01-4096.webp", "original": "assets/event-acoustic-01-original.jpg", "hi": "assets/event-acoustic-01-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}, {"title": "Event Space", "desc": "Side wall and doors", "slug": "event-acoustic-02", "portrait": false, "src1": "assets/event-acoustic-02-2048.webp", "src2": "assets/event-acoustic-02-4096.webp", "original": "assets/event-acoustic-02-original.jpg", "hi": "assets/event-acoustic-02-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}, {"title": "Event Space", "desc": "Rear wall and open floor", "slug": "event-back-wall", "portrait": false, "src1": "assets/event-back-wall-2048.webp", "src2": "assets/event-back-wall-4096.webp", "original": "assets/event-back-wall-original.jpg", "hi": "assets/event-back-wall-2x.jpg", "w": 2048, "h": 1365, "hiw": 4096, "hih": 2730}];
+let index = 0;
+let startX = null;
+let dragging = false;
+let deltaX = 0;
+
+const card = document.getElementById('card');
+const img = document.getElementById('sceneImage');
+const title = document.getElementById('sceneTitle');
+const desc = document.getElementById('sceneDesc');
+const dots = document.getElementById('dots');
+const stage = document.getElementById('stage');
+
+scenes.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot';
+  b.setAttribute('aria-label', `Go to scene ${i+1}`);
+  b.onclick = () => go(i, i > index ? 1 : -1);
+  dots.appendChild(b);
+});
+
+function setScene(i) {
+  const s = scenes[i];
+  img.src = s.src1;
+  img.srcset = `${s.src1} 2048w, ${s.src2} 4096w`;
+  img.sizes = '(max-width: 720px) 96vw, 92vw';
+  img.alt = `${s.title} — ${s.desc}`;
+  title.textContent = s.title;
+  desc.textContent = s.desc;
+  [...dots.children].forEach((d, n) => d.classList.toggle('current', n === i));
+  // Preload adjacent scenes
+  [scenes[(i+1)%scenes.length], scenes[(i-1+scenes.length)%scenes.length]].forEach(x => {
+    const p = new Image(); p.src = x.src1;
+  });
+}
+
+function go(nextIndex, dir=1) {
+  if (nextIndex === index) return;
+  const cls = dir > 0 ? 'enter-left' : 'enter-right';
+  card.className = 'card ' + cls;
+  setTimeout(() => {
+    index = (nextIndex + scenes.length) % scenes.length;
+    setScene(index);
+    card.className = 'card ' + (dir > 0 ? 'enter-right' : 'enter-left');
+    requestAnimationFrame(() => requestAnimationFrame(() => card.className = 'card active'));
+  }, 260);
+}
+document.getElementById('prev').onclick = () => go(index - 1, -1);
+document.getElementById('next').onclick = () => go(index + 1, 1);
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') go(index - 1, -1);
+  if (e.key === 'ArrowRight') go(index + 1, 1);
+});
+
+stage.addEventListener('pointerdown', e => {
+  startX = e.clientX; dragging = true; deltaX = 0;
+  stage.setPointerCapture(e.pointerId);
+});
+stage.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  deltaX = e.clientX - startX;
+  const rotate = Math.max(-9, Math.min(9, -deltaX / 34));
+  const translate = Math.max(-80, Math.min(80, deltaX * .22));
+  card.style.transform = `translateX(${translate}px) rotateY(${rotate}deg) scale(.985)`;
+});
+function endDrag() {
+  if (!dragging) return;
+  dragging = false;
+  card.style.transform = '';
+  if (Math.abs(deltaX) > 70) go(index + (deltaX < 0 ? 1 : -1), deltaX < 0 ? 1 : -1);
+}
+stage.addEventListener('pointerup', endDrag);
+stage.addEventListener('pointercancel', endDrag);
+
+setScene(0);
+</script>
+</body>
+</html>

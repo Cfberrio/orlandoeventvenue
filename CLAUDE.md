@@ -1,0 +1,75 @@
+# Orlando Event Venue (OEV) — reglas de trabajo (LEER SIEMPRE)
+
+## Identidad del repo
+
+| Dato | Valor |
+|---|---|
+| Marca | OEV — venue booking, lead handling, pagos, recordatorios |
+| Carpeta | `~/Documents/OEV-PROJECT/`, rama `main` |
+| Remote | `github.com/Cfberrio/orlandoeventvenue` |
+| Frontend | Lovable, proyecto `9838d610-03f9-4469-a8f3-362588d13d76` (`orlandoeventvenue`) |
+| **Producción** | **https://orlandoeventvenue.org** |
+| Backend | Lovable Cloud (Supabase ref `vsvsgesgqjtwutadcshi`) |
+| Superficie | 46 edge functions + 134 migraciones |
+
+**`orlandoeventvenue.com` NO es la app** — es un lander parqueado (redirige a `/lander`). Si vas a verificar un deploy, verifica contra `orlandoeventvenue.org`. `orlandoeventvenue.lovable.app` es el mismo build publicado.
+
+## Deploy: un push NO publica nada
+
+`git push origin main` **no cambia orlandoeventvenue.org**. El pipeline completo es:
+
+1. Commit en `main` → `git push origin main`.
+   - Antes de push: `git fetch` + merge — Lovable (bot `gpt-engineer-app[bot]`) también empuja commits a main.
+2. Lovable auto-sincroniza desde GitHub (1–7 min). Verificar con Lovable MCP:
+   `get_project` (project `9838d610-03f9-4469-a8f3-362588d13d76`) hasta que `latest_commit_sha` == tu commit. **NO publicar antes** — publicarías el commit anterior.
+3. Publicar: Lovable MCP `deploy_project`.
+4. Verificar con assertion real: `curl` al HTML/asset/endpoint que tu commit cambia. No confiar en el `"success"` del deploy.
+
+**Si un cambio "no sale" en la web: casi siempre falta el paso 3 (Publish).**
+
+## Puerta pre-deploy (obligatoria)
+
+Antes de cada publish, correr `/pre-deploy`. Revisa **el diff**, no el repo entero. Cuesta un agente por deploy.
+
+Motivo: OEV publica 46 edge functions sin revisión previa y con menos tests que DR. En agosto 2026 se descubrió por accidente que `ghl-sms-draft` corría una race condition — drafts AI duplicados llegando al cliente — que DR ya tenía arreglada hacía meses (arreglado aquí en `d827b40`). Nadie tenía forma de saberlo. El patrón era leer-chequear-escribir sin verificar el error del insert: detectable en segundos por un reviewer.
+
+El gate falla si el diff tiene: race conditions sin claim atómico, `insert`/`update` cuyo error no se verifica, webhooks o crons sin idempotencia, secretos en código, o una migración que cambia un CHECK sin el código que la acompaña.
+
+## Agentes especialistas
+
+Viven en `.claude/agents/`. Vienen de `msitarzewski/agency-agents` (258 definiciones), reescritos con los datos reales de este repo. **No se instaló el catálogo** — se tomaron las definiciones que tapan un agujero concreto.
+
+| Agente | Cuándo |
+|---|---|
+| `pre-deploy-reviewer` (`/pre-deploy`) | Antes de publicar. Revisa el diff. BLOCK/WARN/PASS |
+| `release-verifier` | **Después** de publicar. Verifica contra `.org` con evidencia real. Por defecto NO CERTIFICA |
+| `lovable-code-auditor` | Auditoría de seguridad de código generado por Lovable: secretos, RLS, `verify_jwt = false` sin validación propia, service-role, prompt injection, dominio de pago |
+| `payments-auditor` | Antes de tocar checkout, balances, invoices, descuentos, payroll o `stripe-webhook` |
+
+OEV es el repo con más superficie (46 funciones, 134 migraciones) y menos red de seguridad. Los cuatro están calibrados para eso: alcance acotado por corrida, no auditorías de 46 funciones de una vez.
+
+Para comparar una función con sus hermanas de DR y CTS: `cross-brand-function-auditor`, en el repo `~/Documents/CLAUDE CODE`. Para gasto de créditos Lovable (los `daily-health-check` / `verify-system-health` / `process-*` corren solos): `lovable-cost-auditor`, mismo repo.
+
+## Migraciones
+
+- Archivo en `supabase/migrations/` **y** aplicar vía Lovable MCP `query_database`.
+- Si un cambio de código depende de la migración (ej. un valor nuevo en un CHECK), **la migración va primero**. Publicar el código antes deja producción escribiendo valores que la DB rechaza.
+- Fallback CLI: `supabase link --project-ref vsvsgesgqjtwutadcshi` + `supabase db push`.
+
+## Edge functions
+
+- Viajan con el sync de Lovable. Después de publicar, verificar con `curl` real al endpoint o revisando logs — no asumir que subió.
+- `verify_jwt` se declara por función en `supabase/config.toml`. Función nueva sin entrada ahí = JWT requerido por default; los webhooks externos (GHL, Stripe) fallarán en silencio.
+- Tests de edge: `bun run test:edge` (`supabase/functions/_tests/`). Correrlos antes de tocar pagos, balances o scheduling.
+
+## Reglas de higiene
+
+- Lockfile canónico = `bun.lock`. El repo también trackea `bun.lockb` y `package-lock.json` **desactualizados** — no los uses como referencia y no los regeneres; pendiente borrarlos.
+- `.env` está gitignored y vive aquí. No borrar.
+- Dominio en redirects de pago: usar el que sirve la app (`orlandoeventvenue.org`), no `.com`. Ya rompió una vez (`9009d1c`).
+
+## Marcas vecinas
+
+DR (`~/Documents/DISCIPLINERIFT/disciplinerift`) y CTS (`~/Documents/CheeseToShare`) corren edge functions con el mismo linaje: `ghl-sms-draft`, `stripe-webhook`, `composio-gmail-webhook`, `create-checkout-session`, `process-scheduled-jobs`. **Un bug arreglado aquí probablemente vive allá.** Cuando arregles algo en una función compartida, revisa las hermanas antes de cerrar la tarea.
+
+Contenido, copy y estrategia de OEV no se mezclan con DR ni CTS. Este repo es lógica de booking y conversión, no voz de marca.

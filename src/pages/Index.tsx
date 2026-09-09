@@ -15,6 +15,9 @@ import OevFooter from "@/components/home/OevFooter";
 import MobileBar from "@/components/home/MobileBar";
 import ContactForm from "@/components/ContactForm";
 import DiscountPopup from "@/components/DiscountPopup";
+/* Backdrop behind the pricing section: one photo so the page reads continuous
+ * there instead of a flat slab. */
+import bandBg from "@/assets/venue/promo-band-bg-2048.webp";
 
 const Index = () => {
   const scope = useMarketingMotion<HTMLDivElement>();
@@ -36,7 +39,14 @@ const Index = () => {
       <OevHero />
       <PromoBand />
       <WhyCards />
-      <PricingSection />
+      <div className="photo-band">
+        <div
+          className="photo-band-bg"
+          aria-hidden
+          style={{ backgroundImage: `url(${bandBg})` }}
+        />
+        <PricingSection />
+      </div>
       <AddonsSection />
       <GalleryTours />
       <HowItWorksSection />

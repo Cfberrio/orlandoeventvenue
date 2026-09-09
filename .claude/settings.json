@@ -1,0 +1,32 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__obsidian__obsidian_list_files_in_vault",
+      "mcp__obsidian__obsidian_list_files_in_dir",
+      "mcp__obsidian__obsidian_batch_get_file_contents",
+      "mcp__obsidian__obsidian_simple_search",
+      "Bash(sed -n '1,40p' supabase/migrations/20260126222113_auto_fix_missing_jobs_cron.sql)",
+      "Bash(sed -n '1,30p' supabase/migrations/20260126222114_daily_health_check_cron.sql)",
+      "Bash(python3 -c ' *)",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --no-pdf-header-footer --print-to-pdf=\"Venue-Partner-Onboarding.pdf\" \"Venue-Partner-Onboarding.html\")",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --hide-scrollbars --window-size=850,1100 --screenshot=\"qa-cover.png\" \"Venue-Partner-Onboarding.html\")",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --hide-scrollbars --window-size=850,4400 --screenshot=\"qa-tall.png\" \"Venue-Partner-Onboarding.html\")",
+      "Bash(\"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome\" --headless --disable-gpu --hide-scrollbars --window-size=850,640 --screenshot=\"qa.png\" \"Venue-Partner-Onboarding.html\")",
+      "WebFetch(domain:deno.land)",
+      "Bash(brew list *)",
+      "Bash(grep -nA2 \"functions.send-booking-confirmation\\\\]\" supabase/config.toml)",
+      "Bash(grep -nA2 \"functions.send-balance-confirmation\\\\]\" supabase/config.toml)",
+      "Bash(sh -s -- -y)",
+      "Bash(~/.deno/bin/deno --version)",
+      "Bash(~/.deno/bin/deno run *)",
+      "Bash(head -n 439 supabase/functions/send-booking-confirmation/index.ts)",
+      "Bash(printf '\\\\nexport { generateEmailHTML as depHTML };\\\\n')",
+      "Bash(FIX=0 ~/.deno/bin/deno run --allow-net --allow-read --allow-write --allow-env repro-dep.ts)",
+      "Bash(FIX=1 ~/.deno/bin/deno run --allow-net --allow-read --allow-write --allow-env repro-dep.ts)",
+      "Bash(grep -v '^_tests$')",
+      "Bash(grep -rnE 'eyJ[A-Za-z0-9_-]{10,}|sk_live_[A-Za-z0-9]|sk_test_[A-Za-z0-9]|whsec_[A-Za-z0-9]|rk_live_|pk_live_' --include='*.ts' .)",
+      "Bash(grep -rnE 'Bearer [A-Za-z0-9._-]{12,}' --include='*.ts' .)",
+      "Bash(grep -rniE \"eyJ[A-Za-z0-9_-]{10,}\" src/)"
+    ]
+  }
+}

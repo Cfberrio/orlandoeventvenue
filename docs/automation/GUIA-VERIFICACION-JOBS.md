@@ -15,7 +15,7 @@ Tu sistema de bookings utiliza **scheduled_jobs** para automatizar las siguiente
 ### 2. **Host Report Jobs** 📝
 - `host_report_pre_start` (event - 30 días)
 - `host_report_during` (event - 7 días)
-- `host_report_post` (event - 1 hora)
+- `host_report_post` (event - 1 día)
 - **Cuándo se crean**: Cuando un booking llega a `pre_event_ready`
 - **Qué hacen**: Actualizan el campo `host_report_step` del booking, lo que dispara workflows en GHL
 
