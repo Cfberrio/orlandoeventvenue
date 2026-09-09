@@ -16,6 +16,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePricing } from "@/hooks/usePricing";
+import {
+  computeDiscountAmount,
+  sumBillableItems,
+  MIN_INVOICE_NET,
+  type DiscountType,
+} from "@/lib/invoiceDiscount";
 
 export interface InvoiceInitialData {
   title: string;
@@ -23,6 +29,8 @@ export interface InvoiceInitialData {
   lineItems: { label: string; amount: number }[];
   customerEmail: string;
   customerName: string | null;
+  discountType: DiscountType | null;
+  discountValue: number | null;
 }
 
 interface Props {
@@ -95,6 +103,9 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
   const [customerName, setCustomerName] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const [discountType, setDiscountType] = useState<DiscountType>("percent");
+  const [discountValue, setDiscountValue] = useState("");
+
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequencyPreset, setFrequencyPreset] = useState<FrequencyPreset>("monthly");
   const [customDays, setCustomDays] = useState("");
@@ -117,6 +128,10 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
       );
       setCustomerEmail(initialData.customerEmail);
       setCustomerName(initialData.customerName ?? "");
+      setDiscountType(initialData.discountType ?? "percent");
+      setDiscountValue(
+        initialData.discountValue != null ? String(initialData.discountValue) : ""
+      );
     } else if (open && !initialData) {
       resetForm();
     }
@@ -128,6 +143,8 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     setLineItems([{ label: "", amount: "" }]);
     setCustomerEmail("");
     setCustomerName("");
+    setDiscountType("percent");
+    setDiscountValue("");
     setIsRecurring(false);
     setFrequencyPreset("monthly");
     setCustomDays("");
@@ -148,15 +165,34 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     setLineItems(updated);
   };
 
-  const total = lineItems.reduce((sum, item) => {
-    const val = parseFloat(item.amount);
-    return sum + (isNaN(val) ? 0 : val);
-  }, 0);
+  // Only rows that survive into line_items may count toward the subtotal. A row
+  // with an amount but no name is dropped from line_items, and since a discounted
+  // invoice bills Stripe a single line at `amount`, counting it here would charge
+  // the customer for an item that appears nowhere in the invoice.
+  const validItems = lineItems.filter(
+    (item) => item.label.trim() && parseFloat(item.amount) > 0
+  );
+  const orphanAmountRows = lineItems.filter(
+    (item) => !item.label.trim() && parseFloat(item.amount) > 0
+  );
+
+  const subtotal = sumBillableItems(lineItems);
+
+  const parsedDiscountValue = parseFloat(discountValue);
+  const hasDiscount = !isNaN(parsedDiscountValue) && parsedDiscountValue > 0;
+  const discountAmount = computeDiscountAmount(
+    subtotal,
+    hasDiscount ? discountType : null,
+    hasDiscount ? parsedDiscountValue : null
+  );
+  // What the customer owes before the processing fee. This is what gets stored
+  // in invoices.amount, so Stripe, the fee and the revenue reports all follow it.
+  const netAmount = Math.round((subtotal - discountAmount) * 100) / 100;
 
   const { pricing: pp } = usePricing();
   const PROCESSING_FEE_RATE = (pp.processing_fee || 3.5) / 100;
-  const processingFee = Math.round(total * PROCESSING_FEE_RATE * 100) / 100;
-  const totalWithFee = total + processingFee;
+  const processingFee = Math.round(netAmount * PROCESSING_FEE_RATE * 100) / 100;
+  const totalWithFee = netAmount + processingFee;
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -164,14 +200,31 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
       return;
     }
 
-    const validItems = lineItems.filter((item) => item.label.trim() && parseFloat(item.amount) > 0);
     if (validItems.length === 0) {
       toast({ title: "Add at least one item with a name and amount", variant: "destructive" });
       return;
     }
 
-    if (total <= 0) {
-      toast({ title: "Total must be greater than $0", variant: "destructive" });
+    if (orphanAmountRows.length > 0) {
+      toast({
+        title: "Every item with an amount needs a name",
+        description: "Unnamed items are not billed and would be dropped from the invoice.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (subtotal <= 0) {
+      toast({ title: "Subtotal must be greater than $0", variant: "destructive" });
+      return;
+    }
+
+    if (netAmount < MIN_INVOICE_NET) {
+      toast({
+        title: `Total after discount must be at least $${MIN_INVOICE_NET.toFixed(2)}`,
+        description: "Stripe cannot charge less than that.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -196,7 +249,11 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
       const insertPayload: Record<string, unknown> = {
         title: title.trim(),
         description: description.trim() || null,
-        amount: total,
+        subtotal,
+        discount_type: discountAmount > 0 ? discountType : null,
+        discount_value: discountAmount > 0 ? parsedDiscountValue : null,
+        discount_amount: discountAmount,
+        amount: netAmount,
         line_items: itemsPayload,
         customer_email: customerEmail.trim().toLowerCase(),
         customer_name: customerName.trim() || null,
@@ -340,24 +397,96 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
               Add Item
             </Button>
 
-            <div className="pt-3 border-t space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Subtotal</span>
-                <span className="text-sm">
-                  ${total.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+            <div className="pt-3 border-t space-y-3">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="invoice-discount" className="text-sm text-muted-foreground shrink-0">
+                  Discount
+                </Label>
+                <div className="flex rounded-md border overflow-hidden shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("percent")}
+                    disabled={loading}
+                    className={`px-3 py-1.5 text-sm transition-colors ${
+                      discountType === "percent"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background hover:bg-muted"
+                    }`}
+                  >
+                    %
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountType("fixed")}
+                    disabled={loading}
+                    className={`px-3 py-1.5 text-sm transition-colors border-l ${
+                      discountType === "fixed"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background hover:bg-muted"
+                    }`}
+                  >
+                    $
+                  </button>
+                </div>
+                <Input
+                  id="invoice-discount"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max={discountType === "percent" ? 100 : undefined}
+                  placeholder={discountType === "percent" ? "0" : "0.00"}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(e.target.value)}
+                  disabled={loading}
+                  className="w-28"
+                />
+                {discountAmount > 0 && (
+                  <span className="text-xs text-muted-foreground">
+                    {discountType === "percent"
+                      ? `${parsedDiscountValue}% off`
+                      : "off the subtotal"}
+                  </span>
+                )}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
-                <span className="text-sm">
-                  ${processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Total (client pays)</span>
-                <span className="text-lg font-bold">
-                  ${totalWithFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Subtotal</span>
+                  <span className="text-sm">
+                    ${subtotal.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                {discountAmount > 0 && (
+                  <>
+                    <div className="flex items-center justify-between text-green-600">
+                      <span className="text-sm">
+                        Discount
+                        {discountType === "percent" ? ` (${parsedDiscountValue}%)` : ""}
+                      </span>
+                      <span className="text-sm">
+                        −${discountAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">After discount</span>
+                      <span className="text-sm">
+                        ${netAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </>
+                )}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Processing Fee ({(PROCESSING_FEE_RATE * 100).toFixed(2)}%)</span>
+                  <span className="text-sm">
+                    ${processingFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">Total (client pays)</span>
+                  <span className="text-lg font-bold">
+                    ${totalWithFee.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
               </div>
             </div>
           </div>

@@ -350,13 +350,92 @@ serve(async (req) => {
 
         const supabaseForInvoice = createClient(supabaseUrl, supabaseServiceKey);
 
-        const { data: existingStandaloneInvoice } = await supabaseForInvoice
-          .from("invoices")
-          .select("paid_at, customer_email, customer_name, title, description, amount, invoice_number, line_items, processing_fee, processing_fee_pct, total_charged")
-          .eq("id", standaloneInvoiceId)
-          .single();
+        // [IDEMPOTENCY CLAIM] stripe_event_log.event_id is UNIQUE, so inserting
+        // it up front lets the database settle who processes this event. Two
+        // concurrent deliveries of the same event used to both clear the
+        // `paid_at` check below and send the customer two receipts; only one can
+        // win this insert. The log row is removed again if processing fails, so
+        // Stripe's retry can still get through.
+        const { error: claimError } = await supabaseForInvoice
+          .from("stripe_event_log")
+          .insert({
+            event_id: event.id,
+            event_type: event.type,
+            metadata: {
+              payment_type: "standalone_invoice",
+              invoice_id: standaloneInvoiceId,
+              amount_cents: session.amount_total,
+            },
+          });
 
-        if (existingStandaloneInvoice?.paid_at) {
+        if (claimError) {
+          // 23505 = unique_violation: another delivery already claimed it.
+          if (claimError.code === "23505") {
+            // A claim on its own does not prove the work finished — the isolate
+            // may have died between claiming and marking the invoice paid. Answer
+            // 200 (stop retrying) only if the invoice really is paid; otherwise
+            // 500 so Stripe delivers again and the payment is not stranded.
+            const { data: claimedInvoice, error: claimedReadError } = await supabaseForInvoice
+              .from("invoices")
+              .select("paid_at")
+              .eq("id", standaloneInvoiceId)
+              .single();
+
+            if (claimedReadError) {
+              console.error(
+                `Could not confirm invoice ${standaloneInvoiceId} after a duplicate claim:`,
+                claimedReadError
+              );
+              return new Response("Database error", { status: 500 });
+            }
+
+            if (!claimedInvoice?.paid_at) {
+              console.error(
+                `[IDEMPOTENT_RETRY] Event ${event.id} was claimed but invoice ${standaloneInvoiceId} is still unpaid; asking Stripe to retry`
+              );
+              return new Response("Claimed but unfinished", { status: 500 });
+            }
+
+            console.log(`[IDEMPOTENT_SKIP] Event ${event.id} already processed`);
+            return new Response(
+              JSON.stringify({ received: true, skipped: "already_processed" }),
+              { headers: { "Content-Type": "application/json" }, status: 200 }
+            );
+          }
+          console.error("Error claiming stripe event for standalone invoice:", claimError);
+          return new Response("Database error", { status: 500 });
+        }
+
+        const releaseEventClaim = async () => {
+          const { error: releaseError } = await supabaseForInvoice
+            .from("stripe_event_log")
+            .delete()
+            .eq("event_id", event.id);
+          if (releaseError) {
+            console.error(`Could not release event claim ${event.id}:`, releaseError);
+          }
+        };
+
+        const { data: existingStandaloneInvoice, error: standaloneReadError } =
+          await supabaseForInvoice
+            .from("invoices")
+            .select("paid_at, customer_email, customer_name, title, description, amount, subtotal, discount_type, discount_value, discount_amount, invoice_number, line_items, processing_fee, processing_fee_pct, total_charged")
+            .eq("id", standaloneInvoiceId)
+            .single();
+
+        // A failed read used to fall through: the invoice was marked paid and
+        // both emails were skipped (they are guarded on this row), leaving a paid
+        // invoice with no receipt and, now that the event is claimed, no retry.
+        if (standaloneReadError || !existingStandaloneInvoice) {
+          console.error(
+            `Could not read standalone invoice ${standaloneInvoiceId}:`,
+            standaloneReadError
+          );
+          await releaseEventClaim();
+          return new Response("Database error", { status: 500 });
+        }
+
+        if (existingStandaloneInvoice.paid_at) {
           console.log("Standalone invoice already paid, skipping duplicate");
           return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
             headers: { "Content-Type": "application/json" },
@@ -375,6 +454,8 @@ serve(async (req) => {
 
         if (standaloneUpdateError) {
           console.error("Error updating standalone invoice:", standaloneUpdateError);
+          // Hand the event back so Stripe's retry can process it.
+          await releaseEventClaim();
           return new Response("Database error", { status: 500 });
         }
 
@@ -440,17 +521,29 @@ serve(async (req) => {
             });
 
             const custName = inv.customer_name ? inv.customer_name.split(" ")[0] : "Customer";
+            // With a discount the line items sum to the pre-discount subtotal, not
+            // to what was paid, so the discount needs its own row or the receipt
+            // rows will not add up to Total Paid.
+            const discountAmt = Number(inv.discount_amount ?? 0);
+            const preDiscountAmt = inv.subtotal != null ? Number(inv.subtotal) : subtotalAmt;
             const baseLineItems = inv.line_items && Array.isArray(inv.line_items) && inv.line_items.length > 0
               ? inv.line_items
-              : [{ label: inv.title, amount: subtotalAmt }];
-            // Append the processing fee so the receipt line items sum to the Total Paid.
-            const receiptLineItems = feeAmt > 0
-              ? [...baseLineItems, { label: `Processing Fee (${feePct}%)`, amount: feeAmt }]
-              : baseLineItems;
-            const receiptRows: Array<[string, string]> = receiptLineItems.map(
+              : [{ label: inv.title, amount: preDiscountAmt }];
+            const receiptRows: Array<[string, string]> = baseLineItems.map(
               (item: { label: string; amount: number }) =>
                 [escapeHtml(item.label), `$${Number(item.amount).toFixed(2)}`] as [string, string],
             );
+            if (discountAmt > 0) {
+              const discountLabel =
+                inv.discount_type === "percent" && inv.discount_value != null
+                  ? `Discount (${Number(inv.discount_value)}%)`
+                  : "Discount";
+              receiptRows.push([escapeHtml(discountLabel), `−$${discountAmt.toFixed(2)}`]);
+            }
+            // Append the processing fee so the receipt line items sum to the Total Paid.
+            if (feeAmt > 0) {
+              receiptRows.push([`Processing Fee (${feePct}%)`, `$${feeAmt.toFixed(2)}`]);
+            }
             receiptRows.push(["Total Paid", amtFormatted]);
             const descBlock = inv.description
               ? `<p style="margin:0 0 12px;font-size:14px;color:${BRAND.muted};line-height:1.6;">${escapeHtml(inv.description)}</p>`
@@ -496,16 +589,7 @@ serve(async (req) => {
           }
         }
 
-        await supabaseForInvoice.from("stripe_event_log").insert({
-          event_id: event.id,
-          event_type: event.type,
-          metadata: {
-            payment_type: "standalone_invoice",
-            invoice_id: standaloneInvoiceId,
-            amount_cents: session.amount_total,
-          },
-        });
-
+        // The event was already logged as the idempotency claim above.
         console.log(`[STRIPE_EVENT_LOGGED] standalone_invoice ${event.id} for invoice ${standaloneInvoiceId}`);
 
         return new Response(JSON.stringify({ received: true }), {

@@ -33,6 +33,10 @@ interface Invoice {
   title: string;
   description: string | null;
   amount: number;
+  subtotal: number | null;
+  discount_type: "percent" | "fixed" | null;
+  discount_value: number | null;
+  discount_amount: number | null;
   processing_fee: number | null;
   total_charged: number | null;
   customer_email: string;
@@ -137,6 +141,8 @@ export default function Invoices() {
       lineItems: inv.line_items ?? [],
       customerEmail: inv.customer_email,
       customerName: inv.customer_name,
+      discountType: inv.discount_type,
+      discountValue: inv.discount_value != null ? Number(inv.discount_value) : null,
     });
     setDialogOpen(true);
   };
@@ -236,6 +242,10 @@ export default function Invoices() {
                     const status = statusConfig[inv.payment_status] ?? statusConfig.pending;
                     const isParentRecurring = inv.is_recurring && !inv.recurring_parent_id;
                     const isChild = !!inv.recurring_parent_id;
+                    const hasDiscount =
+                      inv.discount_amount != null &&
+                      Number(inv.discount_amount) > 0 &&
+                      inv.subtotal != null;
                     return (
                       <TableRow key={inv.id}>
                         <TableCell className="font-mono text-xs">
@@ -282,6 +292,17 @@ export default function Invoices() {
                         </TableCell>
                         <TableCell className="text-right font-medium">
                           <div>${Number(inv.total_charged ?? inv.amount).toFixed(2)}</div>
+                          {hasDiscount && (
+                            <div className="text-xs text-green-600">
+                              <span className="line-through text-muted-foreground">
+                                ${Number(inv.subtotal).toFixed(2)}
+                              </span>{" "}
+                              −${Number(inv.discount_amount).toFixed(2)}
+                              {inv.discount_type === "percent" && inv.discount_value != null
+                                ? ` (${Number(inv.discount_value)}%)`
+                                : ""}
+                            </div>
+                          )}
                           {inv.processing_fee != null && inv.processing_fee > 0 && (
                             <div className="text-xs text-muted-foreground">
                               ${Number(inv.amount).toFixed(2)} + ${Number(inv.processing_fee).toFixed(2)} fee

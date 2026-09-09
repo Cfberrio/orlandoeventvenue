@@ -42,7 +42,9 @@ function buildInvoiceEmailHTML(
   description: string | null,
   lineItems: InvoiceLineItem[],
   totalAmount: string,
-  paymentUrl: string
+  paymentUrl: string,
+  /** Rows rendered after the services and before "Total Due" (discount, then fee). */
+  extraRows: Array<[string, string]> = []
 ): string {
   const firstName = escapeHtml(customerName ? customerName.split(" ")[0] : "Customer");
   const safeTitle = escapeHtml(title);
@@ -54,6 +56,7 @@ function buildInvoiceEmailHTML(
     ...lineItems.map(
       (item) => [escapeHtml(item.label), `$${Number(item.amount).toFixed(2)}`] as [string, string],
     ),
+    ...extraRows,
     ["Total Due", totalAmount],
   ];
 
@@ -159,16 +162,60 @@ serve(async (req: Request) => {
     const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
 
     const invoiceAmountCents = Math.round(Number(invoice.amount) * 100);
+
+    // The admin dialog enforces this too, but it is the only client that does.
+    // Without a guard here a row created any other way (a SQL fix, a future edit
+    // screen) would pass the amount > 0 check, blow up inside sessions.create and
+    // leave the invoice with no payment_url and no email — visible only in logs.
+    if (invoiceAmountCents < 50) {
+      console.error(`Invoice ${invoice.id} amount below Stripe minimum: ${invoiceAmountCents}c`);
+      return new Response(
+        JSON.stringify({ error: "Invoice total must be at least $0.50 to be charged" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     const feeCents = Math.round(invoiceAmountCents * PROCESSING_FEE_RATE);
     const totalWithFeeCents = invoiceAmountCents + feeCents;
 
     console.log(`Invoice fee: base=${invoiceAmountCents}c, fee=${feeCents}c (${FEE_PCT}%), total=${totalWithFeeCents}c`);
 
+    // Discount context. invoice.amount is already the NET owed (subtotal minus
+    // discount), so the fee, the total and the transfer above need no adjustment.
+    const discountAmount = Number(invoice.discount_amount ?? 0);
+    const hasDiscount = discountAmount > 0;
+    const invoiceSubtotal = Number(invoice.subtotal ?? invoice.amount);
+    const discountLabel =
+      invoice.discount_type === "percent" && invoice.discount_value != null
+        ? `Discount (${Number(invoice.discount_value)}%)`
+        : "Discount";
+
     // Build Stripe line items from line_items JSON or fall back to single item
     const rawLineItems: InvoiceLineItem[] | null = invoice.line_items;
     let stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[];
 
-    if (rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0) {
+    if (hasDiscount) {
+      // Stripe rejects negative unit_amount, so an itemized list plus a
+      // "-$X" line is impossible. Collapse to one line at the net amount:
+      // it is guaranteed to match invoice.amount with no rounding drift.
+      // The itemized breakdown still reaches the customer in the email below.
+      const discountNote =
+        invoice.discount_type === "percent" && invoice.discount_value != null
+          ? `${Number(invoice.discount_value)}% discount applied`
+          : `$${discountAmount.toFixed(2)} discount applied`;
+      stripeLineItems = [
+        {
+          price_data: {
+            currency: "usd",
+            product_data: {
+              name: `${invoice.title} (${discountNote})`,
+              description: invoice.description || undefined,
+            },
+            unit_amount: invoiceAmountCents,
+          },
+          quantity: 1,
+        },
+      ];
+    } else if (rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0) {
       stripeLineItems = rawLineItems.map((item: InvoiceLineItem) => ({
         price_data: {
           currency: "usd",
@@ -258,11 +305,20 @@ serve(async (req: Request) => {
 
         const totalWithFeeFormatted = `$${(totalWithFeeCents / 100).toFixed(2)}`;
 
-        // Build email line items for the breakdown (include processing fee)
+        // The email keeps the itemized breakdown that Stripe cannot show when a
+        // discount collapses the checkout into a single line. Services are listed
+        // at their pre-discount amounts (summing to the subtotal), then the
+        // discount and the fee, so the rows add up to Total Due.
         const emailLineItems: InvoiceLineItem[] =
           rawLineItems && Array.isArray(rawLineItems) && rawLineItems.length > 0
-            ? [...rawLineItems, { label: FEE_LABEL, amount: feeCents / 100 }]
-            : [{ label: invoice.title, amount: Number(invoice.amount) }, { label: FEE_LABEL, amount: feeCents / 100 }];
+            ? rawLineItems
+            : [{ label: invoice.title, amount: invoiceSubtotal }];
+
+        const extraRows: Array<[string, string]> = [];
+        if (hasDiscount) {
+          extraRows.push([escapeHtml(discountLabel), `−$${discountAmount.toFixed(2)}`]);
+        }
+        extraRows.push([FEE_LABEL, `$${(feeCents / 100).toFixed(2)}`]);
 
         const emailHTML = sanitizeForSmtp(buildInvoiceEmailHTML(
           customer_name || invoice.customer_name || "Customer",
@@ -271,7 +327,8 @@ serve(async (req: Request) => {
           invoice.description,
           emailLineItems,
           totalWithFeeFormatted,
-          session.url
+          session.url,
+          extraRows
         ));
 
         await client.send({
