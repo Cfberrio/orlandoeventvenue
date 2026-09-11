@@ -9,10 +9,6 @@ vi.mock("@/hooks/useAdminData", async () => {
 });
 const toastMock = vi.fn();
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastMock }) }));
-vi.mock("@/hooks/useAuth", () => ({
-  useAuth: () => ({ user: { id: "u1", email: "admin@oev.test" } }),
-}));
-
 import BookingEditDialog, {
   diffBookingEdit,
   validateBookingEdit,
@@ -113,7 +109,9 @@ describe("BookingEditDialog", () => {
     toastMock.mockClear();
   });
 
-  it("saves only the edited field, with the actor for the audit trail", async () => {
+  // The actor is not passed from here — useUpdateBookingDetails resolves it
+  // itself via supabase.auth.getUser() and writes it into booking_events.
+  it("saves only the edited field", async () => {
     render(<BookingEditDialog booking={booking} open onOpenChange={() => {}} />);
     const name = screen.getByLabelText(/client name/i);
     await userEvent.clear(name);
@@ -127,8 +125,6 @@ describe("BookingEditDialog", () => {
         changes: [
           { field: "full_name", label: "Client name", from: "Jane Doe", to: "Jane Smith" },
         ],
-        actorId: "u1",
-        actorEmail: "admin@oev.test",
       }),
     );
   });

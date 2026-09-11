@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/select";
 import { CalendarIcon, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/useAuth";
 import { useUpdateBookingDetails, type BookingFieldChange } from "@/hooks/useAdminData";
 
 export interface EditableBooking {
@@ -158,7 +157,6 @@ export function diffBookingEdit(
 
 export default function BookingEditDialog({ booking, open, onOpenChange, onReschedule }: Props) {
   const { toast } = useToast();
-  const { user } = useAuth();
   const { mutateAsync, isPending } = useUpdateBookingDetails();
   const [form, setForm] = useState<FormState>(() => toFormState(booking));
 
