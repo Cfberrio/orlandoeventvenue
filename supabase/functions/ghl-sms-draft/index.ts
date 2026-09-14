@@ -482,6 +482,10 @@ Deno.serve(async (req) => {
       return c.__channel && dir === "inbound" && ts >= cutoff;
     });
 
+    // Set once a sms_draft_log claim row exists for the conversation being
+    // processed, so the catch below can release it on failure.
+    let claimedKey: { conversationId: string; inboundMessageId: string } | null = null;
+
     for (const conv of conversations) {
       summary.processed++;
       const channel: Channel = conv.__channel;
@@ -545,6 +549,7 @@ Deno.serve(async (req) => {
         }
         const logKey = (q: any) =>
           q.eq("conversation_id", conv.id).eq("inbound_message_id", inboundMessageId);
+        claimedKey = { conversationId: conv.id, inboundMessageId };
 
         const prompt = await getPrompt(channel);
         if (!prompt) {
@@ -640,6 +645,17 @@ Deno.serve(async (req) => {
         if (!aRes.ok) {
           const t = await aRes.text().catch(() => "");
           console.error("claude error", aRes.status, t);
+          // Release the claim as an error. Leaving it "processing" would block
+          // this inbound message forever (the dedupe above treats any row as done).
+          await logKey(supabase.from("sms_draft_log").update({
+            channel, ghl_location_id, contact_id: conv.contactId,
+            inbound_message: channel === "email"
+              ? `[${inboundSubject ?? "no subject"}] ${inboundText}`.slice(0, 4000)
+              : inboundText,
+            contact_context: contact,
+            decision: "error", error_detail: `claude http ${aRes.status}: ${t.slice(0, 300)}`,
+            prompt_version: prompt.version, model: MODEL,
+          }));
           summary.errors++; continue;
         }
         const aJson = await aRes.json();
@@ -723,6 +739,17 @@ Deno.serve(async (req) => {
       } catch (e) {
         console.error("conv error", conv?.id, e);
         summary.errors++;
+        // Same reason as the model-error branch: a throw after the claim must
+        // not leave the row stuck in "processing".
+        if (claimedKey) {
+          await supabase.from("sms_draft_log")
+            .update({ decision: "error", error_detail: `throw: ${String(e).slice(0, 300)}`, model: MODEL })
+            .eq("conversation_id", claimedKey.conversationId)
+            .eq("inbound_message_id", claimedKey.inboundMessageId)
+            .eq("decision", "processing");
+        }
+      } finally {
+        claimedKey = null;
       }
     }
 
