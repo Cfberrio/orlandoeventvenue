@@ -35,6 +35,44 @@ Motivo: OEV publica 46 edge functions sin revisión previa y con menos tests que
 
 El gate falla si el diff tiene: race conditions sin claim atómico, `insert`/`update` cuyo error no se verifica, webhooks o crons sin idempotencia, secretos en código, o una migración que cambia un CHECK sin el código que la acompaña.
 
+## Codex — segundo motor, automático
+
+Codex está integrado como revisor adversarial y ejecutor de trabajo mecánico. `AGENTS.md` (misma carpeta) define qué puede hacer Codex; esta sección define **cuándo Claude lo llama sin que nadie se lo pida**.
+
+Este es el repo con más superficie y menos red de seguridad de las tres marcas. Codex es el CI que no existe: úsalo.
+
+### Siempre encendido: review gate
+
+El stop-review-gate del plugin está activo en este repo. Cada turno de Claude que modifique código pasa por Codex antes de poder cerrarse. Si Codex devuelve `BLOCK`, se arregla antes de terminar el turno — no se reporta como listo con un BLOCK pendiente. Los turnos sin cambios de código devuelven `ALLOW` al instante.
+
+Es configuración local de esta máquina, no viaja por git. Si en otra máquina `/codex:setup` dice `reviewGateEnabled: false`, activarlo con `/codex:setup --enable-review-gate`.
+
+### Claude delega a Codex por su cuenta cuando:
+
+| Situación | Qué hacer |
+|---|---|
+| **Va a publicar** (`deploy_project`) | Además de `/pre-deploy`, correr un review adversarial de Codex sobre todo el diff desde el último publish. Los dos gates son obligatorios; ninguno reemplaza al otro. |
+| **El diff toca superficie crítica**: `supabase/functions/**`, `supabase/migrations/**`, o paths con `stripe`, `checkout`, `payment`, `balance`, `invoice`, `payroll`, `webhook`, `cron`, `scheduled` | Review adversarial al terminar la implementación, **antes** de reportar el resultado. |
+| **La tarea es mecánica con spec cerrado**: aplicar un patrón ya conocido en N funciones, backfill de tests sobre una función ya entendida, barridos de renombrado o i18n | Delegar la ejecución a Codex con el spec exacto. Claude verifica el resultado y corre `bun run test` + `bun run test:edge`. |
+| **Dos intentos sin resolver un bug** | Pedir a Codex un diagnóstico independiente antes de un tercer intento. |
+
+### Nunca delegar
+
+- Decidir qué construir, ni elegir entre enfoques.
+- Copy o textos de cara al cliente.
+- Trabajo que cruce a DR o CTS.
+- Nada que toque `.env` o secretos.
+- Publicar. Codex nunca deploya.
+
+### Cómo invocarlo
+
+El plugin vive en `~/.claude/plugins/cache/openai-codex/codex/<versión>/`. Resolver la versión con `ls -d ~/.claude/plugins/cache/openai-codex/codex/*/ | tail -1`.
+
+- **Review adversarial** (read-only): `node "<plugin>/scripts/codex-companion.mjs" adversarial-review --wait`. Para diffs grandes usar `--background` y seguir con `/codex:status`.
+- **Delegar trabajo** (write): agente `codex:codex-rescue` con el spec cerrado en el prompt.
+
+**Regla de oro:** verificar contra el código lo que Codex afirme antes de actuar. Codex observa bien y concluye mal con frecuencia — aquí mismo reportó un "bug de producción" en el audit trail de `BookingEditDialog` que no existía; `useUpdateBookingDetails` resolvía el actor por su cuenta. La segunda opinión vale por el ciclo de verificación, no por la opinión en sí.
+
 ## Agentes especialistas
 
 Viven en `.claude/agents/`. Vienen de `msitarzewski/agency-agents` (258 definiciones), reescritos con los datos reales de este repo. **No se instaló el catálogo** — se tomaron las definiciones que tapan un agujero concreto.
