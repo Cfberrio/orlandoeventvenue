@@ -43,7 +43,7 @@ Este es el repo con más superficie y menos red de seguridad de las tres marcas.
 
 ### Siempre encendido: review gate
 
-El stop-review-gate del plugin está activo en este repo. Cada turno de Claude que modifique código pasa por Codex antes de poder cerrarse. Si Codex devuelve `BLOCK`, se arregla antes de terminar el turno — no se reporta como listo con un BLOCK pendiente. Los turnos sin cambios de código devuelven `ALLOW` al instante.
+El stop-review-gate del plugin está activo en este repo. Cada turno de Claude que modifique código pasa por Codex antes de poder cerrarse. Si Codex devuelve `BLOCK`, se arregla antes de terminar el turno — no se reporta como listo con un BLOCK pendiente. Los turnos sin cambios de código devuelven `ALLOW`, pero no gratis: cada corrida del gate cuesta ~20K tokens de Codex (lee el contexto para decidir que no hay nada). Ese costo va a la cuota de ChatGPT, nunca a la de Claude; un `ALLOW` no devuelve nada a Claude.
 
 Es configuración local de esta máquina, no viaja por git. Si en otra máquina `/codex:setup` dice `reviewGateEnabled: false`, activarlo con `/codex:setup --enable-review-gate`.
 
@@ -70,6 +70,18 @@ El plugin vive en `~/.claude/plugins/cache/openai-codex/codex/<versión>/`. Reso
 
 - **Review adversarial** (read-only): `node "<plugin>/scripts/codex-companion.mjs" adversarial-review --wait`. Para diffs grandes usar `--background` y seguir con `/codex:status`.
 - **Delegar trabajo** (write): agente `codex:codex-rescue` con el spec cerrado en el prompt.
+
+### Modo ahorro (lo activa el usuario)
+
+Claude no puede ver el % de límite de sesión; el usuario sí (`/usage`). Cuando el usuario escribe **`modo ahorro`**, Claude cambia de "hacer" a "reenviar y verificar" hasta que escriba **`modo normal`**. Objetivo: que el gasto de Claude caiga al costo de escribir el pedido y leer el resultado; el trabajo pesado (leer archivos, razonar, escribir código, correr tests) lo paga la cuota de Codex.
+
+Mientras está activo:
+
+- **Todo lo delegable va a `codex:codex-rescue`** en un solo pedido con spec cerrado: implementar, diagnosticar, correr `bun run test` + `bun run test:edge`, leer logs, buscar en N archivos, comparar diffs. Claude no explora el repo por su cuenta; pide a Codex que reporte evidencia con archivo y línea.
+- **Claude conserva solo lo que no se delega**: entender el pedido, escribir el spec, verificar el resultado de forma puntual (leer las líneas que Codex cita, no el archivo entero), reportar. La lista "Nunca delegar" sigue vigente — copy, decidir qué construir, `.env`, publicar quedan con Claude o esperan a `modo normal`.
+- **Un pedido a Codex por tarea**, no uno por paso. Pedir que Codex devuelva resumen + diff + resultado de tests en una sola respuesta; cada ida y vuelta extra cuesta tokens de Claude.
+- Claude marca cada delegación con `→ Codex` en la respuesta, para que el usuario vea a dónde fue el gasto.
+- Al activar, Claude confirma en una línea y sugiere `/codex:transfer` si el usuario está por encima del 95%: desde ahí el chat de Claude ya no sirve, y la conversación sigue en Codex con contexto.
 
 **Regla de oro:** verificar contra el código lo que Codex afirme antes de actuar. Codex observa bien y concluye mal con frecuencia — aquí mismo reportó un "bug de producción" en el audit trail de `BookingEditDialog` que no existía; `useUpdateBookingDetails` resolvía el actor por su cuenta. La segunda opinión vale por el ciclo de verificación, no por la opinión en sí.
 
