@@ -83,6 +83,8 @@ Mientras está activo:
 - Claude marca cada delegación con `→ Codex` en la respuesta, para que el usuario vea a dónde fue el gasto.
 - Al activar, Claude confirma en una línea y sugiere `/codex:transfer` si el usuario está por encima del 95%: desde ahí el chat de Claude ya no sirve, y la conversación sigue en Codex con contexto.
 
+**Cómo se aplica:** el hook `.claude/hooks/modo-ahorro.mjs` (`UserPromptSubmit`, registrado en `.claude/settings.json`) detecta `modo ahorro` / `modo normal` y, mientras el modo esté activo, inyecta esta regla en **cada** turno. No depende de que Claude recuerde este archivo (el 2026-09-15 en DR lo ignoró). Estado por sesión en `~/.claude/modo-ahorro/`; una sesión nueva arranca en modo normal.
+
 **Regla de oro:** verificar contra el código lo que Codex afirme antes de actuar. Codex observa bien y concluye mal con frecuencia — aquí mismo reportó un "bug de producción" en el audit trail de `BookingEditDialog` que no existía; `useUpdateBookingDetails` resolvía el actor por su cuenta. La segunda opinión vale por el ciclo de verificación, no por la opinión en sí.
 
 ## Agentes especialistas
