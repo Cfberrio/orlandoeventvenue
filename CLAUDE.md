@@ -111,3 +111,7 @@ Para comparar una función con sus hermanas de DR y CTS: `cross-brand-function-a
 DR (`~/Documents/DISCIPLINERIFT/disciplinerift`) y CTS (`~/Documents/CheeseToShare`) corren edge functions con el mismo linaje: `ghl-sms-draft`, `stripe-webhook`, `composio-gmail-webhook`, `create-checkout-session`, `process-scheduled-jobs`. **Un bug arreglado aquí probablemente vive allá.** Cuando arregles algo en una función compartida, revisa las hermanas antes de cerrar la tarea.
 
 Contenido, copy y estrategia de OEV no se mezclan con DR ni CTS. Este repo es lógica de booking y conversión, no voz de marca.
+
+## Sistema operativo personal (Cris 2026)
+Regla de comunicación, cierre de tasks, análisis previo y evidencia para el plan de 90 días de Cristian. Se carga en todos los repos.
+@.claude/rules/05-cris-2026.md
