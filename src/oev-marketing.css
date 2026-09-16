@@ -338,7 +338,10 @@
 .oev .hero-bg::after {
   content: "";
   position: absolute;
-  inset: 0;
+  /* bleeds 2px past the photo: section heights are fractional, and a veil that
+   * stops exactly at the edge leaves one antialiased row of raw photo (a gray
+   * hairline) where the next band starts */
+  inset: -2px;
   /* soft white pool under the copy keeps the ink readable without washing the
    * whole photo out; the linear layer only feathers the edges into the page */
   background:
@@ -380,7 +383,7 @@
 .oev .photo-band-bg::after {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: -2px; /* same hairline guard as .hero-bg::after */
   background:
     radial-gradient(
       110% 55% at 50% 50%,
@@ -397,6 +400,27 @@
       rgba(255, 255, 255, 0.8) 90%,
       #fff 100%
     );
+}
+/* "Included" band, straight under the hero. The hero fades to white over its
+ * last ~8%; this photo opens on the black truss ceiling, which reads as a gray
+ * bar if it comes back too fast right under that white. So the veil stays heavy
+ * across the ceiling (the strip above the blue card) and only lets the photo
+ * through where the room is light: the walls at the sides and the floor below.
+ * No radial pool: the copy sits on the opaque blue card. */
+.oev .photo-band-included .photo-band-bg {
+  background-position: center 85%;
+}
+.oev .photo-band-included .photo-band-bg::after {
+  background: linear-gradient(
+    to bottom,
+    #fff 0%,
+    rgba(255, 255, 255, 0.94) 9%,
+    rgba(255, 255, 255, 0.7) 24%,
+    rgba(255, 255, 255, 0.36) 46%,
+    rgba(255, 255, 255, 0.3) 68%,
+    rgba(255, 255, 255, 0.76) 91%,
+    #fff 100%
+  );
 }
 /* the only copy sitting straight on the photo — a white halo instead of more veil */
 .oev .photo-band .shead h2 {
@@ -575,8 +599,10 @@
 }
 
 /* ===================== promo band ===================== */
+/* sits on the included photo band: room above and below so the photo shows
+ * around the blue card, and a lift shadow so the card floats on it */
 .oev .promo {
-  padding-top: 0;
+  padding: clamp(56px, 7vw, 88px) 0 clamp(72px, 8vw, 104px);
 }
 .oev .promo-band {
   background: var(--accent);
@@ -586,6 +612,7 @@
   grid-template-columns: 1.15fr 0.85fr;
   gap: 32px;
   color: #fff;
+  box-shadow: 0 24px 64px rgba(11, 11, 11, 0.18);
 }
 .oev .promo-band h2 {
   color: #fff;

@@ -15,8 +15,11 @@ import OevFooter from "@/components/home/OevFooter";
 import MobileBar from "@/components/home/MobileBar";
 import ContactForm from "@/components/ContactForm";
 import DiscountPopup from "@/components/DiscountPopup";
-/* Backdrop behind the pricing section: one photo so the page reads continuous
- * there instead of a flat slab. */
+/* Backdrops behind the "included" band and the pricing section: one photo each
+ * so the page reads continuous there instead of a flat slab. The included shot
+ * is the stage/brick side of the same room the hero opens on, so the two fades
+ * meet as one space. */
+import includedBg from "@/assets/venue/included-stage-brick-2048.webp";
 import bandBg from "@/assets/venue/promo-band-bg-2048.webp";
 
 const Index = () => {
@@ -37,7 +40,14 @@ const Index = () => {
       <DiscountPopup />
       <OevNav />
       <OevHero />
-      <PromoBand />
+      <div className="photo-band photo-band-included">
+        <div
+          className="photo-band-bg"
+          aria-hidden
+          style={{ backgroundImage: `url(${includedBg})` }}
+        />
+        <PromoBand />
+      </div>
       <WhyCards />
       <div className="photo-band">
         <div
