@@ -17,8 +17,8 @@ import gallery9 from "@/assets/gallery-9.png";
 import galleryConferences from "@/assets/gallery-conferences.jpg";
 import galleryEvents from "@/assets/gallery-events.jpg";
 import tourPhoto from "@/assets/schedule-tour-bg.jpg";
-import welcomeDetail from "@/assets/venue/welcome-detail-portrait.webp";
-import welcomeDetail2x from "@/assets/venue/welcome-detail-portrait-2x.webp";
+import welcomeWall from "@/assets/venue/welcome-wall-1200.webp";
+import welcomeWall2x from "@/assets/venue/welcome-wall-1672.webp";
 import mainEntrance from "@/assets/venue/main-entrance-2048.webp";
 import mainEntrance2x from "@/assets/venue/main-entrance-4096.webp";
 import eventStage01 from "@/assets/venue/event-stage-01-2048.webp";
@@ -49,7 +49,7 @@ const IMAGES: {
   { url: eventAcoustic01, full: eventAcoustic01_2x, title: "Acoustic Wall" },
   { url: eventBackWall, full: eventBackWall2x, title: "From the Stage" },
   { url: mainEntrance, full: mainEntrance2x, title: "Main Entrance" },
-  { url: welcomeDetail, full: welcomeDetail2x, title: "Welcome Area", position: "center 32%" },
+  { url: welcomeWall, full: welcomeWall2x, title: "Welcome Area" },
   { url: gallery9, full: gallery9, title: "Prep Kitchen" },
   { url: gallery6, full: gallery6, title: "Restroom Facilities" },
   { url: gallery5, full: gallery5, title: "Storage Area" },
@@ -63,7 +63,7 @@ const GalleryTours = () => {
 
   return (
     <>
-      <section className="band-soft" id="gallery">
+      <section id="gallery">
         <div className="wrap">
           <div className="shead">
             <h2 data-rv>Take a look around.</h2>

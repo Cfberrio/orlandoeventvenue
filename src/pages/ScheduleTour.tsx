@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import Footer from "@/components/Footer";
-import heroBg from "@/assets/hero-bg-new.jpg";
+import { PhotoBackdrop } from "@/components/PhotoBand";
 import { trackTourPageViewed } from "@/lib/tracking/funnel";
 
 const IFRAME_SRC = "https://api.leadconnectorhq.com/widget/bookings/oev-tour";
@@ -30,18 +30,15 @@ const ScheduleTour = () => {
     };
   }, []);
 
+  /* photo-page on the outermost wrapper: a fixed backdrop inside <main> would
+   * paint over the footer's black background (positioned box vs. in-flow
+   * sibling), so the stacking context has to contain the footer too. */
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col photo-page">
+      <PhotoBackdrop photo="b" variant="page" />
       <Navigation />
 
       <main className="flex-1 relative overflow-hidden">
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${heroBg})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-background/80 via-background/70 to-background/60" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.15),transparent_50%)]" />
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-b from-transparent to-background" />
 
         <div className="container mx-auto px-4 py-12 relative z-10">
           <div className="max-w-4xl mx-auto space-y-6">

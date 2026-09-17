@@ -10,6 +10,7 @@ import AddOnsStep from "@/components/booking/AddOnsStep";
 import SummaryStep from "@/components/booking/SummaryStep";
 import ContactPoliciesStep from "@/components/booking/ContactPoliciesStep";
 import PaymentStep from "@/components/booking/PaymentStep";
+import { PhotoBackdrop } from "@/components/PhotoBand";
 import {
   trackAddonsSelected,
   trackBookLandingViewed,
@@ -184,7 +185,8 @@ const Book = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+    <div className="min-h-screen photo-page">
+      <PhotoBackdrop photo="a" variant="page" />
       <Navigation />
       
       <div className="container mx-auto px-4 py-12 md:py-20">

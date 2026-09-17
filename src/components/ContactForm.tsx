@@ -14,9 +14,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import { trackContactFormLead } from "@/lib/tracking/funnel";
-import contactBg1 from "@/assets/contact-bg-1.jpg";
-import contactBg2 from "@/assets/contact-bg-2.jpg";
-import contactBg3 from "@/assets/contact-bg-3.jpg";
 
 const ContactForm = () => {
   const [formData, setFormData] = useState({
@@ -126,14 +123,7 @@ const ContactForm = () => {
 
   return (
     <section id="contact" className="scroll-mt-24 py-24 relative overflow-hidden">
-      {/* Background images side by side */}
-      <div className="absolute inset-0 flex">
-        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg1})` }} />
-        <div className="flex-1 bg-cover bg-center bg-no-repeat" style={{ backgroundImage: `url(${contactBg3})` }} />
-      </div>
-      {/* Fade overlay only - no blur */}
-      <div className="absolute inset-0 bg-gradient-to-b from-background/70 via-background/55 to-background/70" />
-
+      {/* Background: the page-level PhotoBand (Index.tsx) paints the venue photo behind this section. */}
       <div className="container mx-auto px-4 relative z-10">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">

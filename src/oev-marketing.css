@@ -324,106 +324,22 @@
 /* ===================== hero ===================== */
 .oev .hero {
   position: relative;
+  isolation: isolate; /* .photo-backdrop sits at z-index -1 inside */
   padding: 110px 0 84px;
   text-align: center;
   overflow: hidden;
-}
-/* venue photo behind the hero, washed light so ink text keeps contrast */
-.oev .hero-bg {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-}
-.oev .hero-bg::after {
-  content: "";
-  position: absolute;
-  /* bleeds 2px past the photo: section heights are fractional, and a veil that
-   * stops exactly at the edge leaves one antialiased row of raw photo (a gray
-   * hairline) where the next band starts */
-  inset: -2px;
-  /* soft white pool under the copy keeps the ink readable without washing the
-   * whole photo out; the linear layer only feathers the edges into the page */
-  background:
-    radial-gradient(
-      120% 70% at 50% 45%,
-      rgba(255, 255, 255, 0.76) 0%,
-      rgba(255, 255, 255, 0.42) 55%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.3),
-      rgba(255, 255, 255, 0.26) 60%,
-      rgba(255, 255, 255, 0.5) 92%,
-      #fff 100%
-    );
 }
 .oev .hero .wrap {
   position: relative;
   z-index: 1;
 }
 
-/* ===================== photo band (promo + why cards) =====================
- * One venue photo behind two consecutive sections. The veil is opaque white
- * at both ends — where it meets the hero above and the pricing section below —
- * so the photo swells in and out of the page instead of butting against a
- * visible seam. Anything that reads as a horizontal line here is a bug. */
-.oev .photo-band {
-  position: relative;
-  isolation: isolate;
-}
-.oev .photo-band-bg {
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  background-size: cover;
-  background-position: center;
-}
-.oev .photo-band-bg::after {
-  content: "";
-  position: absolute;
-  inset: -2px; /* same hairline guard as .hero-bg::after */
-  background:
-    radial-gradient(
-      110% 55% at 50% 50%,
-      rgba(255, 255, 255, 0.62) 0%,
-      rgba(255, 255, 255, 0.3) 60%,
-      rgba(255, 255, 255, 0) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      #fff 0%,
-      rgba(255, 255, 255, 0.92) 7%,
-      rgba(255, 255, 255, 0.42) 24%,
-      rgba(255, 255, 255, 0.34) 62%,
-      rgba(255, 255, 255, 0.8) 90%,
-      #fff 100%
-    );
-}
-/* "Included" band, straight under the hero. The hero fades to white over its
- * last ~8%; this photo opens on the black truss ceiling, which reads as a gray
- * bar if it comes back too fast right under that white. So the veil stays heavy
- * across the ceiling (the strip above the blue card) and only lets the photo
- * through where the room is light: the walls at the sides and the floor below.
- * No radial pool: the copy sits on the opaque blue card. */
-.oev .photo-band-included .photo-band-bg {
-  background-position: center 85%;
-}
-.oev .photo-band-included .photo-band-bg::after {
-  background: linear-gradient(
-    to bottom,
-    #fff 0%,
-    rgba(255, 255, 255, 0.94) 9%,
-    rgba(255, 255, 255, 0.7) 24%,
-    rgba(255, 255, 255, 0.36) 46%,
-    rgba(255, 255, 255, 0.3) 68%,
-    rgba(255, 255, 255, 0.76) 91%,
-    #fff 100%
-  );
-}
-/* the only copy sitting straight on the photo — a white halo instead of more veil */
-.oev .photo-band .shead h2 {
+/* photo bands live in components/PhotoBand.css; only the marketing-specific
+ * halo on section headings stays here */
+/* section headings and leads sit straight on the photo — a white halo instead
+ * of more veil, so the photo stays visible around the copy */
+.oev .photo-band .shead h2,
+.oev .photo-band .shead .lead {
   text-shadow: 0 2px 28px rgba(255, 255, 255, 0.95), 0 1px 4px rgba(255, 255, 255, 0.85);
 }
 .oev .hero-stars {
@@ -1263,8 +1179,16 @@
 }
 
 /* ===================== faq ===================== */
+/* the accordion is dark ink over the photo: a frosted panel keeps every
+ * question readable whatever part of the room lands behind it */
 .oev .faq-wrap {
   max-width: 780px;
+  padding: 28px 28px 12px;
+  border-radius: var(--radius-band);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.9) inset;
 }
 .oev .faq-acc [data-state] {
   border-color: var(--g200);

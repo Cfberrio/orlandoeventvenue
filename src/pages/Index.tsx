@@ -15,12 +15,11 @@ import OevFooter from "@/components/home/OevFooter";
 import MobileBar from "@/components/home/MobileBar";
 import ContactForm from "@/components/ContactForm";
 import DiscountPopup from "@/components/DiscountPopup";
-/* Backdrops behind the "included" band and the pricing section: one photo each
- * so the page reads continuous there instead of a flat slab. The included shot
- * is the stage/brick side of the same room the hero opens on, so the two fades
- * meet as one space. */
-import includedBg from "@/assets/venue/included-stage-brick-2048.webp";
-import bandBg from "@/assets/venue/promo-band-bg-2048.webp";
+/* Every section below the hero sits on one of two venue photos, alternating
+ * A/B/A/B down the page (ClickUp 86e3ac6kr). The hero is photo A, so the first
+ * band is B; each band fades to white at both ends so the photos hand off to
+ * each other without a seam. */
+import PhotoBand from "@/components/PhotoBand";
 
 const Index = () => {
   const scope = useMarketingMotion<HTMLDivElement>();
@@ -40,29 +39,33 @@ const Index = () => {
       <DiscountPopup />
       <OevNav />
       <OevHero />
-      <div className="photo-band photo-band-included">
-        <div
-          className="photo-band-bg"
-          aria-hidden
-          style={{ backgroundImage: `url(${includedBg})` }}
-        />
+      <PhotoBand photo="b" className="photo-band-included" position="center 85%">
         <PromoBand />
-      </div>
-      <WhyCards />
-      <div className="photo-band">
-        <div
-          className="photo-band-bg"
-          aria-hidden
-          style={{ backgroundImage: `url(${bandBg})` }}
-        />
+      </PhotoBand>
+      <PhotoBand photo="a">
+        <WhyCards />
+      </PhotoBand>
+      <PhotoBand photo="b">
         <PricingSection />
-      </div>
-      <AddonsSection />
-      <GalleryTours />
-      <HowItWorksSection />
-      <FaqSection />
-      <FinalBand />
-      <ContactForm />
+      </PhotoBand>
+      <PhotoBand photo="a">
+        <AddonsSection />
+      </PhotoBand>
+      <PhotoBand photo="b">
+        <GalleryTours />
+      </PhotoBand>
+      <PhotoBand photo="a">
+        <HowItWorksSection />
+      </PhotoBand>
+      <PhotoBand photo="b">
+        <FaqSection />
+      </PhotoBand>
+      <PhotoBand photo="a">
+        <FinalBand />
+      </PhotoBand>
+      <PhotoBand photo="b">
+        <ContactForm />
+      </PhotoBand>
       <OevFooter />
       <MobileBar />
     </div>

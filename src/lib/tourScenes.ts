@@ -13,8 +13,8 @@ import kitchen from "@/assets/tour/kitchen.jpg";
 import storage from "@/assets/tour/storage.jpg";
 import restroom from "@/assets/tour/restroom.jpg";
 
-import welcomeDetail from "@/assets/venue/welcome-detail-portrait.webp";
-import welcomeDetail2x from "@/assets/venue/welcome-detail-portrait-2x.webp";
+import welcomeWall from "@/assets/venue/welcome-wall-1200.webp";
+import welcomeWall2x from "@/assets/venue/welcome-wall-1672.webp";
 import mainEntrance from "@/assets/venue/main-entrance-2048.webp";
 import mainEntrance2x from "@/assets/venue/main-entrance-4096.webp";
 import eventStage01 from "@/assets/venue/event-stage-01-2048.webp";
@@ -98,9 +98,8 @@ export const TOUR_SCENES: TourScene[] = [
     id: "welcome",
     room: "Welcome Area",
     desc: "The renovated welcome wall: backlit sign on warm wood slats, a natural photo spot.",
-    src: welcomeDetail,
-    full: welcomeDetail2x,
-    portrait: true,
+    src: welcomeWall,
+    full: welcomeWall2x,
   },
   {
     id: "kitchen",

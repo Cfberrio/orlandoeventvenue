@@ -6,7 +6,7 @@ const STEPS = [
 ];
 
 const HowItWorksSection = () => (
-  <section className="band-soft" id="how-it-works">
+  <section id="how-it-works">
     <div className="wrap">
       <div className="shead">
         <h2 data-rv>Four simple steps.</h2>

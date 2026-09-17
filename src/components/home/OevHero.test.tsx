@@ -33,6 +33,6 @@ describe("OevHero", () => {
       "href",
       expect.stringContaining("google.com/maps"),
     );
-    expect(container.querySelector(".hero-bg")).not.toBeNull();
+    expect(container.querySelector(".photo-backdrop-hero .photo-band-bg")).not.toBeNull();
   });
 });

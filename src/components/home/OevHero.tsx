@@ -2,10 +2,7 @@ import { useRef } from "react";
 import { MapPin, Rotate3d } from "lucide-react";
 import { gsap, SplitText, useGSAP } from "@/lib/gsap";
 import { MM } from "@/lib/marketingMotion";
-/* Renovated event space, wide from the entrance: stage, full-wall display and
- * the whole floor in one frame. Washed out by .hero-bg::after so the ink text
- * still reads. */
-import heroBg from "@/assets/venue/hero-stage-screen-2048.webp";
+import { PhotoBackdrop } from "@/components/PhotoBand";
 
 const REVIEWS_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
 const MAPS_URL =
@@ -111,7 +108,8 @@ const OevHero = () => {
 
   return (
     <section className="hero" id="top" ref={scope}>
-      <div className="hero-bg" aria-hidden style={{ backgroundImage: `url(${heroBg})` }} />
+      {/* Photo A opens the alternation; the band under the hero picks up B. */}
+      <PhotoBackdrop photo="a" variant="hero" />
       <div className="hero-orbits" aria-hidden>
         {ORBITS.map((o, i) => (
           <span

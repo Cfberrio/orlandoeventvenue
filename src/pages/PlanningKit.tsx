@@ -18,6 +18,7 @@ import {
   type Section,
 } from "@/lib/planningKitContent";
 import { trackPlanningKitViewed } from "@/lib/tracking/funnel";
+import { PhotoBackdrop } from "@/components/PhotoBand";
 
 type KitApi = ReturnType<typeof usePlanningKitState>;
 
@@ -343,7 +344,8 @@ const PlanningKit = () => {
   );
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col photo-page">
+      <PhotoBackdrop photo="a" variant="page" />
       <div className="print:hidden">
         <Navigation />
       </div>

@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, Loader2, Calendar, Clock, Users, Copy, Check } f
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { trackPurchase } from "@/lib/analytics";
+import { PhotoBackdrop } from "@/components/PhotoBand";
 import { trackPurchase as trackMetaPurchase } from "@/lib/tracking/funnel";
 
 interface BookingDetails {
@@ -109,7 +110,8 @@ const BookingConfirmation = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+      <div className="min-h-screen photo-page">
+        <PhotoBackdrop photo="b" variant="page" />
         <Navigation />
         <div className="container mx-auto px-4 py-20 flex items-center justify-center">
           <div className="text-center space-y-4">
@@ -129,7 +131,8 @@ const BookingConfirmation = () => {
     const isExistingBookingPayment = isBalance || isAddon;
 
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+      <div className="min-h-screen photo-page">
+        <PhotoBackdrop photo="b" variant="page" />
         <Navigation />
         <div className="container mx-auto px-4 py-20">
           <div className="max-w-2xl mx-auto text-center space-y-6">
@@ -195,7 +198,8 @@ const BookingConfirmation = () => {
     // ----- Balance payment success -----
     if (isBalance) {
       return (
-        <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+        <div className="min-h-screen photo-page">
+          <PhotoBackdrop photo="b" variant="page" />
           <Navigation />
           <div className="container mx-auto px-4 py-12 md:py-20">
             <div className="max-w-3xl mx-auto space-y-8">
@@ -328,7 +332,8 @@ const BookingConfirmation = () => {
     // ----- Add-on payment success -----
     if (isAddon) {
       return (
-        <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+        <div className="min-h-screen photo-page">
+          <PhotoBackdrop photo="b" variant="page" />
           <Navigation />
           <div className="container mx-auto px-4 py-12 md:py-20">
             <div className="max-w-3xl mx-auto space-y-8">
@@ -407,7 +412,8 @@ const BookingConfirmation = () => {
 
     // ----- Deposit success (original flow) -----
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-accent/10">
+      <div className="min-h-screen photo-page">
+        <PhotoBackdrop photo="b" variant="page" />
         <Navigation />
         <div className="container mx-auto px-4 py-12 md:py-20">
           <div className="max-w-3xl mx-auto space-y-8">

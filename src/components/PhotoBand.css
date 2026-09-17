@@ -1,0 +1,136 @@
+/* ===================== photo bands =====================
+ * Two venue photographs alternate behind every section of the marketing site
+ * and behind the guest pages. The veil is opaque white at both ends of a band
+ * — where it meets the band above and below — so each photo swells in and out
+ * of the page instead of butting against a seam. Anything that reads as a
+ * horizontal line between two bands is a bug.
+ *
+ * Structure (see PhotoBand.tsx):
+ *   .photo-band            wrapper around one or more sections
+ *     .photo-backdrop      absolutely positioned, behind the content
+ *       .photo-band-bg     the photograph — taller than the band, drifts on scroll
+ *       .photo-band-veil   the white wash — never moves
+ */
+.photo-band {
+  position: relative;
+  isolation: isolate;
+}
+.photo-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.photo-band-bg {
+  position: absolute;
+  /* 8% taller than the band top and bottom: the parallax slides it ±5%, and
+   * the overflow keeps the edges from ever showing raw page behind them */
+  inset: -8% 0;
+  background-size: cover;
+  background-position: center;
+  will-change: transform;
+}
+.photo-band-veil {
+  position: absolute;
+  /* bleeds 2px past the band: section heights are fractional, and a veil that
+   * stops exactly at the edge leaves one antialiased row of raw photo (a gray
+   * hairline) where the next band starts */
+  inset: -2px;
+  background:
+    radial-gradient(
+      110% 55% at 50% 50%,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(255, 255, 255, 0.3) 60%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      #fff 0%,
+      rgba(255, 255, 255, 0.92) 7%,
+      rgba(255, 255, 255, 0.42) 24%,
+      rgba(255, 255, 255, 0.34) 62%,
+      rgba(255, 255, 255, 0.8) 90%,
+      #fff 100%
+    );
+}
+
+/* --- hero: soft white pool under the copy, open at the top (the nav sits on
+ * it), fading to white only where the first band starts --- */
+.photo-backdrop-hero .photo-band-veil {
+  background:
+    radial-gradient(
+      120% 70% at 50% 45%,
+      rgba(255, 255, 255, 0.76) 0%,
+      rgba(255, 255, 255, 0.42) 55%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.3),
+      rgba(255, 255, 255, 0.26) 60%,
+      rgba(255, 255, 255, 0.5) 92%,
+      #fff 100%
+    );
+}
+
+/* --- "included" band, straight under the hero. The hero fades to white over
+ * its last ~8%; photo B opens on the black truss ceiling, which reads as a
+ * gray bar if it comes back too fast right under that white. So the veil stays
+ * heavy across the ceiling and only lets the photo through where the room is
+ * light. No radial pool: the copy sits on the opaque blue card. --- */
+.photo-band-included .photo-band-veil {
+  background: linear-gradient(
+    to bottom,
+    #fff 0%,
+    rgba(255, 255, 255, 0.94) 9%,
+    rgba(255, 255, 255, 0.7) 24%,
+    rgba(255, 255, 255, 0.36) 46%,
+    rgba(255, 255, 255, 0.3) 68%,
+    rgba(255, 255, 255, 0.76) 91%,
+    #fff 100%
+  );
+}
+
+/* --- guest pages: one photo fixed behind the whole page. No parallax (the
+ * fixed photo already reads as depth against scrolling content) and a heavier
+ * wash, since form copy and muted helper text sit straight on it. --- */
+.photo-page {
+  position: relative;
+  isolation: isolate;
+}
+.photo-backdrop-page {
+  position: fixed;
+  inset: 0;
+}
+.photo-backdrop-page .photo-band-bg {
+  inset: 0;
+  will-change: auto;
+}
+.photo-backdrop-page .photo-band-veil {
+  background:
+    radial-gradient(
+      90% 60% at 50% 40%,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0.2) 70%,
+      rgba(255, 255, 255, 0) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.86) 0%,
+      rgba(255, 255, 255, 0.74) 40%,
+      rgba(255, 255, 255, 0.8) 100%
+    );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .photo-band-bg {
+    will-change: auto;
+  }
+}
+
+@media print {
+  .photo-backdrop {
+    display: none;
+  }
+}
