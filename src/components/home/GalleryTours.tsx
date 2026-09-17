@@ -23,29 +23,33 @@ import mainEntrance from "@/assets/venue/main-entrance-2048.webp";
 import mainEntrance2x from "@/assets/venue/main-entrance-4096.webp";
 import eventStage01 from "@/assets/venue/event-stage-01-2048.webp";
 import eventStage01_2x from "@/assets/venue/event-stage-01-4096.webp";
-import eventStage02 from "@/assets/venue/event-stage-02-2048.webp";
-import eventStage02_2x from "@/assets/venue/event-stage-02-4096.webp";
+import heroStageScreen from "@/assets/venue/hero-stage-screen-2048.webp";
+import heroStageScreen2x from "@/assets/venue/hero-stage-screen-4096.webp";
+import includedStageBrick from "@/assets/venue/included-stage-brick-2048.webp";
+import includedStageBrick2x from "@/assets/venue/included-stage-brick-4096.webp";
 import eventAcoustic01 from "@/assets/venue/event-acoustic-01-2048.webp";
 import eventAcoustic01_2x from "@/assets/venue/event-acoustic-01-4096.webp";
 import eventBackWall from "@/assets/venue/event-back-wall-2048.webp";
 import eventBackWall2x from "@/assets/venue/event-back-wall-4096.webp";
 
-/* Renovated areas first, then the rooms the renovation did not touch, then the
- * event photography. `full` feeds the lightbox and wide screens; `position`
- * tunes the fixed-height card crop so the subject survives object-fit: cover
- * instead of us cropping the photograph itself. */
+/* Same order as the /tour walkthrough: the renovated event space sells the
+ * room, so it leads; arrival areas next; the rooms the renovation did not
+ * touch and the event photography last. `full` feeds the lightbox and wide
+ * screens; `position` tunes the fixed-height card crop so the subject survives
+ * object-fit: cover instead of us cropping the photograph itself. */
 const IMAGES: {
   url: string;
   full: string;
   title: string;
   position?: string;
 }[] = [
-  { url: welcomeDetail, full: welcomeDetail2x, title: "Welcome Area", position: "center 32%" },
-  { url: mainEntrance, full: mainEntrance2x, title: "Main Entrance" },
-  { url: eventStage01, full: eventStage01_2x, title: "Presentation Setup" },
-  { url: eventStage02, full: eventStage02_2x, title: "Event Space" },
+  { url: heroStageScreen, full: heroStageScreen2x, title: "Event Space" },
+  { url: eventStage01, full: eventStage01_2x, title: "Stage & Display" },
+  { url: includedStageBrick, full: includedStageBrick2x, title: "Open Floor" },
   { url: eventAcoustic01, full: eventAcoustic01_2x, title: "Acoustic Wall" },
-  { url: eventBackWall, full: eventBackWall2x, title: "Open Floor" },
+  { url: eventBackWall, full: eventBackWall2x, title: "From the Stage" },
+  { url: mainEntrance, full: mainEntrance2x, title: "Main Entrance" },
+  { url: welcomeDetail, full: welcomeDetail2x, title: "Welcome Area", position: "center 32%" },
   { url: gallery9, full: gallery9, title: "Prep Kitchen" },
   { url: gallery6, full: gallery6, title: "Restroom Facilities" },
   { url: gallery5, full: gallery5, title: "Storage Area" },

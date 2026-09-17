@@ -19,12 +19,13 @@ import mainEntrance from "@/assets/venue/main-entrance-2048.webp";
 import mainEntrance2x from "@/assets/venue/main-entrance-4096.webp";
 import eventStage01 from "@/assets/venue/event-stage-01-2048.webp";
 import eventStage01_2x from "@/assets/venue/event-stage-01-4096.webp";
-import eventStage02 from "@/assets/venue/event-stage-02-2048.webp";
-import eventStage02_2x from "@/assets/venue/event-stage-02-4096.webp";
+/* Same wide shots the homepage hero and "included" band use (Sept 2026). */
+import heroStageScreen from "@/assets/venue/hero-stage-screen-2048.webp";
+import heroStageScreen2x from "@/assets/venue/hero-stage-screen-4096.webp";
+import includedStageBrick from "@/assets/venue/included-stage-brick-2048.webp";
+import includedStageBrick2x from "@/assets/venue/included-stage-brick-4096.webp";
 import eventAcoustic01 from "@/assets/venue/event-acoustic-01-2048.webp";
 import eventAcoustic01_2x from "@/assets/venue/event-acoustic-01-4096.webp";
-import eventAcoustic02 from "@/assets/venue/event-acoustic-02-2048.webp";
-import eventAcoustic02_2x from "@/assets/venue/event-acoustic-02-4096.webp";
 import eventBackWall from "@/assets/venue/event-back-wall-2048.webp";
 import eventBackWall2x from "@/assets/venue/event-back-wall-4096.webp";
 
@@ -42,70 +43,64 @@ export interface TourScene {
   portrait?: boolean;
 }
 
-/* Ordered as a walkthrough: arrive, come in, then around the event space and
- * on to the support areas. */
+/* Ordered as a sales walkthrough, not as a floor plan: the renovated event
+ * space leads because that is what a host is deciding on, then the arrival
+ * areas, then the support rooms that were not part of the renovation. */
 export const TOUR_SCENES: TourScene[] = [
   {
-    id: "exterior",
-    room: "Venue Exterior",
-    desc: "Your guests arrive here: easy access and parking right outside.",
-    src: entrance,
-    full: entrance,
-  },
-  {
-    id: "welcome",
-    room: "Welcome Area",
-    desc: "The renovated welcome wall: backlit sign on warm wood slats.",
-    src: welcomeDetail,
-    full: welcomeDetail2x,
-    portrait: true,
-  },
-  {
-    id: "entrance",
-    room: "Main Entrance",
-    desc: "Marble accents and a smart TV display greet you on the way in.",
-    src: mainEntrance,
-    full: mainEntrance2x,
+    id: "full-room",
+    room: "Event Space",
+    view: "Full Room",
+    desc: "The whole room in one look: stage, full-wall display and open floor for up to 90 guests.",
+    src: heroStageScreen,
+    full: heroStageScreen2x,
   },
   {
     id: "stage-view",
     room: "Event Space",
-    view: "Stage View",
-    desc: "The new stage and the full-wall display, ready for your program.",
+    view: "Stage & Display",
+    desc: "Raised stage with the full-wall display behind it: presentations, ceremonies, DJs.",
     src: eventStage01,
     full: eventStage01_2x,
-  },
-  {
-    id: "stage-alt",
-    room: "Event Space",
-    view: "Alternate Stage View",
-    desc: "The same stage from the floor, with the control desk behind you.",
-    src: eventStage02,
-    full: eventStage02_2x,
-  },
-  {
-    id: "acoustic-wall",
-    room: "Event Space",
-    view: "Acoustic Wall",
-    desc: "Acoustic panelling and wall lighting down the length of the room.",
-    src: eventAcoustic01,
-    full: eventAcoustic01_2x,
-  },
-  {
-    id: "side-wall",
-    room: "Event Space",
-    view: "Side View",
-    desc: "The side wall and the doors through to the rest of the venue.",
-    src: eventAcoustic02,
-    full: eventAcoustic02_2x,
   },
   {
     id: "open-floor",
     room: "Event Space",
     view: "Open Floor",
-    desc: "Open floor looking back from the stage: lay it out however you need.",
+    desc: "Open floor from the stage: seat it theater-style, set banquet rounds or clear it for a dance floor.",
+    src: includedStageBrick,
+    full: includedStageBrick2x,
+  },
+  {
+    id: "acoustic-wall",
+    room: "Event Space",
+    view: "Acoustic Wall",
+    desc: "Acoustic panelling and warm wall lighting along the room: clean sound, no echo.",
+    src: eventAcoustic01,
+    full: eventAcoustic01_2x,
+  },
+  {
+    id: "from-the-stage",
+    room: "Event Space",
+    view: "From the Stage",
+    desc: "What your speaker sees: the room from the stage, doors through to the rest of the venue.",
     src: eventBackWall,
     full: eventBackWall2x,
+  },
+  {
+    id: "entrance",
+    room: "Main Entrance",
+    desc: "Marble accents and a smart TV display greet your guests on the way in.",
+    src: mainEntrance,
+    full: mainEntrance2x,
+  },
+  {
+    id: "welcome",
+    room: "Welcome Area",
+    desc: "The renovated welcome wall: backlit sign on warm wood slats, a natural photo spot.",
+    src: welcomeDetail,
+    full: welcomeDetail2x,
+    portrait: true,
   },
   {
     id: "kitchen",
@@ -127,6 +122,13 @@ export const TOUR_SCENES: TourScene[] = [
     desc: "Clean, modern restrooms for your guests.",
     src: restroom,
     full: restroom,
+  },
+  {
+    id: "exterior",
+    room: "Venue Exterior",
+    desc: "Easy access and parking right outside the door.",
+    src: entrance,
+    full: entrance,
   },
 ];
 
