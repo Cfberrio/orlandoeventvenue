@@ -44,8 +44,11 @@ try {
   }
 } catch {}
 
-const wantsNormal = /\bmodo\s+normal\b/.test(prompt);
-const wantsAhorro = /\bmodo\s+ahorro\b/.test(prompt);
+// Solo dispara si la frase es el comando (inicio del mensaje), no si aparece
+// citada dentro de una oración. 2026-09-17: un Decision Brief que describía
+// "escribir modo ahorro" activó el modo por accidente durante 3 turnos.
+const wantsNormal = /^\s*modo\s+normal\b/i.test(prompt);
+const wantsAhorro = /^\s*modo\s+ahorro\b/i.test(prompt);
 
 let active = existsSync(stateFile);
 let turn = 0;
