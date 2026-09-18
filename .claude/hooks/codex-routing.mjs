@@ -35,7 +35,7 @@ if (sessionId && existsSync(join(homedir(), ".claude", "modo-ahorro", sessionId)
 
 const rule = [
   "[REPARTO CLAUDE/CODEX — hook, siempre activo] Antes de actuar, clasifica la tarea:",
-  "1. Mecánica con spec cerrado (aplicar un patrón en N archivos, backfill de tests de algo ya entendido, renames, leer logs largos, buscar en muchos archivos, comparar diffs) → delegar YA a `codex:codex-rescue` con `--model gpt-5.6-sol` y el spec completo en un solo pedido; marcar `→ Codex` en la respuesta; verificar contra el código lo que Codex afirme.",
+  "1. Mecánica con spec cerrado (aplicar un patrón en N archivos, backfill de tests de algo ya entendido, renames, leer logs largos, buscar en muchos archivos, comparar diffs) → delegar YA a `codex:codex-rescue` con el spec completo en un solo pedido (modelo: el default de ~/.codex/config.toml, gpt-5.6-sol high); marcar `→ Codex` en la respuesta; verificar contra el código lo que Codex afirme.",
   "2. Diff que toca código de producción del repo (ver AGENTS.md) → adversarial review de Codex antes de reportar el resultado.",
   "3. Decidir qué construir, voz de marca, `.env`/secretos, deploy, skills google-ads-*, interpretar métricas → Claude, sin delegar.",
   "Si dudas entre 1 y 3, escribe la clasificación en una línea y sigue. No hagas tú lo que cabe en 1.",
