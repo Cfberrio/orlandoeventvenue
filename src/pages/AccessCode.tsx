@@ -9,6 +9,16 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { KeyRound, Loader2, ShieldCheck, CheckCircle2, Clock, Lightbulb, Wifi, ExternalLink, DoorOpen } from "lucide-react";
 import GuestReportForm, { GuestReportFormBooking } from "@/components/access-code/GuestReportForm";
 
+interface AccessStep {
+  title?: string | null;
+  text: string;
+}
+
+interface VenueRuleCategory {
+  title: string;
+  rules: { rule: string; fee?: string | null }[];
+}
+
 interface AccessCodeResult {
   code: string | null;
   label: string | null;
@@ -25,100 +35,31 @@ interface AccessCodeResult {
   host_report_step: string | null;
   is_recurring?: boolean;
   expires_on?: string | null;
+  entry_steps?: AccessStep[] | null;
+  lighting_steps?: AccessStep[] | null;
+  wifi_network?: string | null;
+  wifi_password?: string | null;
+  venue_rules?: VenueRuleCategory[] | null;
 }
 
 const GOOGLE_REVIEW_URL = "https://g.page/r/CU-yUA0El90UEAE/review";
 
-// Venue rules mirror the access-page spec doc (ClickUp 8cqnrff-32097) verbatim.
-const VENUE_RULES: { title: string; rules: { rule: string; fee?: string }[] }[] = [
-  {
-    title: "Capacity and Reservation Time",
-    rules: [
-      {
-        rule: "The venue holds a maximum of 90 guests. Do not exceed this limit.",
-        fee: "$500 and risk of the event being shut down",
-      },
-      {
-        rule: "Your booked time includes setup and breakdown. Together, they should use no more than 50% of the reservation.",
-        fee: "$350 per additional hour",
-      },
-      {
-        rule: "The venue must be fully restored before the reservation ends.",
-        fee: "Additional $300 if the space is not restored",
-      },
-    ],
-  },
-  {
-    title: "Tables, Chairs, and Trash",
-    rules: [
-      { rule: "You are responsible for setting up and breaking down the tables and chairs." },
-      {
-        rule: "Return all tables and chairs to their original arrangement before leaving.",
-        fee: "$400 if not restored",
-      },
-      {
-        rule: "Bag all trash and place it on the back patio. Do not leave trash inside. Our team handles the cleaning.",
-      },
-    ],
-  },
-  {
-    title: "Alcohol, Drugs, and Smoking",
-    rules: [
-      {
-        rule: "All alcohol service must be arranged through Orlando Event Venue. Outside alcohol, outside bartenders, and bringing your own alcohol are not allowed. Guests must be 21 or older to drink.",
-        fee: "$500 and possible event termination without a refund",
-      },
-      {
-        rule: "Drugs are not allowed anywhere on the property.",
-        fee: "$500, immediate termination, and possible law enforcement notification",
-      },
-      {
-        rule: "Smoking and vaping are not allowed indoors or in the immediate outdoor area.",
-        fee: "$500",
-      },
-    ],
-  },
-  {
-    title: "Catering and Kitchen Use",
-    rules: [
-      {
-        rule: "Outside caterers are welcome but must be approved. Professional caterers must provide proof of insurance.",
-      },
-      {
-        rule: "Cooking is not allowed on site. The prep kitchen may only be used for staging and reheating.",
-        fee: "$500 for cooking or using an unapproved caterer",
-      },
-    ],
-  },
-  {
-    title: "Decorations and Venue Equipment",
-    rules: [
-      { rule: "Glitter, confetti, rice, and sparklers are not allowed.", fee: "$500" },
-      {
-        rule: "Do not use nails, staples, tape that leaves residue, or open flames unless approved in advance.",
-        fee: "$400 per violation",
-      },
-      {
-        rule: "The stage, screens, and audio or visual equipment may only be used with the matching production package.",
-        fee: "$400 per violation",
-      },
-      {
-        rule: "Damage to the venue, furniture, or equipment will be charged at the repair or replacement cost.",
-        fee: "$400 minimum",
-      },
-    ],
-  },
-  {
-    title: "Noise, Doors, and Pets",
-    rules: [
-      {
-        rule: "Keep music and noise within local noise limits. Doors must remain closed after 9:00 PM.",
-        fee: "$350 and possible termination for severe violations",
-      },
-      { rule: "Pets are not allowed. Documented service animals are welcome.", fee: "$250" },
-    ],
-  },
-];
+// Renders step text stored with a "{{code}}" token, swapping it for the
+// guest's actual door code (admin-editable copy in venue_access_content).
+function renderStepText(text: string, code: string) {
+  const parts = text.split("{{code}}");
+  if (parts.length === 1) return text;
+  return parts.flatMap((part, i) =>
+    i === 0
+      ? [part]
+      : [
+          <span key={i} className="font-mono font-bold text-foreground">
+            {code}
+          </span>,
+          part,
+        ],
+  );
+}
 
 function formatTime(time: string | null | undefined): string | null {
   if (!time) return null;
@@ -437,84 +378,68 @@ const AccessCode = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <DoorOpen className="w-5 h-5" />
-                How to Enter the Venue
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 text-sm leading-relaxed">
-              <div>
-                <p className="font-semibold">1. Find the Entrance</p>
-                <p className="text-muted-foreground">
-                  Look for the GLOBAL sign with the number 3847. When facing the sign, use the door
-                  on the left.
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold">2. Open the Lockbox</p>
-                <p className="text-muted-foreground">
-                  Tap the black lockbox screen to wake it. Enter your door code:{" "}
-                  <span className="font-mono font-bold text-foreground">{result.code}</span>. Open
-                  the lockbox and remove the magnetic key.
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold">3. Unlock the Door</p>
-                <p className="text-muted-foreground">
-                  Tap the magnetic key against the sensor located to the right of the door.
-                </p>
-              </div>
-              <div>
-                <p className="font-semibold">4. Return the Key</p>
-                <p className="text-muted-foreground">
-                  Immediately return the magnetic key to the lockbox and close it securely.{" "}
-                  <strong className="text-foreground">Do not take the key inside the venue.</strong>
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {!!result.entry_steps?.length && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <DoorOpen className="w-5 h-5" />
+                  How to Enter the Venue
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm leading-relaxed">
+                {result.entry_steps.map((step, i) => (
+                  <div key={i}>
+                    {step.title && <p className="font-semibold">{step.title}</p>}
+                    <p className="text-muted-foreground">{renderStepText(step.text, result.code!)}</p>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Lightbulb className="w-5 h-5" />
-                How to Turn On the Lights
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm leading-relaxed text-muted-foreground">
-              <p>
-                The white remote labeled <strong className="text-foreground">Light</strong> is
-                located on the left wall.
-              </p>
-              <p>The buttons on the left turn the lights on. The buttons on the right turn the lights off.</p>
-              <p>Return the remote to the same place before leaving.</p>
-              <p>
-                If the lights do not turn on, turn on the wall switch first. Then use the white
-                remote.
-              </p>
-            </CardContent>
-          </Card>
+          {!!result.lighting_steps?.length && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Lightbulb className="w-5 h-5" />
+                  How to Turn On the Lights
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm leading-relaxed text-muted-foreground">
+                {result.lighting_steps.map((step, i) => (
+                  <p key={i}>
+                    {step.title && <strong className="text-foreground">{step.title} </strong>}
+                    {renderStepText(step.text, result.code!)}
+                  </p>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Wifi className="w-5 h-5" />
-                Wi-Fi Information
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="text-sm space-y-1">
-              <p>
-                <span className="text-muted-foreground">Network:</span>{" "}
-                <strong className="font-mono">TMOBILE-9371</strong>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Password:</span>{" "}
-                <strong className="font-mono">7km6r7y5ybn</strong>
-              </p>
-            </CardContent>
-          </Card>
+          {(result.wifi_network || result.wifi_password) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Wifi className="w-5 h-5" />
+                  Wi-Fi Information
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-sm space-y-1">
+                {result.wifi_network && (
+                  <p>
+                    <span className="text-muted-foreground">Network:</span>{" "}
+                    <strong className="font-mono">{result.wifi_network}</strong>
+                  </p>
+                )}
+                {result.wifi_password && (
+                  <p>
+                    <span className="text-muted-foreground">Password:</span>{" "}
+                    <strong className="font-mono">{result.wifi_password}</strong>
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {!isRecurring && (
             <div className="pt-2">
@@ -553,8 +478,8 @@ const AccessCode = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
-              {VENUE_RULES.map((category) => (
-                <div key={category.title}>
+              {(result.venue_rules ?? []).map((category, ci) => (
+                <div key={ci}>
                   <p className="text-sm font-semibold mb-2">{category.title}</p>
                   <div className="overflow-x-auto rounded-md border">
                     <table className="w-full text-sm">
@@ -567,8 +492,8 @@ const AccessCode = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {category.rules.map((row) => (
-                          <tr key={row.rule} className="border-b last:border-b-0 align-top">
+                        {category.rules.map((row, ri) => (
+                          <tr key={ri} className="border-b last:border-b-0 align-top">
                             <td className="p-2">{row.rule}</td>
                             <td className="p-2 text-muted-foreground">{row.fee ?? "—"}</td>
                           </tr>

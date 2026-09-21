@@ -40,6 +40,28 @@ function makeRow(overrides: Record<string, unknown> = {}) {
     end_time: "23:00:00",
     event_type: "wedding-reception",
     host_report_step: "pending",
+    entry_steps: [
+      { title: "1. Find the Entrance", text: "Use the door on the left." },
+      { title: "2. Open the Lockbox", text: "Enter your door code: {{code}}." },
+    ],
+    lighting_steps: [{ text: "Use the white remote on the left wall." }],
+    wifi_network: "TMOBILE-9371",
+    wifi_password: "7km6r7y5ybn",
+    venue_rules: [
+      {
+        title: "Capacity and Reservation Time",
+        rules: [
+          {
+            rule: "The venue holds a maximum of 90 guests. Do not exceed this limit.",
+            fee: "$500 and risk of the event being shut down",
+          },
+        ],
+      },
+      {
+        title: "Noise, Doors, and Pets",
+        rules: [{ rule: "Pets are not allowed. Documented service animals are welcome.", fee: "$250" }],
+      },
+    ],
     ...overrides,
   };
 }
