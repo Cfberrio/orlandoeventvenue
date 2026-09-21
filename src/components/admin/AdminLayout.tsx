@@ -16,7 +16,8 @@ import {
   Wallet,
   FileText,
   BarChart3,
-  Settings
+  Settings,
+  FileEdit
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -35,6 +36,7 @@ const navItems = [
   { to: "/admin/invoices", icon: FileText, label: "Invoices" },
   { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/admin/pricing", icon: Settings, label: "Pricing" },
+  { to: "/admin/page-content", icon: FileEdit, label: "Page Content" },
 ];
 
 export default function AdminLayout() {
