@@ -347,7 +347,7 @@ describe("AccessCode — error states from RPC", () => {
     ).toBeInTheDocument();
   });
 
-  it("handles access_window_closed (6 hours after the reservation ends)", async () => {
+  it("handles access_window_closed (immediately after the reservation ends)", async () => {
     rpcMock.mockResolvedValueOnce({
       data: null,
       error: { message: "access_window_closed" },
@@ -357,7 +357,7 @@ describe("AccessCode — error states from RPC", () => {
     await lookup("OEV-TEST01");
 
     expect(
-      await screen.findByText(/closed 6 hours after your reservation ended/i),
+      await screen.findByText(/closed when your reservation ended/i),
     ).toBeInTheDocument();
     expect(screen.queryByText("1234")).not.toBeInTheDocument();
   });
