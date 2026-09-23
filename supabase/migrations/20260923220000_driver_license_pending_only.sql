@@ -5,12 +5,12 @@
 -- gets real RLS (docs/security roadmap), bound what those writes can do:
 --
 --  * Attach on INSERT (the website flow) as before.
---  * Attach/replace on UPDATE only while payment_status = 'pending' — i.e.
+--  * Attach/replace on UPDATE only while payment_status = 'pending' before AND after — i.e.
 --    the guest's own pre-payment retry. A replacement retires the old file
 --    (detached, purged by the next cleanup run). Once paid, and for every
 --    older booking without a license, the license is frozen: it can't be
 --    forged in or swapped.
---  * retain_until = event_date + 30, but never more than 400 days after the
+--  * retain_until = event_date + 30, but never more than 800 days after the
 --    file was attached, so moving event_date can't keep a license forever.
 
 CREATE OR REPLACE FUNCTION public.attach_driver_license_uploads()
@@ -20,11 +20,11 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_retain date := LEAST(NEW.event_date + 30, current_date + 400);
+  v_retain date := LEAST(NEW.event_date + 30, current_date + 800);
   v_side text;
   v_path text;
 BEGIN
-  IF TG_OP = 'INSERT' OR NEW.payment_status = 'pending' THEN
+  IF TG_OP = 'INSERT' OR (OLD.payment_status = 'pending' AND NEW.payment_status = 'pending') THEN
     FOREACH v_side IN ARRAY ARRAY['front', 'back'] LOOP
       v_path := CASE v_side WHEN 'front' THEN NEW.license_front_path ELSE NEW.license_back_path END;
       CONTINUE WHEN v_path IS NULL;
@@ -48,7 +48,7 @@ BEGIN
 
   IF TG_OP = 'UPDATE' AND NEW.event_date IS DISTINCT FROM OLD.event_date THEN
     UPDATE driver_license_uploads
-       SET retain_until = LEAST(GREATEST(retain_until, NEW.event_date + 30), (attached_at::date) + 400)
+       SET retain_until = LEAST(GREATEST(retain_until, NEW.event_date + 30), (attached_at::date) + 800)
      WHERE booking_id = NEW.id AND deleting_at IS NULL;
   END IF;
 
@@ -56,3 +56,7 @@ BEGIN
 END;
 $$;
 REVOKE ALL ON FUNCTION public.attach_driver_license_uploads() FROM PUBLIC, anon, authenticated;
+
+-- Known residual (not fixable from a trigger): a caller who can write bookings
+-- can first set payment_status back to 'pending' in one statement and swap the
+-- license in a second. Closing that needs RLS on public.bookings.
