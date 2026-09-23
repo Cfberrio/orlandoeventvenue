@@ -80,6 +80,7 @@ import EventHoursEditDialog from "@/components/admin/EventHoursEditDialog";
 import StaffHoursEditDialog from "@/components/admin/StaffHoursEditDialog";
 import BarServiceCard from "@/components/admin/BarServiceCard";
 import GuestReportPhotos from "@/components/admin/GuestReportPhotos";
+import DriverLicenseTab from "@/components/admin/DriverLicenseTab";
 import { usePricing } from "@/hooks/usePricing";
 import { getAssignmentHours } from "@/lib/assignmentHours";
 
@@ -862,6 +863,9 @@ export default function BookingDetail() {
           </TabsTrigger>
           <TabsTrigger value="reports" className="data-[state=active]:bg-background">
             📝 Reports
+          </TabsTrigger>
+          <TabsTrigger value="license" className="data-[state=active]:bg-background">
+            🪪 Driver's License
           </TabsTrigger>
         </TabsList>
 
@@ -2051,6 +2055,11 @@ export default function BookingDetail() {
               </CardContent>
             )}
           </Card>
+        </TabsContent>
+
+        {/* Driver's License Tab */}
+        <TabsContent value="license" className="space-y-4">
+          <DriverLicenseTab booking={booking} />
         </TabsContent>
 
       </Tabs>

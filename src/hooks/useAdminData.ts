@@ -54,6 +54,12 @@ export interface Booking {
   status: string;
   lifecycle_status: string;
   lead_source: string | null;
+  signer_name?: string | null;
+  initials?: string | null;
+  signature?: string | null;
+  signature_date?: string | null;
+  license_front_path?: string | null;
+  license_back_path?: string | null;
   pre_event_ready: string | null;
   host_report_step: string | null;
   created_at: string;

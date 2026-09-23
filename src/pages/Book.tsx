@@ -72,7 +72,10 @@ export interface BookingFormData {
   signerName: string;
   signature: string;
   signatureDate: string;
-  
+  // Object paths in the private driver-licenses bucket
+  licenseFrontPath: string;
+  licenseBackPath: string;
+
   // Step 6
   paymentStatus: "pending" | "paid";
 }

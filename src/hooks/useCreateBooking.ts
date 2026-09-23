@@ -235,6 +235,8 @@ export const useCreateBooking = () => {
         signer_name: formData.signerName,
         signature: formData.signature,
         signature_date: format(new Date(), "yyyy-MM-dd"),
+        license_front_path: formData.licenseFrontPath || null,
+        license_back_path: formData.licenseBackPath || null,
         policy_id: policyData.id,
       };
 

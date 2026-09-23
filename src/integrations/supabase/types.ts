@@ -1070,6 +1070,8 @@ export type Database = {
           internal_notes: Json | null
           ip_address: unknown
           lead_source: string | null
+          license_back_path: string | null
+          license_front_path: string | null
           lifecycle_status: string
           number_of_guests: number
           one_hour_report: string
@@ -1158,6 +1160,8 @@ export type Database = {
           internal_notes?: Json | null
           ip_address?: unknown
           lead_source?: string | null
+          license_back_path?: string | null
+          license_front_path?: string | null
           lifecycle_status?: string
           number_of_guests: number
           one_hour_report?: string
@@ -1246,6 +1250,8 @@ export type Database = {
           internal_notes?: Json | null
           ip_address?: unknown
           lead_source?: string | null
+          license_back_path?: string | null
+          license_front_path?: string | null
           lifecycle_status?: string
           number_of_guests?: number
           one_hour_report?: string

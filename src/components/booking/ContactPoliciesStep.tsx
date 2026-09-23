@@ -10,6 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { BookingFormData } from "@/pages/Book";
 import { useState, useRef, useEffect } from "react";
 import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
+import { ShieldCheck, Upload, CheckCircle2, Loader2 } from "lucide-react";
+import { LICENSE_ACCEPT, uploadLicenseFile, validateLicenseFile } from "@/lib/licenseUpload";
+
+type LicenseSide = "front" | "back";
 
 const venueRules = [
   "Bar service available as a paid add-on. No outside alcohol or outside bartenders permitted: $250 fee",
@@ -192,14 +196,94 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
     form.setValue("signature", "");
   };
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    updateData(values);
-    onNext();
+  // Files picked in this visit; paths already in `data` mean a previous visit uploaded them.
+  const [licenseFiles, setLicenseFiles] = useState<Record<LicenseSide, File | null>>({ front: null, back: null });
+  const [licenseErrors, setLicenseErrors] = useState<Record<LicenseSide, string | null>>({ front: null, back: null });
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const uploadedPath: Record<LicenseSide, string | undefined> = {
+    front: data.licenseFrontPath,
+    back: data.licenseBackPath,
+  };
+
+  const pickLicenseFile = (side: LicenseSide, file: File | undefined) => {
+    if (!file) return;
+    const err = validateLicenseFile(file);
+    setLicenseErrors((prev) => ({ ...prev, [side]: err }));
+    setLicenseFiles((prev) => ({ ...prev, [side]: err ? null : file }));
+  };
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const missing = (["front", "back"] as LicenseSide[]).filter((s) => !licenseFiles[s] && !uploadedPath[s]);
+    if (missing.length) {
+      setLicenseErrors((prev) => {
+        const next = { ...prev };
+        missing.forEach((s) => (next[s] = next[s] ?? `Please upload the ${s} of your driver's license.`));
+        return next;
+      });
+      return;
+    }
+
+    setUploadError(null);
+    setIsUploading(true);
+    try {
+      const [front, back] = await Promise.all([
+        licenseFiles.front ? uploadLicenseFile(licenseFiles.front, "front") : Promise.resolve(uploadedPath.front!),
+        licenseFiles.back ? uploadLicenseFile(licenseFiles.back, "back") : Promise.resolve(uploadedPath.back!),
+      ]);
+      updateData({ ...values, licenseFrontPath: front, licenseBackPath: back });
+      onNext();
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : "Upload failed. Please try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Validate the license alongside the rest of the form so all errors show at once.
+  const onInvalid = () => {
+    setLicenseErrors((prev) => ({
+      front: prev.front ?? (!licenseFiles.front && !uploadedPath.front ? "Please upload the front of your driver's license." : null),
+      back: prev.back ?? (!licenseFiles.back && !uploadedPath.back ? "Please upload the back of your driver's license." : null),
+    }));
+  };
+
+  const renderLicenseInput = (side: LicenseSide, label: string) => {
+    const file = licenseFiles[side];
+    const done = !file && !!uploadedPath[side];
+    return (
+      <div>
+        <FormLabel htmlFor={`license-${side}`}>{label} *</FormLabel>
+        <label
+          htmlFor={`license-${side}`}
+          className="mt-2 flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-background p-4 hover:bg-muted/40"
+        >
+          {file || done ? (
+            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
+          ) : (
+            <Upload className="h-5 w-5 shrink-0 text-muted-foreground" />
+          )}
+          <span className="min-w-0 truncate text-sm">
+            {file ? file.name : done ? "Uploaded — click to replace" : "Choose a photo or PDF"}
+          </span>
+        </label>
+        <input
+          id={`license-${side}`}
+          type="file"
+          accept={LICENSE_ACCEPT}
+          className="sr-only"
+          onChange={(e) => pickLicenseFile(side, e.target.files?.[0])}
+        />
+        {licenseErrors[side] && (
+          <p className="mt-2 text-sm font-medium text-destructive">{licenseErrors[side]}</p>
+        )}
+      </div>
+    );
   };
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={form.handleSubmit(onSubmit, onInvalid)} className="space-y-6">
         <div>
           <h2 className="text-2xl font-bold mb-4">Contact Information & Policies</h2>
           <p className="text-muted-foreground mb-6">
@@ -484,12 +568,43 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           </div>
         </div>
 
+        <div className="space-y-4 pt-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-2">Driver's License Verification</h3>
+            <p className="text-sm text-muted-foreground mb-4">
+              Upload a clear photo or PDF of the front and back of the driver's license of the person signing this agreement.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {renderLicenseInput("front", "Front of License")}
+            {renderLicenseInput("back", "Back of License")}
+          </div>
+
+          <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
+            <p className="leading-relaxed">
+              <span className="font-semibold">Your information is safe with us.</span>{" "}
+              Your license is stored in encrypted, private storage and is only used to verify the identity of the person responsible for this booking. It is never shared or sold, never shown publicly, and only authorized Orlando Event Venue management can view it.
+            </p>
+          </div>
+
+          {uploadError && <p className="text-sm font-medium text-destructive">{uploadError}</p>}
+        </div>
+
         <div className="flex justify-between pt-4">
-          <Button type="button" variant="outline" onClick={onBack}>
+          <Button type="button" variant="outline" onClick={onBack} disabled={isUploading}>
             Back
           </Button>
-          <Button type="submit" size="lg">
-            Proceed to Payment
+          <Button type="submit" size="lg" disabled={isUploading}>
+            {isUploading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Uploading...
+              </>
+            ) : (
+              "Proceed to Payment"
+            )}
           </Button>
         </div>
       </form>
