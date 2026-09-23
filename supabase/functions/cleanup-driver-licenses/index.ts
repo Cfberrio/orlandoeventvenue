@@ -27,6 +27,7 @@ serve(async (req: Request) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
+  // 1. Registry-driven retention.
   const { data, error } = await supabase.rpc("claim_expired_driver_licenses", { p_limit: BATCH });
   if (error) {
     console.error("claim_expired_driver_licenses failed:", error);
@@ -34,23 +35,47 @@ serve(async (req: Request) => {
   }
 
   const paths = ((data ?? []) as { path: string }[]).map((r) => r.path);
-  if (!paths.length) return reply({ expired: 0, removed: 0 });
+  let removed = 0;
+  if (paths.length) {
+    // Rows are now claimed (deleting_at set), so the attach trigger can no longer
+    // bind them to a booking. Storage first: if it fails, the claimed rows stay and
+    // are re-offered after 1h.
+    const { data: gone, error: removeError } = await supabase.storage.from("driver-licenses").remove(paths);
+    if (removeError) {
+      console.error("driver-licenses remove failed:", removeError);
+      return reply({ error: removeError.message }, 500);
+    }
+    removed = gone?.length ?? 0;
 
-  // Rows are now claimed (deleting_at set), so the attach trigger can no longer
-  // bind them to a booking. Storage first: if it fails, the claimed rows stay and
-  // are re-offered after 1h.
-  const { data: gone, error: removeError } = await supabase.storage.from("driver-licenses").remove(paths);
-  if (removeError) {
-    console.error("driver-licenses remove failed:", removeError);
-    return reply({ error: removeError.message }, 500);
+    const { error: deleteError } = await supabase.from("driver_license_uploads").delete().in("path", paths);
+    if (deleteError) {
+      console.error("driver_license_uploads delete failed:", deleteError);
+      return reply({ error: deleteError.message }, 500);
+    }
   }
 
-  const { error: deleteError } = await supabase.from("driver_license_uploads").delete().in("path", paths);
-  if (deleteError) {
-    console.error("driver_license_uploads delete failed:", deleteError);
-    return reply({ error: deleteError.message }, 500);
+  // 2. Safety net: objects with no registry row at all, 48h after upload. The
+  //    upload function registers before writing, so a live upload always has a row.
+  const { data: untracked, error: untrackedError } = await supabase.rpc("untracked_driver_license_objects", {
+    p_limit: BATCH,
+  });
+  if (untrackedError) {
+    console.error("untracked_driver_license_objects failed:", untrackedError);
+    return reply({ error: untrackedError.message }, 500);
+  }
+  const strays = ((untracked ?? []) as { name: string }[]).map((r) => r.name);
+  let strayRemoved = 0;
+  if (strays.length) {
+    const { data: gone, error: strayError } = await supabase.storage.from("driver-licenses").remove(strays);
+    if (strayError) {
+      console.error("driver-licenses stray remove failed:", strayError);
+      return reply({ error: strayError.message }, 500);
+    }
+    strayRemoved = gone?.length ?? 0;
   }
 
-  console.log(`cleanup-driver-licenses: ${paths.length} expired, ${gone?.length ?? 0} objects removed`);
-  return reply({ expired: paths.length, removed: gone?.length ?? 0 });
+  console.log(
+    `cleanup-driver-licenses: ${paths.length} expired (${removed} objects), ${strays.length} untracked (${strayRemoved} objects)`,
+  );
+  return reply({ expired: paths.length, removed, untracked: strays.length, untrackedRemoved: strayRemoved });
 });
