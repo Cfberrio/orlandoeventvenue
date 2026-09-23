@@ -4,11 +4,10 @@ import { isLicenseSide, LICENSE_MAX_BYTES, sniffLicenseFile } from "../_shared/l
 
 // Public (verify_jwt = false): guests are anonymous. The bucket has no anon
 // write policy, so this function is the only way in. It:
-//   1. claims a rate-limit slot atomically (per IP + global, see
-//      claim_license_upload_slot in migration 20260923170000),
-//   2. checks size and the real file type from magic bytes,
-//   3. writes with the service role to a random, never-reused path,
-//   4. registers it in driver_license_uploads (migration 20260923180000).
+//   1. checks size and the real file type from magic bytes,
+//   2. claims a per-IP rate-limit slot atomically (claim_license_upload_slot),
+//   3. registers the path in driver_license_uploads, then
+//   4. writes with the service role to that random, never-reused path.
 // Retention is driven by that registry, not by bookings columns.
 
 const corsHeaders = {
@@ -35,17 +34,7 @@ serve(async (req: Request) => {
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
   try {
-    const { data: allowed, error: claimError } = await supabase.rpc("claim_license_upload_slot", {
-      p_ip: clientIp(req),
-    });
-    if (claimError) {
-      console.error("claim_license_upload_slot failed:", claimError);
-      return json({ error: "Upload is temporarily unavailable. Please try again." }, 503);
-    }
-    if (allowed !== true) {
-      return json({ error: "Too many upload attempts. Please wait a few minutes and try again." }, 429);
-    }
-
+    // Validate first so malformed requests never consume anyone's quota.
     const form = await req.formData();
     const side = form.get("side");
     const file = form.get("file");
@@ -58,21 +47,34 @@ serve(async (req: Request) => {
     const kind = sniffLicenseFile(bytes);
     if (!kind) return json({ error: "Please upload a photo (JPG, PNG, HEIC, WEBP) or a PDF." }, 415);
 
+    const { data: allowed, error: claimError } = await supabase.rpc("claim_license_upload_slot", {
+      p_ip: clientIp(req),
+    });
+    if (claimError) {
+      console.error("claim_license_upload_slot failed:", claimError);
+      return json({ error: "Upload is temporarily unavailable. Please try again." }, 503);
+    }
+    if (allowed !== true) {
+      return json({ error: "Too many upload attempts. Please wait a few minutes and try again." }, 429);
+    }
+
+    // Register BEFORE writing the object: if the worker dies mid-upload, the
+    // unattached row still makes cleanup delete whatever landed (48h).
     const path = `uploads/${crypto.randomUUID()}/${side}.${kind.ext}`;
+    const { error: registryError } = await supabase.from("driver_license_uploads").insert({ path, side });
+    if (registryError) {
+      console.error("driver_license_uploads insert failed:", registryError);
+      return json({ error: "Upload failed. Please try again." }, 500);
+    }
+
     const { error: uploadError } = await supabase.storage
       .from("driver-licenses")
       .upload(path, bytes, { contentType: kind.contentType, upsert: false });
     if (uploadError) {
       console.error("driver-licenses upload failed:", uploadError);
-      return json({ error: "Upload failed. Please try again." }, 500);
-    }
-
-    // Register the file so retention works off a table guests can't edit.
-    const { error: registryError } = await supabase.from("driver_license_uploads").insert({ path, side });
-    if (registryError) {
-      console.error("driver_license_uploads insert failed:", registryError);
-      const { error: rollbackError } = await supabase.storage.from("driver-licenses").remove([path]);
-      if (rollbackError) console.error("rollback remove failed:", path, rollbackError);
+      // Best effort; if this fails the row is unattached and cleanup removes it.
+      const { error: rollbackError } = await supabase.from("driver_license_uploads").delete().eq("path", path);
+      if (rollbackError) console.error("registry rollback failed:", path, rollbackError);
       return json({ error: "Upload failed. Please try again." }, 500);
     }
 
