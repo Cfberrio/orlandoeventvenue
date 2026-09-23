@@ -153,3 +153,9 @@ schedule = "0 19,20 * * *"
 # existence check on the booking/lead before anything reaches Meta).
 [functions.track-event]
 verify_jwt = false
+
+[functions.upload-driver-license]
+verify_jwt = false
+
+[functions.cleanup-driver-licenses]
+verify_jwt = false

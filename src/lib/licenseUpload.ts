@@ -34,19 +34,26 @@ export function validateLicenseFile(file: File): string | null {
 }
 
 /**
- * Uploads one side of the guest's license to the private bucket and returns the
- * object path. The guest can write but never read back (see migration
- * 20260923160000), so the path is random and never reused.
+ * Uploads one side of the guest's license through the upload-driver-license
+ * edge function (the bucket has no guest write access) and returns the object
+ * path. The function rate-limits and checks the real file type server-side.
  */
 export async function uploadLicenseFile(file: File, side: "front" | "back"): Promise<string> {
-  const contentType = resolveContentType(file);
-  if (!contentType) throw new Error("Unsupported file type");
-  const ext = contentType === "application/pdf" ? "pdf" : contentType.split("/")[1].replace("jpeg", "jpg");
-  const path = `uploads/${crypto.randomUUID()}/${side}.${ext}`;
+  const body = new FormData();
+  body.append("side", side);
+  body.append("file", file);
 
-  const { error } = await supabase.storage
-    .from(LICENSE_BUCKET)
-    .upload(path, file, { contentType, upsert: false });
-  if (error) throw new Error(`Could not upload the ${side} of your license: ${error.message}`);
-  return path;
+  const { data, error } = await supabase.functions.invoke("upload-driver-license", { body });
+  if (error) {
+    let message = error.message;
+    try {
+      const payload = await (error as { context?: Response }).context?.json();
+      if (payload?.error) message = payload.error;
+    } catch {
+      // keep the generic message
+    }
+    throw new Error(`Could not upload the ${side} of your license: ${message}`);
+  }
+  if (!data?.path) throw new Error(`Could not upload the ${side} of your license. Please try again.`);
+  return data.path as string;
 }
