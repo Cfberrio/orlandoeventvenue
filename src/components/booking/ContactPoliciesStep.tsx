@@ -226,18 +226,33 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
 
     setUploadError(null);
     setIsUploading(true);
-    try {
-      const [front, back] = await Promise.all([
-        licenseFiles.front ? uploadLicenseFile(licenseFiles.front, "front") : Promise.resolve(uploadedPath.front!),
-        licenseFiles.back ? uploadLicenseFile(licenseFiles.back, "back") : Promise.resolve(uploadedPath.back!),
-      ]);
-      updateData({ ...values, licenseFrontPath: front, licenseBackPath: back });
-      onNext();
-    } catch (e) {
-      setUploadError(e instanceof Error ? e.message : "Upload failed. Please try again.");
-    } finally {
-      setIsUploading(false);
+    // Upload each pending side independently. A side that succeeds is saved right
+    // away and its file cleared, so a retry only re-sends the side that failed.
+    const pending = (["front", "back"] as LicenseSide[]).filter((s) => licenseFiles[s]);
+    const results = await Promise.allSettled(pending.map((s) => uploadLicenseFile(licenseFiles[s]!, s)));
+    const paths = { ...uploadedPath };
+    const failures: string[] = [];
+    results.forEach((r, i) => {
+      const side = pending[i];
+      if (r.status === "fulfilled") paths[side] = r.value;
+      else failures.push(r.reason instanceof Error ? r.reason.message : "Upload failed. Please try again.");
+    });
+    const succeeded = pending.filter((_, i) => results[i].status === "fulfilled");
+    if (succeeded.length) {
+      setLicenseFiles((prev) => {
+        const next = { ...prev };
+        succeeded.forEach((s) => (next[s] = null));
+        return next;
+      });
     }
+    updateData({ ...values, licenseFrontPath: paths.front, licenseBackPath: paths.back });
+    setIsUploading(false);
+
+    if (failures.length) {
+      setUploadError(failures.join(" "));
+      return;
+    }
+    onNext();
   };
 
   // Validate the license alongside the rest of the form so all errors show at once.
@@ -585,7 +600,7 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
             <p className="leading-relaxed">
               <span className="font-semibold">Your information is safe with us.</span>{" "}
-              Your license is stored in encrypted, private storage and is only used to verify the identity of the person responsible for this booking. It is never shared or sold, never shown publicly, and only authorized Orlando Event Venue management can view it.
+              Your license is stored in encrypted, private storage and is only used to verify the identity of the person responsible for this booking. It is never shared or sold, never shown publicly, and only authorized Orlando Event Venue management can view it. We automatically delete it 30 days after your event.
             </p>
           </div>
 

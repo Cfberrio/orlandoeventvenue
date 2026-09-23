@@ -14,13 +14,55 @@ const SIGNED_URL_TTL_SECONDS = 60 * 10;
 
 interface Props {
   booking: {
+    id: string;
     signer_name?: string | null;
     initials?: string | null;
     signature?: string | null;
     signature_date?: string | null;
-    license_front_path?: string | null;
-    license_back_path?: string | null;
   };
+}
+
+type Registry = { front: string | null; back: string | null; retainUntil: string | null };
+
+// Read from driver_license_uploads, not bookings.license_*_path: bookings has no
+// RLS, so those columns are guest-editable. The registry is attached by trigger.
+function useLicenseRegistry(bookingId: string) {
+  const [state, setState] = useState<{ loading: boolean; error: string | null; data: Registry }>({
+    loading: true,
+    error: null,
+    data: { front: null, back: null, retainUntil: null },
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("driver_license_uploads" as any)
+      .select("path, side, attached_at, retain_until")
+      .eq("booking_id", bookingId)
+      .order("attached_at", { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setState({ loading: false, error: error.message, data: { front: null, back: null, retainUntil: null } });
+          return;
+        }
+        const rows = (data ?? []) as unknown as { path: string; side: string; retain_until: string | null }[];
+        setState({
+          loading: false,
+          error: null,
+          data: {
+            front: rows.find((r) => r.side === "front")?.path ?? null,
+            back: rows.find((r) => r.side === "back")?.path ?? null,
+            retainUntil: rows[0]?.retain_until ?? null,
+          },
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingId]);
+
+  return state;
 }
 
 function LicenseSide({ label, path }: { label: string; path: string | null | undefined }) {
@@ -88,6 +130,7 @@ function LicenseSide({ label, path }: { label: string; path: string | null | und
 
 export default function DriverLicenseTab({ booking }: Props) {
   const hasSignatureImage = booking.signature?.startsWith("data:image");
+  const registry = useLicenseRegistry(booking.id);
 
   return (
     <div className="space-y-4">
@@ -133,12 +176,22 @@ export default function DriverLicenseTab({ booking }: Props) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-            <LicenseSide label="Front" path={booking.license_front_path} />
-            <LicenseSide label="Back" path={booking.license_back_path} />
-          </div>
+          {registry.loading ? (
+            <div className="h-40 animate-pulse rounded-lg bg-muted" />
+          ) : registry.error ? (
+            <div className="flex items-center gap-2 text-sm text-destructive">
+              <ShieldAlert className="h-4 w-4" /> {registry.error}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              <LicenseSide label="Front" path={registry.data.front} />
+              <LicenseSide label="Back" path={registry.data.back} />
+            </div>
+          )}
           <p className="mt-4 text-xs text-muted-foreground">
-            Links expire after 10 minutes. Bookings made before this step existed, or created from the admin wizards, have no license on file.
+            Links expire after 10 minutes.
+            {registry.data.retainUntil && ` Files are deleted automatically on ${registry.data.retainUntil} (30 days after the event).`}{" "}
+            Bookings made before this step existed, or created from the admin wizards, have no license on file.
           </p>
         </CardContent>
       </Card>

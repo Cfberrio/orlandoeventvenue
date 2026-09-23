@@ -7,9 +7,9 @@ import { isLicenseSide, LICENSE_MAX_BYTES, sniffLicenseFile } from "../_shared/l
 //   1. claims a rate-limit slot atomically (per IP + global, see
 //      claim_license_upload_slot in migration 20260923170000),
 //   2. checks size and the real file type from magic bytes,
-//   3. writes with the service role to a random, never-reused path.
-// Uploads that never get attached to a booking are deleted by
-// cleanup-driver-licenses after 48h.
+//   3. writes with the service role to a random, never-reused path,
+//   4. registers it in driver_license_uploads (migration 20260923180000).
+// Retention is driven by that registry, not by bookings columns.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -64,6 +64,15 @@ serve(async (req: Request) => {
       .upload(path, bytes, { contentType: kind.contentType, upsert: false });
     if (uploadError) {
       console.error("driver-licenses upload failed:", uploadError);
+      return json({ error: "Upload failed. Please try again." }, 500);
+    }
+
+    // Register the file so retention works off a table guests can't edit.
+    const { error: registryError } = await supabase.from("driver_license_uploads").insert({ path, side });
+    if (registryError) {
+      console.error("driver_license_uploads insert failed:", registryError);
+      const { error: rollbackError } = await supabase.storage.from("driver-licenses").remove([path]);
+      if (rollbackError) console.error("rollback remove failed:", path, rollbackError);
       return json({ error: "Upload failed. Please try again." }, 500);
     }
 
