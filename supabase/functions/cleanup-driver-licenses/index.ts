@@ -5,6 +5,9 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 // (migration 20260923180000):
 //   * files never attached to a booking, 48h after upload,
 //   * attached files, 30 days after the event (retain_until).
+// Candidates are claimed atomically in the DB before any delete, so a booking
+// attaching the same file concurrently either wins (file kept) or loses (the
+// booking shows no license) — never a deleted file on an attached row.
 // Called hourly by pg_cron. Public on purpose: which files expire is decided
 // entirely by the registry, which only the service role and a trigger can
 // write, so calling this early or often can't delete anything ahead of policy.
@@ -24,16 +27,18 @@ serve(async (req: Request) => {
 
   const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-  const { data, error } = await supabase.rpc("expired_driver_license_paths", { p_limit: BATCH });
+  const { data, error } = await supabase.rpc("claim_expired_driver_licenses", { p_limit: BATCH });
   if (error) {
-    console.error("expired_driver_license_paths failed:", error);
+    console.error("claim_expired_driver_licenses failed:", error);
     return reply({ error: error.message }, 500);
   }
 
   const paths = ((data ?? []) as { path: string }[]).map((r) => r.path);
   if (!paths.length) return reply({ expired: 0, removed: 0 });
 
-  // Storage first: if this fails, the registry rows stay and the next run retries.
+  // Rows are now claimed (deleting_at set), so the attach trigger can no longer
+  // bind them to a booking. Storage first: if it fails, the claimed rows stay and
+  // are re-offered after 1h.
   const { data: gone, error: removeError } = await supabase.storage.from("driver-licenses").remove(paths);
   if (removeError) {
     console.error("driver-licenses remove failed:", removeError);
