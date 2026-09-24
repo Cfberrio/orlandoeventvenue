@@ -13,6 +13,7 @@ import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { LicenseUploadError, uploadLicenseFile, validateLicenseFile } from "@/lib/licenseUpload";
 import LicenseCapture from "./LicenseCapture";
+import { toast } from "sonner";
 
 
 const venueRules = [
@@ -232,8 +233,14 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           setLicenseError(e.message);
           return;
         }
+        // Keep a license uploaded on an earlier visit rather than dropping it.
         console.error("License upload unavailable, continuing without it:", e);
-        path = undefined;
+        path = uploadedPath;
+        if (!path) {
+          toast.warning("We couldn't save your license photo", {
+            description: "You can continue to payment. Our team will follow up to verify your ID before your event.",
+          });
+        }
       }
       setIsUploading(false);
     }
