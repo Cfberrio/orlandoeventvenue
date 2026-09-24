@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -132,6 +132,8 @@ export default function BookingDetail() {
   const { pricing: pp } = usePricing();
   const PROC_PCT = (pp.processing_fee || 3.5).toFixed(2);
   const { data: booking, isLoading } = useBooking(id!);
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") || "review";
   const { data: assignments } = useBookingStaffAssignments(id!);
   const { data: hostReports } = useBookingHostReports(id!);
   const { data: cleaningReports } = useBookingCleaningReports(id!);
@@ -850,7 +852,7 @@ export default function BookingDetail() {
         </div>
       </div>
 
-      <Tabs defaultValue="review" className="space-y-4">
+      <Tabs defaultValue={initialTab} className="space-y-4">
         <TabsList className="bg-muted/50 p-1">
           <TabsTrigger value="review" className="data-[state=active]:bg-background">
             📋 Review

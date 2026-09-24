@@ -185,7 +185,8 @@ export default function DriverLicenseTab({ booking }: Props) {
           ) : (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <LicenseSide label="Front" path={registry.data.front} />
-              <LicenseSide label="Back" path={registry.data.back} />
+              {/* Only the front is collected now; older bookings may also have a back. */}
+              {registry.data.back && <LicenseSide label="Back" path={registry.data.back} />}
             </div>
           )}
           <p className="mt-4 text-xs text-muted-foreground">

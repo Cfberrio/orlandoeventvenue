@@ -10,10 +10,10 @@ import { Switch } from "@/components/ui/switch";
 import { BookingFormData } from "@/pages/Book";
 import { useState, useRef, useEffect } from "react";
 import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
-import { ShieldCheck, Upload, CheckCircle2, Loader2 } from "lucide-react";
-import { LICENSE_ACCEPT, uploadLicenseFile, validateLicenseFile } from "@/lib/licenseUpload";
+import { ShieldCheck, Loader2 } from "lucide-react";
+import { LicenseUploadError, uploadLicenseFile, validateLicenseFile } from "@/lib/licenseUpload";
+import LicenseCapture from "./LicenseCapture";
 
-type LicenseSide = "front" | "back";
 
 const venueRules = [
   "Bar service available as a paid add-on. No outside alcohol or outside bartenders permitted: $250 fee",
@@ -196,104 +196,55 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
     form.setValue("signature", "");
   };
 
-  // Files picked in this visit; paths already in `data` mean a previous visit uploaded them.
-  const [licenseFiles, setLicenseFiles] = useState<Record<LicenseSide, File | null>>({ front: null, back: null });
-  const [licenseErrors, setLicenseErrors] = useState<Record<LicenseSide, string | null>>({ front: null, back: null });
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  // A file picked in this visit; a path already in `data` means a previous visit uploaded it.
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [licenseError, setLicenseError] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const uploadedPath: Record<LicenseSide, string | undefined> = {
-    front: data.licenseFrontPath,
-    back: data.licenseBackPath,
+  const uploadedPath = data.licenseFrontPath;
+
+  const pickLicenseFile = (file: File) => {
+    const err = validateLicenseFile(file);
+    setLicenseError(err);
+    setLicenseFile(err ? null : file);
   };
 
-  const pickLicenseFile = (side: LicenseSide, file: File | undefined) => {
-    if (!file) return;
-    const err = validateLicenseFile(file);
-    setLicenseErrors((prev) => ({ ...prev, [side]: err }));
-    setLicenseFiles((prev) => ({ ...prev, [side]: err ? null : file }));
-  };
+  const missingLicenseMessage = "Please add a photo of the front of your driver's license.";
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    const missing = (["front", "back"] as LicenseSide[]).filter((s) => !licenseFiles[s] && !uploadedPath[s]);
-    if (missing.length) {
-      setLicenseErrors((prev) => {
-        const next = { ...prev };
-        missing.forEach((s) => (next[s] = next[s] ?? `Please upload the ${s} of your driver's license.`));
-        return next;
-      });
+    if (!licenseFile && !uploadedPath) {
+      setLicenseError(missingLicenseMessage);
       return;
     }
 
-    setUploadError(null);
-    setIsUploading(true);
-    // Upload each pending side independently. A side that succeeds is saved right
-    // away and its file cleared, so a retry only re-sends the side that failed.
-    const pending = (["front", "back"] as LicenseSide[]).filter((s) => licenseFiles[s]);
-    const results = await Promise.allSettled(pending.map((s) => uploadLicenseFile(licenseFiles[s]!, s)));
-    const paths = { ...uploadedPath };
-    const failures: string[] = [];
-    results.forEach((r, i) => {
-      const side = pending[i];
-      if (r.status === "fulfilled") paths[side] = r.value;
-      else failures.push(r.reason instanceof Error ? r.reason.message : "Upload failed. Please try again.");
-    });
-    const succeeded = pending.filter((_, i) => results[i].status === "fulfilled");
-    if (succeeded.length) {
-      setLicenseFiles((prev) => {
-        const next = { ...prev };
-        succeeded.forEach((s) => (next[s] = null));
-        return next;
-      });
+    let path = uploadedPath;
+    if (licenseFile) {
+      setLicenseError(null);
+      setIsUploading(true);
+      try {
+        path = await uploadLicenseFile(licenseFile, "front");
+        setLicenseFile(null);
+      } catch (e) {
+        setIsUploading(false);
+        // Problems the guest can fix (wrong type, too big, too many tries) block.
+        // If our upload service itself is down, don't lose the booking over it:
+        // continue without the license; the admin tab shows "Not provided".
+        if (e instanceof LicenseUploadError && e.guestFixable) {
+          setLicenseError(e.message);
+          return;
+        }
+        console.error("License upload unavailable, continuing without it:", e);
+        path = undefined;
+      }
+      setIsUploading(false);
     }
-    updateData({ ...values, licenseFrontPath: paths.front, licenseBackPath: paths.back });
-    setIsUploading(false);
 
-    if (failures.length) {
-      setUploadError(failures.join(" "));
-      return;
-    }
+    updateData({ ...values, licenseFrontPath: path, licenseBackPath: undefined });
     onNext();
   };
 
   // Validate the license alongside the rest of the form so all errors show at once.
   const onInvalid = () => {
-    setLicenseErrors((prev) => ({
-      front: prev.front ?? (!licenseFiles.front && !uploadedPath.front ? "Please upload the front of your driver's license." : null),
-      back: prev.back ?? (!licenseFiles.back && !uploadedPath.back ? "Please upload the back of your driver's license." : null),
-    }));
-  };
-
-  const renderLicenseInput = (side: LicenseSide, label: string) => {
-    const file = licenseFiles[side];
-    const done = !file && !!uploadedPath[side];
-    return (
-      <div>
-        <FormLabel htmlFor={`license-${side}`}>{label} *</FormLabel>
-        <label
-          htmlFor={`license-${side}`}
-          className="mt-2 flex cursor-pointer items-center gap-3 rounded-lg border-2 border-dashed border-border bg-background p-4 hover:bg-muted/40"
-        >
-          {file || done ? (
-            <CheckCircle2 className="h-5 w-5 shrink-0 text-green-600" />
-          ) : (
-            <Upload className="h-5 w-5 shrink-0 text-muted-foreground" />
-          )}
-          <span className="min-w-0 truncate text-sm">
-            {file ? file.name : done ? "Uploaded — click to replace" : "Choose a photo or PDF"}
-          </span>
-        </label>
-        <input
-          id={`license-${side}`}
-          type="file"
-          accept={LICENSE_ACCEPT}
-          className="sr-only"
-          onChange={(e) => pickLicenseFile(side, e.target.files?.[0])}
-        />
-        {licenseErrors[side] && (
-          <p className="mt-2 text-sm font-medium text-destructive">{licenseErrors[side]}</p>
-        )}
-      </div>
-    );
+    if (!licenseFile && !uploadedPath) setLicenseError((prev) => prev ?? missingLicenseMessage);
   };
 
   return (
@@ -587,14 +538,16 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
           <div>
             <h3 className="text-lg font-semibold mb-2">Driver's License Verification</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              Upload a clear photo or PDF of the front and back of the driver's license of the person signing this agreement.
+              Take a photo or upload the front of the driver's license of the person signing this agreement. Make sure the name and photo are clear.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderLicenseInput("front", "Front of License")}
-            {renderLicenseInput("back", "Back of License")}
-          </div>
+          <LicenseCapture
+            file={licenseFile}
+            alreadyUploaded={!!uploadedPath}
+            error={licenseError}
+            onPick={pickLicenseFile}
+          />
 
           <div className="flex items-start gap-3 rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" />
@@ -604,7 +557,6 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
             </p>
           </div>
 
-          {uploadError && <p className="text-sm font-medium text-destructive">{uploadError}</p>}
         </div>
 
         <div className="flex justify-between pt-4">

@@ -17,7 +17,8 @@ import {
   FileText,
   BarChart3,
   Settings,
-  FileEdit
+  FileEdit,
+  IdCard
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ const navItems = [
   { to: "/admin/analytics", icon: BarChart3, label: "Analytics" },
   { to: "/admin/pricing", icon: Settings, label: "Pricing" },
   { to: "/admin/page-content", icon: FileEdit, label: "Page Content" },
+  { to: "/admin/driver-licenses", icon: IdCard, label: "Driver's Licenses" },
 ];
 
 export default function AdminLayout() {
