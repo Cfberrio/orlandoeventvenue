@@ -1493,6 +1493,58 @@ export type Database = {
         }
         Relationships: []
       }
+      driver_license_uploads: {
+        Row: {
+          attached_at: string | null
+          booking_id: string | null
+          created_at: string
+          deleting_at: string | null
+          path: string
+          retain_until: string | null
+          side: string
+        }
+        Insert: {
+          attached_at?: string | null
+          booking_id?: string | null
+          created_at?: string
+          deleting_at?: string | null
+          path: string
+          retain_until?: string | null
+          side: string
+        }
+        Update: {
+          attached_at?: string | null
+          booking_id?: string | null
+          created_at?: string
+          deleting_at?: string | null
+          path?: string
+          retain_until?: string | null
+          side?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "driver_license_uploads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "driver_license_uploads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "driver_license_uploads_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       ghl_calendar_sync_config: {
         Row: {
           function_url: string
@@ -1803,6 +1855,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      license_upload_attempts: {
+        Row: {
+          created_at: string
+          id: number
+          ip: string
+        }
+        Insert: {
+          created_at?: string
+          id?: number
+          ip: string
+        }
+        Update: {
+          created_at?: string
+          id?: number
+          ip?: string
+        }
+        Relationships: []
       }
       maintenance_tickets: {
         Row: {
@@ -2864,6 +2934,39 @@ export type Database = {
         }
         Relationships: []
       }
+      venue_access_content: {
+        Row: {
+          entry_steps: Json
+          id: number
+          lighting_steps: Json
+          updated_at: string
+          updated_by: string | null
+          venue_rules: Json
+          wifi_network: string | null
+          wifi_password: string | null
+        }
+        Insert: {
+          entry_steps?: Json
+          id?: number
+          lighting_steps?: Json
+          updated_at?: string
+          updated_by?: string | null
+          venue_rules?: Json
+          wifi_network?: string | null
+          wifi_password?: string | null
+        }
+        Update: {
+          entry_steps?: Json
+          id?: number
+          lighting_steps?: Json
+          updated_at?: string
+          updated_by?: string | null
+          venue_rules?: Json
+          wifi_network?: string | null
+          wifi_password?: string | null
+        }
+        Relationships: []
+      }
       venue_config: {
         Row: {
           description: string | null
@@ -3141,6 +3244,13 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      claim_expired_driver_licenses: {
+        Args: { p_limit?: number }
+        Returns: {
+          path: string
+        }[]
+      }
+      claim_license_upload_slot: { Args: { p_ip: string }; Returns: boolean }
       claim_recurring_invoice: {
         Args: { p_expected_next_send: string; p_invoice_id: string }
         Returns: boolean
@@ -3156,6 +3266,7 @@ export type Database = {
           code: string
           email: string
           end_time: string
+          entry_steps: Json
           event_date: string
           event_type: string
           expires_on: string
@@ -3163,9 +3274,13 @@ export type Database = {
           host_report_step: string
           is_recurring: boolean
           label: string
+          lighting_steps: Json
           phone: string
           reservation_number: string
           start_time: string
+          venue_rules: Json
+          wifi_network: string
+          wifi_password: string
         }[]
       }
       get_bar_package_label: { Args: { p_package: string }; Returns: string }
@@ -3360,6 +3475,12 @@ export type Database = {
           p_reason?: string
         }
         Returns: Json
+      }
+      untracked_driver_license_objects: {
+        Args: { p_limit?: number }
+        Returns: {
+          name: string
+        }[]
       }
     }
     Enums: {
