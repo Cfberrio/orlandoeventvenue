@@ -194,6 +194,19 @@ class MockMetaQuery implements PromiseLike<MockResult> {
       ) {
         return { data: null, error: { code: "23505" } };
       }
+      if (this.table === "meta_event_delivery") {
+        this.database.rows.push({
+          id: `inserted-${this.database.rows.length + 1}`,
+          meta_event_id: String(this.values.meta_event_id),
+          booking_id: this.values.booking_id as string | null,
+          status: String(this.values.status),
+          attempts: Number(this.values.attempts),
+          updated_at: new Date().toISOString(),
+          request: this.values.request,
+          response: this.values.response,
+          error: this.values.error as string | null | undefined,
+        });
+      }
       return { data: null, error: null };
     }
 
@@ -255,6 +268,14 @@ function retryRow(id: string, bookingId: string | null = null): MockDeliveryRow 
 }
 
 const retryEnv = { pixelId: "pixel", token: "token", testCode: "" };
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
 
 describe("dedup event ids", () => {
   // Must stay identical to src/lib/tracking/core.ts.
@@ -425,6 +446,85 @@ describe("Meta CAPI retry", () => {
 });
 
 describe("Meta CAPI retry behavior", () => {
+  it("records a send Meta accepted after an in-flight opt-out, without restoring the payload", async () => {
+    const eventId = "evt_direct_in_flight_optout";
+    const database = new MockMetaDatabase([]);
+    const response = deferred<Response>();
+    const fetchMock = vi.fn<typeof fetch>().mockReturnValue(response.promise);
+
+    const inFlight = deliverMetaEvent(
+      {
+        eventName: "Purchase",
+        eventId,
+        sourceUrl: "https://orlandoeventvenue.org/book",
+        userData: {},
+        bookingId: "booking-1",
+      },
+      {
+        database: database as never,
+        fetchImpl: fetchMock,
+        env: retryEnv,
+      },
+    );
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    const optOut = await deliverMetaEvent(
+      {
+        eventName: "Purchase",
+        eventId,
+        sourceUrl: "https://orlandoeventvenue.org/book",
+        userData: {},
+        bookingId: "booking-1",
+        adConsent: false,
+      },
+      { database: database as never, env: retryEnv },
+    );
+    response.resolve(new Response(JSON.stringify({ events_received: 1 }), { status: 200 }));
+
+    expect(optOut).toBe("duplicate");
+    expect(await inFlight).toBe("sent");
+    expect(database.rows[0]).toMatchObject({
+      status: "sent_after_consent_change",
+      attempts: 1,
+      request: null,
+    });
+  });
+
+  it("does not restore an opt-out request when an in-flight retry fails", async () => {
+    const row = retryRow("retry-in-flight-optout");
+    const database = new MockMetaDatabase([row]);
+    const response = deferred<Response>();
+    const fetchMock = vi.fn<typeof fetch>().mockReturnValue(response.promise);
+
+    const inFlight = retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+
+    const optOut = await deliverMetaEvent(
+      {
+        eventName: "Purchase",
+        eventId: row.meta_event_id,
+        sourceUrl: "https://orlandoeventvenue.org/book",
+        userData: {},
+        bookingId: "booking-1",
+        adConsent: false,
+      },
+      { database: database as never, env: retryEnv },
+    );
+    response.resolve(new Response(JSON.stringify({ error: "unavailable" }), { status: 503 }));
+
+    expect(optOut).toBe("duplicate");
+    expect(await inFlight).toEqual({ claimed: 1, sent: 0, failed: 0 });
+    expect(row).toMatchObject({
+      status: "skipped_consent",
+      attempts: 2,
+      request: null,
+    });
+  });
+
   it("does not claim or post when the consent lookup fails", async () => {
     const row = retryRow("delivery-1", "booking-1");
     const database = new MockMetaDatabase(

@@ -67,6 +67,7 @@ export type DeliveryStatus =
   | "duplicate"
   | "skipped_no_secrets"
   | "skipped_consent"
+  | "sent_after_consent_change"
   | "error";
 
 const MAX_ATTEMPTS = 5;
@@ -256,11 +257,23 @@ export async function deliverMetaEvent(opts: {
   }
 
   const patch = async (fields: Record<string, unknown>) => {
-    const { error } = await database
+    const { data: updated, error } = await database
       .from("meta_event_delivery")
       .update({ ...fields, updated_at: new Date().toISOString() })
-      .eq("meta_event_id", opts.eventId);
-    if (error) console.error("[meta-capi] journal update failed", opts.eventId, error);
+      .eq("meta_event_id", opts.eventId)
+      .eq("status", "pending")
+      .eq("attempts", attemptNumber)
+      .select("id")
+      .maybeSingle();
+    if (error) {
+      console.error("[meta-capi] journal update failed", opts.eventId, error);
+      return false;
+    }
+    if (!updated) {
+      console.warn("[meta-capi] post-send update skipped", opts.eventId);
+      return false;
+    }
+    return true;
   };
 
   if (opts.adConsent === false) {
@@ -283,14 +296,42 @@ export async function deliverMetaEvent(opts: {
     testCode,
     options.fetchImpl,
   );
-  await patch({
+  const finalized = await patch({
     status: result.ok ? "sent" : "error",
     response: result.response,
     error: result.error,
     request: result.ok || attemptNumber >= MAX_ATTEMPTS ? null : claimedRequest,
   });
-  if (!result.ok) console.error("[meta-capi] delivery failed", opts.eventId, result.error);
+  if (finalized && !result.ok) {
+    console.error("[meta-capi] delivery failed", opts.eventId, result.error);
+  }
+  if (!finalized && result.ok) {
+    await recordSentAfterConsentChange(database, opts.eventId, result.response);
+  }
   return result.ok ? "sent" : "error";
+}
+
+/**
+ * An opt-out landed while this event was already in flight and Meta accepted
+ * it. The row stays cancelled (no payload, never retried) but must not claim
+ * Meta never received the event, so the audit trail records what happened.
+ */
+async function recordSentAfterConsentChange(
+  database: DatabaseClient,
+  eventId: string,
+  response: unknown,
+): Promise<void> {
+  const { error } = await database
+    .from("meta_event_delivery")
+    .update({
+      status: "sent_after_consent_change",
+      response,
+      request: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("meta_event_id", eventId)
+    .eq("status", "skipped_consent");
+  if (error) console.error("[meta-capi] consent-race audit update failed", eventId, error);
 }
 
 /** Retry failed or abandoned sends. Each row is claimed with an optimistic,
@@ -447,7 +488,7 @@ export async function retryFailedMetaEvents(options: {
       options.fetchImpl,
     );
     const terminalFailure = !result.ok && nextAttempts >= MAX_ATTEMPTS;
-    const { error: patchError } = await database
+    const { data: finalized, error: patchError } = await database
       .from("meta_event_delivery")
       .update({
         status: result.ok ? "sent" : "error",
@@ -456,9 +497,20 @@ export async function retryFailedMetaEvents(options: {
         request: result.ok || terminalFailure ? null : row.request,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", row.id)
-      .eq("attempts", nextAttempts);
-    if (patchError) console.error("[meta-capi] retry journal update failed", row.meta_event_id, patchError);
+      .eq("meta_event_id", row.meta_event_id)
+      .eq("status", "pending")
+      .eq("attempts", nextAttempts)
+      .select("id")
+      .maybeSingle();
+    if (patchError) {
+      console.error("[meta-capi] retry journal update failed", row.meta_event_id, patchError);
+      continue;
+    }
+    if (!finalized) {
+      console.warn("[meta-capi] retry post-send update skipped", row.id, row.meta_event_id);
+      if (result.ok) await recordSentAfterConsentChange(database, row.meta_event_id, result.response);
+      continue;
+    }
     if (result.ok) counts.sent += 1;
     else counts.failed += 1;
   }

@@ -176,7 +176,7 @@ export default function MetaAttributionPanel() {
     .filter((d) => d.status === "skipped_no_secrets")
     .reduce((s, d) => s + Number(d.events ?? 0), 0);
   const sentEvents = delivery
-    .filter((d) => d.status === "sent")
+    .filter((d) => d.status === "sent" || d.status === "sent_after_consent_change")
     .reduce((s, d) => s + Number(d.events ?? 0), 0);
 
   return (
