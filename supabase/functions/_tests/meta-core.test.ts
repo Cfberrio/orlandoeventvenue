@@ -16,7 +16,7 @@
  *
  * Run with: bun run test:edge
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import {
   bookingCreatedEventId,
@@ -34,6 +34,227 @@ import {
   splitFullName,
   type VisitorSignals,
 } from "../_shared/meta-core.ts";
+import { deliverMetaEvent, retryFailedMetaEvents } from "../_shared/meta-capi.ts";
+
+vi.mock("https://esm.sh/@supabase/supabase-js@2.39.3", () => ({
+  createClient: vi.fn(),
+}));
+
+type MockDeliveryRow = {
+  id: string;
+  meta_event_id: string;
+  booking_id: string | null;
+  status: string;
+  attempts: number;
+  updated_at: string;
+  request: unknown;
+  response?: unknown;
+  error?: string | null;
+};
+
+type MockResult = { data: unknown; error: unknown };
+
+class MockMetaDatabase {
+  claims = 0;
+  retryLimit: number | null = null;
+  retryOrder: { column: string; ascending: boolean } | null = null;
+  retryFilter: string | null = null;
+
+  constructor(
+    readonly rows: MockDeliveryRow[],
+    readonly bookingResult:
+      | MockResult
+      | ((bookingId: string) => MockResult) = { data: null, error: null },
+    readonly consentResult: MockResult = { data: null, error: null },
+  ) {}
+
+  from(table: string) {
+    return new MockMetaQuery(this, table);
+  }
+}
+
+class MockMetaQuery implements PromiseLike<MockResult> {
+  private operation: "insert" | "select" | "update" = "select";
+  private columns = "";
+  private values: Record<string, unknown> = {};
+  private limitValue: number | null = null;
+  private equals = new Map<string, unknown>();
+  private lessThan = new Map<string, unknown>();
+  private inValues = new Map<string, unknown[]>();
+  private nonNullColumns = new Set<string>();
+  private orFilter: string | null = null;
+  private orderValue: { column: string; ascending: boolean } | null = null;
+
+  constructor(
+    private readonly database: MockMetaDatabase,
+    private readonly table: string,
+  ) {}
+
+  select(columns: string) {
+    this.columns = columns;
+    return this;
+  }
+
+  insert(values: Record<string, unknown>) {
+    this.operation = "insert";
+    this.values = values;
+    return this;
+  }
+
+  update(values: Record<string, unknown>) {
+    this.operation = "update";
+    this.values = values;
+    return this;
+  }
+
+  eq(column: string, value: unknown) {
+    this.equals.set(column, value);
+    return this;
+  }
+
+  lt(column: string, value: unknown) {
+    this.lessThan.set(column, value);
+    return this;
+  }
+
+  not(column: string, operator: string, value: unknown) {
+    if (operator === "is" && value === null) this.nonNullColumns.add(column);
+    return this;
+  }
+
+  or(filter: string) {
+    this.orFilter = filter;
+    return this;
+  }
+
+  order(column: string, options: { ascending: boolean }) {
+    this.orderValue = { column, ascending: options.ascending };
+    return this;
+  }
+
+  limit(value: number) {
+    this.limitValue = value;
+    return this;
+  }
+
+  in(column: string, values: unknown[]) {
+    this.inValues.set(column, values);
+    return this;
+  }
+
+  maybeSingle(): Promise<MockResult> {
+    return this.execute(true);
+  }
+
+  then<TResult1 = MockResult, TResult2 = never>(
+    onfulfilled?: ((value: MockResult) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
+  ): Promise<TResult1 | TResult2> {
+    return this.execute(false).then(onfulfilled, onrejected);
+  }
+
+  private matchingRows() {
+    return this.database.rows.filter((row) => {
+      for (const [column, value] of this.equals) {
+        if (row[column as keyof MockDeliveryRow] !== value) return false;
+      }
+      const ids = this.inValues.get("id");
+      if (ids && !ids.includes(row.id)) return false;
+      const statuses = this.inValues.get("status");
+      if (statuses && !statuses.includes(row.status)) return false;
+      for (const column of this.nonNullColumns) {
+        if (row[column as keyof MockDeliveryRow] === null) return false;
+      }
+      for (const [column, value] of this.lessThan) {
+        const rowValue = row[column as keyof MockDeliveryRow];
+        if (typeof value === "string" && typeof rowValue === "string" && rowValue >= value) {
+          return false;
+        }
+        if (typeof value === "number" && typeof rowValue === "number" && rowValue >= value) {
+          return false;
+        }
+      }
+      if (this.orFilter) {
+        const pendingBefore = this.orFilter.match(/updated_at\.lt\.([^)]*)/u)?.[1];
+        const retryable =
+          row.status === "error" ||
+          row.status === "skipped_no_secrets" ||
+          (row.status === "pending" && pendingBefore !== undefined && row.updated_at < pendingBefore);
+        if (!retryable) return false;
+      }
+      return true;
+    });
+  }
+
+  private async execute(single: boolean): Promise<MockResult> {
+    if (this.operation === "insert") {
+      if (
+        this.table === "meta_event_delivery" &&
+        this.database.rows.some((row) => row.meta_event_id === this.values.meta_event_id)
+      ) {
+        return { data: null, error: { code: "23505" } };
+      }
+      return { data: null, error: null };
+    }
+
+    if (this.operation === "select") {
+      if (this.table === "bookings") {
+        return typeof this.database.bookingResult === "function"
+          ? this.database.bookingResult(String(this.equals.get("id")))
+          : this.database.bookingResult;
+      }
+      if (this.table === "tracking_visitor") return this.database.consentResult;
+      let rows = this.matchingRows();
+      if (this.orderValue) {
+        const { column, ascending } = this.orderValue;
+        rows = [...rows].sort((a, b) => {
+          const left = String(a[column as keyof MockDeliveryRow] ?? "");
+          const right = String(b[column as keyof MockDeliveryRow] ?? "");
+          return (left < right ? -1 : left > right ? 1 : 0) * (ascending ? 1 : -1);
+        });
+      }
+      rows = rows.slice(0, this.limitValue ?? rows.length);
+      if (this.columns === "id") {
+        return { data: rows.map(({ id }) => ({ id })), error: null };
+      }
+      this.database.retryLimit = this.limitValue;
+      this.database.retryOrder = this.orderValue;
+      this.database.retryFilter = this.orFilter;
+      return {
+        data: rows,
+        error: null,
+      };
+    }
+
+    const matches = this.matchingRows();
+    for (const row of matches) Object.assign(row, this.values);
+    if (this.values.status === "pending" && typeof this.values.attempts === "number") {
+      this.database.claims += matches.length;
+    }
+    return {
+      data: single && matches.length === 1 ? { id: matches[0].id } : null,
+      error: null,
+    };
+  }
+}
+
+const storedRequest = {
+  data: [{ event_name: "Purchase", event_id: "evt_purchase_booking-1" }],
+};
+
+function retryRow(id: string, bookingId: string | null = null): MockDeliveryRow {
+  return {
+    id,
+    meta_event_id: `evt_${id}`,
+    booking_id: bookingId,
+    status: "error",
+    attempts: 1,
+    updated_at: new Date().toISOString(),
+    request: structuredClone(storedRequest),
+  };
+}
+
+const retryEnv = { pixelId: "pixel", token: "token", testCode: "" };
 
 describe("dedup event ids", () => {
   // Must stay identical to src/lib/tracking/core.ts.
@@ -180,6 +401,8 @@ describe("Meta CAPI retry", () => {
   it("caps retries and conditionally claims error or stale pending rows", () => {
     expect(capiSource).toContain("const MAX_ATTEMPTS = 5");
     expect(capiSource).toContain("const STALE_PENDING_MS = 10 * 60 * 1000");
+    expect(capiSource).toContain("const RETRY_CANDIDATE_LIMIT = 25");
+    expect(capiSource).toContain("const RETRY_CLAIM_LIMIT = 5");
     expect(capiSource).toContain('.eq("status", row.status)');
     expect(capiSource).toContain('.eq("attempts", row.attempts)');
     expect(capiSource).toContain('row.status === "pending"');
@@ -196,8 +419,177 @@ describe("Meta CAPI retry", () => {
       'if (!pixelId || !token) return { claimed: 0, sent: 0, failed: 0 }',
     );
     expect(capiSource).toContain(
-      "attempts: opts.adConsent === false || !secretsAvailable ? 0 : 1",
+      "opts.adConsent === false || consentLookupFailed || !secretsAvailable ? 0 : 1",
     );
+  });
+});
+
+describe("Meta CAPI retry behavior", () => {
+  it("does not claim or post when the consent lookup fails", async () => {
+    const row = retryRow("delivery-1", "booking-1");
+    const database = new MockMetaDatabase(
+      [row],
+      {
+        data: {
+          id: "booking-1",
+          email: "guest@example.com",
+          ad_consent: null,
+        },
+        error: null,
+      },
+      { data: null, error: new Error("consent lookup unavailable") },
+    );
+    const fetchMock = vi.fn<typeof fetch>();
+
+    const result = await retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+
+    expect(result).toEqual({ claimed: 0, sent: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(row.attempts).toBe(1);
+    expect(row.status).toBe("error");
+    expect(row.request).toEqual(storedRequest);
+  });
+
+  it("clears the stored request after a successful send", async () => {
+    const row = retryRow("delivery-1");
+    const database = new MockMetaDatabase([row]);
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ events_received: 1 }), { status: 200 }),
+    );
+
+    const result = await retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+
+    expect(result).toEqual({ claimed: 1, sent: 1, failed: 0 });
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(row.status).toBe("sent");
+    expect(row.attempts).toBe(2);
+    expect(row.request).toBeNull();
+  });
+
+  it("stops claiming at both the claim cap and elapsed-time budget", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ events_received: 1 }), { status: 200 }),
+    );
+    const cappedDatabase = new MockMetaDatabase(
+      Array.from({ length: 8 }, (_, index) => retryRow(`capped-${index}`)),
+    );
+
+    const capped = await retryFailedMetaEvents({
+      database: cappedDatabase as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+
+    expect(cappedDatabase.retryLimit).toBe(25);
+    expect(cappedDatabase.retryOrder).toEqual({ column: "updated_at", ascending: true });
+    expect(capped.claimed).toBe(5);
+
+    const timedDatabase = new MockMetaDatabase([
+      retryRow("timed-1"),
+      retryRow("timed-2"),
+      retryRow("timed-3"),
+    ]);
+    const timed = await retryFailedMetaEvents({
+      database: timedDatabase as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+      timeBudgetMs: 10,
+      now: () => timedDatabase.claims === 0 ? 0 : 10,
+    });
+
+    expect(timed.claimed).toBe(1);
+    expect(timedDatabase.claims).toBe(1);
+    expect(timedDatabase.rows[1].attempts).toBe(1);
+  });
+
+  it("terminalizes missing bookings and continues to a later valid row", async () => {
+    const missingRows = Array.from(
+      { length: 5 },
+      (_, index) => retryRow(`missing-${index}`, `missing-booking-${index}`),
+    );
+    const validRow = retryRow("valid", "valid-booking");
+    const database = new MockMetaDatabase(
+      [...missingRows, validRow],
+      (bookingId) => bookingId === "valid-booking"
+        ? {
+          data: {
+            id: bookingId,
+            email: "guest@example.com",
+            ad_consent: null,
+          },
+          error: null,
+        }
+        : { data: null, error: null },
+    );
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ events_received: 1 }), { status: 200 }),
+    );
+
+    const result = await retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+
+    expect(result).toEqual({ claimed: 1, sent: 1, failed: 0 });
+    expect(database.retryLimit).toBe(25);
+    expect(fetchMock).toHaveBeenCalledOnce();
+    for (const row of missingRows) {
+      expect(row).toMatchObject({
+        status: "error",
+        error: "booking_missing",
+        attempts: 5,
+        request: null,
+      });
+    }
+    expect(validRow).toMatchObject({ status: "sent", attempts: 2, request: null });
+  });
+
+  it("cancels a crashed pending row when a duplicate opts out", async () => {
+    const eventId = "evt_duplicate_optout";
+    const pendingRow = retryRow("pending-optout", "booking-1");
+    pendingRow.meta_event_id = eventId;
+    pendingRow.status = "pending";
+    const database = new MockMetaDatabase([pendingRow]);
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ events_received: 1 }), { status: 200 }),
+    );
+
+    const delivery = await deliverMetaEvent(
+      {
+        eventName: "Purchase",
+        eventId,
+        sourceUrl: "https://orlandoeventvenue.org/book",
+        userData: {},
+        bookingId: "booking-1",
+        adConsent: false,
+      },
+      {
+        database: database as never,
+        fetchImpl: fetchMock,
+        env: retryEnv,
+      },
+    );
+    const retry = await retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: retryEnv,
+    });
+
+    expect(delivery).toBe("duplicate");
+    expect(pendingRow.status).toBe("skipped_consent");
+    expect(pendingRow.request).toBeNull();
+    expect(database.retryFilter).not.toContain("skipped_consent");
+    expect(retry).toEqual({ claimed: 0, sent: 0, failed: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 

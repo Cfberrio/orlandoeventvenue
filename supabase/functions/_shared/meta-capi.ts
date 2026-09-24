@@ -71,6 +71,16 @@ export type DeliveryStatus =
 
 const MAX_ATTEMPTS = 5;
 const STALE_PENDING_MS = 10 * 60 * 1000;
+const RETRY_TIME_BUDGET_MS = 10_000;
+const RETRY_CANDIDATE_LIMIT = 25;
+const RETRY_CLAIM_LIMIT = 5;
+const CLEANUP_ROW_LIMIT = 100;
+const REQUEST_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+type DatabaseClient = ReturnType<typeof db>;
+type LookupResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: "lookup_failed" };
 
 type StoredRequest = { data: [ReturnType<typeof buildServerEvent>] };
 
@@ -85,12 +95,13 @@ async function postMetaRequest(
   pixelId: string,
   token: string,
   testCode: string,
+  fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: boolean; response: unknown; error: string | null }> {
   const payload: Record<string, unknown> = { ...body };
   if (testCode) payload.test_event_code = testCode;
 
   try {
-    const res = await fetch(
+    const res = await fetchImpl(
       `https://graph.facebook.com/${GRAPH_VERSION}/${pixelId}/events?access_token=${encodeURIComponent(token)}`,
       {
         method: "POST",
@@ -132,8 +143,14 @@ export async function deliverMetaEvent(opts: {
   currency?: string | null;
   /** null/undefined means the visitor has not answered and preserves sending. */
   adConsent?: boolean | null;
-}): Promise<DeliveryStatus> {
-  const database = db();
+  /** Fail closed while preserving the payload for the retry worker. */
+  consentLookupFailed?: boolean;
+}, options: {
+  database?: DatabaseClient;
+  fetchImpl?: typeof fetch;
+  env?: ReturnType<typeof metaEnv>;
+} = {}): Promise<DeliveryStatus> {
+  const database = options.database ?? db();
   const eventTimeSec = opts.eventTimeSec ?? Math.floor(Date.now() / 1000);
   const event = buildServerEvent({
     eventName: opts.eventName,
@@ -147,8 +164,10 @@ export async function deliverMetaEvent(opts: {
   // no raw contact or reservation details are stored in this payload.
   const request: StoredRequest = { data: [event] };
   let claimedRequest = request;
-  const { pixelId, token, testCode } = metaEnv();
+  const { pixelId, token, testCode } = options.env ?? metaEnv();
   const secretsAvailable = Boolean(pixelId && token);
+  const consentLookupFailed = opts.consentLookupFailed === true;
+  let attemptNumber = opts.adConsent === false || consentLookupFailed || !secretsAvailable ? 0 : 1;
 
   const { error: insErr } = await database.from("meta_event_delivery").insert({
     meta_event_id: opts.eventId,
@@ -157,18 +176,37 @@ export async function deliverMetaEvent(opts: {
     lead_id: opts.leadId ?? null,
     status: opts.adConsent === false
       ? "skipped_consent"
-      : secretsAvailable
-        ? "pending"
-        : "skipped_no_secrets",
+      : consentLookupFailed
+        ? "error"
+        : secretsAvailable
+          ? "pending"
+          : "skipped_no_secrets",
     event_time: new Date(eventTimeSec * 1000).toISOString(),
     value: opts.value ?? null,
     currency: opts.currency ?? null,
-    attempts: opts.adConsent === false || !secretsAvailable ? 0 : 1,
+    attempts: attemptNumber,
     request: opts.adConsent === false ? null : request,
+    error: consentLookupFailed ? "consent_lookup_failed" : null,
   });
   if (insErr) {
     if ((insErr as { code?: string }).code === "23505") {
-      if (opts.adConsent === false) return "duplicate";
+      if (opts.adConsent === false) {
+        const { error: skipError } = await database
+          .from("meta_event_delivery")
+          .update({
+            status: "skipped_consent",
+            request: null,
+            error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("meta_event_id", opts.eventId)
+          .in("status", ["error", "skipped_no_secrets", "pending"]);
+        if (skipError) {
+          console.error("[meta-capi] consent skip update failed", opts.eventId, skipError);
+        }
+        return "duplicate";
+      }
+      if (consentLookupFailed) return "error";
       const { data: existing, error: readError } = await database
         .from("meta_event_delivery")
         .select("status,attempts,updated_at,request")
@@ -192,6 +230,7 @@ export async function deliverMetaEvent(opts: {
       claimedRequest = existing.request;
 
       const nextAttempts = existing.attempts + 1;
+      attemptNumber = nextAttempts;
       let claim = database
         .from("meta_event_delivery")
         .update({
@@ -228,16 +267,27 @@ export async function deliverMetaEvent(opts: {
     return "skipped_consent";
   }
 
+  if (consentLookupFailed) {
+    return "error";
+  }
+
   if (!pixelId || !token) {
     console.warn("[meta-capi] secrets missing — event journaled, not sent", opts.eventId);
     return "skipped_no_secrets";
   }
 
-  const result = await postMetaRequest(claimedRequest, pixelId, token, testCode);
+  const result = await postMetaRequest(
+    claimedRequest,
+    pixelId,
+    token,
+    testCode,
+    options.fetchImpl,
+  );
   await patch({
     status: result.ok ? "sent" : "error",
     response: result.response,
     error: result.error,
+    request: result.ok || attemptNumber >= MAX_ATTEMPTS ? null : claimedRequest,
   });
   if (!result.ok) console.error("[meta-capi] delivery failed", opts.eventId, result.error);
   return result.ok ? "sent" : "error";
@@ -245,18 +295,53 @@ export async function deliverMetaEvent(opts: {
 
 /** Retry failed or abandoned sends. Each row is claimed with an optimistic,
  * conditional UPDATE so overlapping cron invocations cannot both post it. */
-export async function retryFailedMetaEvents(): Promise<{
+export async function retryFailedMetaEvents(options: {
+  database?: DatabaseClient;
+  fetchImpl?: typeof fetch;
+  now?: () => number;
+  timeBudgetMs?: number;
+  env?: ReturnType<typeof metaEnv>;
+} = {}): Promise<{
   claimed: number;
   sent: number;
   failed: number;
 }> {
-  const { pixelId, token, testCode } = metaEnv();
+  const now = options.now ?? Date.now;
+  const startedAt = now();
+  const timeBudgetMs = options.timeBudgetMs ?? RETRY_TIME_BUDGET_MS;
+  const database = options.database ?? db();
+  const withinBudget = () => now() - startedAt < timeBudgetMs;
+
+  // Payloads older than the retention window are no longer worth the privacy
+  // cost. Select ids first so each cleanup pass is bounded.
+  const cleanupBefore = new Date(now() - REQUEST_RETENTION_MS).toISOString();
+  const { data: staleRows, error: cleanupReadError } = await database
+    .from("meta_event_delivery")
+    .select("id")
+    .not("request", "is", null)
+    .lt("updated_at", cleanupBefore)
+    .order("updated_at", { ascending: true })
+    .limit(CLEANUP_ROW_LIMIT);
+  if (cleanupReadError) {
+    console.error("[meta-capi] stale request lookup failed", cleanupReadError);
+  } else if (staleRows?.length && withinBudget()) {
+    const staleIds = staleRows.map((row) => row.id);
+    const { error: cleanupError } = await database
+      .from("meta_event_delivery")
+      .update({ request: null })
+      .in("id", staleIds)
+      .not("request", "is", null)
+      .lt("updated_at", cleanupBefore);
+    if (cleanupError) console.error("[meta-capi] stale request cleanup failed", cleanupError);
+  }
+
+  const { pixelId, token, testCode } = options.env ?? metaEnv();
   // Missing configuration is not a delivery attempt. Leave every row and its
   // counter untouched until a later cron sees both credentials available.
   if (!pixelId || !token) return { claimed: 0, sent: 0, failed: 0 };
 
-  const database = db();
-  const staleBefore = new Date(Date.now() - STALE_PENDING_MS).toISOString();
+  if (!withinBudget()) return { claimed: 0, sent: 0, failed: 0 };
+  const staleBefore = new Date(now() - STALE_PENDING_MS).toISOString();
   const { data: rows, error } = await database
     .from("meta_event_delivery")
     .select("id,meta_event_id,booking_id,status,attempts,updated_at,request")
@@ -266,16 +351,50 @@ export async function retryFailedMetaEvents(): Promise<{
       `status.eq.error,status.eq.skipped_no_secrets,and(status.eq.pending,updated_at.lt.${staleBefore})`,
     )
     .order("updated_at", { ascending: true })
-    .limit(20);
+    .limit(RETRY_CANDIDATE_LIMIT);
   if (error) throw error;
 
   const counts = { claimed: 0, sent: 0, failed: 0 };
   for (const row of rows ?? []) {
+    if (!withinBudget()) break;
+    if (counts.claimed >= RETRY_CLAIM_LIMIT) break;
+    const retryableStatus =
+      row.status === "error" ||
+      row.status === "skipped_no_secrets" ||
+      (row.status === "pending" && row.updated_at < staleBefore);
+    if (!retryableStatus) continue;
     if (!isStoredRequest(row.request)) continue;
 
     if (row.booking_id) {
-      const ctx = await loadBooking(row.booking_id);
-      if (ctx && await bookingAdConsent(ctx) === false) {
+      const booking = await loadBooking(row.booking_id, database);
+      if (!booking.ok) continue;
+      if (booking.value === null) {
+        let missing = database
+          .from("meta_event_delivery")
+          .update({
+            status: "error",
+            error: "booking_missing",
+            attempts: MAX_ATTEMPTS,
+            request: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", row.id)
+          .eq("status", row.status)
+          .eq("attempts", row.attempts);
+        if (row.status === "pending") missing = missing.lt("updated_at", staleBefore);
+        const { error: missingError } = await missing;
+        if (missingError) {
+          console.error(
+            "[meta-capi] missing booking terminal update failed",
+            row.meta_event_id,
+            missingError,
+          );
+        }
+        continue;
+      }
+      const consent = await bookingAdConsent(booking.value, database);
+      if (!consent.ok) continue;
+      if (consent.value === false) {
         let skip = database
           .from("meta_event_delivery")
           .update({
@@ -294,6 +413,10 @@ export async function retryFailedMetaEvents(): Promise<{
         continue;
       }
     }
+
+    // Lookups above may consume the remaining budget. Never claim a row that
+    // this invocation no longer has time to deliver.
+    if (!withinBudget()) break;
 
     const nextAttempts = row.attempts + 1;
     let claim = database
@@ -316,13 +439,21 @@ export async function retryFailedMetaEvents(): Promise<{
     if (!claimed) continue;
     counts.claimed += 1;
 
-    const result = await postMetaRequest(row.request, pixelId, token, testCode);
+    const result = await postMetaRequest(
+      row.request,
+      pixelId,
+      token,
+      testCode,
+      options.fetchImpl,
+    );
+    const terminalFailure = !result.ok && nextAttempts >= MAX_ATTEMPTS;
     const { error: patchError } = await database
       .from("meta_event_delivery")
       .update({
         status: result.ok ? "sent" : "error",
         response: result.response,
         error: result.error,
+        request: result.ok || terminalFailure ? null : row.request,
         updated_at: new Date().toISOString(),
       })
       .eq("id", row.id)
@@ -406,35 +537,45 @@ type BookingContext = {
   adConsent: boolean | null;
 };
 
-async function loadBooking(bookingId: string): Promise<BookingContext | null> {
-  const { data } = await db()
+async function loadBooking(
+  bookingId: string,
+  database: DatabaseClient = db(),
+): Promise<LookupResult<BookingContext | null>> {
+  const { data, error } = await database
     .from("bookings")
     .select(
       "id,reservation_number,event_type,event_type_other,event_date,booking_type,number_of_guests,total_amount,deposit_amount,deposit_total_charged,deposit_paid_at,full_name,email,phone,ad_consent",
     )
     .eq("id", bookingId)
     .maybeSingle();
-  if (!data) return null;
+  if (error) {
+    console.warn("[meta-capi] booking lookup failed", bookingId, error);
+    return { ok: false, error: "lookup_failed" };
+  }
+  if (!data) return { ok: true, value: null };
   const row = data as Record<string, unknown>;
   const eventType =
     (row.event_type as string) === "other" && row.event_type_other
       ? (row.event_type_other as string)
       : ((row.event_type as string) ?? null);
   return {
-    id: String(row.id),
-    reservationNumber: (row.reservation_number as string) ?? null,
-    eventType,
-    eventDate: (row.event_date as string) ?? null,
-    bookingType: (row.booking_type as string) ?? null,
-    numberOfGuests: (row.number_of_guests as number) ?? null,
-    totalAmount: (row.total_amount as number) ?? null,
-    depositAmount: (row.deposit_amount as number) ?? null,
-    depositTotalCharged: (row.deposit_total_charged as number) ?? null,
-    depositPaidAt: (row.deposit_paid_at as string) ?? null,
-    fullName: (row.full_name as string) ?? null,
-    email: (row.email as string) ?? null,
-    phone: (row.phone as string) ?? null,
-    adConsent: typeof row.ad_consent === "boolean" ? row.ad_consent : null,
+    ok: true,
+    value: {
+      id: String(row.id),
+      reservationNumber: (row.reservation_number as string) ?? null,
+      eventType,
+      eventDate: (row.event_date as string) ?? null,
+      bookingType: (row.booking_type as string) ?? null,
+      numberOfGuests: (row.number_of_guests as number) ?? null,
+      totalAmount: (row.total_amount as number) ?? null,
+      depositAmount: (row.deposit_amount as number) ?? null,
+      depositTotalCharged: (row.deposit_total_charged as number) ?? null,
+      depositPaidAt: (row.deposit_paid_at as string) ?? null,
+      fullName: (row.full_name as string) ?? null,
+      email: (row.email as string) ?? null,
+      phone: (row.phone as string) ?? null,
+      adConsent: typeof row.ad_consent === "boolean" ? row.ad_consent : null,
+    },
   };
 }
 
@@ -499,12 +640,15 @@ async function bookingUserData(
 
 /** Latest explicit choice across browser contexts linked to this booking.
  * null means no banner answer is known and preserves the existing send. */
-async function bookingAdConsent(ctx: BookingContext): Promise<boolean | null> {
-  if (ctx.adConsent === false) return false;
+async function bookingAdConsent(
+  ctx: BookingContext,
+  database: DatabaseClient = db(),
+): Promise<LookupResult<boolean | null>> {
+  if (ctx.adConsent === false) return { ok: true, value: false };
   const filters = [`booking_id.eq.${ctx.id}`];
   const normalized = (ctx.email ?? "").trim().toLowerCase();
   if (normalized && !/[(),]/.test(normalized)) filters.push(`email.eq.${normalized}`);
-  const { data, error } = await db()
+  const { data, error } = await database
     .from("tracking_visitor")
     .select("ad_consent")
     .or(filters.join(","))
@@ -514,9 +658,12 @@ async function bookingAdConsent(ctx: BookingContext): Promise<boolean | null> {
     .maybeSingle();
   if (error) {
     console.warn("[meta-capi] consent lookup failed", ctx.id, error);
-    return null;
+    return { ok: false, error: "lookup_failed" };
   }
-  return typeof data?.ad_consent === "boolean" ? data.ad_consent : ctx.adConsent;
+  return {
+    ok: true,
+    value: typeof data?.ad_consent === "boolean" ? data.ad_consent : ctx.adConsent,
+  };
 }
 
 // CompleteRegistration has no function here on purpose. It is sent by
@@ -534,8 +681,9 @@ export async function sendCheckoutStarted(
   bookingId: string,
   requestConsent?: boolean | null,
 ): Promise<void> {
-  const ctx = await loadBooking(bookingId);
-  if (!ctx) return;
+  const booking = await loadBooking(bookingId);
+  if (!booking.ok || booking.value === null) return;
+  const ctx = booking.value;
 
   const value = conversionValue(ctx.depositTotalCharged, ctx.depositAmount);
   // The checkout is happening now, so every visit already on file predates it.
@@ -543,7 +691,9 @@ export async function sendCheckoutStarted(
   const storedConsent = await bookingAdConsent(ctx);
   // A persisted opt-out always wins. The request snapshot covers the small
   // race before track-event has stitched the just-created booking.
-  const adConsent = storedConsent === false ? false : (storedConsent ?? requestConsent);
+  const adConsent = storedConsent.ok
+    ? (storedConsent.value === false ? false : (storedConsent.value ?? requestConsent))
+    : null;
 
   await deliverMetaEvent({
     eventName: "InitiateCheckout",
@@ -554,6 +704,7 @@ export async function sendCheckoutStarted(
     value,
     currency: "USD",
     adConsent,
+    consentLookupFailed: !storedConsent.ok,
   });
 }
 
@@ -572,8 +723,9 @@ export async function sendCheckoutStarted(
  */
 export async function sendPurchase(bookingId: string): Promise<void> {
   const database = db();
-  const ctx = await loadBooking(bookingId);
-  if (!ctx) return;
+  const booking = await loadBooking(bookingId);
+  if (!booking.ok || booking.value === null) return;
+  const ctx = booking.value;
 
   const value = conversionValue(ctx.depositTotalCharged, ctx.depositAmount);
   const eventId = purchaseEventId(ctx.id);
@@ -615,6 +767,7 @@ export async function sendPurchase(bookingId: string): Promise<void> {
     bookingId: ctx.id,
     value,
     currency: "USD",
-    adConsent,
+    adConsent: adConsent.ok ? adConsent.value : null,
+    consentLookupFailed: !adConsent.ok,
   });
 }
