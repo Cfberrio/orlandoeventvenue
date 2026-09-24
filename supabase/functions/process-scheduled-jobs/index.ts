@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { retryFailedMetaEvents } from "../_shared/meta-capi.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -1336,6 +1337,19 @@ serve(async (req) => {
       }
     } catch (dripError) {
       console.error("Exception calling discount drip:", dripError);
+    }
+
+    // CAPI is non-critical to booking operations. Retry journaled failures and
+    // skipped_no_secrets rows once credentials exist; missing credentials do
+    // not consume an attempt or fail this scheduled-jobs invocation.
+    try {
+      const metaRetries = await retryFailedMetaEvents();
+      console.log("Meta CAPI retry result:", metaRetries);
+    } catch (metaRetryError) {
+      console.error(
+        "Meta CAPI retry failed:",
+        metaRetryError instanceof Error ? metaRetryError.message : "Unknown error",
+      );
     }
 
     return new Response(JSON.stringify({ 

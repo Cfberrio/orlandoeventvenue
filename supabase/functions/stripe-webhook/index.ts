@@ -23,6 +23,8 @@ const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+// An unfinished stripe_event_log claim older than this is treated as abandoned.
+const STALE_CLAIM_MS = 5 * 60 * 1000;
 
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -56,12 +58,12 @@ async function syncToGHL(bookingId: string): Promise<void> {
     });
 
     if (!response.ok) {
-      console.error("Failed to sync to GHL contact:", await response.text());
+      console.error("Failed to sync booking to GHL contact:", bookingId, response.status);
     } else {
       console.log("Successfully synced booking to GHL contact:", bookingId);
     }
-  } catch (error) {
-    console.error("Error syncing to GHL contact:", error);
+  } catch {
+    console.error("Error syncing booking to GHL contact:", bookingId);
   }
 }
 
@@ -80,13 +82,12 @@ async function syncToGHLCalendar(bookingId: string): Promise<void> {
     });
 
     if (!response.ok) {
-      console.error("Failed to sync to GHL calendar:", await response.text());
+      console.error("Failed to sync booking to GHL calendar:", bookingId, response.status);
     } else {
-      const result = await response.json();
-      console.log("Successfully synced booking to GHL calendar:", bookingId, result);
+      console.log("Successfully synced booking to GHL calendar:", bookingId);
     }
-  } catch (error) {
-    console.error("Error syncing to GHL calendar:", error);
+  } catch {
+    console.error("Error syncing booking to GHL calendar:", bookingId);
   }
 }
 
@@ -282,8 +283,8 @@ View Booking in Admin
 
     await client.close();
     console.log(`Internal ${paymentType} payment email sent successfully`);
-  } catch (emailError) {
-    console.error("Error sending internal payment email:", emailError);
+  } catch {
+    console.error("Error sending internal payment email for booking:", booking.id);
   }
 }
 
@@ -300,6 +301,15 @@ serve(async (req) => {
     console.error("No webhook secret configured");
     return new Response("Webhook secret not configured", { status: 500 });
   }
+
+  let releaseBookingEventClaim: (() => Promise<void>) | null = null;
+  let markBookingEventClaimCompleted: () => Promise<void> = async () => {};
+  // Once a claim is final, drop the release callback so a later throw cannot
+  // delete a claim whose payment transition already committed.
+  const finishBookingEventClaim = async () => {
+    releaseBookingEventClaim = null;
+    await markBookingEventClaimCompleted();
+  };
 
   try {
     const body = await req.text();
@@ -319,7 +329,14 @@ serve(async (req) => {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object;
       const bookingId = session.metadata?.booking_id || session.metadata?.bookingId || session.client_reference_id;
-      const paymentType = session.metadata?.payment_type || session.metadata?.paymentType || "deposit";
+      const explicitPaymentType = session.metadata?.payment_type || session.metadata?.paymentType;
+      const sessionAdConsent = session.metadata?.ad_consent === "false"
+        ? false
+        : session.metadata?.ad_consent === "true"
+          ? true
+          : null;
+      // Preserve the legacy business fallback, but never infer a Meta Purchase.
+      const paymentType = explicitPaymentType || "deposit";
 
       // Extract payment details for internal email
       const amountPaid = ((session.amount_total as number) ?? 0) / 100;
@@ -328,14 +345,10 @@ serve(async (req) => {
       const paymentIntentId = session.payment_intent as string | null;
 
       console.log("CHECKOUT_SESSION:", JSON.stringify({
+        eventId: event.id,
         bookingId,
         paymentType,
         sessionId,
-        amountPaid,
-        currency,
-        customer: session.customer,
-        paymentIntent: paymentIntentId,
-        metadataRaw: session.metadata,
       }));
 
       // Handle standalone invoices early -- they have no booking_id
@@ -584,8 +597,8 @@ serve(async (req) => {
 
             await smtpClient.close();
             console.log("Standalone invoice emails sent for:", standaloneInvoiceId);
-          } catch (emailErr) {
-            console.error("Error sending standalone invoice emails:", emailErr);
+          } catch {
+            console.error("Error sending standalone invoice emails:", standaloneInvoiceId);
           }
         }
 
@@ -599,7 +612,7 @@ serve(async (req) => {
       }
 
       if (!bookingId) {
-        console.error("MISSING_BOOKING_ID:", JSON.stringify({ metadata: session.metadata, client_reference_id: session.client_reference_id }));
+        console.error("MISSING_BOOKING_ID:", JSON.stringify({ eventId: event.id, sessionId }));
         return new Response("No booking_id", { status: 400 });
       }
 
@@ -607,23 +620,72 @@ serve(async (req) => {
 
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-      // [IDEMPOTENCY CHECK] Verify this event hasn't been processed before
-      const { data: existingEvent } = await supabase
+      // Claim before any booking mutation or side effect. The UNIQUE event_id
+      // lets exactly one concurrent Stripe delivery proceed. The claim starts as
+      // claim_state "processing" and becomes "completed" only on a finished
+      // path, so an isolate killed mid-flight cannot turn every Stripe retry
+      // into a 200 for a payment that was never recorded. Rows written before
+      // claim_state existed were inserted after processing and count as done.
+      const claimMetadata = { payment_type: paymentType, amount_cents: session.amount_total };
+      const { error: claimError } = await supabase
         .from("stripe_event_log")
-        .select("id")
-        .eq("event_id", event.id)
-        .maybeSingle();
-
-      if (existingEvent) {
-        console.log(`[IDEMPOTENT_SKIP] Event ${event.id} already processed`);
-        return new Response(
-          JSON.stringify({ received: true, skipped: "already_processed" }), 
-          {
-            headers: { "Content-Type": "application/json" },
-            status: 200,
-          }
-        );
+        .insert({
+          event_id: event.id,
+          event_type: event.type,
+          booking_id: bookingId,
+          metadata: { ...claimMetadata, claim_state: "processing" },
+        });
+      if (claimError) {
+        if (claimError.code !== "23505") {
+          console.error("Error claiming Stripe event:", claimError);
+          return new Response("Database error", { status: 500 });
+        }
+        const { data: existingClaim, error: existingClaimError } = await supabase
+          .from("stripe_event_log")
+          .select("processed_at, metadata")
+          .eq("event_id", event.id)
+          .maybeSingle();
+        if (existingClaimError) {
+          console.error("Error reading Stripe event claim:", existingClaimError);
+          return new Response("Database error", { status: 500 });
+        }
+        const claimState = (existingClaim?.metadata as { claim_state?: string } | null)?.claim_state;
+        if (!existingClaim || claimState === undefined || claimState === "completed") {
+          console.log(`[IDEMPOTENT_SKIP] Event ${event.id} already processed`);
+          return new Response(
+            JSON.stringify({ received: true, skipped: "already_processed" }),
+            { headers: { "Content-Type": "application/json" }, status: 200 },
+          );
+        }
+        // Unfinished claim. A stale one (worker died) is released so the next
+        // Stripe retry can claim it; the conditional paid_at updates below keep
+        // that retry from repeating a payment transition that did commit.
+        const claimedAt = existingClaim.processed_at ? Date.parse(existingClaim.processed_at) : NaN;
+        if (Number.isFinite(claimedAt) && Date.now() - claimedAt > STALE_CLAIM_MS) {
+          const { error: staleDeleteError } = await supabase
+            .from("stripe_event_log")
+            .delete()
+            .eq("event_id", event.id)
+            .eq("processed_at", existingClaim.processed_at);
+          if (staleDeleteError) console.error(`Could not release stale claim ${event.id}:`, staleDeleteError);
+          else console.warn(`[STALE_CLAIM_RELEASED] ${event.id}`);
+        }
+        return new Response("Event processing in progress", { status: 500 });
       }
+      markBookingEventClaimCompleted = async () => {
+        const { error: completeError } = await supabase
+          .from("stripe_event_log")
+          .update({ metadata: { ...claimMetadata, claim_state: "completed" } })
+          .eq("event_id", event.id);
+        if (completeError) console.error(`Could not complete event claim ${event.id}:`, completeError);
+      };
+      releaseBookingEventClaim = async () => {
+        const { error: releaseError } = await supabase
+          .from("stripe_event_log")
+          .delete()
+          .eq("event_id", event.id);
+        if (releaseError) console.error(`Could not release event claim ${event.id}:`, releaseError);
+      };
 
       // [POLICY GUARD] Check if payment processing is required for this booking
       const { data: bookingWithPolicy, error: policyError } = await supabase
@@ -648,14 +710,9 @@ serve(async (req) => {
           `policy: ${policy.policy_name})`
         );
         
-        // Log event as policy-skipped
-        await supabase.from("stripe_event_log").insert({
-          event_id: event.id,
-          event_type: event.type,
-          booking_id: bookingId,
-          metadata: { skipped_reason: "policy_requires_payment_false" }
-        });
-
+        // Manual/admin and external no-payment bookings stop here and never
+        // reach the Stripe-deposit-only Meta Purchase below.
+        await finishBookingEventClaim();
         return new Response(
           JSON.stringify({ received: true, skipped: "policy" }), 
           {
@@ -671,45 +728,45 @@ serve(async (req) => {
 
         if (!invoiceId) {
           console.error("MISSING_INVOICE_ID in addon_invoice payment");
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("No invoice_id", { status: 400 });
         }
 
-        const { data: existingInvoice } = await supabase
-          .from("booking_addon_invoices")
-          .select("paid_at")
-          .eq("id", invoiceId)
-          .single();
-
-        if (existingInvoice?.paid_at) {
-          console.log("Addon invoice already paid, skipping duplicate");
-          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
-            headers: { "Content-Type": "application/json" },
-            status: 200,
-          });
-        }
-
-        const { error: invoiceUpdateError } = await supabase
+        const { data: claimedInvoice, error: invoiceUpdateError } = await supabase
           .from("booking_addon_invoices")
           .update({
             payment_status: "paid",
             paid_at: new Date().toISOString(),
             stripe_payment_intent_id: paymentIntentId,
           })
-          .eq("id", invoiceId);
+          .eq("id", invoiceId)
+          .is("paid_at", null)
+          .select("id")
+          .maybeSingle();
 
         if (invoiceUpdateError) {
           console.error("Error updating addon invoice:", invoiceUpdateError);
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
+        }
+        if (!claimedInvoice) {
+          console.log("Addon invoice already paid, skipping duplicate");
+          await finishBookingEventClaim();
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
         }
 
         console.log("Addon invoice marked as paid:", invoiceId);
 
         // Fetch the paid invoice to handle bar service propagation
-        const { data: paidInvoice } = await supabase
+        const { data: paidInvoice, error: paidInvoiceError } = await supabase
           .from("booking_addon_invoices")
           .select("*")
           .eq("id", invoiceId)
           .single();
+        if (paidInvoiceError) console.error("Error reading paid addon invoice:", paidInvoiceError);
 
         // If this add-on includes Bar Service, propagate to booking + insert revenue item
         const aiBarPackage = (paidInvoice as { bar_package?: string } | null)?.bar_package;
@@ -851,7 +908,7 @@ serve(async (req) => {
         }
 
         // Log the event
-        await supabase.from("booking_events").insert({
+        const { error: addonEventError } = await supabase.from("booking_events").insert({
           booking_id: bookingId,
           event_type: "addon_invoice_paid",
           channel: "stripe",
@@ -863,19 +920,15 @@ serve(async (req) => {
             bar_package: aiBarPackage && aiBarPackage !== "none" ? aiBarPackage : undefined,
           },
         });
+        if (addonEventError) console.error("Error logging addon payment event:", addonEventError);
 
         // Send internal notification email
-        const { data: invoiceDetails } = await supabase
-          .from("booking_addon_invoices")
-          .select("*")
-          .eq("id", invoiceId)
-          .single();
-
-        const { data: relatedBooking } = await supabase
+        const { data: relatedBooking, error: relatedBookingError } = await supabase
           .from("bookings")
           .select("*")
           .eq("id", bookingId)
           .single();
+        if (relatedBookingError) console.error("Error reading booking for addon receipt:", relatedBookingError);
 
         if (relatedBooking) {
           await sendInternalPaymentEmail(
@@ -888,13 +941,7 @@ serve(async (req) => {
           );
         }
 
-        // Log Stripe event
-        await supabase.from("stripe_event_log").insert({
-          event_id: event.id,
-          event_type: event.type,
-          booking_id: bookingId,
-          metadata: { payment_type: "addon_invoice", invoice_id: invoiceId, amount_cents: session.amount_total },
-        });
+        await finishBookingEventClaim();
 
         console.log(`[STRIPE_EVENT_LOGGED] addon_invoice ${event.id} for invoice ${invoiceId}`);
 
@@ -905,21 +952,6 @@ serve(async (req) => {
       }
 
       if (paymentType === "balance") {
-        // Check if already processed (idempotency)
-        const { data: existingBooking } = await supabase
-          .from("bookings")
-          .select("balance_paid_at, payment_status")
-          .eq("id", bookingId)
-          .single();
-
-        if (existingBooking?.balance_paid_at) {
-          console.log("Balance payment already processed, skipping duplicate");
-          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
-            headers: { "Content-Type": "application/json" },
-            status: 200,
-          });
-        }
-
         const { data: currentBooking, error: currentBookingError } = await supabase
           .from("bookings")
           .select("balance_amount")
@@ -928,6 +960,7 @@ serve(async (req) => {
 
         if (currentBookingError) {
           console.error("Error fetching booking before balance update:", currentBookingError);
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
         }
 
@@ -943,15 +976,25 @@ serve(async (req) => {
             ...(balanceFeeInfo.pct != null ? { processing_fee_pct: balanceFeeInfo.pct } : {}),
           })
           .eq("id", bookingId)
+          .is("balance_paid_at", null)
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error("Error updating booking for balance payment:", error);
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
         }
+        if (!data) {
+          console.log("Balance payment already processed, skipping duplicate");
+          await finishBookingEventClaim();
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
 
-        console.log("Booking fully paid:", data);
+        console.log("Booking fully paid:", bookingId);
 
         // Reconciliation guard: Stripe's charged total must equal the persisted balance_total_charged.
         if (data.balance_total_charged != null && Math.abs(amountPaid - Number(data.balance_total_charged)) > 0.01) {
@@ -980,7 +1023,7 @@ serve(async (req) => {
         }
 
         // Log the balance payment event
-        await supabase.from("booking_events").insert({
+        const { error: balanceEventError } = await supabase.from("booking_events").insert({
           booking_id: bookingId,
           event_type: "balance_paid",
           channel: "stripe",
@@ -991,6 +1034,7 @@ serve(async (req) => {
             cancelled_jobs: cancelledJobs?.map(j => j.job_type) || [],
           },
         });
+        if (balanceEventError) console.error("Error logging balance payment event:", balanceEventError);
 
         // Send internal email notification
         await sendInternalPaymentEmail(data, "balance", amountPaid, currency, sessionId, paymentIntentId);
@@ -1042,12 +1086,12 @@ serve(async (req) => {
           });
 
           if (!emailResponse.ok) {
-            console.error("Failed to send balance confirmation email:", await emailResponse.text());
+            console.error("Failed to send balance confirmation email:", bookingId, emailResponse.status);
           } else {
             console.log("Customer balance confirmation email sent successfully");
           }
-        } catch (emailError) {
-          console.error("Error sending balance confirmation email:", emailError);
+        } catch {
+          console.error("Error sending balance confirmation email:", bookingId);
         }
 
         await syncToGHL(bookingId);
@@ -1070,32 +1114,10 @@ serve(async (req) => {
           console.error('[REVENUE] Exception populating revenue items:', revErr);
         }
 
-        // Log Stripe event as successfully processed
-        await supabase.from("stripe_event_log").insert({
-          event_id: event.id,
-          event_type: event.type,
-          booking_id: bookingId,
-          metadata: { payment_type: "balance", amount_cents: session.amount_total }
-        });
         console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);
 
       } else {
         // Handle deposit payment
-        // Check if already processed (idempotency)
-        const { data: existingBooking } = await supabase
-          .from("bookings")
-          .select("deposit_paid_at, payment_status")
-          .eq("id", bookingId)
-          .single();
-
-        if (existingBooking?.deposit_paid_at) {
-          console.log("Deposit payment already processed, skipping duplicate");
-          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
-            headers: { "Content-Type": "application/json" },
-            status: 200,
-          });
-        }
-
         const { data: currentBooking, error: currentBookingError } = await supabase
           .from("bookings")
           .select("deposit_amount")
@@ -1104,6 +1126,7 @@ serve(async (req) => {
 
         if (currentBookingError) {
           console.error("Error fetching booking before deposit update:", currentBookingError);
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
         }
 
@@ -1121,15 +1144,25 @@ serve(async (req) => {
             ...(depositFeeInfo.pct != null ? { processing_fee_pct: depositFeeInfo.pct } : {}),
           })
           .eq("id", bookingId)
+          .is("deposit_paid_at", null)
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) {
           console.error("Error updating booking:", error);
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
         }
+        if (!data) {
+          console.log("Deposit payment already processed, skipping duplicate");
+          await finishBookingEventClaim();
+          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
+        }
 
-        console.log("Booking updated successfully:", data);
+        console.log("Booking updated successfully:", bookingId);
 
         // Meta Purchase, server half — the authoritative one. This branch is
         // reached only by the call that actually flipped the booking to
@@ -1140,10 +1173,23 @@ serve(async (req) => {
         // The balance payment and add-on invoices deliberately do NOT send
         // one: one booking is one conversion, or every channel would look
         // twice as efficient as it is.
-        try {
-          await sendPurchase(bookingId);
-        } catch (metaError) {
-          console.error("[stripe-webhook] Meta Purchase failed:", metaError);
+        if (sessionAdConsent === false) {
+          // This value was snapshotted into Stripe before redirect, so it is
+          // authoritative even when the parallel booking update did not land.
+          console.warn(
+            `[stripe-webhook] Meta Purchase skipped for booking ${bookingId}: ad consent rejected`,
+          );
+        } else if (explicitPaymentType === "deposit" && bookingWithPolicy?.booking_origin === "website") {
+          try {
+            await sendPurchase(bookingId);
+          } catch {
+            // Ad delivery must never propagate into the payment path.
+            console.error("[stripe-webhook] Meta Purchase failed:", bookingId);
+          }
+        } else {
+          // Manual/admin-paid rows never enter this webhook. External bookings
+          // and missing/unknown payment_type are intentionally not conversions.
+          console.warn(`[stripe-webhook] Meta Purchase skipped for booking ${bookingId}: payment type/origin not eligible`);
         }
 
         // Reconciliation guard: Stripe's charged total must equal the persisted deposit_total_charged.
@@ -1204,12 +1250,12 @@ serve(async (req) => {
           });
 
             if (!emailResponse.ok) {
-              console.error("Failed to send confirmation email:", await emailResponse.text());
+              console.error("Failed to send confirmation email:", bookingId, emailResponse.status);
             } else {
               console.log("Customer confirmation email sent successfully");
             }
-          } catch (emailError) {
-            console.error("Error sending confirmation email:", emailError);
+          } catch {
+            console.error("Error sending confirmation email:", bookingId);
           }
         } else {
           console.log(
@@ -1238,8 +1284,7 @@ serve(async (req) => {
           if (!scheduleResponse.ok) {
             console.error("Balance scheduling failed:", await scheduleResponse.text());
           } else {
-            const scheduleResult = await scheduleResponse.json();
-            console.log("Balance scheduling result:", JSON.stringify(scheduleResult));
+            console.log("Balance scheduling succeeded for booking:", bookingId);
           }
         } catch (scheduleError) {
           console.error("Error scheduling balance payment:", scheduleError);
@@ -1262,15 +1307,9 @@ serve(async (req) => {
           console.error('[REVENUE] Exception populating revenue items:', revErr);
         }
 
-        // Log Stripe event as successfully processed
-        await supabase.from("stripe_event_log").insert({
-          event_id: event.id,
-          event_type: event.type,
-          booking_id: bookingId,
-          metadata: { payment_type: "deposit", amount_cents: session.amount_total }
-        });
         console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);
       }
+      await finishBookingEventClaim();
     }
 
     if (event.type === "checkout.session.expired") {
@@ -1301,8 +1340,13 @@ serve(async (req) => {
       status: 200,
     });
   } catch (err: unknown) {
-    console.error("Webhook error:", err);
+    if (releaseBookingEventClaim) {
+      // The paid-at conditional transition prevents a retry from replaying
+      // side effects if payment state was already committed before failure.
+      await releaseBookingEventClaim();
+    }
+    console.error("Webhook processing failed");
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
-    return new Response(`Webhook Error: ${errorMessage}`, { status: 400 });
+    return new Response(`Webhook Error: ${errorMessage}`, { status: releaseBookingEventClaim ? 500 : 400 });
   }
 });

@@ -17,6 +17,7 @@
  * Run with: bun run test:edge
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import {
   bookingCreatedEventId,
   checkoutEventId,
@@ -27,6 +28,7 @@ import {
   normalizePhone,
   normalizeZip,
   pickMatchSignals,
+  purchaseCustomData,
   purchaseEventId,
   sha256Hex,
   splitFullName,
@@ -107,6 +109,111 @@ describe("conversionValue", () => {
 
   it("rounds to cents", () => {
     expect(conversionValue(10.005, null)).toBe(10.01);
+  });
+});
+
+describe("Purchase custom_data privacy", () => {
+  it("contains only value and currency", () => {
+    const customData = purchaseCustomData(568.22);
+    expect(customData).toEqual({ value: 568.22, currency: "USD" });
+    expect(customData).not.toHaveProperty("event_type");
+    expect(customData).not.toHaveProperty("guests");
+    expect(customData).not.toHaveProperty("contract_total");
+    expect(customData).not.toHaveProperty("content_name");
+    expect(customData).not.toHaveProperty("content_category");
+  });
+});
+
+describe("Stripe webhook idempotency", () => {
+  const webhookSource = readFileSync(
+    new URL("../stripe-webhook/index.ts", import.meta.url),
+    "utf8",
+  );
+
+  it("claims the unique Stripe event before booking processing and skips 23505", () => {
+    const bookingClaimMarker = webhookSource.indexOf("Claim before any booking mutation");
+    const claimAt = webhookSource.indexOf(
+      '.from("stripe_event_log")\n        .insert({',
+      bookingClaimMarker,
+    );
+    const policyAt = webhookSource.indexOf('.select("booking_origin, booking_policies(*)")');
+    expect(bookingClaimMarker).toBeGreaterThan(-1);
+    expect(claimAt).toBeGreaterThan(-1);
+    expect(claimAt).toBeLessThan(policyAt);
+    expect(webhookSource).toContain('claimError.code === "23505"');
+    expect(webhookSource).toContain('skipped: "already_processed"');
+  });
+
+  it("claims the deposit transition only while deposit_paid_at is null", () => {
+    expect(webhookSource).toContain('.is("deposit_paid_at", null)');
+    expect(webhookSource).toContain("if (!data)");
+  });
+
+  it("sends Purchase only for an explicit website deposit", () => {
+    expect(webhookSource).toContain(
+      'explicitPaymentType === "deposit" && bookingWithPolicy?.booking_origin === "website"',
+    );
+    const checkoutSource = readFileSync(
+      new URL("../create-checkout/index.ts", import.meta.url),
+      "utf8",
+    );
+    expect(checkoutSource).toContain('payment_type: "deposit"');
+  });
+
+  it("uses the Stripe consent snapshot to fail closed before Purchase", () => {
+    const checkoutSource = readFileSync(
+      new URL("../create-checkout/index.ts", import.meta.url),
+      "utf8",
+    );
+    expect(checkoutSource).toContain('{ ad_consent: String(adConsentSnapshot) }');
+    expect(webhookSource).toContain('session.metadata?.ad_consent === "false"');
+    expect(webhookSource).toContain("if (sessionAdConsent === false)");
+  });
+});
+
+describe("Meta CAPI retry", () => {
+  const capiSource = readFileSync(
+    new URL("../_shared/meta-capi.ts", import.meta.url),
+    "utf8",
+  );
+
+  it("caps retries and conditionally claims error or stale pending rows", () => {
+    expect(capiSource).toContain("const MAX_ATTEMPTS = 5");
+    expect(capiSource).toContain("const STALE_PENDING_MS = 10 * 60 * 1000");
+    expect(capiSource).toContain('.eq("status", row.status)');
+    expect(capiSource).toContain('.eq("attempts", row.attempts)');
+    expect(capiSource).toContain('row.status === "pending"');
+    expect(capiSource).toContain("isStoredRequest(row.request)");
+  });
+
+  it("retries skipped-no-secrets rows only after credentials exist", () => {
+    expect(capiSource).toContain('existing.status === "skipped_no_secrets"');
+    expect(capiSource).toContain("secretsAvailable &&");
+    expect(capiSource).toContain(
+      "status.eq.error,status.eq.skipped_no_secrets,and(status.eq.pending",
+    );
+    expect(capiSource).toContain(
+      'if (!pixelId || !token) return { claimed: 0, sent: 0, failed: 0 }',
+    );
+    expect(capiSource).toContain(
+      "attempts: opts.adConsent === false || !secretsAvailable ? 0 : 1",
+    );
+  });
+});
+
+describe("consent rejection propagation", () => {
+  const trackEventSource = readFileSync(
+    new URL("../track-event/index.ts", import.meta.url),
+    "utf8",
+  );
+
+  it("marks a booking already linked to the rejecting visitor as opted out", () => {
+    expect(trackEventSource).toContain(
+      '.select("id,booking_id,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")',
+    );
+    expect(trackEventSource).toContain("consent?.advertising === false && linkedBookingId");
+    expect(trackEventSource).toContain('.update({ ad_consent: false })');
+    expect(trackEventSource).toContain('.eq("id", linkedBookingId)');
   });
 });
 

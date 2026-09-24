@@ -17,6 +17,7 @@ interface CheckoutRequest {
   eventType: string;
   successUrl: string;
   cancelUrl: string;
+  adConsent?: boolean | null;
 }
 
 serve(async (req: Request) => {
@@ -45,11 +46,12 @@ serve(async (req: Request) => {
       eventType,
       successUrl,
       cancelUrl,
+      adConsent,
     }: CheckoutRequest = await req.json();
+    const adConsentSnapshot = typeof adConsent === "boolean" ? adConsent : null;
 
     console.log("Creating checkout session for booking:", bookingId);
     console.log("Deposit amount (cents):", Math.round(depositAmount * 100));
-    console.log("Customer:", customerEmail);
 
     // Check if customer already exists
     const existingCustomers = await stripe.customers.list({
@@ -132,6 +134,9 @@ serve(async (req: Request) => {
         booking_id: bookingId,
         bookingId: bookingId,
         payment_type: "deposit",
+        ...(adConsentSnapshot !== null
+          ? { ad_consent: String(adConsentSnapshot) }
+          : {}),
       },
       payment_intent_data: {
         metadata: {
@@ -157,6 +162,7 @@ serve(async (req: Request) => {
         processing_fee_pct: FEE_PCT,
         deposit_fee: feeCents / 100,
         deposit_total_charged: totalChargeCents / 100,
+        ...(adConsentSnapshot !== null ? { ad_consent: adConsentSnapshot } : {}),
       })
       .eq("id", bookingId);
     if (feeUpdateError) console.error("Failed to persist deposit fee on booking:", feeUpdateError);
@@ -168,9 +174,9 @@ serve(async (req: Request) => {
     // Never allowed to break checkout: a missed ad event is recoverable, a
     // customer who cannot pay is not.
     try {
-      await sendCheckoutStarted(bookingId);
-    } catch (metaError) {
-      console.error("[create-checkout] Meta InitiateCheckout failed:", metaError);
+      await sendCheckoutStarted(bookingId, adConsentSnapshot);
+    } catch {
+      console.error("[create-checkout] Meta InitiateCheckout failed", bookingId);
     }
 
     return new Response(
@@ -183,10 +189,11 @@ serve(async (req: Request) => {
         headers: { "Content-Type": "application/json", ...corsHeaders },
       }
     );
-  } catch (error: any) {
-    console.error("Error creating checkout session:", error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("Error creating checkout session");
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: errorMessage }),
       {
         status: 500,
         headers: { "Content-Type": "application/json", ...corsHeaders },

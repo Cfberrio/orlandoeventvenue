@@ -22,6 +22,10 @@ const trackPurchaseMock = vi.fn();
 vi.mock("@/lib/analytics", () => ({
   trackPurchase: (...a: unknown[]) => trackPurchaseMock(...a),
 }));
+const trackMetaPurchaseMock = vi.fn();
+vi.mock("@/lib/tracking/funnel", () => ({
+  trackPurchase: (...a: unknown[]) => trackMetaPurchaseMock(...a),
+}));
 
 import BookingConfirmation from "./BookingConfirmation";
 
@@ -42,6 +46,9 @@ const baseBooking = {
   email: "ryan@urbnevents.com",
   payment_status: "fully_paid",
   balance_total_charged: 569.59,
+  deposit_total_charged: 568.22,
+  deposit_paid_at: "2026-08-01T12:00:00.000Z",
+  stripe_session_id: "cs_live_x",
 };
 
 const renderAt = (search: string) =>
@@ -114,7 +121,7 @@ describe("addon payment success (type=addon)", () => {
 });
 
 describe("deposit flow (no type param) is unchanged", () => {
-  it("keeps the original submitted copy and fires GA4 purchase", async () => {
+  it("fires browser Purchase only for a paid deposit with the matching session", async () => {
     currentBooking = { ...baseBooking, payment_status: "deposit_paid" };
     renderAt("?session_id=cs_live_x&booking_id=b1");
     await settle();
@@ -122,5 +129,33 @@ describe("deposit flow (no type param) is unchanged", () => {
     expect(await screen.findByText(/payment successful/i)).toBeInTheDocument();
     expect(screen.getByText(/pending confirmation/i)).toBeInTheDocument();
     expect(trackPurchaseMock).toHaveBeenCalledTimes(1);
+    expect(trackMetaPurchaseMock).toHaveBeenCalledWith(
+      baseBooking.id,
+      baseBooking.deposit_total_charged,
+      { email: baseBooking.email },
+    );
+  });
+
+  it("polls for the webhook before firing Purchase", async () => {
+    const unpaid = { ...baseBooking, deposit_paid_at: null, stripe_session_id: null };
+    maybeSingleMock
+      .mockResolvedValueOnce({ data: unpaid, error: null })
+      .mockResolvedValueOnce({ data: unpaid, error: null })
+      .mockResolvedValueOnce({ data: { ...baseBooking, payment_status: "deposit_paid" }, error: null });
+
+    renderAt("?session_id=cs_live_x&booking_id=b1");
+    await vi.advanceTimersByTimeAsync(4100);
+
+    expect(trackPurchaseMock).toHaveBeenCalledTimes(1);
+    expect(trackMetaPurchaseMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire Purchase when the Stripe session does not match", async () => {
+    currentBooking = { ...baseBooking, stripe_session_id: "cs_live_other" };
+    renderAt("?session_id=cs_live_x&booking_id=b1");
+    await vi.advanceTimersByTimeAsync(10100);
+
+    expect(trackPurchaseMock).not.toHaveBeenCalled();
+    expect(trackMetaPurchaseMock).not.toHaveBeenCalled();
   });
 });

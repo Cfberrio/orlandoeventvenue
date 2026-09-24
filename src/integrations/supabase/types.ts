@@ -1013,6 +1013,7 @@ export type Database = {
       }
       bookings: {
         Row: {
+          ad_consent: boolean | null
           agree_to_rules: boolean
           balance_amount: number
           balance_fee: number | null
@@ -1103,6 +1104,7 @@ export type Database = {
           user_agent: string | null
         }
         Insert: {
+          ad_consent?: boolean | null
           agree_to_rules?: boolean
           balance_amount: number
           balance_fee?: number | null
@@ -1193,6 +1195,7 @@ export type Database = {
           user_agent?: string | null
         }
         Update: {
+          ad_consent?: boolean | null
           agree_to_rules?: boolean
           balance_amount?: number
           balance_fee?: number | null

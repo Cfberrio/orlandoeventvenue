@@ -1,8 +1,8 @@
 // Meta Pixel loader.
 //
 // The Pixel is what mints the _fbp browser id and reports the browser half of
-// each conversion, so it loads for every visitor as long as a pixel id is
-// configured (see consent.ts for why the banner does not gate it).
+// each conversion. Explicit advertising opt-out prevents loading and events;
+// an unanswered banner preserves the historical default.
 //
 // Every funnel event passes an eventID so the server-side CAPI twin
 // deduplicates into a single action inside Meta.
@@ -67,7 +67,7 @@ export function pixelTrack(
   params?: Record<string, unknown>,
   eventId?: string,
 ): void {
-  if (!initialized || typeof window === "undefined" || !window.fbq) return;
+  if (!initialized || typeof window === "undefined" || !window.fbq || !adsAllowed()) return;
   if (eventId) window.fbq("track", event, params ?? {}, { eventID: eventId });
   else window.fbq("track", event, params ?? {});
 }

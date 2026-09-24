@@ -60,10 +60,14 @@ export function track(name: string, extra: TrackExtra = {}): void {
 }
 
 /** Consent choices are always logged for the audit trail, even a rejection. */
-export function recordConsent(prefs: ConsentPrefs, action: ConsentAction): void {
+export function recordConsent(
+  prefs: ConsentPrefs,
+  action: ConsentAction,
+  capturedAnonymousId?: string | null,
+): void {
   if (typeof window === "undefined") return;
   const body = {
-    anonymous_id: getAnonymousId(),
+    anonymous_id: capturedAnonymousId ?? getAnonymousId(),
     page_url: window.location.href.slice(0, 500),
     consent: { ...prefs, action },
     events: [],

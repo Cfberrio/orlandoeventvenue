@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useSearchParams } from "react-router-dom";
 import { usePricing } from "@/hooks/usePricing";
 import { trackBookingCreated, trackCheckoutStarted } from "@/lib/tracking/funnel";
+import { getConsent } from "@/lib/tracking/consent";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -85,6 +86,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
           eventType: data.eventType || "Event",
           successUrl: `${window.location.origin}/booking-confirmation`,
           cancelUrl: `${window.location.origin}/booking-confirmation`,
+          adConsent: getConsent()?.advertising ?? null,
         },
       });
 
@@ -104,7 +106,6 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
         // event id, so Meta counts one action, not two.
         trackCheckoutStarted(newBookingId, depositTotal, {
           email: data.email ?? null,
-          eventType: data.eventType ?? null,
         });
         window.location.href = checkoutData.url;
       } else {

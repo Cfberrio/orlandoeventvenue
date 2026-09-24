@@ -8,7 +8,7 @@
 //
 // What NEVER enters this module: card data, the signed contract text, the
 // signature image, initials, or internal notes. Meta gets contact identifiers
-// (hashed), browser identifiers, the amount, and the event type of the booking.
+// (hashed), browser identifiers, and the conversion amount.
 
 export type MetaUserData = {
   em?: string[];
@@ -35,6 +35,11 @@ export type MetaServerEvent = {
   user_data: MetaUserData;
   custom_data?: Record<string, unknown>;
 };
+
+/** Purchase metadata intentionally excludes all reservation attributes. */
+export function purchaseCustomData(value: number): Record<string, unknown> {
+  return { value, currency: "USD" };
+}
 
 export function normalizeEmail(email: string | null | undefined): string | null {
   const e = (email ?? "").trim().toLowerCase();

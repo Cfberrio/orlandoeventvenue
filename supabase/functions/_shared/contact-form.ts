@@ -25,6 +25,8 @@ export interface ContactFormData {
    * Never rendered into the notification email.
    */
   metaEventId?: string;
+  /** Explicit advertising choice; null/absent means the banner is unanswered. */
+  adConsent?: boolean | null;
 }
 
 /** Field labels written by the template and recognized by the parser. */

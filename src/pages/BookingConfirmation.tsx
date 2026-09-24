@@ -27,6 +27,9 @@ interface BookingDetails {
   email: string;
   payment_status: string;
   balance_total_charged: number | null;
+  deposit_total_charged: number | null;
+  deposit_paid_at: string | null;
+  stripe_session_id: string | null;
 }
 
 const BookingConfirmation = () => {
@@ -52,14 +55,25 @@ const BookingConfirmation = () => {
         return;
       }
 
-      // Small delay to allow webhook to process
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      let data: BookingDetails | null = null;
+      let fetchError: { message?: string } | null = null;
 
-      const { data, error: fetchError } = await supabase
-        .from("bookings")
-        .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged, deposit_total_charged")
-        .eq("id", bookingId)
-        .maybeSingle();
+      // Stripe may redirect before its webhook commits. Poll briefly, but only
+      // a matching server-written session + paid timestamp proves Purchase.
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 2000));
+        const result = await supabase
+          .from("bookings")
+          .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged, deposit_total_charged, deposit_paid_at, stripe_session_id")
+          .eq("id", bookingId)
+          .maybeSingle();
+        data = result.data;
+        fetchError = result.error;
+
+        if (fetchError || !data || cancelled || paymentType) break;
+        const paidAmount = Number(data.deposit_total_charged ?? data.deposit_amount ?? 0);
+        if (data.deposit_paid_at && paidAmount > 0 && data.stripe_session_id === sessionId) break;
+      }
 
       if (fetchError) {
         console.error("Error fetching booking:", fetchError);
@@ -81,7 +95,15 @@ const BookingConfirmation = () => {
       // Balance (`type=balance`) and addon (`type=addon`) payments land here
       // too and must not count as new bookings.
       if (sessionId && !cancelled && !paymentType) {
-        trackPurchase(data);
+        const paidAmount = Number(data.deposit_total_charged ?? data.deposit_amount ?? 0);
+        const isVerifiedDeposit =
+          data.deposit_paid_at !== null &&
+          paidAmount > 0 &&
+          data.stripe_session_id === sessionId;
+
+        if (!isVerifiedDeposit) return;
+
+        trackPurchase({ ...data, deposit_amount: paidAmount });
         // Meta Purchase, browser half. The authoritative half comes from
         // stripe-webhook with the same evt_purchase_<booking_id>, so Meta
         // collapses the pair; this one exists because the browser event
@@ -90,8 +112,8 @@ const BookingConfirmation = () => {
         // contract total, which would double-count against the balance.
         trackMetaPurchase(
           data.id,
-          Number(data.deposit_total_charged ?? data.deposit_amount ?? 0),
-          { email: data.email, eventType: data.event_type },
+          paidAmount,
+          { email: data.email },
         );
       }
     };

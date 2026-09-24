@@ -143,11 +143,13 @@ Deno.serve(async (req) => {
 
     // ---- visitor upsert (identity + attribution + consent snapshot) ----
     let visitorId: string | null = null;
+    let visitorAdConsent: boolean | null = null;
+    let linkedBookingId = identBookingId;
     if (anon) {
       const now = new Date().toISOString();
       const { data: existing, error: readErr } = await db
         .from("tracking_visitor")
-        .select("id,first_utm,last_utm,first_landing_page,first_referrer")
+        .select("id,booking_id,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")
         .eq("anonymous_id", anon)
         .maybeSingle();
       if (readErr) console.error("[track-event] visitor read failed", readErr);
@@ -169,11 +171,13 @@ Deno.serve(async (req) => {
         common.analytics_consent = consent.analytics;
         common.consent_updated_at = now;
       }
+      visitorAdConsent = consent ? consent.advertising : (existing?.ad_consent ?? null);
 
       const utm =
         vis.utm && typeof vis.utm === "object" ? (vis.utm as Record<string, unknown>) : null;
 
       if (existing) {
+        linkedBookingId = identBookingId ?? uuid(existing.booking_id);
         // First touch is written once and never overwritten.
         if (!existing.first_utm && utm) {
           common.first_utm = utm;
@@ -215,15 +219,29 @@ Deno.serve(async (req) => {
           // Two tabs raced to mint the same cookie. Read the winner's row.
           const { data: won } = await db
             .from("tracking_visitor")
-            .select("id")
+            .select("id,booking_id")
             .eq("anonymous_id", anon)
             .maybeSingle();
           visitorId = won?.id ?? null;
+          linkedBookingId = identBookingId ?? uuid(won?.booking_id);
           if (visitorId) await db.from("tracking_visitor").update(common).eq("id", visitorId);
         } else if (insErr) {
           console.error("[track-event] visitor insert failed", insErr);
         } else {
           visitorId = inserted?.id ?? null;
+        }
+      }
+
+      // A rejection can arrive after this browser was stitched to a booking.
+      // Persist it on both sides so later server-only conversion paths fail
+      // closed even though the browser identity is removed immediately.
+      if (consent?.advertising === false && linkedBookingId) {
+        const { error: bookingConsentErr } = await db
+          .from("bookings")
+          .update({ ad_consent: false })
+          .eq("id", linkedBookingId);
+        if (bookingConsentErr) {
+          console.error("[track-event] booking consent update failed", bookingConsentErr);
         }
       }
 
@@ -299,9 +317,6 @@ Deno.serve(async (req) => {
       }
 
       // ---- Meta CAPI mirror ----
-      // Sent for every visitor: ad measurement is the entire purpose of these
-      // events, and the banner choice is recorded on the visitor row and in
-      // consent_record either way (see docs/meta-tracking.md > Privacy).
       const metaName = typeof e.meta === "string" && MIRRORABLE.has(e.meta) ? e.meta : null;
       if (!metaName || !eventId) continue;
 
@@ -355,12 +370,6 @@ Deno.serve(async (req) => {
       const customData: Record<string, unknown> = {};
       if (typeof cd.value === "number" && cd.value >= 0) customData.value = cd.value;
       if (typeof cd.currency === "string") customData.currency = cd.currency.slice(0, 3);
-      if (Array.isArray(cd.content_ids)) customData.content_ids = cd.content_ids.slice(0, 5);
-      if (typeof cd.content_type === "string") customData.content_type = cd.content_type.slice(0, 40);
-      if (typeof cd.content_name === "string") customData.content_name = cd.content_name.slice(0, 100);
-      if (typeof cd.content_category === "string") {
-        customData.content_category = cd.content_category.slice(0, 60);
-      }
       if (cd.status === true) customData.status = true;
 
       const { firstName, lastName } = splitFullName(person.fullName);
@@ -390,6 +399,7 @@ Deno.serve(async (req) => {
           customData: Object.keys(customData).length ? customData : undefined,
           bookingId: evBookingId,
           leadId: evLeadId,
+          adConsent: visitorAdConsent,
         });
       } catch (err) {
         console.error("[track-event] capi mirror failed", eventId, err);

@@ -59,7 +59,7 @@ serve(async (req) => {
       );
     }
 
-    console.log("Processing contact form submission from:", data.email);
+    console.log("Processing contact form submission");
 
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
@@ -98,7 +98,7 @@ serve(async (req) => {
 
     await client.close();
 
-    console.log("Contact form email sent successfully to:", gmailUser);
+    console.log("Contact form email sent successfully");
 
     // Meta Lead, server half. Deliberately here — after the honeypot, after
     // validation and after the email actually sent — so a bot submission never
@@ -112,9 +112,10 @@ serve(async (req) => {
           email: data.email,
           phone: data.phone ?? null,
           contentName: "Contact Form",
+          adConsent: data.adConsent ?? null,
         });
       } catch (metaError) {
-        console.error("[send-contact-form] Meta Lead failed:", metaError);
+        console.error("[send-contact-form] Meta Lead failed", data.metaEventId);
       }
     }
 
@@ -156,19 +157,19 @@ serve(async (req) => {
         if (ghlRes.ok) {
           console.log("GHL contact upserted successfully");
         } else {
-          console.warn("GHL contact upsert status:", ghlRes.status, await ghlRes.text());
+          console.warn("GHL contact upsert status:", ghlRes.status);
         }
-      } catch (ghlError) {
-        console.error("GHL contact upsert failed (non-blocking):", ghlError);
+      } catch {
+        console.error("GHL contact upsert failed (non-blocking)");
       }
     }
 
     return new Response(
-      JSON.stringify({ ok: true, message: "Message sent successfully" }),
+      JSON.stringify({ ok: true, tracked: true, message: "Message sent successfully" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
-    console.error("Error processing contact form:", error);
+    console.error("Error processing contact form");
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),

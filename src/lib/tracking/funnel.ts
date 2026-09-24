@@ -74,9 +74,6 @@ export function trackBookingTypeSelected(bookingType: string, price?: number | n
   pixelTrack(
     "ViewContent",
     {
-      content_type: "product",
-      content_ids: [bookingType],
-      content_name: bookingType === "daily" ? "Full Day Rental" : "Hourly Rental",
       value: price ?? undefined,
       currency: price != null ? "USD" : undefined,
     },
@@ -134,10 +131,6 @@ export function trackBookingCreated(
   const customData = {
     value: info.depositTotal ?? 0,
     currency: "USD",
-    content_type: "product",
-    content_ids: [bookingId],
-    content_name: `${info.eventType ?? "Event"} — ${info.bookingType === "daily" ? "Full Day" : "Hourly"}`,
-    content_category: info.eventType ?? undefined,
     status: true,
   };
   track("booking_created", {
@@ -167,7 +160,7 @@ export function trackBookingCreated(
 export function trackCheckoutStarted(
   bookingId: string,
   amount: number,
-  info: { email?: string | null; eventType?: string | null } = {},
+  info: { email?: string | null } = {},
 ): void {
   const eventId = checkoutEventId(bookingId);
   pixelTrack(
@@ -175,10 +168,6 @@ export function trackCheckoutStarted(
     {
       value: amount,
       currency: "USD",
-      content_type: "product",
-      content_ids: [bookingId],
-      content_name: info.eventType ?? "Venue Deposit",
-      num_items: 1,
     },
     eventId,
   );
@@ -202,7 +191,7 @@ export function trackCheckoutStarted(
 export function trackPurchase(
   bookingId: string,
   value: number,
-  info: { email?: string | null; eventType?: string | null } = {},
+  info: { email?: string | null } = {},
 ): void {
   if (typeof window === "undefined") return;
   const key = `oev_meta_purchase_${bookingId}`;
@@ -217,10 +206,6 @@ export function trackPurchase(
     {
       value,
       currency: "USD",
-      content_type: "product",
-      content_ids: [bookingId],
-      content_name: info.eventType ?? "Venue Deposit",
-      num_items: 1,
     },
     purchaseEventId(bookingId),
   );
@@ -259,15 +244,22 @@ export function trackPopupLead(leadId: string, email: string): void {
  * half with it, and hands the SAME id to send-contact-form, which sends the
  * CAPI half server-side after the honeypot and validation have passed.
  *
- * Returns the id so the caller can put it in the edge-function payload.
+ * The caller mints the id before the request, then invokes this only after the
+ * edge function succeeds so failed submissions cannot fire browser Lead.
  */
-export function trackContactFormLead(email: string, subject?: string | null): string {
-  const eventId = randomId("evt_lead");
+export function createContactFormLeadEventId(): string {
+  return randomId("evt_lead");
+}
+
+export function trackContactFormLead(
+  eventId: string,
+  email: string,
+  subject?: string | null,
+): void {
   track("lead_submitted", {
     event_id: eventId,
     email,
     props: { source: "contact_form", subject: subject ?? null },
   });
   pixelTrack("Lead", { content_name: "Contact Form", content_category: "contact" }, eventId);
-  return eventId;
 }

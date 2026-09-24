@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  captureAnonymousId,
   getConsent,
   HONOR_AD_OPT_OUT,
   onConsentOpen,
@@ -16,12 +17,9 @@ type Toggles = { preferences: boolean; analytics: boolean; advertising: boolean 
 /**
  * Cookie banner.
  *
- * IMPORTANT — what this control actually does on OEV today: the choice made
- * here is written to a first-party cookie and journaled to consent_record, but
- * it does NOT gate analytics or the Meta Pixel. Capture continues either way.
- * That is a deliberate product decision; the single switch that changes it is
- * HONOR_AD_OPT_OUT in src/lib/tracking/consent.ts, which this component reads
- * so the copy stays truthful in both modes.
+ * The choice is written to a first-party cookie and consent_record. With
+ * HONOR_AD_OPT_OUT enabled, an explicit advertising rejection gates Pixel and
+ * CAPI while an unanswered banner keeps the historical measurement default.
  *
  * Booking and payment work identically whatever is chosen here.
  */
@@ -54,8 +52,11 @@ export function ConsentBanner() {
   if (!visible) return null;
 
   const decide = (t: Toggles, action: ConsentAction) => {
+    // setConsent dispatches synchronously. A rejection listener may remove
+    // oev_aid before the audit request is built, so retain the existing id.
+    const anonymousId = captureAnonymousId();
     const saved = setConsent(t, action);
-    recordConsent(saved, action);
+    recordConsent(saved, action, anonymousId);
     setManage(false);
     setVisible(false);
   };

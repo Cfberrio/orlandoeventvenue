@@ -3,25 +3,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // WHAT THIS SITE ACTUALLY DOES — read before changing anything here
 // ─────────────────────────────────────────────────────────────────────────────
-// OEV captures first-party analytics and fires the Meta Pixel + Conversions
-// API for EVERY visitor, regardless of what they choose in the banner. The
-// choice is recorded (cookie + consent_record table) but it is not enforced.
-// That is a deliberate product decision, taken 2026-09-02.
-//
-// Discipline Rift, which this implementation was ported from, does gate the
-// Pixel behind an explicit advertising opt-in. OEV does not.
-//
-// The single switch below is the whole difference. Flip it to `true` and the
-// "Essential only" button starts meaning what it says: the Pixel stops loading,
-// _fbp/_fbc are purged on revoke, and the server mirror is skipped. Nothing
-// else in the codebase needs to change.
-//
-// Why you might need to flip it: an "Essential only" button that does not
-// suppress advertising cookies is, under CCPA/CPRA and the EU ePrivacy rules,
-// a deceptive control — it is the specific pattern regulators fine for. If OEV
-// starts taking real EU or California-resident traffic, or a client asks for a
-// compliance statement, this is the line to change.
-export const HONOR_AD_OPT_OUT = false;
+// OEV records the choice in both the cookie and consent_record. An explicit
+// advertising opt-out gates Pixel and CAPI; an unanswered banner preserves the
+// prior default and allows measurement.
+export const HONOR_AD_OPT_OUT = true;
 
 import {
   CONSENT_POLICY_VERSION,
@@ -33,6 +18,8 @@ import {
 export type { ConsentPrefs };
 
 const CONSENT_COOKIE = "oev_consent";
+const ANONYMOUS_ID_COOKIE = "oev_aid";
+const ANONYMOUS_ID_RE = /^anon_[a-z0-9]{8,64}$/i;
 const CHANGE_EVENT = "oev-consent-change";
 const OPEN_EVENT = "oev-consent-open";
 
@@ -62,6 +49,12 @@ export function getConsent(): ConsentPrefs | null {
   return parseConsentCookie(readCookie(CONSENT_COOKIE));
 }
 
+/** Snapshot an existing identity before a rejection listener removes it. */
+export function captureAnonymousId(): string | null {
+  const id = readCookie(ANONYMOUS_ID_COOKIE);
+  return id && ANONYMOUS_ID_RE.test(id) ? id : null;
+}
+
 /**
  * First-party analytics. Always allowed on OEV — the internal ledger is what
  * makes the funnel and the attribution reporting complete.
@@ -73,12 +66,15 @@ export function analyticsAllowed(): boolean {
 }
 
 /**
- * Advertising (Meta Pixel + CAPI). Always allowed on OEV unless
- * HONOR_AD_OPT_OUT is flipped on — see the header of this file.
+ * Advertising (Meta Pixel + CAPI). Explicit opt-out disables it; an unknown
+ * choice preserves the historical default.
  */
 export function adsAllowed(): boolean {
   if (!HONOR_AD_OPT_OUT) return true;
-  return getConsent()?.advertising === true;
+  const consent = getConsent();
+  // Until the visitor answers the banner, preserve the existing measurement
+  // behavior. An explicit opt-out is the only state that disables ads.
+  return consent ? consent.advertising : true;
 }
 
 export function setConsent(

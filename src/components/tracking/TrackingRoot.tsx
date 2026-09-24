@@ -28,8 +28,8 @@ export function TrackingRoot() {
   useEffect(
     () =>
       onConsentChange(({ prefs }) => {
-        // The banner is a record, not a gate, unless HONOR_AD_OPT_OUT is on
-        // (see src/lib/tracking/consent.ts for why).
+        // With enforcement on, an explicit advertising opt-out stops Pixel
+        // events and removes its browser identifiers.
         if (HONOR_AD_OPT_OUT) {
           if (prefs.advertising) {
             if (initPixelIfAllowed()) pixelPageView();
