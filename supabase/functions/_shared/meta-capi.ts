@@ -56,10 +56,27 @@ export function metaEnv() {
   return {
     pixelId: Deno.env.get("META_PIXEL_ID") ?? "",
     token: Deno.env.get("META_CAPI_TOKEN") ?? "",
-    // QA only. Set it to see events land in Events Manager > Test Events,
-    // then REMOVE it — while it is set, events do not count as conversions.
-    testCode: Deno.env.get("META_TEST_EVENT_CODE") ?? "",
+    // QA allowlist, NOT a global switch. A delivery carries a Meta
+    // test_event_code only when the browser session that produced it asked
+    // for this exact code (?oev_test_event_code=...). Every other visitor's
+    // events stay production events whether or not this is set. Empty = test
+    // mode disabled everywhere. See docs/meta-tracking.md "Test Events".
+    testCode: (Deno.env.get("META_TEST_EVENT_CODE") ?? "").trim(),
   };
+}
+
+const TEST_EVENT_CODE_RE = /^TEST[A-Z0-9]{1,32}$/i;
+
+/**
+ * The test code a session asked for, if the server allows it. A code nobody
+ * configured, a malformed one, or any code while META_TEST_EVENT_CODE is empty
+ * resolves to null — i.e. a normal production event.
+ */
+export function resolveTestEventCode(requested: unknown, allowed: string): string | null {
+  if (typeof requested !== "string" || !allowed) return null;
+  const code = requested.trim();
+  if (!TEST_EVENT_CODE_RE.test(code)) return null;
+  return code === allowed ? code : null;
 }
 
 export type DeliveryStatus =
@@ -83,7 +100,12 @@ type LookupResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: "lookup_failed" };
 
-type StoredRequest = { data: [ReturnType<typeof buildServerEvent>] };
+// test_event_code travels inside the stored payload, so a retry re-sends a QA
+// event as QA and a production event as production — never the other way.
+type StoredRequest = {
+  data: [ReturnType<typeof buildServerEvent>];
+  test_event_code?: string;
+};
 
 function isStoredRequest(value: unknown): value is StoredRequest {
   if (!value || typeof value !== "object") return false;
@@ -95,11 +117,12 @@ async function postMetaRequest(
   body: StoredRequest,
   pixelId: string,
   token: string,
-  testCode: string,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ ok: boolean; response: unknown; error: string | null }> {
-  const payload: Record<string, unknown> = { ...body };
-  if (testCode) payload.test_event_code = testCode;
+  const payload: Record<string, unknown> = { data: body.data };
+  if (typeof body.test_event_code === "string" && TEST_EVENT_CODE_RE.test(body.test_event_code)) {
+    payload.test_event_code = body.test_event_code;
+  }
 
   try {
     const res = await fetchImpl(
@@ -146,6 +169,8 @@ export async function deliverMetaEvent(opts: {
   adConsent?: boolean | null;
   /** Fail closed while preserving the payload for the retry worker. */
   consentLookupFailed?: boolean;
+  /** Code the originating QA session asked for; honored only if allowlisted. */
+  testEventCode?: string | null;
 }, options: {
   database?: DatabaseClient;
   fetchImpl?: typeof fetch;
@@ -161,11 +186,15 @@ export async function deliverMetaEvent(opts: {
     userData: opts.userData,
     customData: opts.customData,
   });
+  const { pixelId, token, testCode } = options.env ?? metaEnv();
+  const testEventCode = resolveTestEventCode(opts.testEventCode, testCode);
+  if (testEventCode) console.log("[meta-capi] test mode delivery", opts.eventName, opts.eventId);
   // Hashes are required for a real retry after the original isolate exits;
   // no raw contact or reservation details are stored in this payload.
-  const request: StoredRequest = { data: [event] };
+  const request: StoredRequest = testEventCode
+    ? { data: [event], test_event_code: testEventCode }
+    : { data: [event] };
   let claimedRequest = request;
-  const { pixelId, token, testCode } = options.env ?? metaEnv();
   const secretsAvailable = Boolean(pixelId && token);
   const consentLookupFailed = opts.consentLookupFailed === true;
   let attemptNumber = opts.adConsent === false || consentLookupFailed || !secretsAvailable ? 0 : 1;
@@ -188,6 +217,7 @@ export async function deliverMetaEvent(opts: {
     attempts: attemptNumber,
     request: opts.adConsent === false ? null : request,
     error: consentLookupFailed ? "consent_lookup_failed" : null,
+    test_event_code: testEventCode,
   });
   if (insErr) {
     if ((insErr as { code?: string }).code === "23505") {
@@ -293,7 +323,6 @@ export async function deliverMetaEvent(opts: {
     claimedRequest,
     pixelId,
     token,
-    testCode,
     options.fetchImpl,
   );
   const finalized = await patch({
@@ -376,7 +405,7 @@ export async function retryFailedMetaEvents(options: {
     if (cleanupError) console.error("[meta-capi] stale request cleanup failed", cleanupError);
   }
 
-  const { pixelId, token, testCode } = options.env ?? metaEnv();
+  const { pixelId, token } = options.env ?? metaEnv();
   // Missing configuration is not a delivery attempt. Leave every row and its
   // counter untouched until a later cron sees both credentials available.
   if (!pixelId || !token) return { claimed: 0, sent: 0, failed: 0 };
@@ -484,7 +513,6 @@ export async function retryFailedMetaEvents(options: {
       row.request,
       pixelId,
       token,
-      testCode,
       options.fetchImpl,
     );
     const terminalFailure = !result.ok && nextAttempts >= MAX_ATTEMPTS;
@@ -534,16 +562,16 @@ export async function sendLead(opts: {
   contentName?: string;
   sourcePath?: string;
   adConsent?: boolean | null;
+  testEventCode?: string | null;
 }): Promise<void> {
   const { firstName, lastName } = splitFullName(opts.fullName);
+  // Only what the guest actually gave us. The venue's city/state describe the
+  // business, not the person, so they are not sent as the guest's location.
   const userData = await hashedUserData({
     email: opts.email,
     phone: opts.phone,
     firstName,
     lastName,
-    city: "Orlando",
-    state: "FL",
-    country: "us",
   });
 
   await deliverMetaEvent({
@@ -556,6 +584,7 @@ export async function sendLead(opts: {
       content_category: "contact",
     },
     adConsent: opts.adConsent,
+    testEventCode: opts.testEventCode,
   });
 }
 
@@ -679,12 +708,8 @@ async function bookingUserData(
     phone: ctx.phone,
     firstName,
     lastName,
-    // Every OEV booking happens at the one venue in Orlando, FL. This is a
-    // fact about the business, not a guess about the guest, and it lifts match
-    // quality materially on a small dataset.
-    city: "Orlando",
-    state: "FL",
-    country: "us",
+    // No city/state/country: the venue's location is not the guest's, and
+    // sending it as theirs would be fabricated match data.
     externalId: ctx.id,
     ...signals,
   });
@@ -732,6 +757,7 @@ async function bookingAdConsent(
 export async function sendCheckoutStarted(
   bookingId: string,
   requestConsent?: boolean | null,
+  testEventCode?: string | null,
 ): Promise<void> {
   const booking = await loadBooking(bookingId);
   if (!booking.ok || booking.value === null) return;
@@ -757,6 +783,7 @@ export async function sendCheckoutStarted(
     currency: "USD",
     adConsent,
     consentLookupFailed: !storedConsent.ok,
+    testEventCode,
   });
 }
 
@@ -773,7 +800,10 @@ export async function sendCheckoutStarted(
  * Also writes the internal payment_confirmed ledger row, which is first-party
  * truth and independent of whether Meta is configured at all.
  */
-export async function sendPurchase(bookingId: string): Promise<void> {
+export async function sendPurchase(
+  bookingId: string,
+  testEventCode?: string | null,
+): Promise<void> {
   const database = db();
   const booking = await loadBooking(bookingId);
   if (!booking.ok || booking.value === null) return;
@@ -821,5 +851,6 @@ export async function sendPurchase(bookingId: string): Promise<void> {
     currency: "USD",
     adConsent: adConsent.ok ? adConsent.value : null,
     consentLookupFailed: !adConsent.ok,
+    testEventCode,
   });
 }

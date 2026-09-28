@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import { createContactFormLeadEventId, trackContactFormLead } from "@/lib/tracking/funnel";
+import { getTestEventCode } from "@/lib/tracking/testMode";
 import { getConsent } from "@/lib/tracking/consent";
 
 const ContactForm = () => {
@@ -88,6 +89,7 @@ const ContactForm = () => {
           timestamp: new Date().toISOString(),
           metaEventId,
           adConsent,
+          metaTestEventCode: getTestEventCode(),
         },
       });
 

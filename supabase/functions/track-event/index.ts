@@ -378,11 +378,7 @@ Deno.serve(async (req) => {
         phone: person.phone,
         firstName,
         lastName,
-        // The venue is in Orlando, FL — a fact about the business, not a guess
-        // about the guest.
-        city: "Orlando",
-        state: "FL",
-        country: "us",
+        // No city/state/country: the venue's location is not the guest's.
         externalId: person.externalId,
         fbp,
         fbc,
@@ -400,6 +396,8 @@ Deno.serve(async (req) => {
           bookingId: evBookingId,
           leadId: evLeadId,
           adConsent: visitorAdConsent,
+          // QA session code; deliverMetaEvent ignores it unless allowlisted.
+          testEventCode: str(body.test_event_code, 40),
         });
       } catch (err) {
         console.error("[track-event] capi mirror failed", eventId, err);

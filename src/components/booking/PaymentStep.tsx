@@ -11,6 +11,7 @@ import { useSearchParams } from "react-router-dom";
 import { usePricing } from "@/hooks/usePricing";
 import { trackBookingCreated, trackCheckoutStarted } from "@/lib/tracking/funnel";
 import { getConsent } from "@/lib/tracking/consent";
+import { getTestEventCode } from "@/lib/tracking/testMode";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -87,6 +88,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
           successUrl: `${window.location.origin}/booking-confirmation`,
           cancelUrl: `${window.location.origin}/booking-confirmation`,
           adConsent: getConsent()?.advertising ?? null,
+          metaTestEventCode: getTestEventCode(),
         },
       });
 

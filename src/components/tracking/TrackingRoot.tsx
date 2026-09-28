@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { deleteCookie, HONOR_AD_OPT_OUT, onConsentChange } from "@/lib/tracking/consent";
 import { clearIdentity } from "@/lib/tracking/identity";
 import { initPixelIfAllowed, pixelPageView } from "@/lib/tracking/pixel";
+import { captureTestEventCode } from "@/lib/tracking/testMode";
 import { track } from "@/lib/tracking/track";
 import { ConsentBanner } from "./ConsentBanner";
 
@@ -50,6 +51,8 @@ export function TrackingRoot() {
 
   useEffect(() => {
     if (excluded) return;
+    // Before the first track(): a QA session's code must ride on it.
+    captureTestEventCode();
     initPixelIfAllowed();
     pixelPageView();
     track("page_viewed");

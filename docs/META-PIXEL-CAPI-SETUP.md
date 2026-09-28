@@ -97,11 +97,12 @@ Este es el valor #2.
 
 1. Misma pantalla del dataset → pestaña **Probar eventos** / **Test Events**.
 2. Aparece un código tipo `TEST12345`.
-3. Cópialo. Este es el valor #3, **temporal**.
+3. Cópialo. Este es el valor #3.
 
-> ⚠️ **Mientras este código esté puesto, los eventos NO cuentan como
-> conversiones reales.** Sirven solo para verlos llegar en vivo. Hay que
-> quitarlo cuando termines de probar. Está en el paso 5.3.
+> Desde 2026-09-28 este código **ya no es un interruptor global**. Solo marca
+> como prueba los eventos de la pestaña que abras con
+> `?oev_test_event_code=TEST12345`. El resto del tráfico sigue contando como
+> conversión real aunque el secreto esté puesto. Ver 5.3.
 
 ---
 
@@ -142,7 +143,7 @@ Los secretos viven en Lovable Cloud (Supabase), no en el repo.
    |---|---|
    | `META_PIXEL_ID` | El **mismo** número del paso 1.4 |
    | `META_CAPI_TOKEN` | El token largo del paso 2 |
-   | `META_TEST_EVENT_CODE` | El `TEST12345` del paso 2.1 — **temporal** |
+   | `META_TEST_EVENT_CODE` | El `TEST12345` del paso 2.1 — lista blanca para sesiones de prueba (vacío = modo prueba apagado) |
 
 > ❗ `META_PIXEL_ID` tiene que ser **idéntico** al del código. Si son distintos,
 > el navegador reporta a un dataset y el servidor a otro, y Meta cuenta cada
@@ -175,34 +176,69 @@ Recuerda (`CLAUDE.md`): **un push NO publica nada**.
 3. Publicar con MCP `deploy_project`.
 4. Verificar con `curl` contra **orlandoeventvenue.org** (no `.com`).
 
-### 5.3 Probar que llegan los eventos
+### 5.3 Probar que llegan los eventos (Test Events)
 
-1. Abre https://business.facebook.com/events_manager2 → tu dataset →
-   pestaña **Probar eventos** / **Test Events**. Déjala abierta.
-2. En otra pestaña, abre **https://orlandoeventvenue.org**
-3. Deberías ver aparecer un **`PageView`** en Test Events en pocos segundos.
-4. Ve a `/book`, elige un tipo de reserva → aparece **`ViewContent`**.
-5. Completa el formulario hasta crear la reserva → aparece
-   **`CompleteRegistration`**, y debe decir que llegó por **navegador y
-   servidor** (dos fuentes, un evento).
-6. Llega al checkout → **`InitiateCheckout`**.
-7. Paga con una tarjeta de prueba de Stripe (o una real y la reembolsas) →
-   **`Purchase`** con el monto del depósito.
+Hay dos mitades y cada una llega a Test Events por un camino distinto:
 
-**Lo que tienes que verificar en el paso 5:** que cada conversión aparezca
-**una sola vez** con las dos fuentes juntas, no dos veces. Si aparece dos
-veces, el `META_PIXEL_ID` del código y el del secreto no coinciden.
+- **Navegador (Pixel):** Meta liga sola la pestaña que abres desde Test Events.
+  No necesita código. **Se rompe si el navegador bloquea `connect.facebook.net`**
+  (bloqueador de anuncios, Brave, DNS filtrado). Prueba en una ventana de
+  invitado de Chrome, sin extensiones.
+- **Servidor (CAPI):** necesita el `test_event_code`. Solo se aplica a la
+  pestaña que lo pidió.
 
-### 5.4 Quitar el código de prueba
+Pasos:
 
-Cuando todo se vea bien:
+1. Events Manager → dataset **Orlando Event Website** → **Test Events** →
+   copia el código (`TEST12345`).
+2. Lovable Cloud → Edge Functions → Secrets: pon `META_TEST_EVENT_CODE` =
+   ese código. (Si ya está igual, no toques nada.)
+3. Ventana de invitado de Chrome, sin extensiones, con Events Manager abierto
+   en esa misma ventana. En **Test Events → Website**, pega como URL:
+   `https://orlandoeventvenue.org/?oev_test_event_code=TEST12345`
+   y pulsa **Open website**. **Siempre desde ahí, nunca pegando la URL directo
+   en otra pestaña:** el parámetro solo marca como prueba la mitad del
+   servidor; la mitad del navegador queda marcada como prueba únicamente
+   cuando Meta abre la pestaña. Abierta a mano, el `InitiateCheckout` /
+   `Purchase` del navegador entra como conversión real.
+4. DevTools → Network → filtro `facebook`. Debe haber `fbevents.js` 200 y
+   `tr/?id=27500552799622072&ev=PageView` 200. Si no aparecen, el Pixel está
+   bloqueado en ese navegador: Test Events nunca los va a ver.
+5. `/book` → elige tipo → **`ViewContent`** (solo navegador).
+6. **Usa un email Y una fecha que nunca hayas usado.** Si repites email + fecha
+   de una reserva pendiente, el sistema reutiliza esa reserva y sus event_id
+   ya se gastaron: el servidor no reenvía `CompleteRegistration` ni
+   `InitiateCheckout` (correcto en producción, confuso en una prueba).
+   Truco: `tuemail+test0928@gmail.com`.
+7. Completa hasta pagar → **`CompleteRegistration`** y **`InitiateCheckout`**
+   (navegador + servidor, mismo event_id `evt_booking_<id>` / `evt_checkout_<id>`).
+8. **Purchase:** Stripe está en modo live. No hay tarjeta de prueba. Un
+   Purchase de prueba = un cobro real (depósito de la reserva) + reembolso.
+   Solo con aprobación explícita. Si pagas, el webhook manda el Purchase del
+   servidor con el código de prueba aunque cierres la pestaña, porque el código
+   viaja en la metadata de la sesión de Stripe.
+9. Verifica en la base:
 
-1. **Borra el secreto `META_TEST_EVENT_CODE`** en Lovable Cloud.
-2. Los eventos dejan de ir a "Test Events" y empiezan a contar como
-   conversiones reales.
+   ```sql
+   select created_at, event_name, meta_event_id, status, test_event_code, error
+   from meta_event_delivery order by created_at desc limit 10;
+   ```
 
-> Si se te olvida este paso, tus campañas no van a tener ninguna conversión y
-> vas a pensar que nada funciona. Es el error más común.
+   Las filas de tu prueba tienen `test_event_code` = tu código. Las reales, `null`.
+
+**Lo que tienes que verificar:** cada conversión aparece **una sola vez** con las
+dos fuentes juntas. Si aparece dos veces, el `META_PIXEL_ID` del código y el del
+secreto no coinciden.
+
+### 5.4 Terminar la prueba
+
+1. Abre `https://orlandoeventvenue.org/?oev_test_event_code=off`, o cierra la
+   pestaña (el código vive en `sessionStorage`, muere con la pestaña).
+2. Opcional: borra `META_TEST_EVENT_CODE` en Lovable Cloud. Con el secreto vacío
+   el modo prueba queda apagado para todos. Dejarlo puesto **no** afecta al
+   tráfico normal.
+3. Las reservas de prueba siguen siendo reservas reales en la base: cancélalas
+   desde el admin.
 
 ---
 
@@ -248,10 +284,12 @@ Manager.
 
 | Síntoma | Causa casi segura | Qué hacer |
 |---|---|---|
-| No llega nada a Test Events | El código no se publicó (solo se hizo push) | `deploy_project` en Lovable. Ver `CLAUDE.md` |
+| No llega nada a Test Events | Pixel bloqueado en tu navegador (bloqueador, Brave, DNS) o el código no se publicó | Ventana de invitado sin extensiones; DevTools → Network → `facebook`. Si falta publicar: `deploy_project` |
+| Llegan eventos de navegador pero no de servidor | La pestaña no se abrió con `?oev_test_event_code=`, o el secreto no coincide | Parte 5.3, pasos 2–3 |
+| En la prueba no sale `InitiateCheckout` del servidor | Repetiste email + fecha de una reserva pendiente | Email y fecha nuevos |
 | Llega `PageView` pero no `Purchase` | Falta `META_CAPI_TOKEN`, o expiró | Revisar secretos; mirar la tabla `meta_event_delivery`, columna `error` |
 | Cada conversión aparece dos veces | `META_PIXEL_ID` del código ≠ el del secreto | Igualarlos y republicar |
-| Las campañas dicen 0 conversiones | Quedó puesto `META_TEST_EVENT_CODE` | Borrar ese secreto |
+| Las campañas dicen 0 conversiones | Antes de 2026-09-28: `META_TEST_EVENT_CODE` global. Hoy ya no aplica | Mirar `meta_event_delivery.test_event_code`: en tráfico real debe ser `null` |
 | Todo sale como "(direct/organic)" | Los anuncios no llevan UTMs | Parte 6 |
 | El panel dice "relation does not exist" | Las migraciones no se aplicaron | Parte 5.1 |
 | `skipped_no_secrets` en el panel | Faltan los secretos del servidor | Parte 4 |

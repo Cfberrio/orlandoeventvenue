@@ -1181,7 +1181,9 @@ serve(async (req) => {
           );
         } else if (explicitPaymentType === "deposit" && bookingWithPolicy?.booking_origin === "website") {
           try {
-            await sendPurchase(bookingId);
+            // QA sessions carry a Meta test code on the Stripe session; it is
+            // honored only if it matches META_TEST_EVENT_CODE (meta-capi.ts).
+            await sendPurchase(bookingId, session.metadata?.meta_test_event_code ?? null);
           } catch {
             // Ad delivery must never propagate into the payment path.
             console.error("[stripe-webhook] Meta Purchase failed:", bookingId);

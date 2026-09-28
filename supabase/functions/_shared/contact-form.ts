@@ -27,6 +27,8 @@ export interface ContactFormData {
   metaEventId?: string;
   /** Explicit advertising choice; null/absent means the banner is unanswered. */
   adConsent?: boolean | null;
+  /** Meta Test Events code of a QA session; honored only if allowlisted. */
+  metaTestEventCode?: string | null;
 }
 
 /** Field labels written by the template and recognized by the parser. */

@@ -7,6 +7,7 @@
 import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL } from "./config";
 import { analyticsAllowed, getConsent, type ConsentAction, type ConsentPrefs } from "./consent";
 import { getAnonymousId, getSessionId, visitorSnapshot } from "./identity";
+import { getTestEventCode } from "./testMode";
 
 export type TrackExtra = {
   event_id?: string;
@@ -42,6 +43,7 @@ export function track(name: string, extra: TrackExtra = {}): void {
   if (!anonymous_id) return;
 
   const { booking_id, lead_id, email, ...event } = extra;
+  const testEventCode = getTestEventCode();
   const body = {
     anonymous_id,
     session_id: getSessionId(),
@@ -55,6 +57,8 @@ export function track(name: string, extra: TrackExtra = {}): void {
     lead_id: lead_id ?? null,
     email: email ?? null,
     events: [{ name, booking_id, lead_id, email, ...event }],
+    // QA only (testMode.ts). Absent on normal traffic.
+    ...(testEventCode ? { test_event_code: testEventCode } : {}),
   };
   void post(body).catch(() => {});
 }

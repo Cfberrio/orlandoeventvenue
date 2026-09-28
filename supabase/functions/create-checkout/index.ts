@@ -18,7 +18,13 @@ interface CheckoutRequest {
   successUrl: string;
   cancelUrl: string;
   adConsent?: boolean | null;
+  /** Meta Test Events code of a QA session (see docs/meta-tracking.md). */
+  metaTestEventCode?: string | null;
 }
+
+// Only ever Meta's own "TEST<digits/letters>" shape. Whether the code is
+// honored is decided in meta-capi.ts against META_TEST_EVENT_CODE.
+const META_TEST_CODE_RE = /^TEST[A-Z0-9]{1,32}$/i;
 
 serve(async (req: Request) => {
   // Handle CORS preflight requests
@@ -47,8 +53,15 @@ serve(async (req: Request) => {
       successUrl,
       cancelUrl,
       adConsent,
+      metaTestEventCode,
     }: CheckoutRequest = await req.json();
     const adConsentSnapshot = typeof adConsent === "boolean" ? adConsent : null;
+    // Carried on the Stripe session so the webhook — which runs even if the
+    // guest closes the tab — can send the QA Purchase to Test Events too.
+    const metaTestCode =
+      typeof metaTestEventCode === "string" && META_TEST_CODE_RE.test(metaTestEventCode.trim())
+        ? metaTestEventCode.trim()
+        : null;
 
     console.log("Creating checkout session for booking:", bookingId);
     console.log("Deposit amount (cents):", Math.round(depositAmount * 100));
@@ -137,6 +150,7 @@ serve(async (req: Request) => {
         ...(adConsentSnapshot !== null
           ? { ad_consent: String(adConsentSnapshot) }
           : {}),
+        ...(metaTestCode ? { meta_test_event_code: metaTestCode } : {}),
       },
       payment_intent_data: {
         metadata: {
@@ -174,7 +188,7 @@ serve(async (req: Request) => {
     // Never allowed to break checkout: a missed ad event is recoverable, a
     // customer who cannot pay is not.
     try {
-      await sendCheckoutStarted(bookingId, adConsentSnapshot);
+      await sendCheckoutStarted(bookingId, adConsentSnapshot, metaTestCode);
     } catch {
       console.error("[create-checkout] Meta InitiateCheckout failed", bookingId);
     }

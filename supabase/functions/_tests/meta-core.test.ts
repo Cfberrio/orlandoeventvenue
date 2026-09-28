@@ -34,7 +34,11 @@ import {
   splitFullName,
   type VisitorSignals,
 } from "../_shared/meta-core.ts";
-import { deliverMetaEvent, retryFailedMetaEvents } from "../_shared/meta-capi.ts";
+import {
+  deliverMetaEvent,
+  resolveTestEventCode,
+  retryFailedMetaEvents,
+} from "../_shared/meta-capi.ts";
 
 vi.mock("https://esm.sh/@supabase/supabase-js@2.39.3", () => ({
   createClient: vi.fn(),
@@ -50,6 +54,7 @@ type MockDeliveryRow = {
   request: unknown;
   response?: unknown;
   error?: string | null;
+  test_event_code?: string | null;
 };
 
 type MockResult = { data: unknown; error: unknown };
@@ -205,6 +210,7 @@ class MockMetaQuery implements PromiseLike<MockResult> {
           request: this.values.request,
           response: this.values.response,
           error: this.values.error as string | null | undefined,
+          test_event_code: this.values.test_event_code as string | null | undefined,
         });
       }
       return { data: null, error: null };
@@ -797,5 +803,103 @@ describe("pickMatchSignals", () => {
     const signals = pickMatchSignals(rows, AT("2026-03-05T00:00:00Z"));
     expect(signals.fbc).toBe("fb.1.1.real");
     expect(signals.fbp).toBe("fbp-real");
+  });
+});
+
+describe("Meta Test Events (session-scoped test_event_code)", () => {
+  const okFetch = () =>
+    vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ events_received: 1 }), { status: 200 }),
+    );
+  const sentBody = (fetchMock: ReturnType<typeof okFetch>) =>
+    JSON.parse(String(fetchMock.mock.calls[0][1]?.body));
+  const event = (eventId: string, testEventCode?: string | null) => ({
+    eventName: "Purchase",
+    eventId,
+    sourceUrl: "https://orlandoeventvenue.org/book",
+    userData: {},
+    bookingId: "booking-1",
+    testEventCode,
+  });
+
+  it("honors only the exact allowlisted code", () => {
+    expect(resolveTestEventCode("TEST12345", "TEST12345")).toBe("TEST12345");
+    expect(resolveTestEventCode(" TEST12345 ", "TEST12345")).toBe("TEST12345");
+    expect(resolveTestEventCode("TEST99999", "TEST12345")).toBeNull();
+    expect(resolveTestEventCode("TEST12345", "")).toBeNull();
+    expect(resolveTestEventCode("DROP TABLE", "DROP TABLE")).toBeNull();
+    expect(resolveTestEventCode(null, "TEST12345")).toBeNull();
+    expect(resolveTestEventCode(123, "TEST12345")).toBeNull();
+  });
+
+  it("sends and journals the code for the QA session that asked for it", async () => {
+    const database = new MockMetaDatabase([]);
+    const fetchMock = okFetch();
+    const status = await deliverMetaEvent(event("evt_qa_1", "TEST12345"), {
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: { pixelId: "pixel", token: "token", testCode: "TEST12345" },
+    });
+    expect(status).toBe("sent");
+    expect(sentBody(fetchMock).test_event_code).toBe("TEST12345");
+    expect(database.rows[0].test_event_code).toBe("TEST12345");
+  });
+
+  it("never applies the configured code to normal traffic", async () => {
+    const database = new MockMetaDatabase([]);
+    const fetchMock = okFetch();
+    await deliverMetaEvent(event("evt_prod_1"), {
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: { pixelId: "pixel", token: "token", testCode: "TEST12345" },
+    });
+    expect(sentBody(fetchMock)).not.toHaveProperty("test_event_code");
+    expect(database.rows[0].test_event_code).toBeNull();
+  });
+
+  it("ignores a guessed or stale code", async () => {
+    const database = new MockMetaDatabase([]);
+    const fetchMock = okFetch();
+    await deliverMetaEvent(event("evt_guess_1", "TEST00000"), {
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: { pixelId: "pixel", token: "token", testCode: "TEST12345" },
+    });
+    expect(sentBody(fetchMock)).not.toHaveProperty("test_event_code");
+  });
+
+  it("retries keep each row's own mode", async () => {
+    const qaRow = retryRow("qa-row");
+    qaRow.request = { ...structuredClone(storedRequest), test_event_code: "TEST12345" };
+    const prodRow = retryRow("prod-row");
+    const database = new MockMetaDatabase([qaRow, prodRow]);
+    const fetchMock = okFetch();
+    await retryFailedMetaEvents({
+      database: database as never,
+      fetchImpl: fetchMock,
+      env: { pixelId: "pixel", token: "token", testCode: "TEST12345" },
+    });
+    const bodies = fetchMock.mock.calls.map((c) => JSON.parse(String(c[1]?.body)));
+    expect(bodies).toHaveLength(2);
+    expect(bodies.filter((b) => b.test_event_code === "TEST12345")).toHaveLength(1);
+    expect(bodies.filter((b) => !("test_event_code" in b))).toHaveLength(1);
+  });
+
+  it("carries the QA code from checkout to the webhook Purchase", () => {
+    const checkout = readFileSync(new URL("../create-checkout/index.ts", import.meta.url), "utf8");
+    const webhook = readFileSync(new URL("../stripe-webhook/index.ts", import.meta.url), "utf8");
+    expect(checkout).toContain("meta_test_event_code: metaTestCode");
+    expect(checkout).toContain("sendCheckoutStarted(bookingId, adConsentSnapshot, metaTestCode)");
+    expect(webhook).toContain("sendPurchase(bookingId, session.metadata?.meta_test_event_code ?? null)");
+  });
+});
+
+describe("match data honesty", () => {
+  it("does not send the venue's location as the guest's", () => {
+    for (const path of ["../_shared/meta-capi.ts", "../track-event/index.ts"]) {
+      const source = readFileSync(new URL(path, import.meta.url), "utf8");
+      expect(source).not.toMatch(/city:\s*"Orlando"/);
+      expect(source).not.toMatch(/state:\s*"FL"/);
+    }
   });
 });

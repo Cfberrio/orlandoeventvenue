@@ -113,6 +113,7 @@ serve(async (req) => {
           phone: data.phone ?? null,
           contentName: "Contact Form",
           adConsent: data.adConsent ?? null,
+          testEventCode: data.metaTestEventCode ?? null,
         });
       } catch (metaError) {
         console.error("[send-contact-form] Meta Lead failed", data.metaEventId);

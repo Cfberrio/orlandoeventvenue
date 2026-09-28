@@ -163,7 +163,7 @@ Manager owns spend.
 |---|---|
 | `META_PIXEL_ID` | Dataset id. Must equal `META_PIXEL_ID` in `src/lib/tracking/config.ts` or the two halves report into different datasets and nothing deduplicates. |
 | `META_CAPI_TOKEN` | Conversions API access token. |
-| `META_TEST_EVENT_CODE` | **QA only.** While it is set, events show in Events Manager → Test Events and do **not** count as conversions. Remove after testing. |
+| `META_TEST_EVENT_CODE` | **QA allowlist, not a global switch.** A server event carries `test_event_code` only when the browser session that produced it was opened with `?oev_test_event_code=<same code>`. Empty = test mode off for everyone. Leaving it set does not affect normal traffic. Journaled in `meta_event_delivery.test_event_code`. |
 
 Without `META_PIXEL_ID` + `META_CAPI_TOKEN`, every server send degrades to a
 journaled no-op with status `skipped_no_secrets`. With
