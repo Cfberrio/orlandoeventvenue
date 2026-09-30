@@ -1960,6 +1960,7 @@ export type Database = {
           request: Json | null
           response: Json | null
           status: string
+          test_event_code: string | null
           updated_at: string
           value: number | null
         }
@@ -1978,6 +1979,7 @@ export type Database = {
           request?: Json | null
           response?: Json | null
           status?: string
+          test_event_code?: string | null
           updated_at?: string
           value?: number | null
         }
@@ -1996,6 +1998,7 @@ export type Database = {
           request?: Json | null
           response?: Json | null
           status?: string
+          test_event_code?: string | null
           updated_at?: string
           value?: number | null
         }
