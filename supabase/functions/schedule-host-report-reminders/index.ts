@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { shouldClearHostReportStep } from "../_shared/reschedule-plan.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -304,6 +305,7 @@ serve(async (req) => {
     // ===============================
     // Fires 1 hour before the event END so GHL sends the Guest Report
     // email/SMS while the host is still on site. One-shot: never re-fires.
+    // (A reschedule to another day reopens it in the reschedule_booking RPC.)
     if (booking.one_hour_report !== "true") {
       let eventEndOrlando: Date;
       if (booking.booking_type === "daily" || !booking.end_time) {
@@ -400,6 +402,36 @@ serve(async (req) => {
         responseData.host_report_step = immediateStep;
         responseData.reason = "already_at_step";
       }
+    } else if (shouldClearHostReportStep(force_reschedule, immediateStep, booking.host_report_step)) {
+      // Rescheduled to more than 30 days out: the step reached for the old
+      // date no longer applies. Left in place, the pre_start job would find it
+      // already set and skip the GHL update. reschedule-booking syncs to GHL
+      // once all schedulers ran.
+      const { error: clearError } = await supabase
+        .from("bookings")
+        .update({ host_report_step: null, updated_at: new Date().toISOString() })
+        .eq("id", booking_id);
+
+      if (clearError) {
+        throw new Error(`Failed to clear host_report_step after reschedule: ${clearError.message}`);
+      }
+
+      const { error: clearEventError } = await supabase.from("booking_events").insert({
+        booking_id: booking_id,
+        event_type: "host_report_step_cleared",
+        channel: "system",
+        metadata: {
+          previous_step: booking.host_report_step,
+          reason: "rescheduled_beyond_30_days",
+          t_pre_start: new Date(t_pre_start_ms).toISOString(),
+        },
+      });
+      if (clearEventError) {
+        console.error("Failed to log host_report_step_cleared:", clearEventError);
+      }
+
+      responseData.host_report_step_cleared = true;
+      responseData.host_report_step = null;
     }
 
     // If force_reschedule, delete/cancel all pending host_report_* jobs first
@@ -418,11 +450,13 @@ serve(async (req) => {
         .select();
 
       if (cancelErr) {
+        // The insert below skips the duplicate check under force_reschedule,
+        // so continuing would leave two copies of every reminder.
         console.error("Error cancelling jobs for reschedule:", cancelErr);
-      } else {
-        console.log(`Cancelled ${cancelledJobs?.length || 0} jobs for reschedule`);
-        responseData.jobs_cancelled_for_reschedule = cancelledJobs?.length || 0;
+        throw new Error(`Failed to cancel host report jobs for reschedule: ${cancelErr.message}`);
       }
+      console.log(`Cancelled ${cancelledJobs?.length || 0} jobs for reschedule`);
+      responseData.jobs_cancelled_for_reschedule = cancelledJobs?.length || 0;
     }
 
     // Create scheduled jobs (only if not already exist)
@@ -456,6 +490,11 @@ serve(async (req) => {
 
         if (insertError) {
           console.error("Failed to create host report jobs:", insertError);
+          // Under force_reschedule the previous jobs were already cancelled:
+          // reporting success here would leave the booking with no reminders.
+          if (force_reschedule) {
+            throw new Error(`Failed to recreate host report jobs: ${insertError.message}`);
+          }
         } else {
           console.log(`Created ${newJobs.length} host report jobs`);
           

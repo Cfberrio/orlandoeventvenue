@@ -9,6 +9,8 @@ export default defineConfig({
       "supabase/functions/_tests/split-payment.test.ts",
       "supabase/functions/_tests/invoice-fee-integrity.test.ts",
       "supabase/functions/_tests/meta-core.test.ts",
+      "supabase/functions/_tests/reschedule-plan.test.ts",
+      "supabase/functions/_tests/internal-auth.test.ts",
     ],
   },
 });

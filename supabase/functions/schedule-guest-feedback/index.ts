@@ -205,18 +205,9 @@ serve(async (req) => {
     const now = new Date();
     const nowMs = now.getTime();
 
-    // Check if feedback time already passed
-    if (feedbackTimeMs <= nowMs) {
-      console.log("Feedback time already passed - not creating job");
-      responseData.feedback_time_passed = true;
-      responseData.feedback_time = feedbackTime.toISOString();
-      return new Response(JSON.stringify(responseData), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // If force_reschedule, cancel any existing pending jobs
+    // If force_reschedule, cancel any existing pending jobs. This runs before
+    // the "time already passed" early return: otherwise a job computed for the
+    // old date would survive a reschedule whose new feedback time is past.
     if (force_reschedule) {
       console.log("force_reschedule=true → cancelling pending guest feedback jobs");
       const { data: cancelledJobs, error: cancelErr } = await supabase
@@ -232,11 +223,24 @@ serve(async (req) => {
         .select();
 
       if (cancelErr) {
+        // Inserting a fresh job on top of an uncancelled one would send the
+        // feedback email twice.
         console.error("Error cancelling jobs for reschedule:", cancelErr);
-      } else {
-        console.log(`Cancelled ${cancelledJobs?.length || 0} jobs for reschedule`);
-        responseData.jobs_cancelled_for_reschedule = cancelledJobs?.length || 0;
+        throw new Error(`Failed to cancel guest feedback job for reschedule: ${cancelErr.message}`);
       }
+      console.log(`Cancelled ${cancelledJobs?.length || 0} jobs for reschedule`);
+      responseData.jobs_cancelled_for_reschedule = cancelledJobs?.length || 0;
+    }
+
+    // Check if feedback time already passed
+    if (feedbackTimeMs <= nowMs) {
+      console.log("Feedback time already passed - not creating job");
+      responseData.feedback_time_passed = true;
+      responseData.feedback_time = feedbackTime.toISOString();
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // Check if job already exists (unless force_reschedule)

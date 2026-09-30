@@ -83,6 +83,8 @@ import GuestReportPhotos from "@/components/admin/GuestReportPhotos";
 import DriverLicenseTab from "@/components/admin/DriverLicenseTab";
 import { usePricing } from "@/hooks/usePricing";
 import { getAssignmentHours } from "@/lib/assignmentHours";
+import { describeRescheduleResult, rescheduleBooking } from "@/lib/rescheduleBooking";
+import { useQueryClient } from "@tanstack/react-query";
 
 const lifecycleStatuses = [
   "pending",
@@ -128,6 +130,7 @@ const assignmentRoles = ["Production", "Custodial", "Assistant"];
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { pricing: pp } = usePricing();
   const PROC_PCT = (pp.processing_fee || 3.5).toFixed(2);
@@ -614,59 +617,27 @@ export default function BookingDetail() {
     setRescheduleLoading(true);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/reschedule-booking`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            booking_id: booking.id,
-            event_date: rescheduleData.date,
-            // booking_type removed - never changes
-            start_time: rescheduleData.start_time || null,
-            end_time: rescheduleData.end_time || null,
-            reason: rescheduleData.reason,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!result.ok) {
-        // Handle specific error types from the RPC
-        const errorMessages: Record<string, string> = {
-          date_conflict: "That date is already reserved.",
-          daily_conflict: "That date has a full-day rental.",
-          time_overlap: "That time overlaps with another booking.",
-          times_required: "Start and end times are required for hourly bookings.",
-          invalid_time_range: "End time must be after start time.",
-          invalid_event_window: "Event window end time must be after start time.",
-        };
-        
-        const message = errorMessages[result.error] || result.message || "Unable to reschedule booking";
-        
-        toast({
-          title: "Cannot reschedule",
-          description: result.conflict 
-            ? `${message} (${result.conflict.guest || result.conflict.type || ''})` 
-            : message,
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: "Booking rescheduled successfully!",
-        description: "Date updated and all reminders have been adjusted.",
+      const result = await rescheduleBooking(supabase, {
+        booking_id: booking.id,
+        event_date: rescheduleData.date,
+        // booking_type removed - never changes
+        start_time: rescheduleData.start_time || null,
+        end_time: rescheduleData.end_time || null,
+        reason: rescheduleData.reason || null,
       });
 
+      const outcome = describeRescheduleResult(result);
+      toast({
+        title: outcome.title,
+        description: outcome.description,
+        variant: outcome.variant,
+      });
+      if (!outcome.success) return;
+
       setRescheduleOpen(false);
-      window.location.reload(); // Refetch booking data
+      // Refetch instead of reloading the page, so a follow-up warning toast
+      // stays visible.
+      await queryClient.invalidateQueries();
     } catch (error) {
       console.error("Reschedule error:", error);
       toast({

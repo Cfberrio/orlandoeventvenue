@@ -62,6 +62,13 @@ serve(async (req) => {
 
     const booking_id = body.booking_id || body.customData?.booking_id || body.customData?.bookingId;
     const sendEmail = body.send_email === true;
+    // Optional Stripe idempotency key. schedule-balance-payment sends one on
+    // its reschedule path so two overlapping reschedules of the same booking
+    // get the same Checkout Session instead of two payable links.
+    const idempotencyKey =
+      typeof body.idempotency_key === "string" && /^[A-Za-z0-9:_.-]{1,200}$/.test(body.idempotency_key)
+        ? body.idempotency_key
+        : undefined;
 
     if (!booking_id) {
       console.error("Missing booking_id in request");
@@ -167,7 +174,7 @@ serve(async (req) => {
       customerId = customers.data[0].id;
       console.log("Found existing Stripe customer:", customerId);
     } else {
-      const customer = await stripe.customers.create({
+      const customerParams = {
         email: booking.email,
         name: booking.full_name,
         phone: booking.phone,
@@ -175,7 +182,11 @@ serve(async (req) => {
           booking_id: booking.id,
           reservation_number: booking.reservation_number || "",
         },
-      });
+      };
+      // Without a key, call exactly as before (no options argument).
+      const customer = idempotencyKey
+        ? await stripe.customers.create(customerParams, { idempotencyKey: `${idempotencyKey}:customer` })
+        : await stripe.customers.create(customerParams);
       customerId = customer.id;
       console.log("Created new Stripe customer:", customerId);
     }
@@ -186,7 +197,7 @@ serve(async (req) => {
     const origin = getFrontendUrl();
 
     // Create Checkout Session for balance payment
-    const session = await stripe.checkout.sessions.create({
+    const sessionParams: Stripe.Checkout.SessionCreateParams = {
       customer: customerId,
       payment_method_types: ["card"],
       line_items: [
@@ -228,7 +239,10 @@ serve(async (req) => {
           },
         },
       } : {}),
-    });
+    };
+    const session = idempotencyKey
+      ? await stripe.checkout.sessions.create(sessionParams, { idempotencyKey: `${idempotencyKey}:session` })
+      : await stripe.checkout.sessions.create(sessionParams);
 
     console.log("Created Stripe Checkout Session:", session.id);
     console.log("Payment URL:", session.url);

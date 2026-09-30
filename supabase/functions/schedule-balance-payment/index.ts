@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { BALANCE_JOB_TYPES, calendarDaysBetween, planBalanceReschedule } from "../_shared/reschedule-plan.ts";
+import { isServiceRoleRequest } from "../_shared/internal-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,11 +91,149 @@ function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
   return new Date(asUtcMs - offset);
 }
 
+/** Whole calendar days from today (as seen in Orlando) to the event date. */
+function daysUntilEventOrlando(eventDate: string, now: Date): number {
+  // Today's date as seen in Orlando, not on the (UTC) runtime clock — between
+  // 19:00 and 24:00 Orlando those are different days.
+  const orlandoToday = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ORLANDO_TZ, year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  return calendarDaysBetween(orlandoToday, eventDate);
+}
+
 /**
- * Converts a date string to Orlando local midnight UTC
+ * force_reschedule path (called by reschedule-booking after the date moved):
+ * cancel the pending balance jobs and rebuild them from the current
+ * event_date. The decision itself lives in planBalanceReschedule so it is
+ * unit-tested; this only applies it. Jobs are inserted before any link is
+ * created, so a failed link still leaves the retry in place.
  */
-function getOrlandoMidnight(dateStr: string): Date {
-  return orlandoLocalToUTC(dateStr, "00:00:00");
+// deno-lint-ignore no-explicit-any
+async function rescheduleBalanceJobs(supabase: any, supabaseUrl: string, booking: any, responseData: Record<string, unknown>): Promise<Response> {
+  const booking_id = booking.id;
+  const jsonResponse = (data: Record<string, unknown>, status = 200) =>
+    new Response(JSON.stringify(data), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
+  const { data: cancelledJobs, error: cancelError } = await supabase
+    .from("scheduled_jobs")
+    .update({
+      status: "cancelled",
+      last_error: "force_reschedule",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("booking_id", booking_id)
+    .in("job_type", [...BALANCE_JOB_TYPES])
+    .eq("status", "pending")
+    .select("job_type");
+
+  if (cancelError) {
+    throw new Error(`Failed to cancel balance jobs for reschedule: ${cancelError.message}`);
+  }
+
+  const { data: completedJobs, error: completedError } = await supabase
+    .from("scheduled_jobs")
+    .select("job_type")
+    .eq("booking_id", booking_id)
+    .in("job_type", [...BALANCE_JOB_TYPES])
+    .eq("status", "completed");
+
+  if (completedError) {
+    throw new Error(`Failed to read balance job history: ${completedError.message}`);
+  }
+
+  const cancelledPendingTypes: string[] = (cancelledJobs ?? []).map((j: { job_type: string }) => j.job_type);
+  const completedTypes: string[] = (completedJobs ?? []).map((j: { job_type: string }) => j.job_type);
+  // Only a stored URL proves a link reached the guest: process-scheduled-jobs
+  // also marks retries 'completed' when it skips them (deposit not paid yet).
+  const linkAlreadySent = Boolean(booking.balance_payment_url);
+  const now = new Date();
+  const diffDays = daysUntilEventOrlando(booking.event_date, now);
+
+  const plan = planBalanceReschedule({
+    diffDays,
+    linkAlreadySent,
+    completedTypes,
+    eventAnchorMs: orlandoLocalToUTC(booking.event_date, "09:00:00").getTime(),
+    eventStartMs: orlandoLocalToUTC(booking.event_date, booking.start_time || "00:00:00").getTime(),
+    nowMs: now.getTime(),
+  });
+
+  console.log(
+    `[RESCHEDULE] balance plan=${plan.action} days_until_event=${diffDays} ` +
+    `link_already_sent=${linkAlreadySent} cancelled=${cancelledPendingTypes.join(",") || "none"} ` +
+    `completed=${completedTypes.join(",") || "none"} ` +
+    `jobs=${plan.jobs.map((j) => `${j.job_type}@${j.run_at}`).join(",") || "none"}`
+  );
+
+  if (plan.jobs.length > 0) {
+    const { error: insertError } = await supabase
+      .from("scheduled_jobs")
+      .insert(plan.jobs.map((j) => ({ ...j, booking_id, status: "pending" })));
+
+    if (insertError) {
+      throw new Error(`Failed to recreate balance jobs: ${insertError.message}`);
+    }
+  }
+
+  responseData.balance_action = plan.action;
+  responseData.balance_jobs = plan.jobs;
+  responseData.balance_jobs_cancelled = cancelledPendingTypes;
+  responseData.days_until_event = diffDays;
+
+  if (plan.action === "short_notice_create_now") {
+    const response = await fetch(`${supabaseUrl}/functions/v1/create-balance-payment-link`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-ghl-backend-token": Deno.env.get("GHL_BACKEND_TOKEN") || "",
+      },
+      // One key per booking: this path only runs when no link was ever sent,
+      // so there is exactly one "first link" per booking. Overlapping
+      // reschedules get the same Stripe session, or — if they moved to
+      // different dates and the session params differ — Stripe rejects the
+      // second call instead of creating a second payable link.
+      body: JSON.stringify({
+        booking_id,
+        idempotency_key: `oev-balance-first-link:${booking_id}`,
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      console.error("[RESCHEDULE] Failed to create balance payment link:", result);
+      return jsonResponse({
+        ...responseData,
+        success: false,
+        error: "Failed to create balance payment link",
+        details: result,
+      }, 500);
+    }
+    responseData.balance_link_created = true;
+  }
+
+  const { error: eventError } = await supabase.from("booking_events").insert({
+    booking_id,
+    event_type: "balance_payment_rescheduled",
+    channel: "system",
+    metadata: {
+      action: plan.action,
+      event_date: booking.event_date,
+      days_until_event: diffDays,
+      link_already_sent: linkAlreadySent,
+      cancelled_types: cancelledPendingTypes,
+      completed_types: completedTypes,
+      jobs: plan.jobs,
+      link_created: plan.action === "short_notice_create_now",
+    },
+  });
+  if (eventError) {
+    console.error("[RESCHEDULE] Failed to log balance_payment_rescheduled:", eventError);
+  }
+
+  return jsonResponse(responseData);
 }
 
 serve(async (req) => {
@@ -112,6 +252,20 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const booking_id = body.booking_id;
+    // Set by reschedule-booking: rebuild the lifecycle + balance jobs from the
+    // booking's current date instead of skipping because jobs already exist.
+    const force_reschedule = body.force_reschedule === true;
+
+    // Rebuilding cancels jobs and can create a payment link: internal only.
+    if (force_reschedule && !isServiceRoleRequest(
+      req.headers.get("Authorization"),
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
+    )) {
+      return new Response(JSON.stringify({ error: "force_reschedule requires internal auth" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (!booking_id) {
       return new Response(JSON.stringify({ error: "booking_id is required" }), {
@@ -175,6 +329,23 @@ serve(async (req) => {
     // PART 1: Schedule lifecycle transition job (set_lifecycle_in_progress)
     // ===============================
     if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
+      if (force_reschedule) {
+        const { error: cancelLifecycleError } = await supabase
+          .from("scheduled_jobs")
+          .update({
+            status: "cancelled",
+            last_error: "force_reschedule",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("booking_id", booking_id)
+          .eq("job_type", "set_lifecycle_in_progress")
+          .eq("status", "pending");
+
+        if (cancelLifecycleError) {
+          throw new Error(`Failed to cancel lifecycle job for reschedule: ${cancelLifecycleError.message}`);
+        }
+      }
+
       const { data: existingLifecycleJob } = await supabase
         .from("scheduled_jobs")
         .select("id")
@@ -203,6 +374,11 @@ serve(async (req) => {
 
         if (lifecycleJobError) {
           console.error("Failed to schedule lifecycle job:", lifecycleJobError);
+          // The pending job was just cancelled above; don't leave the booking
+          // without one silently.
+          if (force_reschedule) {
+            throw new Error(`Failed to recreate lifecycle job: ${lifecycleJobError.message}`);
+          }
         } else {
           console.log(`Scheduled set_lifecycle_in_progress for: ${runAt.toISOString()}`);
           
@@ -256,6 +432,10 @@ serve(async (req) => {
       });
     }
 
+    if (force_reschedule) {
+      return await rescheduleBalanceJobs(supabase, supabaseUrl, booking, responseData);
+    }
+
     // Check if any balance jobs are already scheduled for this booking
     const { data: existingJobs } = await supabase
       .from("scheduled_jobs")
@@ -268,7 +448,7 @@ serve(async (req) => {
       console.log("Skipping - balance jobs already exist for this booking:", existingJobs.map(j => j.job_type));
       responseData.balance_action = "skipped";
       responseData.balance_reason = "Balance payment jobs already scheduled";
-      
+
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -277,16 +457,7 @@ serve(async (req) => {
 
     // Calculate days until event (using Orlando timezone)
     const now = new Date();
-    const eventDateOrlando = getOrlandoMidnight(booking.event_date);
-    // Today's date as seen in Orlando, not on the (UTC) runtime clock — between
-    // 19:00 and 24:00 Orlando those are different days.
-    const orlandoToday = new Intl.DateTimeFormat("en-CA", {
-      timeZone: ORLANDO_TZ, year: "numeric", month: "2-digit", day: "2-digit",
-    }).format(now);
-    const nowOrlandoMidnight = getOrlandoMidnight(orlandoToday);
-    
-    const diffMs = eventDateOrlando.getTime() - nowOrlandoMidnight.getTime();
-    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    const diffDays = daysUntilEventOrlando(booking.event_date, now);
 
     console.log(`Event date: ${booking.event_date}, Days until event: ${diffDays}`);
 
