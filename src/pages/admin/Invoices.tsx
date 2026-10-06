@@ -22,10 +22,13 @@ import {
   RefreshCw,
   Square,
   Zap,
+  CalendarClock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import CreateInvoiceDialog, { type InvoiceInitialData } from "@/components/admin/CreateInvoiceDialog";
+import EditRecurringDayDialog from "@/components/admin/EditRecurringDayDialog";
+import { formatSendDate, monthlyScheduleLabel } from "@/lib/recurringSchedule";
 
 interface Invoice {
   id: string;
@@ -51,6 +54,9 @@ interface Invoice {
   recurring_interval_days: number | null;
   recurring_next_send_at: string | null;
   recurring_parent_id: string | null;
+  recurring_day_of_month: number | null;
+  recurring_last_sent_at: string | null;
+  recurring_template_only: boolean;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -60,18 +66,39 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   cancelled: { label: "Cancelled", variant: "outline" },
 };
 
-function frequencyLabel(days: number | null): string {
+function frequencyLabel(inv: Pick<Invoice, "recurring_day_of_month" | "recurring_interval_days">): string {
+  if (inv.recurring_day_of_month) return monthlyScheduleLabel(inv.recurring_day_of_month);
+  const days = inv.recurring_interval_days;
   if (!days) return "";
   if (days === 7) return "Weekly";
   if (days === 14) return "Bi-weekly";
-  if (days === 30) return "Monthly";
+  // Legacy "Monthly" rows: +30 days, so the date drifts until a day is picked.
+  if (days === 30) return "Every 30 days";
   return `Every ${days}d`;
+}
+
+// Monthly rows (and legacy 30-day ones, which are converted on save) can pick a
+// calendar day. Weekly / bi-weekly / custom stay interval-based.
+function canChangeSendDay(inv: Invoice): boolean {
+  return (
+    inv.is_recurring &&
+    !inv.recurring_parent_id &&
+    inv.recurring_active &&
+    (inv.recurring_day_of_month != null || inv.recurring_interval_days === 30)
+  );
+}
+
+// A recurring parent created with "Wait until the chosen day" was never sent:
+// it is the template the cron clones on that day, not an open invoice.
+function isScheduledTemplate(inv: Invoice): boolean {
+  return inv.recurring_template_only && inv.payment_status === "pending" && !inv.payment_url;
 }
 
 export default function Invoices() {
   const { toast } = useToast();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [duplicateData, setDuplicateData] = useState<InvoiceInitialData | null>(null);
+  const [scheduleTarget, setScheduleTarget] = useState<Invoice | null>(null);
 
   const { data: invoices, isLoading, refetch } = useQuery({
     queryKey: ["admin-invoices"],
@@ -147,7 +174,9 @@ export default function Invoices() {
     setDialogOpen(true);
   };
 
-  const totalPending = invoices?.filter((i) => i.payment_status === "pending").length ?? 0;
+  const parentsById = new Map((invoices ?? []).map((i) => [i.id, i]));
+  const totalPending =
+    invoices?.filter((i) => i.payment_status === "pending" && !isScheduledTemplate(i)).length ?? 0;
   const totalPaid = invoices?.filter((i) => i.payment_status === "paid").length ?? 0;
   // Use total_charged (subtotal + fee) when available; fall back to amount for legacy invoices
   const totalRevenue =
@@ -239,9 +268,14 @@ export default function Invoices() {
                 </TableHeader>
                 <TableBody>
                   {invoices.map((inv) => {
-                    const status = statusConfig[inv.payment_status] ?? statusConfig.pending;
+                    const status = isScheduledTemplate(inv)
+                      ? { label: inv.recurring_active ? "Scheduled" : "Not sent", variant: "outline" as const }
+                      : statusConfig[inv.payment_status] ?? statusConfig.pending;
                     const isParentRecurring = inv.is_recurring && !inv.recurring_parent_id;
                     const isChild = !!inv.recurring_parent_id;
+                    const parent = isChild ? parentsById.get(inv.recurring_parent_id!) : undefined;
+                    // Children act on their parent's schedule.
+                    const scheduleOwner = isChild ? parent : inv;
                     const hasDiscount =
                       inv.discount_amount != null &&
                       Number(inv.discount_amount) > 0 &&
@@ -266,20 +300,27 @@ export default function Invoices() {
                               >
                                 <RefreshCw className="h-3 w-3 mr-1" />
                                 {inv.recurring_active ? "Recurring" : "Stopped"}{" "}
-                                {frequencyLabel(inv.recurring_interval_days)}
+                                {frequencyLabel(inv)}
                               </Badge>
                               {inv.recurring_active && inv.recurring_next_send_at && (
                                 <span className="text-[10px] text-muted-foreground">
-                                  Next: {format(new Date(inv.recurring_next_send_at), "MMM d, yyyy")} 3 PM ET
+                                  Next: {formatSendDate(new Date(inv.recurring_next_send_at))} 3 PM ET
                                 </span>
                               )}
                             </div>
                           )}
                           {isChild && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit mt-1">
-                              <Zap className="h-3 w-3 mr-1" />
-                              Auto-sent
-                            </Badge>
+                            <div className="mt-1 flex flex-col gap-0.5">
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 w-fit">
+                                <Zap className="h-3 w-3 mr-1" />
+                                Auto-sent
+                              </Badge>
+                              {parent && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {parent.recurring_active ? frequencyLabel(parent) : "Recurring stopped"}
+                                </span>
+                              )}
+                            </div>
                           )}
                         </TableCell>
                         <TableCell>
@@ -356,6 +397,20 @@ export default function Invoices() {
                             >
                               <CopyPlus className="h-4 w-4" />
                             </Button>
+                            {scheduleOwner && canChangeSendDay(scheduleOwner) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setScheduleTarget(scheduleOwner)}
+                                title={
+                                  isChild
+                                    ? `Change send day (${scheduleOwner.invoice_number})`
+                                    : "Change send day"
+                                }
+                              >
+                                <CalendarClock className="h-4 w-4" />
+                              </Button>
+                            )}
                             {inv.recurring_active && (
                               <Button
                                 variant="ghost"
@@ -402,6 +457,17 @@ export default function Invoices() {
           setDuplicateData(null);
         }}
         initialData={duplicateData}
+      />
+
+      <EditRecurringDayDialog
+        invoice={scheduleTarget}
+        onOpenChange={(open) => {
+          if (!open) setScheduleTarget(null);
+        }}
+        onSuccess={() => {
+          setScheduleTarget(null);
+          refetch();
+        }}
       />
     </div>
   );

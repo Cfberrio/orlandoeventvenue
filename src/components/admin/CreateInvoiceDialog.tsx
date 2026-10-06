@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Plus, X, RefreshCw } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
@@ -22,6 +24,13 @@ import {
   MIN_INVOICE_NET,
   type DiscountType,
 } from "@/lib/invoiceDiscount";
+import {
+  defaultSendDay,
+  formatSendDate,
+  nextMonthlySend,
+  sendDayPhrase,
+} from "@/lib/recurringSchedule";
+import SendDaySelect from "@/components/admin/SendDaySelect";
 
 export interface InvoiceInitialData {
   title: string;
@@ -46,6 +55,7 @@ interface LineItem {
 }
 
 type FrequencyPreset = "weekly" | "biweekly" | "monthly" | "custom";
+type FirstSend = "now" | "wait";
 
 const PRESETS: { key: FrequencyPreset; label: string; days: number | null }[] = [
   { key: "weekly", label: "Weekly", days: 7 },
@@ -109,6 +119,8 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
   const [isRecurring, setIsRecurring] = useState(false);
   const [frequencyPreset, setFrequencyPreset] = useState<FrequencyPreset>("monthly");
   const [customDays, setCustomDays] = useState("");
+  const [sendDay, setSendDay] = useState<number>(() => defaultSendDay());
+  const [firstSend, setFirstSend] = useState<FirstSend>("now");
 
   const isDuplicate = !!initialData;
 
@@ -116,6 +128,17 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     frequencyPreset === "custom"
       ? parseInt(customDays, 10) || 0
       : PRESETS.find((p) => p.key === frequencyPreset)?.days ?? 0;
+
+  // Monthly = same calendar day every month (recurring_day_of_month), not +30
+  // days. Only monthly can wait for its day; the other cadences always send the
+  // first invoice now.
+  const isMonthly = frequencyPreset === "monthly";
+  const sendsNow = !isRecurring || !isMonthly || firstSend === "now";
+
+  const computeFirstScheduledSend = (now: Date): string =>
+    isMonthly
+      ? nextMonthlySend(sendDay, sendsNow ? now : null, now).toISOString()
+      : computeNextSendUtc(intervalDays);
 
   useEffect(() => {
     if (open && initialData) {
@@ -148,6 +171,8 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
     setIsRecurring(false);
     setFrequencyPreset("monthly");
     setCustomDays("");
+    setSendDay(defaultSendDay());
+    setFirstSend("now");
   };
 
   const addItem = () => {
@@ -261,10 +286,16 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
       };
 
       if (isRecurring) {
+        // For monthly rows the invoices_schedule_monthly_parent trigger
+        // recomputes next/last send on the database clock; these are previews.
+        const now = new Date();
         insertPayload.is_recurring = true;
         insertPayload.recurring_interval_days = intervalDays;
         insertPayload.recurring_active = true;
-        insertPayload.recurring_next_send_at = computeNextSendUtc(intervalDays);
+        insertPayload.recurring_next_send_at = computeFirstScheduledSend(now);
+        insertPayload.recurring_day_of_month = isMonthly ? sendDay : null;
+        insertPayload.recurring_last_sent_at = sendsNow ? now.toISOString() : null;
+        insertPayload.recurring_template_only = !sendsNow;
       }
 
       const { data: invoice, error: insertError } = await supabase
@@ -275,6 +306,20 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
 
       if (insertError) throw insertError;
       const invoiceData = invoice as any;
+
+      // Wait-until-day: nothing goes out now. The parent stays as the template
+      // and the cron sends the first invoice on the chosen day.
+      if (!sendsNow) {
+        toast({
+          title: "Recurring invoice scheduled",
+          description: `First invoice goes to ${customerEmail.trim()} on ${formatSendDate(
+            new Date(invoiceData.recurring_next_send_at)
+          )} at 3:00 PM ET, then on ${sendDayPhrase(sendDay)} of every month.`,
+        });
+        resetForm();
+        onSuccess();
+        return;
+      }
 
       const { data: fnResult, error: fnError } = await supabase.functions.invoke(
         "create-invoice",
@@ -287,11 +332,39 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
         }
       );
 
-      if (fnError) throw fnError;
+      if (fnError) {
+        if (!isRecurring) throw fnError;
+        // The parent is already scheduled for next month. If the first invoice
+        // never went out, stop the schedule so the cron does not start billing
+        // a customer who never got invoice #1, and so the row reads as a
+        // failure rather than a healthy recurring invoice.
+        // Only when create-invoice itself answered with an error: a network
+        // or relay error does not prove it stopped running, and stopping an
+        // invoice it is still sending would invite a duplicate by hand. Also
+        // guarded on payment_url like process-recurring-invoices.
+        if (fnError instanceof FunctionsHttpError) {
+          const { data: stopped, error: stopError } = await supabase
+            .from("invoices" as any)
+            .update({ recurring_active: false })
+            .eq("id", invoiceData.id)
+            .is("payment_url", null)
+            .select("id");
+          if (!stopError && stopped && (stopped as unknown[]).length > 0) {
+            throw new Error(
+              `Invoice ${invoiceData.invoice_number} was not sent and its recurring schedule was stopped. Delete it and try again.`
+            );
+          }
+        }
+        throw new Error(
+          `Invoice ${invoiceData.invoice_number} may not have been sent, and its recurring schedule is still active. Check the list before resending.`
+        );
+      }
 
-      const recurringNote = isRecurring
-        ? ` Recurring every ${intervalDays} day${intervalDays !== 1 ? "s" : ""}.`
-        : "";
+      const recurringNote = !isRecurring
+        ? ""
+        : isMonthly
+        ? ` Recurring on ${sendDayPhrase(sendDay)} of every month.`
+        : ` Recurring every ${intervalDays} day${intervalDays !== 1 ? "s" : ""}.`;
 
       toast({
         title: "Invoice created & sent",
@@ -568,15 +641,51 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
                   </div>
                 )}
 
+                {isMonthly && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="recurring-send-day" className="text-sm text-muted-foreground">
+                        Send on day
+                      </Label>
+                      <SendDaySelect
+                        id="recurring-send-day"
+                        value={sendDay}
+                        onChange={setSendDay}
+                        disabled={loading}
+                      />
+                    </div>
+                    <RadioGroup
+                      value={firstSend}
+                      onValueChange={(v) => setFirstSend(v as FirstSend)}
+                      disabled={loading}
+                      className="gap-2"
+                    >
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="now" id="first-send-now" />
+                        <Label htmlFor="first-send-now" className="text-sm font-normal cursor-pointer">
+                          Send first invoice now
+                        </Label>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <RadioGroupItem value="wait" id="first-send-wait" />
+                        <Label htmlFor="first-send-wait" className="text-sm font-normal cursor-pointer">
+                          Wait until the chosen day
+                        </Label>
+                      </div>
+                    </RadioGroup>
+                  </div>
+                )}
+
                 {intervalDays > 0 && (
                   <p className="text-xs text-muted-foreground">
-                    First invoice sent now. Next one on{" "}
-                    {new Date(computeNextSendUtc(intervalDays)).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}{" "}
-                    at 3:00 PM ET, then every {intervalDays} day{intervalDays !== 1 ? "s" : ""}.
+                    {isMonthly && !sendsNow
+                      ? "Nothing is sent now. First invoice on "
+                      : "First invoice sent now. Next one on "}
+                    {formatSendDate(new Date(computeFirstScheduledSend(new Date())))} at 3:00 PM ET,
+                    then{" "}
+                    {isMonthly
+                      ? `on ${sendDayPhrase(sendDay)} of every month.`
+                      : `every ${intervalDays} day${intervalDays !== 1 ? "s" : ""}.`}
                   </p>
                 )}
               </div>
@@ -590,7 +699,11 @@ export default function CreateInvoiceDialog({ open, onOpenChange, onSuccess, ini
           </Button>
           <Button onClick={handleSubmit} disabled={loading}>
             {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {isRecurring ? "Create & Send Recurring Invoice" : "Create & Send Invoice"}
+            {!isRecurring
+              ? "Create & Send Invoice"
+              : sendsNow
+              ? "Create & Send Recurring Invoice"
+              : "Create & Schedule Recurring Invoice"}
           </Button>
         </DialogFooter>
       </DialogContent>
