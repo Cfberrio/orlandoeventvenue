@@ -23,6 +23,13 @@ const LOCAL_STORAGE_KEY = "popup_kit_shown";
 const COUPON_CODE = "PLAN50";
 const CONSENT_TEXT =
   "I agree to receive booking-related and promotional SMS & emails from Orlando Event Venue. Msg & data rates may apply. Reply STOP to opt out.";
+// Field problems are shown inline before this can fire, so a failure here is on
+// our side: the copy must not send the guest back to re-check correct fields.
+const SUBMIT_ERROR_TOAST = {
+  title: "We could not submit your information.",
+  description: "Something went wrong on our end. Please try again, or call or text 407 974 5979.",
+  variant: "destructive" as const,
+};
 
 type FieldErrors = {
   firstName?: string;
@@ -112,12 +119,19 @@ export default function DiscountPopup() {
     };
 
     try {
-      // `select("id")` is what makes the Meta Lead possible: track-event
-      // refuses to mirror a Lead unless the popup_leads row it names really
-      // exists, so a forged id cannot write into the ad account.
-      const { data: insertedLead, error: insertError } = await supabase.
+      // The id is minted here because anon cannot read popup_leads back: it
+      // holds guest PII, so there is no anon SELECT policy, and chaining
+      // `.select()` onto this insert fails the whole write with 42501. That
+      // took the popup down for 63 days (Sep-Nov 2026). Do not add it back.
+      // track-event still refuses a Lead unless the row it names really exists,
+      // so a forged id cannot write into the ad account.
+      const leadId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : null;
+
+      const { error: insertError } = await supabase.
       from("popup_leads" as any).
       insert({
+        ...(leadId ? { id: leadId } : {}),
         full_name: firstName.trim(),
         email: email.trim().toLowerCase(),
         phone: phone.trim(),
@@ -126,9 +140,7 @@ export default function DiscountPopup() {
         consent_given: true,
         consent_text: CONSENT_TEXT,
         lead_source: "website_popup"
-      }).
-      select("id").
-      maybeSingle();
+      });
 
       // Handle unique constraint violation (duplicate email).
       // Decision: still sync to GHL so the contact stays current, but do NOT
@@ -143,19 +155,14 @@ export default function DiscountPopup() {
           return;
         }
         console.error("Error saving lead:", insertError);
-        toast({
-          title: "We could not submit your information.",
-          description: "Check the fields above and try again. If it still does not work, call or text 407 974 5979.",
-          variant: "destructive"
-        });
+        toast(SUBMIT_ERROR_TOAST);
         return;
       }
 
       // Meta Lead — only for a genuinely new lead. The 23505 branch above
       // returns early, so a returning visitor re-submitting the same email
       // correctly reports no new Lead rather than inflating the metric.
-      const newLeadId = (insertedLead as { id?: string } | null)?.id;
-      if (newLeadId) trackPopupLead(newLeadId, email.trim().toLowerCase());
+      if (leadId) trackPopupLead(leadId, email.trim().toLowerCase());
 
       // Send to GHL with tag "popup" (fire-and-forget)
       syncToGhl();
@@ -180,11 +187,7 @@ export default function DiscountPopup() {
       localStorage.setItem(LOCAL_STORAGE_KEY, "true");
     } catch (error) {
       console.error("Kit popup submit error:", error);
-      toast({
-        title: "We could not submit your information.",
-        description: "Check the fields above and try again. If it still does not work, call or text 407 974 5979.",
-        variant: "destructive"
-      });
+      toast(SUBMIT_ERROR_TOAST);
     } finally {
       setSubmitting(false);
     }

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import { LEAD_SILENCE_THRESHOLD_DAYS, leadSilenceDays } from "../_shared/lead-silence.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -586,6 +587,39 @@ serve(async (req) => {
         count: 1,
         description: `Post-payment confirmation page could not be reached (${message}). Every customer paying a balance/invoice right now hits an error page after being charged. Check that the site is published and FRONTEND_URL points to the live domain.`,
       });
+    }
+
+    // =====================================================
+    // 7d. Popup still producing leads
+    // =====================================================
+    // The popup writes straight from the visitor's browser, so a broken form
+    // leaves no server error behind. Silence is the only signal we get.
+    const { data: lastLead, error: lastLeadError } = await supabase
+      .from("popup_leads")
+      .select("created_at")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastLeadError) {
+      console.log(`[MEDIUM] Could not read popup_leads: ${lastLeadError.message}`);
+      issues.push({
+        type: "lead_capture_check_failed",
+        severity: "MEDIUM",
+        count: 1,
+        description: `Could not read popup_leads to confirm the website popup is still producing leads: ${lastLeadError.message}`,
+      });
+    } else {
+      const silentDays = leadSilenceDays(lastLead?.created_at, new Date());
+      if (silentDays !== null) {
+        console.log(`[HIGH] No popup leads for ${silentDays} days (last: ${lastLead?.created_at})`);
+        issues.push({
+          type: "lead_capture_silent",
+          severity: "HIGH",
+          count: 1,
+          description: `No website popup leads for ${silentDays} days (alert threshold: ${LEAD_SILENCE_THRESHOLD_DAYS}, last lead: ${lastLead?.created_at}). The form may be failing for every visitor. Submit it on ${getFrontendUrl()} and check for the error "We could not submit your information." If it works, the drop is traffic, not the form.`,
+        });
+      }
     }
 
     // =====================================================
