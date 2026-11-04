@@ -15,6 +15,7 @@ import { Loader2, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
+import { randomUuid } from "@/lib/tracking/core";
 import { trackPopupLead } from "@/lib/tracking/funnel";
 
 const POPUP_DELAY_MS = 5000;
@@ -125,8 +126,7 @@ export default function DiscountPopup() {
       // took the popup down for 63 days (Sep-Nov 2026). Do not add it back.
       // track-event still refuses a Lead unless the row it names really exists,
       // so a forged id cannot write into the ad account.
-      const leadId =
-        typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : null;
+      const leadId = randomUuid();
 
       const { error: insertError } = await supabase.
       from("popup_leads" as any).

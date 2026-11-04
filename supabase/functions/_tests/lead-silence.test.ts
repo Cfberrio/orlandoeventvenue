@@ -43,7 +43,17 @@ describe("daily-health-check wiring", () => {
     expect(check).toBeLessThan(alert);
   });
 
-  it("reports a failed lookup instead of reading it as healthy", () => {
-    expect(source).toContain("lead_capture_check_failed");
+  it("reports a failed lookup or an empty result instead of reading it as healthy", () => {
+    expect(source).toContain("if (lastLeadError)");
+    expect(source).toContain("else if (!lastLead)");
+    expect(source.match(/type: "lead_capture_check_failed"/g)).toHaveLength(2);
+  });
+
+  it("ignores forged future and NULL created_at rows, which anon can insert", () => {
+    const query = source.slice(source.indexOf('.from("popup_leads")'));
+    const filter = query.indexOf('.lte("created_at", new Date().toISOString())');
+    const order = query.indexOf('.order("created_at", { ascending: false })');
+    expect(filter).toBeGreaterThan(-1);
+    expect(filter).toBeLessThan(order);
   });
 });

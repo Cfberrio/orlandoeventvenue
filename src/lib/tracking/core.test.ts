@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  randomUuid,
   bookingCreatedEventId,
   buildFbc,
   checkoutEventId,
@@ -13,6 +14,31 @@ import {
   CONSENT_POLICY_VERSION,
   type ConsentPrefs,
 } from "./core";
+
+describe("randomUuid", () => {
+  const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses crypto.randomUUID when the browser has it", () => {
+    vi.stubGlobal("crypto", { randomUUID: () => "from-native" });
+    expect(randomUuid()).toBe("from-native");
+  });
+
+  it("builds a valid v4 UUID from getRandomValues on older browsers", () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: (bytes: Uint8Array) => bytes.fill(0xff),
+    });
+    expect(randomUuid()).toMatch(UUID_V4);
+  });
+
+  it("returns null rather than a guessable id without a secure random source", () => {
+    vi.stubGlobal("crypto", {});
+    expect(randomUuid()).toBeNull();
+  });
+});
 
 describe("dedup event ids", () => {
   // These four strings are the entire mechanism by which the browser Pixel and

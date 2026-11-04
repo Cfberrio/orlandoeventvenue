@@ -91,6 +91,23 @@ export function randomId(prefix: string): string {
   return `${prefix}_${uuid.replace(/-/g, "")}`;
 }
 
+/**
+ * RFC 4122 v4 UUID, or null when the browser offers no secure random source.
+ * Older browsers and webviews lack crypto.randomUUID but have getRandomValues.
+ * Math.random is deliberately not a fallback: this value becomes a primary key.
+ */
+export function randomUuid(): string | null {
+  const source = globalThis.crypto as Partial<Crypto> | undefined;
+  if (source?.randomUUID) return source.randomUUID();
+  if (!source?.getRandomValues) return null;
+
+  const bytes = source.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40; // version 4
+  bytes[8] = (bytes[8] & 0x3f) | 0x80; // RFC 4122 variant
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 /* ---------------------------------------------------------------------------
  * Deterministic Meta dedup ids.
  *

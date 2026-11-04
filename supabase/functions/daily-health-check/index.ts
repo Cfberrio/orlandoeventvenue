@@ -594,9 +594,15 @@ serve(async (req) => {
     // =====================================================
     // The popup writes straight from the visitor's browser, so a broken form
     // leaves no server error behind. Silence is the only signal we get.
+    //
+    // anon can write created_at (or leave it NULL), so only timestamps not in
+    // the future count: otherwise one forged row, which DESC order would rank
+    // first, could mute this alert for good. Bots inserting fresh rows can still
+    // reset the window; that needs a protected capture endpoint to close.
     const { data: lastLead, error: lastLeadError } = await supabase
       .from("popup_leads")
       .select("created_at")
+      .lte("created_at", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -609,15 +615,23 @@ serve(async (req) => {
         count: 1,
         description: `Could not read popup_leads to confirm the website popup is still producing leads: ${lastLeadError.message}`,
       });
+    } else if (!lastLead) {
+      console.log("[MEDIUM] popup_leads has no row with a valid timestamp");
+      issues.push({
+        type: "lead_capture_check_failed",
+        severity: "MEDIUM",
+        count: 1,
+        description: "popup_leads has no row with a valid timestamp, so the website popup could not be confirmed as working. The table was populated before, so check whether its rows were removed.",
+      });
     } else {
-      const silentDays = leadSilenceDays(lastLead?.created_at, new Date());
+      const silentDays = leadSilenceDays(lastLead.created_at, new Date());
       if (silentDays !== null) {
-        console.log(`[HIGH] No popup leads for ${silentDays} days (last: ${lastLead?.created_at})`);
+        console.log(`[HIGH] No popup leads for ${silentDays} days (last: ${lastLead.created_at})`);
         issues.push({
           type: "lead_capture_silent",
           severity: "HIGH",
           count: 1,
-          description: `No website popup leads for ${silentDays} days (alert threshold: ${LEAD_SILENCE_THRESHOLD_DAYS}, last lead: ${lastLead?.created_at}). The form may be failing for every visitor. Submit it on ${getFrontendUrl()} and check for the error "We could not submit your information." If it works, the drop is traffic, not the form.`,
+          description: `No website popup leads for ${silentDays} days (alert threshold: ${LEAD_SILENCE_THRESHOLD_DAYS}, last lead: ${lastLead.created_at}). The form may be failing for every visitor. Submit it on ${getFrontendUrl()} and check for the error "We could not submit your information." If it works, the drop is traffic, not the form.`,
         });
       }
     }

@@ -103,7 +103,20 @@ describe("DiscountPopup submit", () => {
     expect(localStorage.getItem("popup_kit_shown")).toBe("true");
   });
 
-  it("still saves the lead when the browser has no crypto.randomUUID, without a Meta Lead", async () => {
+  it("keeps the Meta Lead on browsers with getRandomValues but no randomUUID", async () => {
+    vi.stubGlobal("crypto", {
+      getRandomValues: (bytes: Uint8Array) => bytes.fill(0xab),
+    });
+    openPopup();
+    fillAndSubmit();
+
+    expect(await screen.findByText(/are on the way/i)).toBeTruthy();
+    const row = insertMock.mock.calls[0][0];
+    expect(row.id).toMatch(UUID_RE);
+    expect(trackPopupLeadMock).toHaveBeenCalledWith(row.id, "guest@example.com");
+  });
+
+  it("still saves the lead with no secure random source at all, without a Meta Lead", async () => {
     vi.stubGlobal("crypto", {});
     openPopup();
     fillAndSubmit();
