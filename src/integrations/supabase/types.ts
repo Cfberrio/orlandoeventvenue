@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -734,6 +734,103 @@ export type Database = {
         }
         Relationships: []
       }
+      booking_price_snapshots: {
+        Row: {
+          balance_amount: number
+          booking_id: string
+          coupon_id: string | null
+          created_at: string
+          created_by: string
+          deposit_amount: number
+          deposit_fee: number | null
+          deposit_total_charged: number | null
+          discount_amount: number
+          discount_applies_to: string | null
+          discount_code: string | null
+          discount_eligible_base: number | null
+          discount_type: string | null
+          discount_value: number | null
+          gross_subtotal: number
+          id: string
+          lines: Json | null
+          note: string | null
+          pricing_rates: Json | null
+          processing_fee_pct: number | null
+          reason: string
+          total_amount: number
+        }
+        Insert: {
+          balance_amount: number
+          booking_id: string
+          coupon_id?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_amount: number
+          deposit_fee?: number | null
+          deposit_total_charged?: number | null
+          discount_amount?: number
+          discount_applies_to?: string | null
+          discount_code?: string | null
+          discount_eligible_base?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
+          gross_subtotal: number
+          id?: string
+          lines?: Json | null
+          note?: string | null
+          pricing_rates?: Json | null
+          processing_fee_pct?: number | null
+          reason: string
+          total_amount: number
+        }
+        Update: {
+          balance_amount?: number
+          booking_id?: string
+          coupon_id?: string | null
+          created_at?: string
+          created_by?: string
+          deposit_amount?: number
+          deposit_fee?: number | null
+          deposit_total_charged?: number | null
+          discount_amount?: number
+          discount_applies_to?: string | null
+          discount_code?: string | null
+          discount_eligible_base?: number | null
+          discount_type?: string | null
+          discount_value?: number | null
+          gross_subtotal?: number
+          id?: string
+          lines?: Json | null
+          note?: string | null
+          pricing_rates?: Json | null
+          processing_fee_pct?: number | null
+          reason?: string
+          total_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_price_snapshots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_price_snapshots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_price_snapshots_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       booking_revenue_items: {
         Row: {
           amount: number
@@ -1020,6 +1117,7 @@ export type Database = {
           balance_link_expires_at: string | null
           balance_paid_at: string | null
           balance_payment_url: string | null
+          balance_session_id: string | null
           balance_total_charged: number | null
           bar_client_phone_released: boolean
           bar_client_phone_released_at: string | null
@@ -1111,6 +1209,7 @@ export type Database = {
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          balance_session_id?: string | null
           balance_total_charged?: number | null
           bar_client_phone_released?: boolean
           bar_client_phone_released_at?: string | null
@@ -1202,6 +1301,7 @@ export type Database = {
           balance_link_expires_at?: string | null
           balance_paid_at?: string | null
           balance_payment_url?: string | null
+          balance_session_id?: string | null
           balance_total_charged?: number | null
           bar_client_phone_released?: boolean
           bar_client_phone_released_at?: string | null
@@ -1457,6 +1557,42 @@ export type Database = {
           },
         ]
       }
+      discount_coupon_audit: {
+        Row: {
+          action: string
+          actor: string | null
+          actor_role: string | null
+          code: string
+          coupon_id: string | null
+          created_at: string
+          id: string
+          new_row: Json | null
+          old_row: Json | null
+        }
+        Insert: {
+          action: string
+          actor?: string | null
+          actor_role?: string | null
+          code: string
+          coupon_id?: string | null
+          created_at?: string
+          id?: string
+          new_row?: Json | null
+          old_row?: Json | null
+        }
+        Update: {
+          action?: string
+          actor?: string | null
+          actor_role?: string | null
+          code?: string
+          coupon_id?: string | null
+          created_at?: string
+          id?: string
+          new_row?: Json | null
+          old_row?: Json | null
+        }
+        Relationships: []
+      }
       discount_coupons: {
         Row: {
           applies_to: string
@@ -1464,11 +1600,13 @@ export type Database = {
           applies_to_hourly: boolean | null
           code: string
           created_at: string | null
+          created_by: string | null
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
           id: string
           is_active: boolean | null
           updated_at: string | null
+          updated_by: string | null
         }
         Insert: {
           applies_to?: string
@@ -1476,11 +1614,13 @@ export type Database = {
           applies_to_hourly?: boolean | null
           code: string
           created_at?: string | null
+          created_by?: string | null
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Update: {
           applies_to?: string
@@ -1488,11 +1628,13 @@ export type Database = {
           applies_to_hourly?: boolean | null
           code?: string
           created_at?: string | null
+          created_by?: string | null
           discount_type?: Database["public"]["Enums"]["discount_type"]
           discount_value?: number
           id?: string
           is_active?: boolean | null
           updated_at?: string | null
+          updated_by?: string | null
         }
         Relationships: []
       }
@@ -1779,9 +1921,12 @@ export type Database = {
           processing_fee: number | null
           processing_fee_pct: number | null
           recurring_active: boolean
+          recurring_day_of_month: number | null
           recurring_interval_days: number | null
+          recurring_last_sent_at: string | null
           recurring_next_send_at: string | null
           recurring_parent_id: string | null
+          recurring_template_only: boolean
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
           subtotal: number | null
@@ -1809,9 +1954,12 @@ export type Database = {
           processing_fee?: number | null
           processing_fee_pct?: number | null
           recurring_active?: boolean
+          recurring_day_of_month?: number | null
           recurring_interval_days?: number | null
+          recurring_last_sent_at?: string | null
           recurring_next_send_at?: string | null
           recurring_parent_id?: string | null
+          recurring_template_only?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           subtotal?: number | null
@@ -1839,9 +1987,12 @@ export type Database = {
           processing_fee?: number | null
           processing_fee_pct?: number | null
           recurring_active?: boolean
+          recurring_day_of_month?: number | null
           recurring_interval_days?: number | null
+          recurring_last_sent_at?: string | null
           recurring_next_send_at?: string | null
           recurring_parent_id?: string | null
+          recurring_template_only?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
           subtotal?: number | null
@@ -3459,6 +3610,10 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      next_monthly_send: {
+        Args: { p_day: number; p_last_sent: string }
+        Returns: string
+      }
       normalize_reservation_number: {
         Args: { p_value: string }
         Returns: string
@@ -3471,6 +3626,10 @@ export type Database = {
         Args: { p_assignment_id: string; p_is_historical?: boolean }
         Returns: undefined
       }
+      recurring_month_occurrence: {
+        Args: { p_day: number; p_month_start: string }
+        Returns: string
+      }
       reschedule_booking: {
         Args: {
           p_actor_id?: string
@@ -3482,10 +3641,25 @@ export type Database = {
         }
         Returns: Json
       }
+      set_recurring_day_of_month: {
+        Args: { p_day: number; p_invoice_id: string }
+        Returns: string
+      }
       untracked_driver_license_objects: {
         Args: { p_limit?: number }
         Returns: {
           name: string
+        }[]
+      }
+      validate_discount_code: {
+        Args: { p_code: string }
+        Returns: {
+          applies_to: string
+          applies_to_daily: boolean
+          applies_to_hourly: boolean
+          code: string
+          discount_type: string
+          discount_value: number
         }[]
       }
     }
