@@ -91,6 +91,14 @@ interface BookingSnapshot {
   one_hour_report: string;
   review_received: string;
   pre_event_ready: string;
+  // Readiness from public.booking_readiness (ClickUp 86e3zjfq6). The GHL
+  // Pre-Event Ready workflow should key on pre_event_ready_eligible, not
+  // has_staff_assigned (assignment != acceptance).
+  pre_event_ready_eligible: string;
+  staff_all_accepted: string;
+  staff_pending_count: number;
+  staff_accepted_count: number;
+  event_started: string;
   short_notice_balance: string;
   customer: {
     full_name: string | null;
@@ -267,6 +275,26 @@ async function buildBookingSnapshot(
   const review_received = (reviews?.length || 0) > 0 ? "true" : "false";
   const pre_event_ready = booking.pre_event_ready || 'false';
 
+  // Readiness, from the same DB rule the gate enforces. Fail closed: if we
+  // can't read it, never tell GHL the booking is eligible.
+  let pre_event_ready_eligible = "false";
+  let staff_all_accepted = "false";
+  let staff_pending_count = 0;
+  let staff_accepted_count = 0;
+  let event_started = "false";
+  const { data: readiness, error: readinessError } = await supabase.rpc("booking_readiness", { p_booking_id: bookingId });
+  if (readinessError || !readiness) {
+    console.error(`booking_readiness failed for ${bookingId}:`, readinessError);
+  } else {
+    const unmet: Array<{ code?: string; staff?: string[] }> = readiness.unmet ?? [];
+    const staffBlocked = unmet.some((u) => u.code === "no_staff" || u.code === "staff_pending" || u.code === "staff_rejected");
+    pre_event_ready_eligible = readiness.ready === true ? "true" : "false";
+    staff_all_accepted = readiness.staff_exempt === true || !staffBlocked ? "true" : "false";
+    staff_pending_count = unmet.find((u) => u.code === "staff_pending")?.staff?.length ?? 0;
+    staff_accepted_count = Number(readiness.staff_accepted ?? 0);
+    event_started = readiness.event_started === true ? "true" : "false";
+  }
+
   // Calculate short_notice_balance: "true" if event is 15 days or less away
   let short_notice_balance = "false";
   try {
@@ -321,6 +349,11 @@ async function buildBookingSnapshot(
     one_hour_report: booking.one_hour_report || "false",
     review_received,
     pre_event_ready,
+    pre_event_ready_eligible,
+    staff_all_accepted,
+    staff_pending_count,
+    staff_accepted_count,
+    event_started,
     short_notice_balance,
     customer: {
       full_name: booking.full_name,

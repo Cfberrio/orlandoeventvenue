@@ -347,7 +347,7 @@ export default function AdminDashboard() {
               📅 Upcoming Events Not Ready
             </CardTitle>
             <p className="text-sm text-muted-foreground">
-              Events in the next 3 days that are not marked as pre_event_ready
+              Events in the next 3 days that are not Pre-Event Ready (checklist or staff acceptance pending)
             </p>
           </CardHeader>
           <CardContent>

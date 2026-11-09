@@ -318,7 +318,9 @@ export function useOperationalAlerts() {
         .select("*")
         .gte("event_date", todayStr)
         .lte("event_date", threeDaysLater)
-        .neq("pre_event_ready", "true");
+        // Not Pre-Event Ready by the lifecycle rule (checklist and/or staff
+        // acceptance pending). Was the checklist flag alone (ClickUp 86e3zjfq6).
+        .in("lifecycle_status", ["pending", "confirmed"]);
       if (bookingsError) throw bookingsError;
       return bookings as Booking[];
     },
@@ -575,10 +577,13 @@ export function useBookings(filters?: {
       if (error) throw error;
       return data as Booking[];
     },
+    // Staff accept from their own device; the DB moves the lifecycle. Poll so
+    // the grouped list follows without a manual reload (ClickUp 86e3zjfq6).
+    refetchInterval: 30_000,
   });
 }
 
-export function useBooking(id: string) {
+export function useBooking(id: string, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ["booking", id],
     queryFn: async () => {
@@ -591,7 +596,67 @@ export function useBooking(id: string) {
       return data as Booking;
     },
     enabled: !!id,
+    refetchInterval: options?.refetchInterval,
   });
+}
+
+// ---------------------------------------------------------------------------
+// Pre-event readiness (ClickUp 86e3zjfq6). The rule lives in the database
+// (evaluate_booking_readiness); this is a read-only view of it, so the UI can
+// show WHY a booking is not Pre-Event Ready instead of an unconditional badge.
+// ---------------------------------------------------------------------------
+export interface ReadinessRequirement {
+  code: "checklist_incomplete" | "no_staff" | "staff_pending" | "staff_rejected" | string;
+  message: string;
+  staff?: string[];
+}
+
+export interface BookingReadiness {
+  ready: boolean;
+  checklist_complete: boolean;
+  staff_exempt: boolean;
+  staff_total: number;
+  staff_accepted: number;
+  lifecycle_status: string;
+  unmet: ReadinessRequirement[];
+}
+
+// booking_readiness is not in the generated Supabase types yet.
+type ReadinessRpc = (
+  fn: "booking_readiness",
+  args: { p_booking_id: string },
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+export async function fetchBookingReadiness(bookingId: string): Promise<BookingReadiness | null> {
+  const rpc = supabase.rpc.bind(supabase) as unknown as ReadinessRpc;
+  const { data, error } = await rpc("booking_readiness", { p_booking_id: bookingId });
+  if (error) throw error;
+  return (data ?? null) as BookingReadiness | null;
+}
+
+export function useBookingReadiness(bookingId: string, options?: { refetchInterval?: number | false }) {
+  return useQuery({
+    queryKey: ["booking-readiness", bookingId],
+    queryFn: () => fetchBookingReadiness(bookingId),
+    enabled: !!bookingId,
+    refetchInterval: options?.refetchInterval,
+  });
+}
+
+/**
+ * Everything that can change when staff or checklist data changes: the DB
+ * recomputes lifecycle in the same transaction, so refresh the booking, the
+ * grouped list and the readiness view together.
+ */
+export function invalidateBookingLifecycle(
+  queryClient: ReturnType<typeof useQueryClient>,
+  bookingId: string,
+) {
+  queryClient.invalidateQueries({ queryKey: ["booking", bookingId] });
+  queryClient.invalidateQueries({ queryKey: ["bookings"] });
+  queryClient.invalidateQueries({ queryKey: ["booking-readiness", bookingId] });
+  queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
+  queryClient.invalidateQueries({ queryKey: ["booking-events", bookingId] });
 }
 
 export function useBookingEvents(bookingId: string) {
@@ -610,7 +675,7 @@ export function useBookingEvents(bookingId: string) {
   });
 }
 
-export function useBookingStaffAssignments(bookingId: string) {
+export function useBookingStaffAssignments(bookingId: string, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: ["booking-staff-assignments", bookingId],
     queryFn: async () => {
@@ -630,6 +695,7 @@ export function useBookingStaffAssignments(bookingId: string) {
       })) as StaffAssignment[];
     },
     enabled: !!bookingId,
+    refetchInterval: options?.refetchInterval,
   });
 }
 
@@ -831,8 +897,7 @@ export function useUpdateBooking() {
       return data;
     },
     onSuccess: (_, { id }) => {
-      queryClient.invalidateQueries({ queryKey: ["booking", id] });
-      queryClient.invalidateQueries({ queryKey: ["bookings"] });
+      invalidateBookingLifecycle(queryClient, id);
     },
   });
 }
@@ -895,7 +960,8 @@ export function useCreateStaffAssignment() {
       return data;
     },
     onSuccess: async (createdAssignment, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", variables.booking_id] });
+      // A new pending assignment can demote a Pre-Event Ready booking.
+      invalidateBookingLifecycle(queryClient, variables.booking_id);
 
       // Populate payroll items for Assistant ($80 flat) and Custodial (cleaning rates)
       if (
@@ -1021,7 +1087,8 @@ export function useDeleteStaffAssignment() {
       if (error) throw error;
     },
     onSuccess: (_, { bookingId }) => {
-      queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });
+      // Removing a pending/declined person can promote the booking.
+      invalidateBookingLifecycle(queryClient, bookingId);
       // Sync to GHL after staff assignment deleted
       syncToGHL(bookingId);
     },

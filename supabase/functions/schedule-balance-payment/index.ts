@@ -328,7 +328,9 @@ serve(async (req) => {
     // ===============================
     // PART 1: Schedule lifecycle transition job (set_lifecycle_in_progress)
     // ===============================
-    if (booking.lifecycle_status === "pre_event_ready" && booking.event_date) {
+    // confirmed too: a booking waiting on staff acceptance still needs its
+    // event-start job, and a reschedule must move it (ClickUp 86e3zjfq6).
+    if (["confirmed", "pre_event_ready"].includes(booking.lifecycle_status) && booking.event_date) {
       if (force_reschedule) {
         const { error: cancelLifecycleError } = await supabase
           .from("scheduled_jobs")
@@ -389,7 +391,7 @@ serve(async (req) => {
             metadata: {
               job_type: "set_lifecycle_in_progress",
               scheduled_for: runAt.toISOString(),
-              from_lifecycle: "pre_event_ready",
+              from_lifecycle: booking.lifecycle_status,
               to_lifecycle: "in_progress",
             },
           });

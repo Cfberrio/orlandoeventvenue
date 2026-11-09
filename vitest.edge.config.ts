@@ -14,6 +14,7 @@ export default defineConfig({
       "supabase/functions/_tests/lead-silence.test.ts",
       "supabase/functions/_tests/booking-pricing.test.ts",
       "supabase/functions/_tests/billing-integrity.test.ts",
+      "supabase/functions/_tests/readiness-lifecycle.test.ts",
     ],
   },
 });

@@ -513,6 +513,10 @@ export function useRespondToAssignment() {
       queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
       queryClient.invalidateQueries({ queryKey: ["staff-booking-detail", vars.bookingId] });
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", vars.bookingId] });
+      // The DB recomputes Pre-Event Ready on every response (ClickUp 86e3zjfq6).
+      queryClient.invalidateQueries({ queryKey: ["booking-readiness", vars.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["booking", vars.bookingId] });
+      queryClient.invalidateQueries({ queryKey: ["bookings"] });
     },
   });
 }

@@ -262,7 +262,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                     </span>
                     {booking.response_due_at && (
                       <span className="text-xs text-muted-foreground">
-                        Respond by {format(parseISO(booking.response_due_at), "MM/dd HH:mm")} or it will be auto-rejected
+                        Please respond by {format(parseISO(booking.response_due_at), "MM/dd HH:mm")}. The event is not ready until you accept.
                       </span>
                     )}
                   </div>

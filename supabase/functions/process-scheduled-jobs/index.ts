@@ -12,6 +12,8 @@ const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_
 
 // Lifecycle transition job types
 const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress", "set_lifecycle_post_event"];
+// set_lifecycle_in_progress may start from either state (ClickUp 86e3zjfq6).
+const IN_PROGRESS_SOURCE_STATES = ["confirmed", "pre_event_ready"];
 
 // Host report reminder job types
 const HOST_REPORT_JOB_TYPES = ["host_report_pre_start", "host_report_during", "host_report_post"];
@@ -250,7 +252,7 @@ serve(async (req) => {
             // Fetch booking with all needed fields
             const { data: booking, error: bookingError } = await supabase
               .from("bookings")
-              .select("id, event_date, lifecycle_status, payment_status, status, reservation_number")
+              .select("id, event_date, lifecycle_status, payment_status, status, reservation_number, booking_origin")
               .eq("id", job.booking_id)
               .maybeSingle();
 
@@ -287,9 +289,12 @@ serve(async (req) => {
               continue;
             }
 
-            // Check if still in pre_event_ready
-            if (booking.lifecycle_status !== "pre_event_ready") {
-              console.log(`Booking ${job.booking_id} lifecycle is ${booking.lifecycle_status}, not pre_event_ready - cancelling job ${job.id}`);
+            // Event start moves the booking forward from pre_event_ready OR from
+            // confirmed (staff acceptance still pending): the event happens
+            // either way, and post-event automation depends on in_progress.
+            // ClickUp 86e3zjfq6.
+            if (!IN_PROGRESS_SOURCE_STATES.includes(booking.lifecycle_status)) {
+              console.log(`Booking ${job.booking_id} lifecycle is ${booking.lifecycle_status}, not confirmed/pre_event_ready - cancelling job ${job.id}`);
               await supabase
                 .from("scheduled_jobs")
                 .update({ 
@@ -312,6 +317,9 @@ serve(async (req) => {
               .from("booking_staff_assignments")
               .select("id")
               .eq("booking_id", job.booking_id)
+              // same population as evaluate_booking_readiness
+              .neq("status", "cancelled")
+              .neq("assignment_type", "bar_service")
               .limit(1);
 
             if (staffError) {
@@ -319,9 +327,13 @@ serve(async (req) => {
             }
 
             const hasStaff = staffAssignments && staffAssignments.length > 0;
+            // External bookings are staff-exempt by the readiness rule
+            // (evaluate_booking_readiness); without this they never left
+            // pre_event_ready (OEV-9SQGNT, OEV-EQRH57). ClickUp 86e3zjfq6.
+            const staffRequired = booking.booking_origin !== "external";
 
             // Validate business conditions
-            if (!isFullyPaid || !hasStaff) {
+            if (!isFullyPaid || (staffRequired && !hasStaff)) {
               const reason = `conditions_not_met: fully_paid=${isFullyPaid}, has_staff=${hasStaff}`;
               console.log(`Booking ${job.booking_id} conditions not met - cancelling job ${job.id}: ${reason}`);
               
@@ -357,13 +369,36 @@ serve(async (req) => {
             // All conditions met - update to in_progress
             console.log(`All conditions met for booking ${job.booking_id} - transitioning to in_progress`);
 
-            const { error: updateError } = await supabase
+            // Conditional on the state we just read, so a concurrent change
+            // (cancel, manual status edit) is not overwritten.
+            const { data: movedRows, error: updateError } = await supabase
               .from("bookings")
               .update({
                 lifecycle_status: "in_progress",
                 updated_at: new Date().toISOString(),
               })
-              .eq("id", job.booking_id);
+              .eq("id", job.booking_id)
+              .eq("lifecycle_status", booking.lifecycle_status)
+              // and still not cancelled: a status-only cancellation landing
+              // after our read must win (never in_progress + cancelled).
+              .neq("status", "cancelled")
+              .select("id");
+
+            if (!updateError && (!movedRows || movedRows.length === 0)) {
+              console.log(`Booking ${job.booking_id} lifecycle/status changed concurrently - cancelling job ${job.id}`);
+              const { error: raceCancelError } = await supabase
+                .from("scheduled_jobs")
+                .update({
+                  status: "cancelled",
+                  last_error: `lifecycle_changed_concurrently_from=${booking.lifecycle_status}`,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", job.id);
+              if (raceCancelError) console.error(`Failed to cancel job ${job.id}:`, raceCancelError);
+              results.cancelled++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "lifecycle_changed_concurrently" });
+              continue;
+            }
 
             if (updateError) {
               console.error(`Failed to update booking ${job.booking_id}:`, updateError);
@@ -393,7 +428,7 @@ serve(async (req) => {
               channel: "system",
               metadata: {
                 job_id: job.id,
-                from_lifecycle: "pre_event_ready",
+                from_lifecycle: booking.lifecycle_status,
                 to_lifecycle: "in_progress",
                 is_fully_paid: isFullyPaid,
                 has_staff_assigned: hasStaff,

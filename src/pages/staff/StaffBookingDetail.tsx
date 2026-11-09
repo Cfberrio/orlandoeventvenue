@@ -217,7 +217,7 @@ export default function StaffBookingDetail() {
               </span>
               {booking.assignment_response_due_at && (
                 <span className="text-xs text-muted-foreground">
-                  Respond by {format(parseISO(booking.assignment_response_due_at), "MM/dd HH:mm")} or it will be auto-rejected
+                  Please respond by {format(parseISO(booking.assignment_response_due_at), "MM/dd HH:mm")}. The event is not ready until you accept.
                 </span>
               )}
             </div>

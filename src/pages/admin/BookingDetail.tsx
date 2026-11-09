@@ -71,8 +71,14 @@ import {
   useCreateStaffAssignment,
   useDeleteStaffAssignment,
   useUpdateHostReport,
+  useBookingReadiness,
+  fetchBookingReadiness,
+  invalidateBookingLifecycle,
+  type BookingReadiness,
   type StaffAssignment,
 } from "@/hooks/useAdminData";
+import PreEventReadinessCard from "@/components/admin/PreEventReadinessCard";
+import { readinessToastText } from "@/lib/bookingReadiness";
 import CreateAddonInvoiceDialog from "@/components/admin/CreateAddonInvoiceDialog";
 import BookingEditDialog from "@/components/admin/BookingEditDialog";
 import BookingEditHistoryCard from "@/components/admin/BookingEditHistoryCard";
@@ -137,7 +143,14 @@ export default function BookingDetail() {
   const { data: booking, isLoading } = useBooking(id!);
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "review";
-  const { data: assignments } = useBookingStaffAssignments(id!);
+  // While a booking waits on checklist/staff acceptance, poll so a staff
+  // response from another device moves the lifecycle on screen without a
+  // reload (ClickUp 86e3zjfq6).
+  const awaitingReadiness =
+    booking?.lifecycle_status === "confirmed" || booking?.lifecycle_status === "pre_event_ready";
+  const liveRefetch = awaitingReadiness ? 15_000 : false;
+  const { data: readiness } = useBookingReadiness(id!, { refetchInterval: liveRefetch });
+  const { data: assignments } = useBookingStaffAssignments(id!, { refetchInterval: liveRefetch });
   const { data: hostReports } = useBookingHostReports(id!);
   const { data: cleaningReports } = useBookingCleaningReports(id!);
   const { data: reviews } = useBookingReviews(id!);
@@ -326,6 +339,14 @@ export default function BookingDetail() {
     }
   }, [booking, rescheduleInitialized]);
 
+  // The DB recomputes lifecycle on staff responses; when the polled readiness
+  // disagrees with the cached booking, refresh everything that depends on it.
+  useEffect(() => {
+    if (booking && readiness?.lifecycle_status && readiness.lifecycle_status !== booking.lifecycle_status) {
+      invalidateBookingLifecycle(queryClient, booking.id);
+    }
+  }, [booking, readiness?.lifecycle_status, queryClient]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -387,8 +408,23 @@ export default function BookingDetail() {
       });
       
       toast({ title: "Status updated successfully" });
-    } catch {
-      toast({ title: "Failed to update status", variant: "destructive" });
+    } catch (error) {
+      // The DB gate explains why (e.g. "Cannot move to Pre-Event Ready:
+      // Waiting for staff to accept: ...").
+      toast({
+        title: "Failed to update status",
+        description: error instanceof Error ? error.message : (error as { message?: string })?.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchReadiness = async (): Promise<BookingReadiness | null> => {
+    try {
+      return await fetchBookingReadiness(booking.id);
+    } catch (error) {
+      console.error("booking_readiness failed:", error);
+      return null;
     }
   };
 
@@ -397,12 +433,11 @@ export default function BookingDetail() {
       // Bar service no longer blocks pre_event_ready.
       const wasPreEventReady = booking.pre_event_ready === "true";
       
+      // Only the checklist. Lifecycle moves to pre_event_ready in the DB once
+      // every selected staff member has accepted (ClickUp 86e3zjfq6).
       await updateBooking.mutateAsync({
         id: booking.id,
-        updates: {
-          pre_event_ready: "true",
-          lifecycle_status: "pre_event_ready",
-        },
+        updates: { pre_event_ready: "true" },
       });
       
       // Trigger automation only if transitioning from false to true
@@ -413,7 +448,7 @@ export default function BookingDetail() {
         body: { booking_id: booking.id },
       });
       
-      toast({ title: "Booking marked as ready for event" });
+      toast({ title: "Checklist complete", description: readinessToastText(await fetchReadiness()) });
     } catch {
       toast({ title: "Failed to update", variant: "destructive" });
     }
@@ -449,7 +484,7 @@ export default function BookingDetail() {
           body: { booking_id: booking.id },
         });
         
-        toast({ title: "✅ Checklist complete! Booking confirmed." });
+        toast({ title: "✅ Checklist complete", description: readinessToastText(await fetchReadiness()) });
       } catch {
         toast({ title: "Failed to save checklist", variant: "destructive" });
       }
@@ -1350,34 +1385,13 @@ export default function BookingDetail() {
             </Card>
           )}
 
-          {/* Pre-Event Ready Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CheckCircle className="h-5 w-5" />
-                Pre-Event Status
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center gap-4">
-                <Badge 
-                  variant="outline"
-                  className={booking.pre_event_ready === "true" 
-                    ? "bg-green-100 text-green-800 border-green-300 text-base px-4 py-1" 
-                    : "bg-yellow-100 text-yellow-800 border-yellow-300 text-base px-4 py-1"
-                  }
-                >
-                  {booking.pre_event_ready === "true" ? "✅ Ready for Event" : "⏳ Not Ready Yet"}
-                </Badge>
-              </div>
-              {booking.pre_event_ready !== "true" && booking.lifecycle_status !== "pending" && (
-                <Button onClick={handleMarkPreEventReady} size="lg" className="mt-2">
-                  <CheckCircle className="h-4 w-4 mr-2" />
-                  Mark as Ready for Event
-                </Button>
-              )}
-            </CardContent>
-          </Card>
+          {/* Pre-Event Ready Status (lifecycle truth + unmet requirements) */}
+          <PreEventReadinessCard
+            lifecycleStatus={booking.lifecycle_status}
+            readiness={readiness}
+            onMarkChecklistComplete={handleMarkPreEventReady}
+            marking={updateBooking.isPending}
+          />
         </TabsContent>
 
         {/* Staff Assignments Tab */}
