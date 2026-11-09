@@ -8,6 +8,7 @@ import { Edit, Tag, Check, X, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { usePricing } from "@/hooks/usePricing";
 import { useBarPackages, getBarLabel } from "@/hooks/useBarPackages";
+import { checkCouponForBooking, computeBookingPrice, feeCentsFor, toCents, type CouponTerms } from "@/lib/bookingPricing";
 
 interface SummaryStepProps {
   data: Partial<BookingFormData>;
@@ -21,113 +22,65 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   const { pricing: p, isLoading: pricingLoading } = usePricing();
   const { packages: barPackages } = useBarPackages();
   const [discountCode, setDiscountCode] = useState("");
-  const [appliedDiscount, setAppliedDiscount] = useState<{
-    code: string;
-    // scope = what the discount reduces; mode = how value is interpreted; value = % or $ amount.
-    // The actual dollar amount is computed in the pricing effect so it stays correct
-    // even if the customer goes back and edits add-ons.
-    scope: "rental" | "cleaning_fee" | "total";
-    mode: "percentage" | "fixed";
-    value: number;
-  } | null>(null);
+  // Terms of the validated code. The dollar amount is computed by the shared
+  // pricing engine (same code create-checkout uses to re-check the booking).
+  const [appliedDiscount, setAppliedDiscount] = useState<CouponTerms | null>(null);
   const [discountError, setDiscountError] = useState("");
-
-  // Available discount codes
-  // Percentage codes: discount % of base rental
-  // Special code "199": $199 off cleaning fee (any booking type)
-  const discountCodes: Record<string, number | { type: "cleaning_fee"; amount: number }> = {
-    "CHRIS": 40, // 40% off base rental (hourly only)
-    "NANO": 50,  // 50% off base rental (hourly AND daily)
-    "199": { type: "cleaning_fee", amount: 199 }, // $199 off cleaning fee
-  };
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
 
   const applyDiscountCode = async () => {
     const code = discountCode.trim().toUpperCase();
-    
+
     if (!code) {
       setDiscountError("Please enter a discount code");
       return;
     }
 
-    // First, check hardcoded coupons (priority)
-    const discountConfig = discountCodes[code];
-    
-    if (discountConfig) {
-      // Check if it's a cleaning fee discount (special code "199")
-      if (typeof discountConfig === "object" && discountConfig.type === "cleaning_fee") {
-        setAppliedDiscount({
-          code,
-          scope: "cleaning_fee",
-          mode: "fixed",
-          value: discountConfig.amount,
-        });
-        setDiscountError("");
-        return;
-      }
-
-      // For percentage-based discounts
-      // NANO applies to both hourly and daily, others only hourly
-      const allowDailyBookings = code === "NANO";
-      if (data.bookingType !== "hourly" && !allowDailyBookings) {
-        setDiscountError("This discount code only applies to hourly bookings");
-        return;
-      }
-
-      setAppliedDiscount({
-        code,
-        scope: "rental",
-        mode: "percentage",
-        value: discountConfig as number,
-      });
-      setDiscountError("");
-      return;
-    }
-
-    // If not found in hardcoded, check database coupons
+    setIsValidatingCode(true);
     try {
-      const { data: dbCoupon, error } = await supabase
-        .from("discount_coupons")
-        .select("*")
-        .eq("code", code)
-        .eq("is_active", true)
-        .maybeSingle();
+      // One code at a time, active only (the coupon table itself is not public).
+      // validate_discount_code is newer than the generated Supabase types.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: rows, error } = await (supabase.rpc as any)("validate_discount_code", { p_code: code });
 
       if (error) {
         console.error("Error checking coupon:", error);
-        setDiscountError("Error validating coupon code");
+        setDiscountError("We couldn't check that code. Please try again.");
         return;
       }
 
+      const dbCoupon = Array.isArray(rows) ? rows[0] : rows;
       if (!dbCoupon) {
         setDiscountError("Invalid discount code");
         return;
       }
 
-      // Check if coupon applies to this booking type
-      const appliesToThisType = 
-        (data.bookingType === "hourly" && dbCoupon.applies_to_hourly) ||
-        (data.bookingType === "daily" && dbCoupon.applies_to_daily);
+      const terms: CouponTerms = {
+        code: dbCoupon.code,
+        discount_type: dbCoupon.discount_type === "percentage" ? "percentage" : "fixed_amount",
+        discount_value: Number(dbCoupon.discount_value),
+        applies_to: dbCoupon.applies_to === "total" ? "total" : "base_rental",
+        applies_to_hourly: !!dbCoupon.applies_to_hourly,
+        applies_to_daily: !!dbCoupon.applies_to_daily,
+      };
 
-      if (!appliesToThisType) {
-        setDiscountError(`This code only applies to ${
-          dbCoupon.applies_to_hourly && dbCoupon.applies_to_daily ? "all" :
-          dbCoupon.applies_to_hourly ? "hourly" : "daily"
-        } bookings`);
+      const check = checkCouponForBooking(terms, data.bookingType === "daily" ? "daily" : "hourly");
+      if ("allowed" in check) {
+        setDiscountError(
+          check.allowed === "none"
+            ? "This code can't be used for online bookings"
+            : `This code only applies to ${check.allowed} bookings`
+        );
         return;
       }
 
-      // Target: "total" reduces the full subtotal, otherwise the base rental.
-      // Actual dollar amount (and the cap for fixed_amount) is computed in the pricing effect.
-      setAppliedDiscount({
-        code: dbCoupon.code,
-        scope: dbCoupon.applies_to === "total" ? "total" : "rental",
-        mode: dbCoupon.discount_type === "percentage" ? "percentage" : "fixed",
-        value: dbCoupon.discount_value,
-      });
+      setAppliedDiscount(terms);
       setDiscountError("");
     } catch (err) {
       console.error("Unexpected error:", err);
-      setDiscountError("Error validating coupon code");
+      setDiscountError("We couldn't check that code. Please try again.");
+    } finally {
+      setIsValidatingCode(false);
     }
   };
 
@@ -140,94 +93,38 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
   useEffect(() => {
     if (pricingLoading) return;
 
-    const calculatePricing = () => {
-      let baseRental = 0;
-      let hours = 0;
+    const price = computeBookingPrice(
+      {
+        bookingType: data.bookingType === "daily" ? "daily" : "hourly",
+        startTime: data.startTime,
+        endTime: data.endTime,
+        package: (data.package || "none") as "none" | "basic" | "led" | "workshop",
+        packageStartTime: data.packageStartTime,
+        packageEndTime: data.packageEndTime,
+        setupBreakdown: data.setupBreakdown,
+        tablecloths: data.tablecloths,
+        tableclothQuantity: data.tableclothQuantity,
+        barSubtotal: data.barPackage && data.barPackage !== "none" ? Number(data.barSubtotal) || 0 : 0,
+      },
+      p,
+      appliedDiscount,
+    );
 
-      if (data.bookingType === "hourly" && data.startTime && data.endTime) {
-        const start = new Date(`2000-01-01T${data.startTime}`);
-        const end = new Date(`2000-01-01T${data.endTime}`);
-        hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-        baseRental = p.hourly_rate * hours;
-      } else if (data.bookingType === "daily") {
-        hours = 24;
-        baseRental = p.daily_rate;
-      }
-
-      let cleaningFee = p.cleaning_fee;
-
-      const packageRates: Record<string, number> = {
-        none: 0,
-        basic: p.package_basic,
-        led: p.package_led,
-        workshop: p.package_workshop,
-      };
-      
-      let packageHours = 0;
-      if (data.package !== "none" && data.packageStartTime && data.packageEndTime) {
-        const start = new Date(`2000-01-01T${data.packageStartTime}`);
-        const end = new Date(`2000-01-01T${data.packageEndTime}`);
-        packageHours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-      }
-      const packageCost = (packageRates[data.package || "none"] || 0) * packageHours;
-
-      let optionalServices = 0;
-      if (data.setupBreakdown) optionalServices += p.setup_breakdown;
-      if (data.tablecloths && data.tableclothQuantity) {
-        optionalServices += data.tableclothQuantity * p.tablecloth_rental + p.tablecloth_cleaning_fee;
-      }
-
-      const depositRate = p.deposit_percentage / 100;
-      const feeRate = p.processing_fee / 100;
-
-      const barSubtotal = data.barPackage && data.barPackage !== "none"
-        ? Number(data.barSubtotal) || 0
-        : 0;
-
-      // Gross subtotal before any discount (full cleaning fee included).
-      const grossSubtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal;
-
-      // Resolve the discount rule into an actual dollar amount.
-      let discountAmount = 0;
-      if (appliedDiscount) {
-        if (appliedDiscount.scope === "cleaning_fee") {
-          discountAmount = Math.min(appliedDiscount.value, cleaningFee);
-          cleaningFee = Math.max(0, cleaningFee - discountAmount);
-        } else {
-          // "total" discounts the full subtotal; otherwise only the base rental.
-          const discountBase = appliedDiscount.scope === "total" ? grossSubtotal : baseRental;
-          discountAmount = appliedDiscount.mode === "percentage"
-            ? Math.round((discountBase * appliedDiscount.value) / 100)
-            : Math.min(appliedDiscount.value, discountBase); // cap fixed amount at its base
-        }
-      }
-
-      // For cleaning-fee scope the reduction is already baked into cleaningFee above.
-      const rentalDiscount = appliedDiscount && appliedDiscount.scope !== "cleaning_fee" ? discountAmount : 0;
-
-      const subtotal = baseRental + cleaningFee + packageCost + optionalServices + barSubtotal - rentalDiscount;
-      const total = subtotal;
-      const deposit = Math.round(subtotal * depositRate);
-      const balance = subtotal - deposit;
-      const processingFee = Math.round(deposit * feeRate * 100) / 100;
-
-      updateData({
-        pricing: {
-          baseRental,
-          cleaningFee,
-          packageCost,
-          optionalServices,
-          discount: discountAmount,
-          discountCode: appliedDiscount?.code,
-          processingFee,
-          total,
-          deposit,
-          balance,
-        },
-      });
-    };
-
-    calculatePricing();
+    updateData({
+      pricing: {
+        baseRental: price.baseRental,
+        cleaningFee: price.cleaningFee,
+        packageCost: price.packageCost,
+        optionalServices: price.optionalServices,
+        discount: price.discount?.amount ?? 0,
+        discountCode: price.discount?.code,
+        discountDescription: price.discount?.description,
+        processingFee: price.depositFee,
+        total: price.total,
+        deposit: price.deposit,
+        balance: price.balance,
+      },
+    });
   }, [data, updateData, appliedDiscount, p, pricingLoading]);
 
   const packageNames: Record<string, string> = {
@@ -381,12 +278,13 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               }}
               className="flex-1"
             />
-            <Button 
-              type="button" 
+            <Button
+              type="button"
               onClick={applyDiscountCode}
               variant="outline"
+              disabled={isValidatingCode}
             >
-              Apply
+              {isValidatingCode ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
             </Button>
           </div>
         ) : (
@@ -395,12 +293,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
               <Check className="h-4 w-4" />
               <span className="font-medium">
                 {appliedDiscount.code} applied
-                {appliedDiscount.scope === "cleaning_fee"
-                  ? " (Free cleaning)"
-                  : appliedDiscount.mode === "percentage"
-                    ? ` (${appliedDiscount.value}% off${appliedDiscount.scope === "total" ? " total" : ""})`
-                    : ` (-$${appliedDiscount.value} off${appliedDiscount.scope === "total" ? " total" : ""})`
-                }
+                {data.pricing?.discountDescription ? ` (${data.pricing.discountDescription})` : ""}
               </span>
             </div>
             <Button
@@ -459,7 +352,12 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
             )}
             {data.pricing.discount && data.pricing.discount > 0 && (
               <div className="flex justify-between text-green-600 dark:text-green-400">
-                <span>Discount ({data.pricing.discountCode})</span>
+                <span>
+                  Discount ({data.pricing.discountCode})
+                  {data.pricing.discountDescription && (
+                    <span className="block text-xs opacity-80">{data.pricing.discountDescription}</span>
+                  )}
+                </span>
                 <span>-${data.pricing.discount.toFixed(2)}</span>
               </div>
             )}
@@ -491,7 +389,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
             </div>
             <div className="flex justify-between text-muted-foreground text-sm font-normal pt-2">
               <span>Balance Due (15 days before event)</span>
-              <span>${(data.pricing.balance + Math.round(data.pricing.balance * (p.processing_fee / 100) * 100) / 100).toFixed(2)}</span>
+              <span>${((toCents(data.pricing.balance) + feeCentsFor(toCents(data.pricing.balance), p.processing_fee)) / 100).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-xs text-muted-foreground ml-4">
               <span>${data.pricing.balance.toFixed(2)} + {p.processing_fee}% fee at payment</span>

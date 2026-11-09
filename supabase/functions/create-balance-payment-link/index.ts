@@ -3,6 +3,8 @@ import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import { toCents } from "../_shared/booking-pricing.ts";
+import { authorizeCaller, loadLatestSnapshot, logBookingEvent, sendBillingAlert } from "../_shared/billing-server.ts";
 import {
   BRAND,
   detailTable,
@@ -42,14 +44,10 @@ serve(async (req) => {
 
   try {
     // Auth: accept GHL token OR Supabase Authorization header (for admin frontend)
-    const ghlToken = req.headers.get("x-ghl-backend-token");
-    const authHeader = req.headers.get("authorization");
-    const expectedToken = Deno.env.get("GHL_BACKEND_TOKEN");
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const caller = await authorizeCaller(req, authClient, ["ghl", "service", "admin"]);
 
-    const ghlAuthed = ghlToken && ghlToken === expectedToken;
-    const supabaseAuthed = !!authHeader;
-
-    if (!ghlAuthed && !supabaseAuthed) {
+    if (!caller) {
       console.error("Invalid or missing auth credentials");
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -112,6 +110,17 @@ serve(async (req) => {
       });
     }
 
+    if (booking.status === "cancelled") {
+      console.log("Booking is cancelled; no balance link");
+      return new Response(JSON.stringify({
+        error: "Booking is cancelled",
+        status: booking.status,
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     if (booking.payment_status !== "deposit_paid") {
       console.log("Deposit not yet paid, cannot collect balance");
       return new Response(JSON.stringify({ 
@@ -150,7 +159,28 @@ serve(async (req) => {
     const PROCESSING_FEE_RATE = FEE_PCT / 100;
     const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
 
-    const balanceAmountCents = Math.round(Number(booking.balance_amount) * 100);
+    // The balance charged must match the price the booking was confirmed at.
+    const snapshot = await loadLatestSnapshot(supabase, booking.id);
+    if (snapshot && toCents(snapshot.balance_amount) !== toCents(booking.balance_amount)) {
+      console.error(`[balance-link] balance ${booking.balance_amount} differs from snapshot ${snapshot.balance_amount} (${booking.id})`);
+      await logBookingEvent(supabase, booking.id, "balance_amount_mismatch", {
+        stored_balance: booking.balance_amount,
+        snapshot_balance: snapshot.balance_amount,
+        snapshot_id: snapshot.id,
+      });
+      await sendBillingAlert(`Balance link blocked on ${booking.reservation_number || booking.id}`, [
+        ["Booking", `${booking.reservation_number || ""} (${booking.id})`],
+        ["Stored balance", `$${booking.balance_amount}`],
+        ["Confirmed balance (snapshot)", `$${snapshot.balance_amount}`],
+        ["Action", "The booking's balance was changed after it was confirmed. Review before sending a payment link."],
+      ]);
+      return new Response(JSON.stringify({ error: "Balance does not match the confirmed price; review required" }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const balanceAmountCents = toCents(booking.balance_amount);
     const feeCents = Math.round(balanceAmountCents * PROCESSING_FEE_RATE);
     const totalChargeCents = balanceAmountCents + feeCents;
 
@@ -189,6 +219,28 @@ serve(async (req) => {
         : await stripe.customers.create(customerParams);
       customerId = customer.id;
       console.log("Created new Stripe customer:", customerId);
+    }
+
+    // Balance sessions of this booking that Stripe already knows about.
+    const isThisBalance = (sess: Stripe.Checkout.Session) =>
+      sess.metadata?.booking_id === booking.id && sess.metadata?.payment_type === "balance";
+    const listSessions = async (status: "open" | "complete") => {
+      try {
+        const res = await stripe.checkout.sessions.list({ customer: customerId, status, limit: 100 });
+        return res.data.filter(isThisBalance);
+      } catch (e) {
+        console.error(`[balance-link] could not list ${status} sessions:`, e);
+        return [] as Stripe.Checkout.Session[];
+      }
+    };
+
+    const paidAlready = await listSessions("complete");
+    if (paidAlready.some((sess: Stripe.Checkout.Session) => sess.payment_status === "paid")) {
+      console.warn(`[balance-link] a balance session for ${booking.id} is already paid; webhook pending`);
+      return new Response(JSON.stringify({ error: "Balance payment already received; processing" }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
@@ -245,21 +297,64 @@ serve(async (req) => {
       : await stripe.checkout.sessions.create(sessionParams);
 
     console.log("Created Stripe Checkout Session:", session.id);
+
+    // Only one payable balance link may exist: expire the previous ones.
+    const openSessions = await listSessions("open");
+    // Only sessions OLDER than this one, so concurrent calls converge on the newest.
+    const staleIds = new Set(
+      openSessions
+        .filter((sess: Stripe.Checkout.Session) => sess.created <= session.created)
+        .map((sess: Stripe.Checkout.Session) => sess.id),
+    );
+    if (booking.balance_session_id) staleIds.add(booking.balance_session_id);
+    staleIds.delete(session.id);
+    for (const staleId of staleIds) {
+      try {
+        const stale = await stripe.checkout.sessions.retrieve(staleId);
+        if (stale.status === "open") {
+          await stripe.checkout.sessions.expire(staleId);
+          console.log("Expired previous balance session:", staleId);
+        }
+      } catch (e) {
+        console.error("[balance-link] could not expire previous session:", staleId, e);
+      }
+    }
     console.log("Payment URL:", session.url);
 
     const expiresAt = new Date(session.expires_at! * 1000).toISOString();
 
     // Update booking with balance payment link data + persist exact fee amounts
-    const { error: updateError } = await supabase
+    const { data: claimedRows, error: updateError } = await supabase
       .from("bookings")
       .update({
         balance_payment_url: session.url,
         balance_link_expires_at: expiresAt,
+        balance_session_id: session.id,
         updated_at: new Date().toISOString(),
         balance_fee: feeCents / 100,
         balance_total_charged: totalChargeCents / 100,
       })
-      .eq("id", booking.id);
+      .eq("id", booking.id)
+      .eq("payment_status", "deposit_paid")
+      .neq("status", "cancelled")
+      .select("id");
+
+    // Not saved (error) or no longer collectible (paid/cancelled meanwhile):
+    // never leave an unrecorded payable link behind.
+    if (updateError || !claimedRows || claimedRows.length === 0) {
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (e) {
+        console.error("[balance-link] could not expire unsaved session:", session.id, e);
+      }
+    }
+    if (!updateError && (!claimedRows || claimedRows.length === 0)) {
+      console.warn(`[balance-link] booking ${booking.id} no longer collectible; session expired`);
+      return new Response(JSON.stringify({ error: "Booking is no longer awaiting a balance payment" }), {
+        status: 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     if (updateError) {
       console.error("Error updating booking with balance link:", updateError);

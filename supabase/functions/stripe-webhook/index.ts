@@ -16,6 +16,7 @@ import {
   textModule,
 } from "../_shared/email-layout.ts";
 import { sendPurchase } from "../_shared/meta-capi.ts";
+import { logBookingEvent, sendBillingAlert } from "../_shared/billing-server.ts";
 
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
@@ -954,7 +955,7 @@ serve(async (req) => {
       if (paymentType === "balance") {
         const { data: currentBooking, error: currentBookingError } = await supabase
           .from("bookings")
-          .select("balance_amount")
+          .select("balance_amount, balance_total_charged, balance_paid_at, status, reservation_number, full_name, email")
           .eq("id", bookingId)
           .single();
 
@@ -987,6 +988,22 @@ serve(async (req) => {
         }
         if (!data) {
           console.log("Balance payment already processed, skipping duplicate");
+          // Each Stripe event is claimed once (stripe_event_log), so reaching this
+          // point means a DIFFERENT paid checkout session for a balance that was
+          // already paid: the guest paid twice. Never silent.
+          await logBookingEvent(supabase, bookingId, "duplicate_balance_payment", {
+            session_id: sessionId,
+            payment_intent: paymentIntentId,
+            amount_paid: amountPaid,
+            first_paid_at: currentBooking?.balance_paid_at ?? null,
+          }, "stripe");
+          await sendBillingAlert(`Possible double balance payment on ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Customer", `${currentBooking?.full_name || ""} <${currentBooking?.email || ""}>`],
+            ["Second payment", `$${amountPaid} (payment intent ${paymentIntentId || "unknown"}, session ${sessionId})`],
+            ["Balance already paid at", String(currentBooking?.balance_paid_at ?? "unknown")],
+            ["Action", "Check Stripe. If both charges succeeded, refund the second one."],
+          ]);
           await finishBookingEventClaim();
           return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
             headers: { "Content-Type": "application/json" },
@@ -996,11 +1013,31 @@ serve(async (req) => {
 
         console.log("Booking fully paid:", bookingId);
 
-        // Reconciliation guard: Stripe's charged total must equal the persisted balance_total_charged.
-        if (data.balance_total_charged != null && Math.abs(amountPaid - Number(data.balance_total_charged)) > 0.01) {
+        // Reconciliation: Stripe's charged total must equal what create-balance-payment-link
+        // stored as expected BEFORE this update overwrote it with the actual amount.
+        const expectedBalanceTotal = currentBooking?.balance_total_charged;
+        if (currentBooking?.status === "cancelled") {
+          await logBookingEvent(supabase, bookingId, "payment_on_cancelled_booking", { kind: "balance", amount_paid: amountPaid, session_id: sessionId }, "stripe");
+          await sendBillingAlert(`Balance paid on a CANCELLED booking ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Customer", `${currentBooking?.full_name || ""} <${currentBooking?.email || ""}>`],
+            ["Amount", `$${amountPaid} (payment intent ${paymentIntentId || "unknown"})`],
+            ["Action", "The event was cancelled. Contact the customer and refund in Stripe if appropriate."],
+          ]);
+        }
+        if (expectedBalanceTotal != null && Math.abs(amountPaid - Number(expectedBalanceTotal)) > 0.01) {
           console.warn(
-            `RECONCILE_MISMATCH balance: Stripe charged $${amountPaid} but balance_total_charged=$${data.balance_total_charged} (booking ${bookingId})`
+            `RECONCILE_MISMATCH balance: Stripe charged $${amountPaid} but expected $${expectedBalanceTotal} (booking ${bookingId})`
           );
+          await logBookingEvent(supabase, bookingId, "payment_amount_mismatch", {
+            kind: "balance", expected: Number(expectedBalanceTotal), paid: amountPaid, session_id: sessionId,
+          }, "stripe");
+          await sendBillingAlert(`Balance amount mismatch on ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Expected", `$${Number(expectedBalanceTotal).toFixed(2)}`],
+            ["Stripe charged", `$${amountPaid.toFixed(2)}`],
+            ["Action", "Booking was marked fully paid. Verify the charge in Stripe and correct if needed."],
+          ]);
         }
 
         // Cancel any pending balance retry jobs
@@ -1046,9 +1083,10 @@ serve(async (req) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+              "Authorization": `Bearer ${supabaseServiceKey}`,
             },
             body: JSON.stringify({
+              booking_id: bookingId,
               email: data.email,
               full_name: data.full_name,
               reservation_number: data.reservation_number,
@@ -1120,7 +1158,7 @@ serve(async (req) => {
         // Handle deposit payment
         const { data: currentBooking, error: currentBookingError } = await supabase
           .from("bookings")
-          .select("deposit_amount")
+          .select("deposit_amount, deposit_total_charged, status, reservation_number, full_name, email")
           .eq("id", bookingId)
           .single();
 
@@ -1155,6 +1193,19 @@ serve(async (req) => {
         }
         if (!data) {
           console.log("Deposit payment already processed, skipping duplicate");
+          // Events are claimed once (stripe_event_log), so this is a DIFFERENT
+          // paid session for a deposit that was already recorded: paid twice.
+          await logBookingEvent(supabase, bookingId, "duplicate_deposit_payment", {
+            session_id: sessionId,
+            payment_intent: paymentIntentId,
+            amount_paid: amountPaid,
+          }, "stripe");
+          await sendBillingAlert(`Possible double deposit payment on ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Customer", `${currentBooking?.full_name || ""} <${currentBooking?.email || ""}>`],
+            ["Second payment", `$${amountPaid} (payment intent ${paymentIntentId || "unknown"}, session ${sessionId})`],
+            ["Action", "Check Stripe. If both charges succeeded, refund the second one."],
+          ]);
           await finishBookingEventClaim();
           return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
             headers: { "Content-Type": "application/json" },
@@ -1194,11 +1245,31 @@ serve(async (req) => {
           console.warn(`[stripe-webhook] Meta Purchase skipped for booking ${bookingId}: payment type/origin not eligible`);
         }
 
-        // Reconciliation guard: Stripe's charged total must equal the persisted deposit_total_charged.
-        if (data.deposit_total_charged != null && Math.abs(amountPaid - Number(data.deposit_total_charged)) > 0.01) {
+        // Reconciliation: Stripe's charged total must equal what create-checkout stored as
+        // expected BEFORE this update overwrote it with the actual amount.
+        const expectedDepositTotal = currentBooking?.deposit_total_charged;
+        if (currentBooking?.status === "cancelled") {
+          await logBookingEvent(supabase, bookingId, "payment_on_cancelled_booking", { kind: "deposit", amount_paid: amountPaid, session_id: sessionId }, "stripe");
+          await sendBillingAlert(`Deposit paid on a CANCELLED booking ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Customer", `${currentBooking?.full_name || ""} <${currentBooking?.email || ""}>`],
+            ["Amount", `$${amountPaid} (payment intent ${paymentIntentId || "unknown"})`],
+            ["Action", "Review the booking; refund in Stripe if the event is not going ahead."],
+          ]);
+        }
+        if (expectedDepositTotal != null && Math.abs(amountPaid - Number(expectedDepositTotal)) > 0.01) {
           console.warn(
-            `RECONCILE_MISMATCH deposit: Stripe charged $${amountPaid} but deposit_total_charged=$${data.deposit_total_charged} (booking ${bookingId})`
+            `RECONCILE_MISMATCH deposit: Stripe charged $${amountPaid} but expected $${expectedDepositTotal} (booking ${bookingId})`
           );
+          await logBookingEvent(supabase, bookingId, "payment_amount_mismatch", {
+            kind: "deposit", expected: Number(expectedDepositTotal), paid: amountPaid, session_id: sessionId,
+          }, "stripe");
+          await sendBillingAlert(`Deposit amount mismatch on ${currentBooking?.reservation_number || bookingId}`, [
+            ["Booking", `${currentBooking?.reservation_number || ""} (${bookingId})`],
+            ["Expected", `$${Number(expectedDepositTotal).toFixed(2)}`],
+            ["Stripe charged", `$${amountPaid.toFixed(2)}`],
+            ["Action", "Booking was marked deposit paid. Verify the charge in Stripe and correct if needed."],
+          ]);
         }
 
         // Send internal email notification
@@ -1213,9 +1284,10 @@ serve(async (req) => {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                "Authorization": `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
+                "Authorization": `Bearer ${supabaseServiceKey}`,
               },
               body: JSON.stringify({
+              booking_id: bookingId,
               email: data.email,
               full_name: data.full_name,
               reservation_number: data.reservation_number,

@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import Stripe from "https://esm.sh/stripe@14.21.0";
+import { authorizeCaller, logBookingEvent } from "../_shared/billing-server.ts";
 import {
   BRAND,
   CONTACT,
@@ -84,6 +86,17 @@ serve(async (req) => {
   try {
     console.log("=== cancel-booking function ===");
 
+    // Cancelling frees the date and stops payment collection: admin only
+    // (or another edge function / GHL backend with its token).
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const caller = await authorizeCaller(req, authClient, ["admin", "service", "ghl"]);
+    if (!caller) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const { booking_id }: CancelBookingRequest = await req.json();
 
     if (!booking_id) {
@@ -101,7 +114,7 @@ serve(async (req) => {
 
     const { data: booking, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, full_name, email, event_date, event_type, status, lifecycle_status, cancelled_at")
+      .select("id, reservation_number, full_name, email, event_date, event_type, status, lifecycle_status, cancelled_at, payment_status, balance_session_id, balance_payment_url")
       .eq("id", booking_id)
       .single();
 
@@ -143,6 +156,48 @@ serve(async (req) => {
       }
 
       console.log(wasAlreadyCancelled ? "Booking cancellation state normalized" : "Booking status updated to 'cancelled'");
+    }
+
+    // A cancelled event must not stay payable: void the balance link.
+    if (booking.balance_payment_url || booking.balance_session_id) {
+      const expired: string[] = [];
+      const stripeKey = Deno.env.get("Stripe_Secret_Key");
+      if (stripeKey) {
+        const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+        const candidates = new Set<string>();
+        if (booking.balance_session_id) candidates.add(booking.balance_session_id);
+        try {
+          const customers = await stripe.customers.list({ email: booking.email, limit: 5 });
+          for (const c of customers.data) {
+            const open = await stripe.checkout.sessions.list({ customer: c.id, status: "open", limit: 100 });
+            for (const sess of open.data) {
+              if (sess.metadata?.booking_id === booking_id && sess.metadata?.payment_type === "balance") candidates.add(sess.id);
+            }
+          }
+        } catch (e) {
+          console.error("Could not list open balance sessions:", e);
+        }
+        for (const id of candidates) {
+          try {
+            const sess = await stripe.checkout.sessions.retrieve(id);
+            if (sess.status === "open") {
+              await stripe.checkout.sessions.expire(id);
+              expired.push(id);
+            }
+          } catch (e) {
+            console.error("Could not expire balance session", id, e);
+          }
+        }
+      }
+      const { error: clearError } = await supabase
+        .from("bookings")
+        .update({ balance_payment_url: null, balance_link_expires_at: null })
+        .eq("id", booking_id);
+      if (clearError) console.error("Error clearing balance link:", clearError);
+      await logBookingEvent(supabase, booking_id, "balance_link_voided_on_cancel", {
+        expired_sessions: expired,
+        cleared_url: !clearError,
+      });
     }
 
     const { data: deletedJobs, error: deleteJobsError } = await supabase

@@ -111,8 +111,12 @@ describe("B. Fee computed as base + fee and persisted", () => {
       const src = read(fn.path);
 
       it("computes feeCents from the base amount", () => {
+        // Either the inline formula or the shared helper (booking-pricing.ts
+        // feeCentsFor = Math.round(cents * (pct / 100)), same arithmetic).
         expect(src).toMatch(
-          new RegExp(`feeCents\\s*=\\s*Math\\.round\\(${fn.base}\\s*\\*\\s*PROCESSING_FEE_RATE\\)`)
+          new RegExp(
+            `feeCents\\s*=\\s*(Math\\.round\\(${fn.base}\\s*\\*\\s*PROCESSING_FEE_RATE\\)|feeCentsFor\\(${fn.base},\\s*FEE_PCT\\))`
+          )
         );
       });
 
@@ -204,18 +208,19 @@ describe("D. stripe-webhook forwards fee fields and shows real totals", () => {
 // ---------------------------------------------------------------------------
 
 describe("E. Receipt PDFs read persisted totals", () => {
-  it("deposit PDF uses booking.deposit_total_charged with fallback", () => {
-    const src = read("supabase/functions/send-booking-confirmation/index.ts");
-    expect(src).toContain("booking.deposit_total_charged != null");
-    expect(src).toContain("Number(booking.deposit_total_charged)");
-    expect(src).toContain("booking.deposit_fee != null");
+  // Both receipts render through _shared/invoice-model.ts (behavior covered in
+  // billing-integrity.test.ts); the model reads the persisted fee and total.
+  const model = read("supabase/functions/_shared/invoice-model.ts");
+
+  it("invoice model uses persisted deposit/balance fee and total with a fallback", () => {
+    expect(model).toContain('const persistedFee = kind === "deposit" ? b.deposit_fee : b.balance_fee;');
+    expect(model).toContain('const persistedTotal = kind === "deposit" ? b.deposit_total_charged : b.balance_total_charged;');
+    expect(model).toContain("persistedTotal != null ? Number(persistedTotal)");
   });
 
-  it("balance PDF uses booking.balance_total_charged with fallback", () => {
-    const src = read("supabase/functions/send-balance-confirmation/index.ts");
-    expect(src).toContain("booking.balance_total_charged != null");
-    expect(src).toContain("Number(booking.balance_total_charged)");
-    expect(src).toContain("booking.balance_fee != null");
+  it("both receipt functions render through the shared model", () => {
+    expect(read("supabase/functions/send-booking-confirmation/index.ts")).toContain('buildInvoiceModel("deposit"');
+    expect(read("supabase/functions/send-balance-confirmation/index.ts")).toContain('buildInvoiceModel("balance"');
   });
 });
 

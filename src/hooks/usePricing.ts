@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { buildPricingRates, FALLBACK_RATES } from "@/lib/bookingPricing";
 
 export interface VenuePricingItem {
   id: string;
@@ -30,19 +31,8 @@ export interface PricingMap {
   processing_fee: number;
 }
 
-const FALLBACK_PRICING: PricingMap = {
-  hourly_rate: 140,
-  daily_rate: 899,
-  cleaning_fee: 199,
-  package_basic: 79,
-  package_led: 99,
-  package_workshop: 149,
-  setup_breakdown: 100,
-  tablecloth_rental: 5,
-  tablecloth_cleaning_fee: 25,
-  deposit_percentage: 50,
-  processing_fee: 3.5,
-};
+// Same mapping and fallbacks create-checkout uses (src/lib/bookingPricing.ts).
+const FALLBACK_PRICING: PricingMap = { ...FALLBACK_RATES };
 
 const STALE_TIME_MS = 5 * 60 * 1000;
 
@@ -62,46 +52,7 @@ async function fetchPricing(): Promise<VenuePricingItem[]> {
 }
 
 function buildPricingMap(items: VenuePricingItem[]): PricingMap {
-  const map = { ...FALLBACK_PRICING };
-
-  for (const item of items) {
-    const price = Number(item.price);
-    switch (item.item_key) {
-      case "hourly_rate":
-        map.hourly_rate = price;
-        break;
-      case "daily_rate":
-        map.daily_rate = price;
-        break;
-      case "cleaning_fee":
-        map.cleaning_fee = price;
-        break;
-      case "package_basic":
-        map.package_basic = price;
-        break;
-      case "package_led":
-        map.package_led = price;
-        break;
-      case "package_workshop":
-        map.package_workshop = price;
-        break;
-      case "setup_breakdown":
-        map.setup_breakdown = price;
-        break;
-      case "tablecloth_rental":
-        map.tablecloth_rental = price;
-        map.tablecloth_cleaning_fee = Number(item.extra_fee) || 0;
-        break;
-      case "deposit_percentage":
-        map.deposit_percentage = price;
-        break;
-      case "processing_fee":
-        map.processing_fee = price;
-        break;
-    }
-  }
-
-  return map;
+  return buildPricingRates(items);
 }
 
 export function usePricing() {

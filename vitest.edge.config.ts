@@ -12,6 +12,8 @@ export default defineConfig({
       "supabase/functions/_tests/reschedule-plan.test.ts",
       "supabase/functions/_tests/internal-auth.test.ts",
       "supabase/functions/_tests/lead-silence.test.ts",
+      "supabase/functions/_tests/booking-pricing.test.ts",
+      "supabase/functions/_tests/billing-integrity.test.ts",
     ],
   },
 });

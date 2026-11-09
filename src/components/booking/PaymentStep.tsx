@@ -12,6 +12,7 @@ import { usePricing } from "@/hooks/usePricing";
 import { trackBookingCreated, trackCheckoutStarted } from "@/lib/tracking/funnel";
 import { getConsent } from "@/lib/tracking/consent";
 import { getTestEventCode } from "@/lib/tracking/testMode";
+import { feeCentsFor, toCents } from "@/lib/bookingPricing";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -27,14 +28,15 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
   const createBooking = useCreateBooking();
   const [searchParams] = useSearchParams();
 
-  const feeRate = p.processing_fee / 100;
   const feePctLabel = `${p.processing_fee}%`;
   const depositBase = data.pricing?.deposit ?? 0;
   const balanceBase = data.pricing?.balance ?? 0;
-  const depositFee = Math.round(depositBase * feeRate * 100) / 100;
-  const balanceFee = Math.round(balanceBase * feeRate * 100) / 100;
-  const depositTotal = depositBase + depositFee;
-  const balanceTotal = balanceBase + balanceFee;
+  // Same cents formula Stripe is charged with (shared pricing engine), so the
+  // page never shows a cent different from the card statement.
+  const depositFee = feeCentsFor(toCents(depositBase), p.processing_fee) / 100;
+  const balanceFee = feeCentsFor(toCents(balanceBase), p.processing_fee) / 100;
+  const depositTotal = (toCents(depositBase) + toCents(depositFee)) / 100;
+  const balanceTotal = (toCents(balanceBase) + toCents(balanceFee)) / 100;
 
   // Check if returning from successful Stripe payment
   useEffect(() => {
@@ -94,7 +96,18 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
 
       if (error) {
         console.error("Checkout error:", error);
-        throw new Error(error.message || "Failed to create checkout session");
+        // The server re-checks the price; show its explanation, not a generic error.
+        let serverMessage: string | null = null;
+        try {
+          const ctx = (error as { context?: Response }).context;
+          if (ctx && typeof ctx.json === "function") {
+            const payload = await ctx.json();
+            if (payload && typeof payload.message === "string") serverMessage = payload.message;
+          }
+        } catch {
+          // fall through to the generic message
+        }
+        throw new Error(serverMessage || "We couldn't start the payment. Please try again in a moment.");
       }
 
       console.log("Checkout session created:", checkoutData);
@@ -115,7 +128,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
       }
     } catch (error) {
       console.error("Payment/booking error:", error);
-      toast.error("Failed to process payment", {
+      toast.error("Payment not started", {
         description: error instanceof Error ? error.message : "Please try again.",
       });
       setIsProcessing(false);

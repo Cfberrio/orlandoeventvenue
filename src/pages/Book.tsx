@@ -54,6 +54,8 @@ export interface BookingFormData {
     optionalServices: number;
     discount?: number;
     discountCode?: string;
+    /** e.g. "$100 off base rental" */
+    discountDescription?: string;
     processingFee: number;
     total: number;
     deposit: number;

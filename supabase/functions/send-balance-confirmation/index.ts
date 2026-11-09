@@ -1,7 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import { encodeBase64 } from "https://deno.land/std@0.224.0/encoding/base64.ts";
 import {
   BRAND,
@@ -18,6 +17,9 @@ import {
   sanitizeForSmtp,
   textModule,
 } from "../_shared/email-layout.ts";
+import { resolveReceiptBooking } from "../_shared/billing-server.ts";
+import { buildInvoiceModel } from "../_shared/invoice-model.ts";
+import { renderInvoicePdf } from "../_shared/invoice-pdf.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -209,159 +211,30 @@ function generateEmailHTML(booking: BalanceEmailData): string {
   });
 }
 
-async function generateBalanceReceiptPDF(booking: BalanceEmailData, processingFeePct: number): Promise<Uint8Array> {
-  const pdfDoc = await PDFDocument.create();
-  pdfDoc.setTitle("Invoice");
-  const page = pdfDoc.addPage([595.28, 841.89]);
-  const { width, height } = page.getSize();
-
-  const helv = await pdfDoc.embedFont(StandardFonts.Helvetica);
-  const helvBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-  const dark = rgb(0.043, 0.059, 0.098);
-  const accent = rgb(0.078, 0.678, 0.902);
-  const gray700 = rgb(0.216, 0.255, 0.318);
-  const gray500 = rgb(0.42, 0.447, 0.502);
-  const gray200 = rgb(0.898, 0.91, 0.922);
-  const success = rgb(0.022, 0.588, 0.412);
-  const white = rgb(1, 1, 1);
-
-  const M = 50;
-
-  page.drawRectangle({ x: 0, y: height - 100, width, height: 100, color: dark });
-  page.drawText("INVOICE", { x: M, y: height - 52, size: 22, font: helvBold, color: white });
-  page.drawText("Orlando Event Venue · Final 50% Payment", { x: M, y: height - 76, size: 11, font: helv, color: white });
-  page.drawRectangle({ x: 0, y: height - 104, width, height: 4, color: accent });
-
-  let y = height - 130;
-  const issueDate = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const issueText = `Issued: ${issueDate}`;
-  page.drawText(`INVOICE #: ${booking.reservation_number}`, { x: M, y, size: 10, font: helvBold, color: gray700 });
-  page.drawText(issueText, { x: width - M - helv.widthOfTextAtSize(issueText, 10), y, size: 10, font: helv, color: gray500 });
-
-  y -= 30;
-  page.drawText("BILLED TO", { x: M, y, size: 9, font: helvBold, color: gray500 });
-  y -= 14;
-  page.drawText(booking.full_name, { x: M, y, size: 11, font: helvBold, color: gray700 });
-  y -= 13;
-  page.drawText(booking.email, { x: M, y, size: 10, font: helv, color: gray500 });
-
-  y -= 28;
-  page.drawText("EVENT DETAILS", { x: M, y, size: 9, font: helvBold, color: gray500 });
-  y -= 14;
-  const eventDateLong = formatDate(booking.event_date);
-  const drawDetail = (text: string) => {
-    page.drawText(text, { x: M, y, size: 10, font: helv, color: gray700 });
-    y -= 13;
-  };
-  drawDetail(`Date: ${eventDateLong}`);
-  drawDetail(`Type: ${formatEventType(booking.event_type)}`);
-  drawDetail(`Guests: ${booking.number_of_guests}`);
-  drawDetail(`Booking: ${formatBookingType(booking.booking_type)}`);
-  if (booking.start_time && booking.end_time) {
-    drawDetail(`Time: ${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`);
-  }
-
-  y -= 14;
-  page.drawText("FINAL 50%: PAID TODAY", { x: M, y, size: 9, font: helvBold, color: gray500 });
-  y -= 6;
-  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: gray200 });
-  y -= 16;
-
-  const fullPriceX = width - M - 200;
-  const colHeaderPaid = "50% Paid";
-  page.drawText("Item", { x: M, y, size: 10, font: helvBold, color: gray700 });
-  page.drawText("Full Price", { x: fullPriceX, y, size: 10, font: helvBold, color: gray700 });
-  page.drawText(colHeaderPaid, { x: width - M - helvBold.widthOfTextAtSize(colHeaderPaid, 10), y, size: 10, font: helvBold, color: gray700 });
-  y -= 6;
-  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 0.5, color: gray200 });
-  y -= 14;
-
-  const items: { label: string; full: number; sub?: string }[] = [];
-  if ((booking.base_rental ?? 0) > 0) items.push({ label: "Base Rental", full: Number(booking.base_rental), sub: formatBookingType(booking.booking_type) });
-  if ((booking.cleaning_fee ?? 0) > 0) items.push({ label: "Cleaning Fee", full: Number(booking.cleaning_fee) });
-  if (booking.package && booking.package !== "none" && (booking.package_cost ?? 0) > 0) {
-    items.push({ label: getPackageName(booking.package), full: Number(booking.package_cost), sub: getPackageInclusions(booking.package).join(", ") || undefined });
-  }
-  if (booking.bar_package && booking.bar_package !== "none" && (booking.bar_subtotal ?? 0) > 0) {
-    const sub = booking.bar_guest_count ? `${booking.bar_guest_count} guests${booking.bar_rate_per_guest ? ` × ${formatCurrency(Number(booking.bar_rate_per_guest))}` : ""}` : undefined;
-    items.push({ label: `Bar Service: ${booking.bar_package_label || "Standard"}`, full: Number(booking.bar_subtotal), sub });
-  }
-  if ((booking.optional_services ?? 0) > 0) items.push({ label: "Add-ons & Optional Services", full: Number(booking.optional_services) });
-  if ((booking.taxes_fees ?? 0) > 0) items.push({ label: "Taxes & Fees", full: Number(booking.taxes_fees) });
-
-  for (const it of items) {
-    const labelMax = fullPriceX - M - 8;
-    let label = it.label;
-    while (helv.widthOfTextAtSize(label, 10) > labelMax && label.length > 4) label = label.slice(0, -2);
-    if (label !== it.label) label = label.slice(0, -1) + "…";
-    page.drawText(label, { x: M, y, size: 10, font: helv, color: gray700 });
-    page.drawText(formatCurrency(it.full), { x: fullPriceX, y, size: 10, font: helv, color: gray700 });
-    const halfStr = formatCurrency(it.full / 2);
-    page.drawText(halfStr, { x: width - M - helv.widthOfTextAtSize(halfStr, 10), y, size: 10, font: helv, color: gray700 });
-    if (it.sub) {
-      y -= 11;
-      let sub = it.sub;
-      while (helv.widthOfTextAtSize(sub, 8) > labelMax && sub.length > 4) sub = sub.slice(0, -2);
-      if (sub !== it.sub) sub = sub.slice(0, -1) + "…";
-      page.drawText(sub, { x: M, y, size: 8, font: helv, color: gray500 });
-      y -= 14;
-    } else {
-      y -= 16;
-    }
-  }
-
-  y -= 2;
-  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 1, color: dark });
-  y -= 16;
-
-  page.drawText("Balance Subtotal (50%)", { x: M, y, size: 11, font: helvBold, color: gray700 });
-  const subStr = formatCurrency(booking.balance_amount);
-  page.drawText(subStr, { x: width - M - helvBold.widthOfTextAtSize(subStr, 11), y, size: 11, font: helvBold, color: gray700 });
-  y -= 16;
-
-  // Use persisted values when available (set by create-balance-payment-link after Stripe session).
-  // Fall back to local computation only for legacy bookings that predate the migration.
-  const feeAmt = booking.balance_fee != null
-    ? Number(booking.balance_fee)
-    : Math.round(booking.balance_amount * (processingFeePct / 100) * 100) / 100;
-  const totalCharged = booking.balance_total_charged != null
-    ? Number(booking.balance_total_charged)
-    : Math.round((booking.balance_amount + feeAmt) * 100) / 100;
-
-  page.drawText(`Processing Fee (${processingFeePct}%)`, { x: M, y, size: 10, font: helv, color: gray500 });
-  const feeStr = formatCurrency(feeAmt);
-  page.drawText(feeStr, { x: width - M - helv.widthOfTextAtSize(feeStr, 10), y, size: 10, font: helv, color: gray500 });
-  y -= 14;
-
-  page.drawLine({ start: { x: M, y }, end: { x: width - M, y }, thickness: 0.5, color: gray200 });
-  y -= 18;
-
-  page.drawText("TOTAL CHARGED TODAY", { x: M, y, size: 12, font: helvBold, color: success });
-  const totalStr = formatCurrency(totalCharged);
-  page.drawText(totalStr, { x: width - M - helvBold.widthOfTextAtSize(totalStr, 12), y, size: 12, font: helvBold, color: success });
-
-  y -= 26;
-  page.drawText(`Booking now fully paid. Event total: ${formatCurrency(booking.total_amount)}.`, { x: M, y, size: 9, font: helv, color: gray500 });
-  y -= 12;
-  page.drawText("This invoice reflects only the final 50% balance paid today.", { x: M, y, size: 9, font: helv, color: gray500 });
-
-  const footerY = 50;
-  page.drawLine({ start: { x: M, y: footerY + 30 }, end: { x: width - M, y: footerY + 30 }, thickness: 0.5, color: gray200 });
-  page.drawText("Orlando Event Venue · 3847 E Colonial Dr, Orlando, FL 32803", { x: M, y: footerY + 14, size: 8, font: helv, color: gray500 });
-  page.drawText("(407) 974-5979 · orlandoeventvenue@gmail.com · orlandoeventvenue.org", { x: M, y: footerY, size: 8, font: helv, color: gray500 });
-
-  return await pdfDoc.save();
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+  let reservationNumber = "";
+  let bookingId: string | undefined;
+
   try {
-    const booking: BalanceEmailData = await req.json();
-    console.log("Sending balance confirmation email for booking:", booking.reservation_number);
+    // Recipient, amounts and discount come from the database, never the request.
+    const lookup = await resolveReceiptBooking(req, supabase, "balance");
+    if (!lookup.ok) {
+      console.warn("[send-balance-confirmation] refused:", lookup.error);
+      return new Response(JSON.stringify({ ok: false, error: lookup.error }), {
+        status: lookup.status,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    const booking = lookup.booking;
+    reservationNumber = booking.reservation_number;
+    bookingId = booking.id;
+    console.log("Sending balance confirmation email for booking:", reservationNumber, `(via ${lookup.via})`);
 
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
@@ -386,28 +259,22 @@ serve(async (req) => {
       },
     });
 
+    // Fallback only for legacy rows without a persisted fee %.
     let processingFeePct = 3.5;
-    try {
-      const supabase = createClient(
-        Deno.env.get("SUPABASE_URL")!,
-        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-      );
-      const { data: feeRow } = await supabase
-        .from("venue_pricing")
-        .select("price")
-        .eq("item_key", "processing_fee")
-        .eq("is_active", true)
-        .single();
-      if (feeRow?.price) processingFeePct = Number(feeRow.price);
-    } catch (e) {
-      console.error("Failed to fetch processing fee, using default 3.5%:", e);
-    }
+    const { data: feeRow } = await supabase
+      .from("venue_pricing")
+      .select("price")
+      .eq("item_key", "processing_fee")
+      .eq("is_active", true)
+      .maybeSingle();
+    if (feeRow?.price) processingFeePct = Number(feeRow.price);
 
-    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking));
+    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking as BalanceEmailData));
 
     let pdfBase64: string | null = null;
     try {
-      const pdfBytes = await generateBalanceReceiptPDF(booking, processingFeePct);
+      const model = buildInvoiceModel("balance", booking, lookup.snapshot, processingFeePct);
+      const pdfBytes = await renderInvoicePdf(model, booking);
       pdfBase64 = encodeBase64(pdfBytes);
     } catch (pdfErr) {
       console.error("Failed to generate balance receipt PDF:", pdfErr);
@@ -415,8 +282,9 @@ serve(async (req) => {
       // Email still sends (without attachment) — alert so the missing invoice is noticed.
       await sendCriticalAlert(
         "send-balance-confirmation (balance PDF)",
-        booking.reservation_number,
-        `Balance receipt PDF failed to generate: confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`
+        reservationNumber,
+        `Balance receipt PDF failed to generate: confirmation email sent WITHOUT the invoice attachment. ${pdfMsg}`,
+        bookingId,
       );
     }
 
@@ -434,7 +302,7 @@ serve(async (req) => {
       attachments: pdfBase64
         ? [
             {
-              filename: `Invoice-${booking.reservation_number}.pdf`,
+              filename: `Invoice-${reservationNumber}.pdf`,
               content: pdfBase64,
               encoding: "base64",
               contentType: "application/pdf",
@@ -445,7 +313,7 @@ serve(async (req) => {
 
     await client.close();
 
-    console.log("Balance confirmation email sent successfully to:", booking.email);
+    console.log("Balance confirmation email sent successfully for:", reservationNumber);
 
     return new Response(
       JSON.stringify({ ok: true, message: "Balance confirmation email sent successfully" }),
@@ -454,13 +322,9 @@ serve(async (req) => {
   } catch (error: unknown) {
     console.error("Error sending balance confirmation email:", error);
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
-
-    // Alert on customer-facing email failure (re-parse body for reservation #).
-    const booking: BalanceEmailData = await req.clone().json().catch(() => ({} as BalanceEmailData));
-    if (booking.reservation_number) {
-      await sendCriticalAlert("send-balance-confirmation", booking.reservation_number, errorMessage);
+    if (reservationNumber) {
+      await sendCriticalAlert("send-balance-confirmation", reservationNumber, errorMessage, bookingId);
     }
-
     return new Response(
       JSON.stringify({ ok: false, error: errorMessage }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
