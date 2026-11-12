@@ -4,7 +4,7 @@ import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } fro
 import type { Json } from "@/integrations/supabase/types";
 
 // Helper function to sync booking to GHL
-async function syncToGHL(bookingId: string) {
+export async function syncToGHL(bookingId: string) {
   try {
     const { error } = await supabase.functions.invoke("sync-to-ghl", {
       body: { booking_id: bookingId },

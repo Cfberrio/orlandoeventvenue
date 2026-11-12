@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { syncToGHL } from "@/hooks/useAdminData";
 import {
   PAYMENT_METHOD_LABELS,
   type PaymentKind,
@@ -95,6 +96,9 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
       toast({ title: `${KIND_LABELS[kind]} of $${amount.toFixed(2)} recorded (${PAYMENT_METHOD_LABELS[method]})` });
       onOpenChange(false);
       onRecorded();
+      // Keep the CRM in step with the new payment status (fire and forget;
+      // a GHL failure must not undo a recorded payment).
+      void syncToGHL(booking.id);
     } catch (error) {
       const message = (error as { message?: string })?.message ?? String(error);
       toast({ title: "Payment not recorded", description: message, variant: "destructive" });
