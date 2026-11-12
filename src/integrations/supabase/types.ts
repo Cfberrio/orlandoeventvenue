@@ -3397,6 +3397,7 @@ export type Database = {
         Returns: undefined
       }
       auto_fix_missing_jobs: { Args: never; Returns: undefined }
+      booking_readiness: { Args: { p_booking_id: string }; Returns: Json }
       bump_recurring_next_send: {
         Args: { p_invoice_id: string }
         Returns: undefined
@@ -3414,6 +3415,10 @@ export type Database = {
       }
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
+      evaluate_booking_readiness: {
+        Args: { p_booking_id: string; p_checklist: string; p_origin: string }
+        Returns: Json
+      }
       generate_reservation_number: { Args: never; Returns: string }
       get_access_code_for_reservation: {
         Args: { p_email?: string; p_reservation_number?: string }
@@ -3625,6 +3630,10 @@ export type Database = {
       populate_staff_payroll_items: {
         Args: { p_assignment_id: string; p_is_historical?: boolean }
         Returns: undefined
+      }
+      recompute_booking_readiness: {
+        Args: { p_booking_id: string; p_source?: string }
+        Returns: Json
       }
       recurring_month_occurrence: {
         Args: { p_day: number; p_month_start: string }
