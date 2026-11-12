@@ -95,9 +95,43 @@ describe("M-30: dead or duplicate add-on payment links", () => {
 describe("M-30: an untracked session is never emailed", () => {
   const create = read("supabase/functions/create-addon-invoice/index.ts");
   it("returns 500 and expires the session when the session id cannot be saved", () => {
-    const block = create.slice(create.indexOf("if (updateError) {"), create.indexOf("await supersedeAddonTwins"));
+    const block = create.slice(create.indexOf("if (updateError) {"), create.indexOf("if (!claimedRow) {"));
     expect(block).toMatch(/sessions\.expire\(session\.id\)/);
     expect(block).toMatch(/status: 500/);
     expect(create.indexOf("if (updateError) {")).toBeLessThan(create.indexOf("await client.send("));
+  });
+});
+
+describe("M-30: Codex review — no second payable link", () => {
+  const create = read("supabase/functions/create-addon-invoice/index.ts");
+  const migration = read("supabase/migrations/20261113120000_phase1b_addon_link_expiry.sql");
+  const fnBody = create.slice(create.indexOf("async function supersedeAddonTwins"), create.indexOf("interface AddonInvoiceRequest"));
+
+  it("closes older twins BEFORE creating the new session, and stops on failure", () => {
+    expect(create.indexOf("await supersedeAddonTwins(")).toBeLessThan(create.indexOf("stripe.checkout.sessions.create("));
+    expect(create).toMatch(/if \(!superseded\.ok\)/);
+  });
+
+  it("a twin already paid in Stripe blocks the new link (409)", () => {
+    const complete = fnBody.slice(fnBody.indexOf('live.status === "complete"'));
+    expect(complete.slice(0, 300)).toMatch(/return fail\(409/);
+  });
+
+  it("a Stripe failure while closing a twin blocks the new link", () => {
+    expect(fnBody).toMatch(/catch \(stripeErr\)[\s\S]{0,200}return fail\(502/);
+    expect(fnBody).not.toMatch(/catch \(stripeErr\)[\s\S]{0,200}continue;/);
+  });
+
+  it("one Checkout Session per row: idempotency key + atomic claim", () => {
+    expect(create).toMatch(/idempotencyKey: `addon-invoice-session-\$\{invoice\.id\}`/);
+    expect(create).toMatch(/\.is\("stripe_session_id", null\)\s*\.select\("id"\)\s*\.maybeSingle\(\)/);
+    expect(create.indexOf("if (!claimedRow) {")).toBeLessThan(create.indexOf("await client.send("));
+    expect(create).toMatch(/session\.status !== "open"/);
+  });
+
+  it("expiry uses the session time, with created_at only for legacy rows", () => {
+    expect(migration).toMatch(/ADD COLUMN IF NOT EXISTS link_created_at timestamptz/);
+    expect(migration).toMatch(/COALESCE\(link_created_at, created_at\) < now\(\) - interval '25 hours'/);
+    expect(create).toMatch(/link_created_at: new Date\(\)\.toISOString\(\)/);
   });
 });

@@ -527,6 +527,9 @@ export default function BookingDetail() {
   };
 
   const handleAddAssignment = async () => {
+    // M-5: a second click while the first insert is in flight created the
+    // same assignment twice (VDGPSR, JTURTY: double pay).
+    if (createAssignment.isPending) return;
     if (!newAssignmentStaff || !newAssignmentRole) {
       toast({ title: "Please select staff and role", variant: "destructive" });
       return;
@@ -1264,7 +1267,7 @@ export default function BookingDetail() {
                       // hourly expiry job marks the row, never offer a dead link.
                       const linkExpired =
                         invoice.payment_status === "pending" &&
-                        Date.now() - new Date(invoice.created_at).getTime() > 24 * 60 * 60 * 1000;
+                        Date.now() - new Date(invoice.link_created_at ?? invoice.created_at).getTime() > 24 * 60 * 60 * 1000;
                       const shownStatus = linkExpired ? "expired" : invoice.payment_status;
 
                       return (
@@ -1655,7 +1658,7 @@ export default function BookingDetail() {
                             </Button>
                           </div>
                           <div className="flex justify-end pt-1">
-                            <Button onClick={handleAddAssignment} className="bg-orange-600 hover:bg-orange-700 text-white">
+                            <Button onClick={handleAddAssignment} disabled={createAssignment.isPending} className="bg-orange-600 hover:bg-orange-700 text-white">
                               <Plus className="h-4 w-4 mr-2" />
                               Add Staff
                             </Button>
@@ -1717,7 +1720,7 @@ export default function BookingDetail() {
                             
                             <div className="space-y-2">
                               <Label>&nbsp;</Label>
-                              <Button onClick={handleAddAssignment} className="w-full">
+                              <Button onClick={handleAddAssignment} disabled={createAssignment.isPending} className="w-full">
                                 <Plus className="h-4 w-4 mr-2" />
                                 Add Staff
                               </Button>
@@ -1741,7 +1744,7 @@ export default function BookingDetail() {
                       {/* Neither Custodial nor Assistant: button only */}
                       {!isCustodialRole && !isAssistantRole && (
                         <div className="flex justify-end">
-                          <Button onClick={handleAddAssignment}>
+                          <Button onClick={handleAddAssignment} disabled={createAssignment.isPending}>
                             <Plus className="h-4 w-4 mr-2" />
                             Add Staff
                           </Button>

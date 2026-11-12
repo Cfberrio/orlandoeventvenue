@@ -6,10 +6,17 @@
 -- one package) and an unpaid twin sat next to the paid one (CDYXE2).
 --
 -- 1. expire_stale_addon_invoices(): marks pending rows whose session is older
---    than 25h (24h Stripe lifetime + 1h margin) as 'expired'. A late payment
+--    than 25h (24h Stripe lifetime + 1h margin) as 'expired'. Session age =
+--    link_created_at, falling back to created_at for legacy rows. A late payment
 --    still lands: the webhook marks paid on paid_at IS NULL, whatever the status.
 -- 2. Runs once now (backfill) and hourly from pg_cron.
 -- Rows with no Stripe session (link never created) are left alone.
+
+-- When the Checkout Session was created (set by create-addon-invoice from
+-- this batch on). Legacy rows: verified 2026-11-12 that every row got exactly
+-- one session, 3–9 seconds after the row was created, so created_at stands in.
+ALTER TABLE public.booking_addon_invoices
+  ADD COLUMN IF NOT EXISTS link_created_at timestamptz;
 
 CREATE OR REPLACE FUNCTION public.expire_stale_addon_invoices()
 RETURNS integer
@@ -26,7 +33,7 @@ BEGIN
     WHERE payment_status = 'pending'
       AND paid_at IS NULL
       AND stripe_session_id IS NOT NULL
-      AND created_at < now() - interval '25 hours'
+      AND COALESCE(link_created_at, created_at) < now() - interval '25 hours'
     RETURNING id, booking_id
   ), logged AS (
     INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
