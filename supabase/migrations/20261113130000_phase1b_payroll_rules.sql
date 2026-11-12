@@ -36,6 +36,40 @@ BEGIN
 END;
 $function$;
 
+-- Pre-deploy review: staff who accept AFTER the event already closed would
+-- never be completed (the booking trigger fired before they accepted).
+CREATE OR REPLACE FUNCTION public.trg_complete_late_acceptance()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+BEGIN
+  IF NEW.response_status = 'accepted'
+     AND OLD.response_status IS DISTINCT FROM 'accepted'
+     AND NEW.status NOT IN ('cancelled', 'completed')
+     AND NEW.booking_id IS NOT NULL
+     AND EXISTS (
+       SELECT 1 FROM public.bookings b
+       WHERE b.id = NEW.booking_id
+         AND b.lifecycle_status IN ('post_event', 'closed_review_complete')
+         AND b.status <> 'cancelled'::booking_status
+     ) THEN
+    UPDATE public.booking_staff_assignments
+    SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+    WHERE id = NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$function$;
+
+DROP TRIGGER IF EXISTS trg_complete_late_acceptance ON public.booking_staff_assignments;
+CREATE TRIGGER trg_complete_late_acceptance
+  AFTER UPDATE OF response_status ON public.booking_staff_assignments
+  FOR EACH ROW EXECUTE FUNCTION public.trg_complete_late_acceptance();
+
+REVOKE ALL ON FUNCTION public.trg_complete_late_acceptance() FROM PUBLIC, anon, authenticated;
+
 -- ---------------------------------------------------------------------------
 -- M-4: void (delete) unpaid, system-generated pay lines when an assignment is
 -- rejected or cancelled, or when its booking is cancelled. Bonus/deduction

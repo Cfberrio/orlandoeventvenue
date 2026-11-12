@@ -135,3 +135,33 @@ describe("M-30: Codex review — no second payable link", () => {
     expect(create).toMatch(/link_created_at: new Date\(\)\.toISOString\(\)/);
   });
 });
+
+describe("M-30: Codex re-review — DB-enforced single live link, no lost add-on payment", () => {
+  const create = read("supabase/functions/create-addon-invoice/index.ts");
+  const webhook = read("supabase/functions/stripe-webhook/index.ts");
+  const migration = read("supabase/migrations/20261113120000_phase1b_addon_link_expiry.sql");
+
+  it("a unique partial index allows one live link per booking + items, created after the backfill", () => {
+    expect(migration).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS booking_addon_invoices_one_active_link_uidx/);
+    expect(migration).toMatch(/WHERE payment_status = 'pending' AND paid_at IS NULL AND stripe_session_id IS NOT NULL/);
+    expect(migration.indexOf("SELECT public.expire_stale_addon_invoices();")).toBeLessThan(migration.indexOf("CREATE UNIQUE INDEX"));
+  });
+
+  it("losing the index race expires our session and returns 409", () => {
+    const block = create.slice(create.indexOf('code === "23505"'), create.indexOf("if (updateError) {\n      // Without"));
+    expect(block).toMatch(/sessions\.expire\(session\.id\)/);
+    expect(block).toMatch(/status: 409/);
+  });
+
+  it("revalidates the row right before emailing", () => {
+    const i = create.indexOf("Revalidate right before emailing");
+    expect(i).toBeGreaterThan(0);
+    expect(i).toBeLessThan(create.indexOf("await client.send("));
+    expect(create).toMatch(/beforeSend\?\.payment_status !== "pending" \|\| beforeSend\?\.stripe_session_id !== session\.id/);
+  });
+
+  it("the no-payment policy never swallows an add-on payment", () => {
+    expect(webhook).toMatch(/policy\?\.requires_payment === false && paymentType !== "addon_invoice"/);
+    expect(webhook.indexOf('requires_payment === false && paymentType !== "addon_invoice"')).toBeLessThan(webhook.indexOf('if (paymentType === "addon_invoice") {'));
+  });
+});

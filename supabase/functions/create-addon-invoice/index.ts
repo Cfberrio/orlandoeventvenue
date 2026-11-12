@@ -483,6 +483,20 @@ serve(async (req: Request) => {
       .select("id")
       .maybeSingle();
 
+    if (updateError && (updateError as { code?: string }).code === "23505") {
+      // DB-enforced: another link for the same items on this booking became
+      // active first (booking_addon_invoices_one_active_link_uidx).
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (expireErr) {
+        console.error("Could not expire losing add-on session:", session.id, expireErr);
+      }
+      return new Response(
+        JSON.stringify({ error: "Another payment link for the same items is already active on this booking. No new link was sent." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     if (updateError) {
       // Without the session id on the row, the webhook and the expiry job
       // cannot match it, and the 409 guard would allow a second link. Kill the
@@ -521,6 +535,21 @@ serve(async (req: Request) => {
       }
       return new Response(
         JSON.stringify({ error: "This add-on invoice already has a payment link. Create a new invoice instead." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Revalidate right before emailing: a concurrent request for a twin may
+    // have closed this link after we stored it. Never email a dead link.
+    const { data: beforeSend, error: beforeSendError } = await supabase
+      .from("booking_addon_invoices")
+      .select("payment_status, stripe_session_id")
+      .eq("id", invoice.id)
+      .maybeSingle();
+    if (beforeSendError || beforeSend?.payment_status !== "pending" || beforeSend?.stripe_session_id !== session.id) {
+      console.warn("[ADDON] link closed before email; not sending", invoice.id, beforeSendError);
+      return new Response(
+        JSON.stringify({ error: "This link was replaced by another invoice for the same items before it was sent. No email was sent." }),
         { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

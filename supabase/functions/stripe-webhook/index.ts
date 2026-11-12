@@ -704,7 +704,11 @@ serve(async (req) => {
 
       if (policyError) {
         console.error("Error fetching booking policy:", policyError);
-      } else if (policy?.requires_payment === false) {
+      } else if (policy?.requires_payment === false && paymentType !== "addon_invoice") {
+        // The no-payment policy covers the booking's deposit/balance flow only.
+        // An add-on Checkout the office sent on an internal/external booking is
+        // a real charge and must be recorded below (Codex review, 86e40ach2):
+        // skipping it here completed the Stripe claim and lost the payment.
         console.log(
           `[POLICY_SKIP] Payment processing skipped ` +
           `(booking: ${bookingId}, origin: ${bookingWithPolicy.booking_origin}, ` +

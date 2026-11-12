@@ -62,3 +62,22 @@ BEGIN
     'SELECT public.expire_stale_addon_invoices();'
   );
 END $$;
+
+-- At most ONE live link per booking and set of items (Codex review). The
+-- claim in create-addon-invoice (stripe_session_id IS NULL → session id) hits
+-- this index when a twin is already live, so two concurrent invoices for the
+-- same items can never both hold a payable link. Created after the backfill
+-- above, so no legacy pending row conflicts.
+CREATE UNIQUE INDEX IF NOT EXISTS booking_addon_invoices_one_active_link_uidx
+  ON public.booking_addon_invoices (
+    booking_id,
+    package,
+    COALESCE(package_start_time, ''),
+    COALESCE(package_end_time, ''),
+    COALESCE(setup_breakdown, false),
+    COALESCE(tablecloths, false),
+    COALESCE(tablecloth_quantity, -1),
+    COALESCE(bar_package, ''),
+    COALESCE(bar_guest_count, -1)
+  )
+  WHERE payment_status = 'pending' AND paid_at IS NULL AND stripe_session_id IS NOT NULL;

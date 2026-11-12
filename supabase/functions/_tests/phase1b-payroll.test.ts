@@ -95,3 +95,18 @@ describe("auto-generate-payroll is no longer public", () => {
     expect(src).toMatch(/\.eq\("response_status", "accepted"\)/);
   });
 });
+
+describe("pre-deploy review: late acceptance after the event", () => {
+  const body = fnBlock("trg_complete_late_acceptance");
+  it("completes an assignment accepted after the booking reached post_event", () => {
+    expect(body).toMatch(/NEW\.response_status = 'accepted'/);
+    expect(body).toMatch(/b\.lifecycle_status IN \('post_event', 'closed_review_complete'\)/);
+    expect(body).toMatch(/b\.status <> 'cancelled'::booking_status/);
+    expect(MIGRATION).toMatch(/AFTER UPDATE OF response_status ON public\.booking_staff_assignments\s+FOR EACH ROW EXECUTE FUNCTION public\.trg_complete_late_acceptance\(\)/);
+  });
+  it("help text matches the new rule", () => {
+    const help = read("src/components/admin/payroll/PayrollHelpPanel.tsx");
+    expect(help).not.toMatch(/transitions to in_progress/);
+    expect(help).toMatch(/accepted/);
+  });
+});
