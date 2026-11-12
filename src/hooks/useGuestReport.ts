@@ -166,15 +166,19 @@ export const useGuestReport = () => {
       const result = (submitResult ?? {}) as {
         transitioned?: boolean;
         duplicate?: boolean;
+        stored_rating?: number | null;
+        stored_comment?: string | null;
         event_date?: string | null;
         event_type?: string | null;
       };
 
       // Low rating alert (1-2 stars) stays best-effort and never blocks the report.
-      // Sent on every submission with a low rating, resubmissions included:
-      // if the first response was lost after the RPC committed, the retry is
-      // the only chance to alert. A duplicate internal alert beats a missed one.
-      if (reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
+      // Based on the rating the database stored for this booking (the first
+      // submission), never on a later resubmission's payload. A retry after a
+      // lost response re-sends the alert for the stored rating: a duplicate
+      // internal alert beats a missed one.
+      const storedRating = Number(result.stored_rating ?? 0);
+      if (storedRating >= 1 && storedRating <= 2) {
         try {
           await supabase.functions.invoke('send-low-rating-alert', {
             body: {
@@ -183,8 +187,8 @@ export const useGuestReport = () => {
               guest_email: reportData.guest_email,
               event_date: result.event_date || '',
               event_type: result.event_type || '',
-              rating: reviewData.rating,
-              comment: reviewData.comment || '',
+              rating: storedRating,
+              comment: result.stored_comment || '',
             },
           });
           console.log('Low rating alert sent for reservation:', reservationNumber);

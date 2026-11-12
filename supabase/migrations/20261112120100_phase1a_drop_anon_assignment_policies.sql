@@ -14,10 +14,9 @@
 --
 -- S-9: the guest post-event report is written only by submit_guest_report()
 -- now, so the public INSERT/UPDATE rules on booking_host_reports and the
--- public INSERT on booking_reviews go too. That makes "a report row exists"
--- a marker the RPC can trust for idempotency (no forged or stray rows).
--- Admin writes keep working through the "Admin and staff can manage ..."
--- policies.
+-- public INSERT on booking_reviews go too (no more forged or stray reports
+-- and reviews; idempotency itself uses guest_report_submissions). Admin
+-- writes keep working through the "Admin and staff can manage ..." policies.
 -- =============================================================================
 
 DROP POLICY IF EXISTS "Anon can respond to own assignments" ON public.booking_staff_assignments;

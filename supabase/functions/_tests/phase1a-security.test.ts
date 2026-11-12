@@ -206,6 +206,10 @@ describe("Phase 1A migration (S-1, S-2, S-5..S-9)", () => {
     expect(fn).toMatch(/FOR UPDATE;/);
     expect(fn).toMatch(/IF NOT v_duplicate THEN\s+INSERT INTO public\.booking_host_reports/);
     expect(fn).toMatch(/END IF; -- NOT v_duplicate\s+-- Same rule/);
+    // Idempotency marker is RPC-owned, not the publicly writable reports table.
+    expect(fn).toMatch(/FROM public\.guest_report_submissions WHERE booking_id = p_booking_id;\s+v_duplicate := FOUND;/);
+    expect(sql).toMatch(/ALTER TABLE public\.guest_report_submissions ENABLE ROW LEVEL SECURITY;/);
+    expect(sql).toMatch(/REVOKE ALL ON TABLE public\.guest_report_submissions FROM PUBLIC, anon, authenticated;/);
     // Idempotent steps run before the duplicate branch, so retries repair them.
     expect(fn.indexOf("host_report_completed_before_job_run")).toBeLessThan(fn.indexOf("IF NOT v_duplicate THEN"));
   });
@@ -242,6 +246,9 @@ describe("front-end writes moved to RPCs (S-2, S-9)", () => {
     expect(src).not.toMatch(/lifecycle_status: 'post_event'/);
     expect(src).not.toMatch(/from\('scheduled_jobs'\)/);
     expect(src).not.toMatch(/from\('maintenance_tickets'\)/);
-    expect(src).not.toMatch(/!result\.duplicate/);
+    expect(src).toMatch(/const storedRating = Number\(result\.stored_rating/);
+    const alert = src.slice(src.indexOf("'send-low-rating-alert'"));
+    expect(alert).toMatch(/rating: storedRating,/);
+    expect(alert.slice(0, 600)).not.toMatch(/reviewData/);
   });
 });

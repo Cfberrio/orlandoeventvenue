@@ -570,6 +570,21 @@ GRANT EXECUTE ON FUNCTION public.staff_mark_bar_contacted(uuid, uuid) TO anon, a
 -- -----------------------------------------------------------------------------
 -- 6. S-9 — guest post-event report, server-side
 -- -----------------------------------------------------------------------------
+
+-- Idempotency marker owned by submit_guest_report(): one row per booking,
+-- written only inside the RPC. RLS on with no policies, so neither anon nor
+-- authenticated clients can create or forge it (booking_host_reports could
+-- not serve: it has public INSERT rules and historical duplicates).
+CREATE TABLE IF NOT EXISTS public.guest_report_submissions (
+  booking_id uuid PRIMARY KEY REFERENCES public.bookings(id) ON DELETE CASCADE,
+  host_report_id uuid,
+  review_rating int,
+  review_comment text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.guest_report_submissions ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE public.guest_report_submissions FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.guest_report_submissions TO service_role;
 CREATE OR REPLACE FUNCTION public.submit_guest_report(
   p_booking_id uuid,
   p_reservation_number text,
@@ -590,6 +605,8 @@ DECLARE
   v_end_date date;
   v_transitioned boolean := false;
   v_duplicate boolean := false;
+  v_report_id uuid;
+  v_marker public.guest_report_submissions%ROWTYPE;
 BEGIN
   IF p_booking_id IS NULL OR p_reservation_number IS NULL OR p_report IS NULL THEN
     RAISE EXCEPTION 'booking, reservation number and report are required' USING ERRCODE = '22023';
@@ -608,18 +625,14 @@ BEGIN
     RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002';
   END IF;
 
-  -- One report per booking: a resubmission (retry, second tab) adds no
-  -- second report, ticket, review or event, but still re-applies the
-  -- idempotent steps (host_report_step, reminder cancellation) and the
-  -- lifecycle check below — which also repairs reports the old browser flow
-  -- saved without finishing those steps. The report row is a trustworthy
-  -- marker only because migration 20261112120100 removes the public
-  -- INSERT/UPDATE rules on booking_host_reports, so after it this RPC (and
-  -- the admin) are the only writers. 2 bookings already carry duplicate
-  -- reports from the browser flow; they are left as they are.
-  v_duplicate := EXISTS (
-    SELECT 1 FROM public.booking_host_reports WHERE booking_id = p_booking_id
-  );
+  -- One submission per booking, keyed on the RPC-owned marker table. A
+  -- resubmission (retry, second tab) adds no second report, ticket, review
+  -- or event, but still re-applies the idempotent steps (host_report_step,
+  -- reminder cancellation) and the lifecycle check below. Reports saved by
+  -- the old browser flow have no marker, so the first RPC submission for
+  -- such a booking is recorded normally.
+  SELECT * INTO v_marker FROM public.guest_report_submissions WHERE booking_id = p_booking_id;
+  v_duplicate := FOUND;
 
   UPDATE public.bookings
   SET host_report_step = 'completed', updated_at = now()
@@ -654,7 +667,8 @@ BEGIN
     v_has_issue AND v_issue IS NOT NULL,
     'submitted',
     now()
-  );
+  )
+  RETURNING id INTO v_report_id;
 
   INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
   VALUES (
@@ -693,6 +707,15 @@ BEGIN
       'guest_report'
     );
   END IF;
+
+  INSERT INTO public.guest_report_submissions (booking_id, host_report_id, review_rating, review_comment)
+  VALUES (
+    p_booking_id,
+    v_report_id,
+    CASE WHEN v_rating BETWEEN 1 AND 5 THEN v_rating END,
+    CASE WHEN v_rating BETWEEN 1 AND 5 THEN NULLIF(btrim(COALESCE(p_review ->> 'comment', '')), '') END
+  )
+  RETURNING * INTO v_marker;
   END IF; -- NOT v_duplicate
 
   -- Same rule the browser applied (in_progress + event end + 24h), now with
@@ -745,6 +768,11 @@ BEGIN
   RETURN jsonb_build_object(
     'transitioned', v_transitioned,
     'duplicate', v_duplicate,
+    -- The rating actually stored for this booking (first submission), so the
+    -- low-rating alert is based on what the database holds, not on whatever
+    -- a later resubmission sent.
+    'stored_rating', v_marker.review_rating,
+    'stored_comment', v_marker.review_comment,
     'event_date', v_booking.event_date,
     'event_type', v_booking.event_type
   );
