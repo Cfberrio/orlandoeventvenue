@@ -446,7 +446,19 @@ serve(async (req: Request) => {
       .eq("id", invoice.id);
 
     if (updateError) {
+      // Without the session id on the row, the webhook and the expiry job
+      // cannot match it, and the 409 guard would allow a second link. Kill the
+      // session and stop before emailing a link the system cannot track.
       console.error("Error updating invoice with payment URL:", updateError);
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (expireErr) {
+        console.error("Could not expire untracked add-on session:", session.id, expireErr);
+      }
+      return new Response(
+        JSON.stringify({ error: "Could not save the payment link. No email was sent; try again." }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     // M-30 (86e40ach2): a new link for the same items replaces the older

@@ -91,3 +91,13 @@ describe("M-30: dead or duplicate add-on payment links", () => {
     expect(detail).toMatch(/Total incl\. paid add-ons/);
   });
 });
+
+describe("M-30: an untracked session is never emailed", () => {
+  const create = read("supabase/functions/create-addon-invoice/index.ts");
+  it("returns 500 and expires the session when the session id cannot be saved", () => {
+    const block = create.slice(create.indexOf("if (updateError) {"), create.indexOf("await supersedeAddonTwins"));
+    expect(block).toMatch(/sessions\.expire\(session\.id\)/);
+    expect(block).toMatch(/status: 500/);
+    expect(create.indexOf("if (updateError) {")).toBeLessThan(create.indexOf("await client.send("));
+  });
+});
