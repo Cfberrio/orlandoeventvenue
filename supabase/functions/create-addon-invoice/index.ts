@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import { authorizeAdminOrService, supabaseAdminAuthDeps } from "../_shared/admin-auth.ts";
 import {
   BRAND,
   detailTable,
@@ -32,10 +33,12 @@ const PACKAGE_LABELS: Record<string, string> = {
 
 interface AddonInvoiceRequest {
   invoice_id: string;
-  customer_email: string;
-  customer_name: string;
-  event_date: string;
-  reservation_number: string;
+  // Ignored since S-3: recipient, name, date and reservation number are read
+  // from the booking the invoice belongs to.
+  customer_email?: string;
+  customer_name?: string;
+  event_date?: string;
+  reservation_number?: string;
 }
 
 function buildInvoiceEmailHTML(
@@ -95,8 +98,25 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { invoice_id, customer_email, customer_name, event_date, reservation_number }: AddonInvoiceRequest =
-      await req.json();
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // S-3 (ClickUp 86e40ach2): creates a live Stripe payment link and emails
+    // it, so only the admin dashboard (or a service-role caller) may run it.
+    const auth = await authorizeAdminOrService(
+      req.headers.get("Authorization"),
+      supabaseServiceKey,
+      supabaseAdminAuthDeps(supabase),
+    );
+    if (!auth.ok) {
+      return new Response(
+        JSON.stringify({ error: auth.error }),
+        { status: auth.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { invoice_id }: AddonInvoiceRequest = await req.json();
 
     if (!invoice_id) {
       return new Response(
@@ -106,10 +126,6 @@ serve(async (req: Request) => {
     }
 
     console.log("Processing addon invoice:", invoice_id);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch dynamic pricing from venue_pricing table
     const { data: pricingRows, error: pricingError } = await supabase
@@ -140,6 +156,32 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Invoice not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Recipient and email details come from the booking, never the request.
+    const { data: invoiceBooking, error: invoiceBookingError } = await supabase
+      .from("bookings")
+      .select("email, full_name, event_date, reservation_number")
+      .eq("id", invoice.booking_id)
+      .single();
+
+    if (invoiceBookingError || !invoiceBooking) {
+      console.error("Booking for add-on invoice not found:", invoiceBookingError);
+      return new Response(
+        JSON.stringify({ error: "Booking not found for this invoice" }),
+        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const customer_email = String(invoiceBooking.email ?? "").trim().toLowerCase();
+    const customer_name = String(invoiceBooking.full_name ?? "").trim() || "Customer";
+    const event_date = String(invoiceBooking.event_date ?? "");
+    const reservation_number = String(invoiceBooking.reservation_number ?? "");
+    if (!customer_email || !customer_email.includes("@")) {
+      return new Response(
+        JSON.stringify({ error: "Booking has no valid customer email" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

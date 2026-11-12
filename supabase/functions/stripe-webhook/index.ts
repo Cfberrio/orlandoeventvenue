@@ -769,6 +769,13 @@ serve(async (req) => {
           .single();
         if (paidInvoiceError) console.error("Error reading paid addon invoice:", paidInvoiceError);
 
+        // Revenue lines for this add-on are collected and written in ONE insert
+        // below, so they land together or not at all. The invoice is already
+        // marked paid at this point and a Stripe retry would be answered as a
+        // duplicate, so a failed write must be recorded where the office sees
+        // it (booking_events), not only in the function log (S-5, 86e40ach2).
+        const addonRevenueRows: Record<string, unknown>[] = [];
+
         // If this add-on includes Bar Service, propagate to booking + insert revenue item
         const aiBarPackage = (paidInvoice as { bar_package?: string } | null)?.bar_package;
         const aiBarSubtotal = Number((paidInvoice as { bar_subtotal?: number } | null)?.bar_subtotal ?? 0);
@@ -798,7 +805,7 @@ serve(async (req) => {
           // Insert a single bar_service revenue line for the add-on payment
           // (80/20 Stripe Connect split was already applied at checkout)
           const paymentDate = new Date().toISOString().split("T")[0];
-          const { error: revErr } = await supabase.from("booking_revenue_items").insert({
+          addonRevenueRows.push({
             booking_id: bookingId,
             item_category: "bar_service",
             item_type: aiBarPackage,
@@ -818,9 +825,6 @@ serve(async (req) => {
               split: "80_20",
             },
           });
-          if (revErr) {
-            console.error("Error inserting bar_service revenue item:", revErr);
-          }
         }
 
         // Insert revenue line items for the rest of the add-on components
@@ -846,7 +850,7 @@ serve(async (req) => {
               : aiPackage === "led" ? "LED Production Package"
               : aiPackage === "workshop" ? "Workshop Production Package"
               : "Production Package";
-            const { error } = await supabase.from("booking_revenue_items").insert({
+            addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "production",
               item_type: aiPackage,
@@ -856,11 +860,10 @@ serve(async (req) => {
               description: `${label} (Add-on, paid in full)`,
               metadata: { ...baseMeta, package: aiPackage },
             });
-            if (error) console.error("Error inserting production add-on revenue:", error);
           }
 
           if (inv.setup_breakdown === true) {
-            const { error } = await supabase.from("booking_revenue_items").insert({
+            addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "addon",
               item_type: "setup_breakdown",
@@ -870,13 +873,12 @@ serve(async (req) => {
               description: "Setup & Breakdown Service (Add-on, paid in full)",
               metadata: baseMeta,
             });
-            if (error) console.error("Error inserting setup_breakdown add-on revenue:", error);
           }
 
           const tcQty = Number(inv.tablecloth_quantity ?? 0);
           if (inv.tablecloths === true && tcQty > 0) {
             const tcAmount = Math.round(tcQty * 5.00 * 100) / 100;
-            const { error } = await supabase.from("booking_revenue_items").insert({
+            addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "addon",
               item_type: "tablecloth",
@@ -888,13 +890,12 @@ serve(async (req) => {
               description: `Tablecloth Rental x${tcQty} (Add-on, paid in full)`,
               metadata: baseMeta,
             });
-            if (error) console.error("Error inserting tablecloth add-on revenue:", error);
           }
 
           // optional_services_cost is the manual misc amount (excluding tablecloths line)
           const miscAmount = Number(inv.optional_services_cost ?? 0);
           if (miscAmount > 0) {
-            const { error } = await supabase.from("booking_revenue_items").insert({
+            addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "addon",
               item_type: "misc",
@@ -904,7 +905,35 @@ serve(async (req) => {
               description: "Additional Services (Add-on, paid in full)",
               metadata: baseMeta,
             });
-            if (error) console.error("Error inserting misc add-on revenue:", error);
+          }
+        }
+
+        if (addonRevenueRows.length > 0 && bookingId) {
+          const { error: addonRevenueError } = await supabase
+            .from("booking_revenue_items")
+            // Rows have different keys; missing ones take the column default
+            // (quantity = 1) as the single-row inserts did, not NULL.
+            .insert(addonRevenueRows, { defaultToNull: false });
+          if (addonRevenueError) {
+            console.error(
+              `[ADDON_REVENUE_WRITE_FAILED] invoice ${invoiceId}: ${addonRevenueRows.length} line(s) not recorded`,
+              addonRevenueError
+            );
+            const { error: failureEventError } = await supabase.from("booking_events").insert({
+              booking_id: bookingId,
+              event_type: "addon_revenue_write_failed",
+              channel: "stripe",
+              metadata: {
+                invoice_id: invoiceId,
+                session_id: sessionId,
+                error: addonRevenueError.message ?? String(addonRevenueError),
+                code: (addonRevenueError as { code?: string }).code ?? null,
+                rows: addonRevenueRows,
+              },
+            });
+            if (failureEventError) {
+              console.error("Could not record addon_revenue_write_failed event:", failureEventError);
+            }
           }
         }
 

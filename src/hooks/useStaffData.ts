@@ -386,52 +386,23 @@ export function useStaffScheduleData(dateFrom: string, dateTo: string) {
 }
 
 // Bar Vendor: Mark customer as contacted from staff portal.
-// Updates assignment (-> auto-completes via existing pattern) AND booking.bar_customer_contacted.
+// One RPC updates the assignment, the booking's bar fields and the audit
+// event. Contacting the guest no longer completes the assignment: completion
+// (and payroll) follows the event like every other role (ClickUp 86e40ach2,
+// S-2 / M-34).
 export function useMarkBarCustomerContacted() {
   const queryClient = useQueryClient();
   const { staffMember } = useStaffSession();
 
   return useMutation({
-    mutationFn: async ({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
-      const now = new Date().toISOString();
-      const staffId = staffMember?.id ?? null;
+    mutationFn: async ({ bookingId: _bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
+      if (!staffMember?.id) throw new Error("Staff session expired. Please log in again.");
 
-      // 1) Update assignment — set contacted + complete it (mirrors admin BarServiceCard pattern)
-      const { error: aErr } = await supabase
-        .from("booking_staff_assignments")
-        .update({
-          customer_contacted: true,
-          customer_contacted_at: now,
-          customer_contacted_by: staffId,
-          status: "completed",
-          completed_at: now,
-          updated_at: now,
-        })
-        .eq("id", assignmentId);
-      if (aErr) throw aErr;
-
-      // 2) Update booking-level bar fields so admin BarServiceCard reflects ✓ Customer Contacted
-      const { error: bErr } = await supabase
-        .from("bookings")
-        .update({
-          bar_customer_contacted: true,
-          bar_customer_contacted_at: now,
-          bar_customer_contacted_by: staffId,
-        })
-        .eq("id", bookingId);
-      if (bErr) throw bErr;
-
-      // 3) Audit event for admin visibility
-      await supabase.from("booking_events").insert({
-        booking_id: bookingId,
-        event_type: "bar_customer_contacted",
-        channel: "staff_portal",
-        metadata: {
-          staff_id: staffId,
-          staff_name: staffMember?.full_name,
-          contacted_at: now,
-        },
+      const { error } = await (supabase.rpc as any)("staff_mark_bar_contacted", {
+        p_assignment_id: assignmentId,
+        p_staff_id: staffMember.id,
       });
+      if (error) throw error;
 
       return { success: true };
     },
@@ -465,31 +436,17 @@ export function useRespondToAssignment() {
       eventDate?: string | null;
       assignmentRole?: string | null;
     }) => {
-      const now = new Date().toISOString();
+      if (!staffMember?.id) throw new Error("Staff session expired. Please log in again.");
 
-      const { error } = await supabase
-        .from("booking_staff_assignments")
-        .update({
-          response_status: response,
-          response_at: now,
-          updated_at: now,
-        })
-        .eq("id", assignmentId);
-      if (error) throw error;
-
-      // Audit event for admin visibility (mirrors bar_customer_contacted pattern)
-      await supabase.from("booking_events").insert({
-        booking_id: bookingId,
-        event_type: response === "accepted" ? "staff_assignment_accepted" : "staff_assignment_rejected",
-        channel: "staff_portal",
-        metadata: {
-          assignment_id: assignmentId,
-          staff_id: staffMember?.id,
-          staff_name: staffMember?.full_name,
-          assignment_role: assignmentRole,
-          responded_at: now,
-        },
+      // The RPC writes only the response (and the audit event) and refuses an
+      // assignment that is not this staff member's. It replaced an open table
+      // UPDATE rule that let any visitor change any column (86e40ach2, S-2).
+      const { error } = await (supabase.rpc as any)("staff_respond_to_assignment", {
+        p_assignment_id: assignmentId,
+        p_staff_id: staffMember.id,
+        p_response: response,
       });
+      if (error) throw error;
 
       // Notify admin by email (best-effort; don't fail the response on email issues)
       try {

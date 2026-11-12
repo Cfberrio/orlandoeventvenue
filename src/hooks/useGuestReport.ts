@@ -124,25 +124,37 @@ export const useGuestReport = () => {
         await uploadMedia(bookingId, upload.file, upload.fieldId, category);
       }
 
-      // Create or update host report
-      const { error: reportError } = await supabase
-        .from('booking_host_reports')
-        .insert({
-          booking_id: bookingId,
-          guest_name: reportData.guest_name,
-          guest_email: reportData.guest_email,
-          guest_phone: reportData.guest_phone,
-          guest_confirm_area_clean: reportData.guest_confirm_area_clean,
-          guest_confirm_trash_bagged: reportData.guest_confirm_trash_bagged,
-          guest_confirm_bathrooms_ok: reportData.guest_confirm_bathrooms_ok,
-          guest_confirm_door_closed: reportData.guest_confirm_door_closed,
-          notes: reportData.issue_description || null,
-          status: 'submitted',
-          submitted_at: new Date().toISOString(),
-        });
+      // One server-side call records the report, marks host_report_step,
+      // cancels the reminder jobs, opens a maintenance ticket for an issue,
+      // stores the review and — when the event ended 24h+ ago (Orlando time) —
+      // moves the booking from in_progress to post_event. It replaced browser
+      // writes to bookings/scheduled_jobs/maintenance_tickets, several of
+      // which RLS was silently rejecting (ClickUp 86e40ach2, S-9).
+      const { data: submitResult, error: submitError } = await (supabase.rpc as any)(
+        'submit_guest_report',
+        {
+          p_booking_id: bookingId,
+          p_reservation_number: reservationNumber,
+          p_report: {
+            guest_name: reportData.guest_name,
+            guest_email: reportData.guest_email,
+            guest_phone: reportData.guest_phone,
+            guest_confirm_area_clean: reportData.guest_confirm_area_clean,
+            guest_confirm_trash_bagged: reportData.guest_confirm_trash_bagged,
+            guest_confirm_bathrooms_ok: reportData.guest_confirm_bathrooms_ok,
+            guest_confirm_door_closed: reportData.guest_confirm_door_closed,
+            issue_description: reportData.issue_description || '',
+            has_issue: reportData.has_issue,
+          },
+          p_review:
+            reviewData && reviewData.rating > 0
+              ? { rating: reviewData.rating, comment: reviewData.comment || '' }
+              : null,
+        }
+      );
 
-      if (reportError) {
-        console.error('Report submission error:', reportError);
+      if (submitError) {
+        console.error('Report submission error:', submitError);
         toast({
           title: 'Error',
           description: 'Failed to submit report. Please try again.',
@@ -151,179 +163,34 @@ export const useGuestReport = () => {
         return false;
       }
 
-      // Update booking host_report_step to 'completed'
-      const { error: updateError } = await supabase
-        .from('bookings')
-        .update({
-          host_report_step: 'completed',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', bookingId);
+      const result = (submitResult ?? {}) as {
+        transitioned?: boolean;
+        event_date?: string | null;
+        event_type?: string | null;
+      };
 
-      if (updateError) {
-        console.error('Failed to update host_report_step:', updateError);
-      }
-
-      // Cancel any pending host report reminder jobs
-      const { error: cancelJobsError } = await supabase
-        .from('scheduled_jobs')
-        .update({
-          status: 'cancelled',
-          last_error: 'host_report_completed_before_job_run',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('booking_id', bookingId)
-        .in('job_type', ['host_report_pre_start', 'host_report_during', 'host_report_post'])
-        .eq('status', 'pending');
-
-      if (cancelJobsError) {
-        console.error('Failed to cancel host report jobs:', cancelJobsError);
-      } else {
-        console.log('Cancelled pending host report reminder jobs for booking:', bookingId);
-      }
-
-      // Log host report completed event
-      await supabase.from('booking_events').insert({
-        booking_id: bookingId,
-        event_type: 'host_report_completed',
-        channel: 'host',
-        metadata: {
-          submitted_at: new Date().toISOString(),
-          guest_name: reportData.guest_name,
-          guest_email: reportData.guest_email,
-        },
-      });
-
-      // Create maintenance ticket if there's an issue
-      if (reportData.has_issue && reportData.issue_description) {
-        const { error: ticketError } = await supabase
-          .from('maintenance_tickets')
-          .insert({
-            booking_id: bookingId,
-            title: `Guest issue reported: reservation ${reservationNumber}`,
-            description: reportData.issue_description,
-            issue_type: 'guest_report',
-            reported_by_role: 'host',
-            priority: 'medium',
-            status: 'open',
+      // Low rating alert (1-2 stars) stays best-effort and never blocks the report.
+      if (reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
+        try {
+          await supabase.functions.invoke('send-low-rating-alert', {
+            body: {
+              reservation_number: reservationNumber,
+              guest_name: reportData.guest_name,
+              guest_email: reportData.guest_email,
+              event_date: result.event_date || '',
+              event_type: result.event_type || '',
+              rating: reviewData.rating,
+              comment: reviewData.comment || '',
+            },
           });
-
-        if (ticketError) {
-          console.error('Maintenance ticket error:', ticketError);
+          console.log('Low rating alert sent for reservation:', reservationNumber);
+        } catch (alertError) {
+          console.error('Low rating alert error:', alertError);
         }
       }
 
-      // Create review if rating provided
-      if (reviewData && reviewData.rating > 0) {
-        const { error: reviewError } = await supabase
-          .from('booking_reviews')
-          .insert({
-            booking_id: bookingId,
-            rating: reviewData.rating,
-            comment: reviewData.comment || null,
-            reviewer_name: reportData.guest_name,
-            source: 'guest_report',
-          });
-
-        if (reviewError) {
-          console.error('Review submission error:', reviewError);
-        }
-
-        // Send low rating alert if rating is 1 or 2 stars
-        if (reviewData.rating <= 2) {
-          try {
-            // Fetch booking details for the alert
-            const { data: bookingData } = await supabase
-              .from('bookings')
-              .select('event_date, event_type')
-              .eq('id', bookingId)
-              .single();
-
-            await supabase.functions.invoke('send-low-rating-alert', {
-              body: {
-                reservation_number: reservationNumber,
-                guest_name: reportData.guest_name,
-                guest_email: reportData.guest_email,
-                event_date: bookingData?.event_date || '',
-                event_type: bookingData?.event_type || '',
-                rating: reviewData.rating,
-                comment: reviewData.comment || '',
-              },
-            });
-            console.log('Low rating alert sent for reservation:', reservationNumber);
-          } catch (alertError) {
-            console.error('Low rating alert error:', alertError);
-          }
-        }
-      }
-
-      // Check if we should immediately transition to post_event
-      // Conditions: lifecycle_status = 'in_progress' AND event_date + 24h has passed
-      try {
-        const { data: bookingStatus } = await supabase
-          .from('bookings')
-          .select('lifecycle_status, event_date, end_time')
-          .eq('id', bookingId)
-          .single();
-
-        if (bookingStatus && bookingStatus.lifecycle_status === 'in_progress') {
-          // Calculate if 24h have passed since event end
-          let eventEndTime: Date;
-          if (bookingStatus.end_time) {
-            eventEndTime = new Date(`${bookingStatus.event_date}T${bookingStatus.end_time}`);
-          } else {
-            eventEndTime = new Date(`${bookingStatus.event_date}T23:59:00`);
-          }
-          const twentyFourHoursAfter = new Date(eventEndTime.getTime() + 24 * 60 * 60 * 1000);
-          const now = new Date();
-
-          if (now >= twentyFourHoursAfter) {
-            // 24h have passed - immediately transition to post_event
-            console.log('24h passed and host report completed - transitioning to post_event');
-            
-            const { error: transitionError } = await supabase
-              .from('bookings')
-              .update({
-                lifecycle_status: 'post_event',
-                updated_at: new Date().toISOString(),
-              })
-              .eq('id', bookingId);
-
-            if (transitionError) {
-              console.error('Failed to transition to post_event:', transitionError);
-            } else {
-              // Cancel pending post_event job since we're handling it now
-              await supabase
-                .from('scheduled_jobs')
-                .update({
-                  status: 'cancelled',
-                  last_error: 'host_report_submitted_triggered_transition',
-                  updated_at: new Date().toISOString(),
-                })
-                .eq('booking_id', bookingId)
-                .eq('job_type', 'set_lifecycle_post_event')
-                .eq('status', 'pending');
-
-              // Log the transition event
-              await supabase.from('booking_events').insert({
-                booking_id: bookingId,
-                event_type: 'auto_lifecycle_post_event',
-                channel: 'host',
-                metadata: {
-                  from_lifecycle: 'in_progress',
-                  to_lifecycle: 'post_event',
-                  triggered_by: 'host_report_submission',
-                  event_end_plus_24h: twentyFourHoursAfter.toISOString(),
-                  timestamp: new Date().toISOString(),
-                },
-              });
-
-              console.log('Booking transitioned to post_event after host report submission');
-            }
-          }
-        }
-      } catch (transitionCheckError) {
-        console.error('Error checking for post_event transition:', transitionCheckError);
+      if (result.transitioned) {
+        console.log('Booking transitioned to post_event after host report submission');
       }
 
       // Trigger sync to GHL - this will send updated host_report_completed and review_received flags

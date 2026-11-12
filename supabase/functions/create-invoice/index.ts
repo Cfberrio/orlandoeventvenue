@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@14.21.0?target=deno";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import { authorizeAdminOrService, supabaseAdminAuthDeps } from "../_shared/admin-auth.ts";
 import {
   BRAND,
   detailTable,
@@ -26,7 +27,8 @@ const corsHeaders = {
 
 interface CreateInvoiceRequest {
   invoice_id: string;
-  customer_email: string;
+  /** Ignored: the recipient always comes from the invoice row (S-3). */
+  customer_email?: string;
   customer_name?: string;
 }
 
@@ -96,7 +98,26 @@ serve(async (req: Request) => {
   }
 
   try {
-    const { invoice_id, customer_email, customer_name }: CreateInvoiceRequest =
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // S-3 (ClickUp 86e40ach2): this function creates a live Stripe payment
+    // link and emails it. Only the admin dashboard or another edge function
+    // (process-recurring-invoices, service role) may call it.
+    const auth = await authorizeAdminOrService(
+      req.headers.get("Authorization"),
+      supabaseServiceKey,
+      supabaseAdminAuthDeps(supabase),
+    );
+    if (!auth.ok) {
+      return new Response(
+        JSON.stringify({ error: auth.error }),
+        { status: auth.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const { invoice_id, customer_name: requestedName }: CreateInvoiceRequest =
       await req.json();
 
     if (!invoice_id) {
@@ -107,10 +128,6 @@ serve(async (req: Request) => {
     }
 
     console.log("Processing standalone invoice:", invoice_id);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
@@ -123,6 +140,17 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Invoice not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // The recipient is the one stored on the invoice, never one supplied by
+    // the caller, so a request cannot redirect a payment link elsewhere.
+    const customer_email = String(invoice.customer_email ?? "").trim().toLowerCase();
+    const customer_name: string | undefined = invoice.customer_name || requestedName || undefined;
+    if (!customer_email || !customer_email.includes("@")) {
+      return new Response(
+        JSON.stringify({ error: "Invoice has no valid customer email" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

@@ -102,9 +102,6 @@ verify_jwt = false
 [functions.get-system-metrics]
 verify_jwt = false
 
-[functions.test-trigger-automation]
-verify_jwt = false
-
 [functions.schedule-guest-feedback]
 verify_jwt = false
 
