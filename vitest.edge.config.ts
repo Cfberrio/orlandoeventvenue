@@ -18,6 +18,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase1a-security.test.ts",
       "supabase/functions/_tests/phase1b-quickwins.test.ts",
       "supabase/functions/_tests/phase1b-payroll.test.ts",
+      "supabase/functions/_tests/phase1b-record-payment.test.ts",
     ],
   },
 });

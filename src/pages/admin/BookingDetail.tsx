@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { addonInvoiceItemLabels, paidAddonInvoices, paidAddonTotal } from "@/lib/addonInvoice";
+import { addonInvoiceItemLabels, paidAddonInvoices, paidAddonTotal, type AddonInvoiceLike } from "@/lib/addonInvoice";
+import { RecordPaymentDialog } from "@/components/admin/RecordPaymentDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
 import { useParams, Link, useSearchParams } from "react-router-dom";
@@ -157,7 +158,7 @@ export default function BookingDetail() {
   const { data: reviews } = useBookingReviews(id!);
   const { data: attachments } = useBookingAttachments(id!);
   const { data: addonInvoices, refetch: refetchAddonInvoices } = useBookingAddonInvoices(id!);
-  const paidAddons = paidAddonInvoices(addonInvoices as any[] | undefined);
+  const paidAddons = paidAddonInvoices(addonInvoices as Array<AddonInvoiceLike & { id: string }> | undefined);
   const paidAddonsTotal = paidAddonTotal(paidAddons);
   const { data: staffMembers } = useStaffMembers({ isActive: true });
 
@@ -213,17 +214,13 @@ export default function BookingDetail() {
   // Post-event close state
   const [reviewReceived, setReviewReceived] = useState(false);
 
-  // Manual deposit override modal state
+  // Record payment (outside Stripe) dialog — M-7/M-8
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showAddonInvoiceDialog, setShowAddonInvoiceDialog] = useState(false);
-  const [depositOverrideLoading, setDepositOverrideLoading] = useState(false);
-  const [manualPaymentIntentId, setManualPaymentIntentId] = useState("");
 
   // Cancellation state
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [isCancelling, setIsCancelling] = useState(false);
-  const [manualCustomerId, setManualCustomerId] = useState("");
-  const [manualSessionId, setManualSessionId] = useState("");
 
   // Send balance payment state
   const [sendingBalancePayment, setSendingBalancePayment] = useState(false);
@@ -234,59 +231,6 @@ export default function BookingDetail() {
   const [productionStartTime, setProductionStartTime] = useState("");
   const [productionEndTime, setProductionEndTime] = useState("");
   const [productionLoading, setProductionLoading] = useState(false);
-
-  // Validation for Stripe IDs
-  const validateStripeId = (value: string, prefix: string) => {
-    if (!value) return true; // Empty is allowed
-    return value.startsWith(prefix);
-  };
-
-  const piValid = validateStripeId(manualPaymentIntentId, "pi_");
-  const cusValid = validateStripeId(manualCustomerId, "cus_");
-  const csValid = validateStripeId(manualSessionId, "cs_");
-  const allValid = piValid && cusValid && csValid;
-
-  const handleManualDepositOverride = async () => {
-    if (!allValid) return;
-
-    setDepositOverrideLoading(true);
-    try {
-      const updates: Record<string, unknown> = {
-        payment_status: "deposit_paid",
-        deposit_paid_at: new Date().toISOString(),
-      };
-
-      if (manualPaymentIntentId) {
-        updates.stripe_payment_intent_id = manualPaymentIntentId;
-      }
-      // Note: stripe_customer_id column doesn't exist in schema, skip it
-
-      const { error } = await supabase
-        .from("bookings")
-        .update(updates)
-        .eq("id", booking.id);
-
-      if (error) throw error;
-
-      toast({ title: "✅ Deposit marked as paid" });
-      setShowDepositModal(false);
-      setManualPaymentIntentId("");
-      setManualCustomerId("");
-      setManualSessionId("");
-      
-      // Refetch booking data
-      window.location.reload();
-    } catch (error) {
-      console.error("Manual deposit override failed:", error);
-      toast({
-        title: "Failed to update payment status",
-        description: String(error),
-        variant: "destructive",
-      });
-    } finally {
-      setDepositOverrideLoading(false);
-    }
-  };
 
   const handleSendBalancePayment = async () => {
     if (!booking) return;
@@ -1049,7 +993,7 @@ export default function BookingDetail() {
                 {paidAddons.length > 0 && (
                   <div className="pt-2 border-t space-y-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Added after booking (paid add-on invoices)</p>
-                    {paidAddons.map((invoice: any) => (
+                    {paidAddons.map((invoice) => (
                       <div key={invoice.id} className="flex justify-between text-sm">
                         <span>{addonInvoiceItemLabels(invoice).join(" + ") || "Add-On Invoice"}</span>
                         <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>
@@ -1203,16 +1147,18 @@ export default function BookingDetail() {
                     </Badge>
                   </div>
                   
-                  {/* Manual deposit override button - only if not already paid */}
-                  {booking.payment_status === "pending" && (
+                  {/* M-7/M-8: record money received outside Stripe (cash, Zelle, check) */}
+                  {(!booking.deposit_paid_at || !booking.balance_paid_at) &&
+                    booking.status !== "cancelled" &&
+                    booking.lifecycle_status !== "cancelled" && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full text-orange-600 border-orange-300 hover:bg-orange-50"
+                      className="w-full"
                       onClick={() => setShowDepositModal(true)}
                     >
-                      <AlertTriangle className="h-4 w-4 mr-2" />
-                      Manual: Mark Deposit Paid
+                      <CreditCard className="h-4 w-4 mr-2" />
+                      Record payment (cash, Zelle, check)
                     </Button>
                   )}
 
@@ -2073,90 +2019,16 @@ export default function BookingDetail() {
       </Tabs>
 
       {/* Manual Deposit Override Modal */}
-      <Dialog open={showDepositModal} onOpenChange={setShowDepositModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 text-orange-500" />
-              Manual Deposit Override
-            </DialogTitle>
-            <DialogDescription>
-              Use <strong>ONLY</strong> if Stripe payment succeeded but webhook didn't update the booking.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="pi">Stripe Payment Intent ID (optional)</Label>
-              <Input
-                id="pi"
-                placeholder="pi_..."
-                value={manualPaymentIntentId}
-                onChange={(e) => setManualPaymentIntentId(e.target.value)}
-                className={!piValid ? "border-destructive" : ""}
-              />
-              {!piValid && (
-                <p className="text-xs text-destructive">Must start with "pi_"</p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cus">Stripe Customer ID (optional)</Label>
-              <Input
-                id="cus"
-                placeholder="cus_..."
-                value={manualCustomerId}
-                onChange={(e) => setManualCustomerId(e.target.value)}
-                className={!cusValid ? "border-destructive" : ""}
-              />
-              {!cusValid && (
-                <p className="text-xs text-destructive">Must start with "cus_"</p>
-              )}
-              <p className="text-xs text-muted-foreground">
-                ⚠️ Recommended for balance auto-charge
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cs">Stripe Session ID (optional, not saved)</Label>
-              <Input
-                id="cs"
-                placeholder="cs_..."
-                value={manualSessionId}
-                onChange={(e) => setManualSessionId(e.target.value)}
-                className={!csValid ? "border-destructive" : ""}
-              />
-              {!csValid && (
-                <p className="text-xs text-destructive">Must start with "cs_"</p>
-              )}
-            </div>
-
-            {(!manualPaymentIntentId || !manualCustomerId) && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded p-3 text-sm text-yellow-800">
-                <AlertTriangle className="h-4 w-4 inline mr-1" />
-                Without payment intent or customer ID, balance auto-charge may fail.
-              </div>
-            )}
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDepositModal(false)}
-              disabled={depositOverrideLoading}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleManualDepositOverride}
-              disabled={!allValid || depositOverrideLoading}
-              className="bg-orange-600 hover:bg-orange-700"
-            >
-              {depositOverrideLoading ? "Updating..." : "Confirm"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <RecordPaymentDialog
+        open={showDepositModal}
+        onOpenChange={setShowDepositModal}
+        booking={booking}
+        onRecorded={() => {
+          queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
+          queryClient.invalidateQueries({ queryKey: ["booking-events", booking.id] });
+          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+        }}
+      />
 
       {/* Reschedule Booking Dialog */}
       <Dialog open={rescheduleOpen} onOpenChange={setRescheduleOpen}>
