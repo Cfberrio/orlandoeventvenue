@@ -85,14 +85,14 @@ describe("M-33: Unassign Me goes through the server", () => {
   });
 });
 
-describe("auto-generate-payroll is no longer public", () => {
+describe("auto-generate-payroll is retired", () => {
   const src = read("supabase/functions/auto-generate-payroll/index.ts");
-  it("requires admin or service role before any work", () => {
-    expect(src).toMatch(/authorizeAdminOrService\(/);
-    expect(src.indexOf("authorizeAdminOrService(")).toBeLessThan(src.indexOf('.from("booking_staff_assignments")'));
+  it("is an inert 410 stub that touches nothing", () => {
+    expect(src).toMatch(/status: 410/);
+    expect(src).not.toMatch(/createClient|\.from\(|\.rpc\(/);
   });
-  it("only processes accepted assignments", () => {
-    expect(src).toMatch(/\.eq\("response_status", "accepted"\)/);
+  it("has no public config entry or cron", () => {
+    expect(read("supabase/config.toml")).not.toMatch(/auto-generate-payroll/);
   });
 });
 

@@ -165,3 +165,14 @@ describe("M-30: Codex re-review — DB-enforced single live link, no lost add-on
     expect(webhook.indexOf('requires_payment === false && paymentType !== "addon_invoice"')).toBeLessThan(webhook.indexOf('if (paymentType === "addon_invoice") {'));
   });
 });
+
+describe("M-30: Codex 3rd review — age-expired twin paid in Stripe blocks a new link", () => {
+  const create = read("supabase/functions/create-addon-invoice/index.ts");
+  const fnBody = create.slice(create.indexOf("async function supersedeAddonTwins"), create.indexOf("interface AddonInvoiceRequest"));
+  it("checks recently expired unpaid twins in Stripe and refuses when one is complete", () => {
+    expect(fnBody).toMatch(/\.eq\("payment_status", "expired"\)/);
+    const block = fnBody.slice(fnBody.indexOf('.eq("payment_status", "expired")'));
+    expect(block).toMatch(/live\.status === "complete"[\s\S]{0,300}return fail\(409/);
+    expect(block).toMatch(/catch \(stripeErr\)[\s\S]{0,300}return fail\(502/);
+  });
+});

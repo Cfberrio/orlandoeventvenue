@@ -115,6 +115,39 @@ async function supersedeAddonTwins(
       });
       if (eventError) console.error("[ADDON_SUPERSEDE] could not log event:", eventError);
     }
+
+    // A row the hourly job marked expired by AGE may still have been paid in
+    // Stripe whose webhook is delayed (Stripe retries for days). Before a new
+    // link for the same items goes out, ask Stripe about recently expired,
+    // unpaid twins; a completed one blocks the new link (Codex review).
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: expiredTwins, error: expiredError } = await supabase
+      .from("booking_addon_invoices")
+      .select("*")
+      .eq("booking_id", invoice.booking_id)
+      .eq("payment_status", "expired")
+      .is("paid_at", null)
+      .not("stripe_session_id", "is", null)
+      .gte("created_at", since)
+      .neq("id", invoice.id);
+    if (expiredError) {
+      console.error("[ADDON_SUPERSEDE] could not list expired twins:", expiredError);
+      return fail(500, "Could not check older links for the same items. No link was sent; try again.");
+    }
+    for (const twin of (expiredTwins ?? []) as AddonInvoiceRow[]) {
+      if (!isAddonTwin(twin, invoice)) continue;
+      try {
+        const live = await stripe.checkout.sessions.retrieve(String(twin.stripe_session_id));
+        if (live.status === "complete") {
+          console.warn(`[ADDON_SUPERSEDE] expired twin ${twin.id} was paid in Stripe; webhook pending`);
+          return fail(409, "The guest already paid an identical add-on invoice for this booking (Stripe is still confirming it). No new link was sent.");
+        }
+      } catch (stripeErr) {
+        console.error(`[ADDON_SUPERSEDE] could not check expired twin ${twin.id}:`, stripeErr);
+        return fail(502, "Could not confirm in Stripe that an older link for the same items was not paid. No new link was sent; try again.");
+      }
+    }
+
     return { ok: true };
   } catch (err) {
     console.error("[ADDON_SUPERSEDE] unexpected error:", err);
@@ -540,7 +573,9 @@ serve(async (req: Request) => {
     }
 
     // Revalidate right before emailing: a concurrent request for a twin may
-    // have closed this link after we stored it. Never email a dead link.
+    // have closed this link after we stored it. Residual (accepted): a
+    // replacement landing between this check and SMTP can still produce one
+    // email with a dead link; no money moves, and only one admin login exists.
     const { data: beforeSend, error: beforeSendError } = await supabase
       .from("booking_addon_invoices")
       .select("payment_status, stripe_session_id")
