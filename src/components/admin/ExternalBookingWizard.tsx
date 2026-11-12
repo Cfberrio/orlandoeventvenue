@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, addMonths, addDays, addWeeks, isSameDay, getDay } from "date-fns";
+import { format, addMonths, addDays, addWeeks, isSameDay, getDay, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -381,7 +381,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         const recurringDates = generateRecurringDates(date, duration);
         successMessage = `External recurring booking created for ${recurringDates.length} occurrence(s) every ${format(date, "EEEE")} from ${format(date, "MM/dd")} to ${format(getEndDate()!, "MM/dd/yyyy")}`;
       } else if (bookingType === "daily" && effectiveDuration !== "1_day") {
-        successMessage = `External booking created for ${format(date, "MM/dd")} - ${format(new Date(effectiveEndDate), "MM/dd/yyyy")}`;
+        successMessage = `External booking created for ${format(date, "MM/dd")} - ${format(parseISO(effectiveEndDate), "MM/dd/yyyy")}`;
       } else {
         successMessage = `External booking created for ${format(date, "MM/dd/yyyy")}`;
       }

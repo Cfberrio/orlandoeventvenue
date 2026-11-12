@@ -1455,6 +1455,29 @@ serve(async (req) => {
           }
         }
       }
+
+      // Add-on links die with their Checkout Session (24h). Mark the row so the
+      // admin stops showing a dead link as "pending" (M-30, 86e40ach2). Only the
+      // row that still points at THIS session, and only while unpaid.
+      if (paymentType === "addon_invoice") {
+        const invoiceId = session.metadata?.invoice_id;
+        if (invoiceId) {
+          const supabase = createClient(supabaseUrl, supabaseServiceKey);
+          const { error: expireError } = await supabase
+            .from("booking_addon_invoices")
+            .update({ payment_status: "expired" })
+            .eq("id", invoiceId)
+            .eq("stripe_session_id", session.id)
+            .eq("payment_status", "pending")
+            .is("paid_at", null);
+
+          if (expireError) {
+            console.error("Error expiring addon invoice:", expireError);
+          } else {
+            console.log("Addon invoice expired:", invoiceId);
+          }
+        }
+      }
     }
 
     return new Response(JSON.stringify({ received: true }), {

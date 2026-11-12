@@ -17,7 +17,7 @@ import {
   uploadStandaloneCleaningMedia,
   type StandaloneCleaningReport,
 } from "@/hooks/useStandaloneCleaningData";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 export default function StandaloneCleaningReportForm() {
   const { assignmentId } = useParams<{ assignmentId: string }>();
@@ -297,7 +297,7 @@ export default function StandaloneCleaningReportForm() {
         <CardHeader>
           <CardTitle>Cleaning Report - Standalone Assignment</CardTitle>
           <CardDescription>
-            Date: {assignment.scheduled_date ? format(new Date(assignment.scheduled_date), 'MM/dd/yyyy') : 'N/A'}
+            Date: {assignment.scheduled_date ? format(parseISO(assignment.scheduled_date), 'MM/dd/yyyy') : 'N/A'}
             {' • '}
             Type: {cleaningTypeLabel}
           </CardDescription>

@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Edit, Loader2, CheckCircle } from "lucide-react";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { Link } from "react-router-dom";
 import { usePayrollData, PayrollLineItem } from "@/hooks/usePayrollData";
 import { supabase } from "@/integrations/supabase/client";
@@ -208,7 +208,7 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
                   />
                 </TableCell>
                 <TableCell className="text-sm">
-                  {item.assignment_date ? format(new Date(item.assignment_date), 'MM/dd/yyyy') : '-'}
+                  {item.assignment_date ? format(parseISO(item.assignment_date), 'MM/dd/yyyy') : '-'}
                 </TableCell>
                 <TableCell className="text-sm">
                   {item.booking_id ? (

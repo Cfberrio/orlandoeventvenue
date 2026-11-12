@@ -21,6 +21,7 @@ import {
   subMonths,
   eachDayOfInterval,
   isSameDay,
+  isSameMonth,
   parseISO,
   isWithinInterval,
   isAfter,
@@ -57,20 +58,21 @@ export default function Schedule() {
   const [internalBookingOpen, setInternalBookingOpen] = useState(false);
   const [externalBookingOpen, setExternalBookingOpen] = useState(false);
 
-  const dateFrom = viewMode === "week" 
-    ? format(startOfWeek(currentDate), "yyyy-MM-dd")
-    : format(startOfMonth(currentDate), "yyyy-MM-dd");
-  const dateTo = viewMode === "week"
-    ? format(endOfWeek(currentDate), "yyyy-MM-dd")
-    : format(endOfMonth(currentDate), "yyyy-MM-dd");
+  // Month view pads the grid to whole weeks (Sun–Sat) so each date sits
+  // under its real weekday; the padding days come from the adjacent months.
+  const gridStart = viewMode === "week"
+    ? startOfWeek(currentDate)
+    : startOfWeek(startOfMonth(currentDate));
+  const gridEnd = viewMode === "week"
+    ? endOfWeek(currentDate)
+    : endOfWeek(endOfMonth(currentDate));
+  const dateFrom = format(gridStart, "yyyy-MM-dd");
+  const dateTo = format(gridEnd, "yyyy-MM-dd");
 
   const { data, isLoading } = useScheduleData(dateFrom, dateTo);
   const { data: blocks = [] } = useAvailabilityBlocks(dateFrom, dateTo);
 
-  const days = eachDayOfInterval({
-    start: viewMode === "week" ? startOfWeek(currentDate) : startOfMonth(currentDate),
-    end: viewMode === "week" ? endOfWeek(currentDate) : endOfMonth(currentDate),
-  });
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
 
   const navigate = (direction: "prev" | "next") => {
     if (viewMode === "week") {
@@ -397,6 +399,7 @@ export default function Schedule() {
               {days.map((day) => {
                 const events = getEventsForDay(day);
                 const isToday = isSameDay(day, new Date());
+                const isOutsideMonth = viewMode === "month" && !isSameMonth(day, currentDate);
                 const { hasWebsiteBookings, hasInternalBookings, hasExternalBookings } = getDayIndicators(day);
                 
                 return (
@@ -404,7 +407,7 @@ export default function Schedule() {
                     key={day.toISOString()}
                     className={`min-h-[160px] border rounded-lg p-2 ${
                       isToday ? "border-primary bg-primary/5" : "border-border"
-                    }`}
+                    }${isOutsideMonth ? " opacity-50" : ""}`}
                   >
                     {/* Indicator badges */}
                     {(hasWebsiteBookings || hasInternalBookings || hasExternalBookings) && (

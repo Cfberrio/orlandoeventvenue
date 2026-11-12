@@ -13,7 +13,7 @@ import {
   AlertCircle
 } from "lucide-react";
 import { useStaffStandaloneAssignments } from "@/hooks/useStandaloneCleaningData";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 export default function StaffStandaloneList() {
   const { data: assignments, isLoading } = useStaffStandaloneAssignments();
@@ -106,7 +106,7 @@ export default function StaffStandaloneList() {
                         <p className="text-sm text-muted-foreground">Date</p>
                         <p className="font-semibold">
                           {assignment.scheduled_date 
-                            ? format(new Date(assignment.scheduled_date), 'MM/dd/yyyy')
+                            ? format(parseISO(assignment.scheduled_date), 'MM/dd/yyyy')
                             : 'No date'}
                         </p>
                       </div>
@@ -133,7 +133,7 @@ export default function StaffStandaloneList() {
                         <Badge variant="secondary" className="font-medium">
                           {getCleaningTypeLabel(assignment.cleaning_type)}
                         </Badge>
-                        {assignment.celebration_surcharge && assignment.celebration_surcharge > 0 && (
+                        {Number(assignment.celebration_surcharge) > 0 && (
                           <Badge variant="outline" className="ml-2">
                             Celebration Surcharge: ${assignment.celebration_surcharge}
                           </Badge>

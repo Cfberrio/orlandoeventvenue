@@ -350,7 +350,7 @@ const SummaryStep = ({ data, updateData, onNext, onBack, goToStep }: SummaryStep
                 <span>${(data.barSubtotal || 0).toFixed(2)}</span>
               </div>
             )}
-            {data.pricing.discount && data.pricing.discount > 0 && (
+            {Number(data.pricing.discount) > 0 && (
               <div className="flex justify-between text-green-600 dark:text-green-400">
                 <span>
                   Discount ({data.pricing.discountCode})

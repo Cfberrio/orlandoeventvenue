@@ -31,6 +31,85 @@ const PACKAGE_LABELS: Record<string, string> = {
   workshop: "Workshop Package",
 };
 
+// Fields that make two add-on invoices "the same items".
+const TWIN_FIELDS = [
+  "package",
+  "package_start_time",
+  "package_end_time",
+  "setup_breakdown",
+  "tablecloths",
+  "tablecloth_quantity",
+  "bar_package",
+  "bar_guest_count",
+] as const;
+
+type AddonInvoiceRow = Record<string, unknown> & { id: string; booking_id: string };
+
+function isAddonTwin(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  return TWIN_FIELDS.every((f) => (a[f] ?? null) === (b[f] ?? null));
+}
+
+// Expire older unpaid invoices for the same booking and the same items.
+// Stripe first: if the old session already completed (guest paid it a moment
+// ago) Stripe refuses the expire and the row is left for the webhook to mark
+// paid. Never throws: a failure here must not hide the new link from the office.
+async function supersedeAddonTwins(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  stripe: Stripe,
+  invoice: AddonInvoiceRow,
+): Promise<void> {
+  try {
+    const { data: siblings, error } = await supabase
+      .from("booking_addon_invoices")
+      .select("*")
+      .eq("booking_id", invoice.booking_id)
+      .eq("payment_status", "pending")
+      .is("paid_at", null)
+      .neq("id", invoice.id);
+    if (error) {
+      console.error("[ADDON_SUPERSEDE] could not list sibling invoices:", error);
+      return;
+    }
+    for (const twin of (siblings ?? []) as AddonInvoiceRow[]) {
+      if (!isAddonTwin(twin, invoice)) continue;
+      const sessionId = typeof twin.stripe_session_id === "string" ? twin.stripe_session_id : null;
+      if (sessionId) {
+        try {
+          const live = await stripe.checkout.sessions.retrieve(sessionId);
+          if (live.status === "complete") {
+            console.warn(`[ADDON_SUPERSEDE] twin ${twin.id} session already complete; leaving it for the webhook`);
+            continue;
+          }
+          if (live.status === "open") await stripe.checkout.sessions.expire(sessionId);
+        } catch (stripeErr) {
+          console.error(`[ADDON_SUPERSEDE] could not expire session for twin ${twin.id}:`, stripeErr);
+          continue;
+        }
+      }
+      const { error: markError } = await supabase
+        .from("booking_addon_invoices")
+        .update({ payment_status: "expired" })
+        .eq("id", twin.id)
+        .eq("payment_status", "pending")
+        .is("paid_at", null);
+      if (markError) {
+        console.error(`[ADDON_SUPERSEDE] could not mark twin ${twin.id} expired:`, markError);
+        continue;
+      }
+      const { error: eventError } = await supabase.from("booking_events").insert({
+        booking_id: invoice.booking_id,
+        event_type: "addon_invoice_superseded",
+        channel: "admin",
+        metadata: { superseded_invoice_id: twin.id, replaced_by_invoice_id: invoice.id },
+      });
+      if (eventError) console.error("[ADDON_SUPERSEDE] could not log event:", eventError);
+    }
+  } catch (err) {
+    console.error("[ADDON_SUPERSEDE] unexpected error:", err);
+  }
+}
+
 interface AddonInvoiceRequest {
   invoice_id: string;
   // Ignored since S-3: recipient, name, date and reservation number are read
@@ -156,6 +235,16 @@ serve(async (req: Request) => {
       return new Response(
         JSON.stringify({ error: "Invoice not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // One Checkout Session per invoice row. Re-running would overwrite the
+    // session id the webhook and the expiry job match on, and email a second
+    // link for the same row (M-30, 86e40ach2). A new link = a new invoice.
+    if (invoice.paid_at || invoice.payment_status !== "pending" || invoice.stripe_session_id) {
+      return new Response(
+        JSON.stringify({ error: "This add-on invoice already has a payment link or is closed. Create a new invoice instead." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -359,6 +448,11 @@ serve(async (req: Request) => {
     if (updateError) {
       console.error("Error updating invoice with payment URL:", updateError);
     }
+
+    // M-30 (86e40ach2): a new link for the same items replaces the older
+    // unpaid one, so the guest never holds two live links for one service
+    // (CDYXE2 paid LED twice-billed, CNZQVC carried 3 links for one package).
+    await supersedeAddonTwins(supabase, stripe, invoice);
 
     // Send email with payment link
     const gmailUser = Deno.env.get("GMAIL_USER");

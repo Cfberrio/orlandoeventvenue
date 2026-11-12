@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { addonInvoiceItemLabels, paidAddonInvoices, paidAddonTotal } from "@/lib/addonInvoice";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
 import { useParams, Link, useSearchParams } from "react-router-dom";
@@ -156,6 +157,8 @@ export default function BookingDetail() {
   const { data: reviews } = useBookingReviews(id!);
   const { data: attachments } = useBookingAttachments(id!);
   const { data: addonInvoices, refetch: refetchAddonInvoices } = useBookingAddonInvoices(id!);
+  const paidAddons = paidAddonInvoices(addonInvoices as any[] | undefined);
+  const paidAddonsTotal = paidAddonTotal(paidAddons);
   const { data: staffMembers } = useStaffMembers({ isActive: true });
 
   const updateBooking = useUpdateBooking();
@@ -1040,6 +1043,17 @@ export default function BookingDetail() {
                     <p className="text-sm bg-muted/50 p-2 rounded">{booking.client_notes}</p>
                   </div>
                 )}
+                {paidAddons.length > 0 && (
+                  <div className="pt-2 border-t space-y-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Added after booking (paid add-on invoices)</p>
+                    {paidAddons.map((invoice: any) => (
+                      <div key={invoice.id} className="flex justify-between text-sm">
+                        <span>{addonInvoiceItemLabels(invoice).join(" + ") || "Add-On Invoice"}</span>
+                        <span className="font-medium">${Number(invoice.total_amount).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1136,7 +1150,7 @@ export default function BookingDetail() {
                       <span>${Number(booking.bar_subtotal).toLocaleString()}</span>
                     </div>
                   )}
-                  {booking.discount_amount && Number(booking.discount_amount) > 0 && (
+                  {Number(booking.discount_amount) > 0 && (
                     <div className="flex justify-between text-green-600 dark:text-green-400">
                       <span className="text-muted-foreground">
                         Discount {booking.discount_code ? `(${booking.discount_code})` : ''}
@@ -1155,6 +1169,18 @@ export default function BookingDetail() {
                     <span>Total</span>
                     <span className="text-green-600">${Number(booking.total_amount).toLocaleString()}</span>
                   </div>
+                  {paidAddons.length > 0 && (
+                    <>
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Paid add-ons</span>
+                        <span className="font-medium">+${paidAddonsTotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm font-semibold">
+                        <span>Total incl. paid add-ons</span>
+                        <span>${(Number(booking.total_amount) + paidAddonsTotal).toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Deposit</span>
                     <span className="font-medium">${Number(booking.deposit_amount).toLocaleString()}</span>
@@ -1227,27 +1253,19 @@ export default function BookingDetail() {
                 {addonInvoices && addonInvoices.length > 0 ? (
                   <div className="space-y-3">
                     {addonInvoices.map((invoice: any) => {
-                      const packageLabels: Record<string, string> = {
-                        none: "Services Only",
-                        basic: "Basic Package",
-                        led: "LED Package",
-                        workshop: "Workshop Package",
-                      };
                       const statusColors: Record<string, string> = {
                         pending: "bg-yellow-100 text-yellow-800",
                         paid: "bg-green-100 text-green-800",
                         expired: "bg-gray-100 text-gray-600",
                       };
 
-                      const invoiceItems: string[] = [];
-                      if (invoice.package !== "none" && invoice.package_start_time && invoice.package_end_time) {
-                        const start = new Date(`2000-01-01T${invoice.package_start_time}`);
-                        const end = new Date(`2000-01-01T${invoice.package_end_time}`);
-                        const hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
-                        invoiceItems.push(`${packageLabels[invoice.package] || invoice.package} (${hours}h)`);
-                      }
-                      if (invoice.setup_breakdown) invoiceItems.push("Setup & Breakdown");
-                      if (invoice.tablecloths) invoiceItems.push(`Tablecloths (${invoice.tablecloth_quantity})`);
+                      const invoiceItems = addonInvoiceItemLabels(invoice);
+                      // Stripe Checkout links die 24h after creation. Until the
+                      // hourly expiry job marks the row, never offer a dead link.
+                      const linkExpired =
+                        invoice.payment_status === "pending" &&
+                        Date.now() - new Date(invoice.created_at).getTime() > 24 * 60 * 60 * 1000;
+                      const shownStatus = linkExpired ? "expired" : invoice.payment_status;
 
                       return (
                         <div key={invoice.id} className="flex items-center justify-between border rounded-lg p-3">
@@ -1261,10 +1279,10 @@ export default function BookingDetail() {
                           </div>
                           <div className="flex items-center gap-3">
                             <span className="font-semibold">${Number(invoice.total_amount).toFixed(2)}</span>
-                            <Badge className={statusColors[invoice.payment_status] || ""}>
-                              {invoice.payment_status}
+                            <Badge className={statusColors[shownStatus] || ""}>
+                              {shownStatus === "expired" ? "link expired" : shownStatus}
                             </Badge>
-                            {invoice.payment_status === "pending" && invoice.payment_url && (
+                            {shownStatus === "pending" && invoice.payment_url && (
                               <a
                                 href={invoice.payment_url}
                                 target="_blank"
@@ -1516,7 +1534,7 @@ export default function BookingDetail() {
                                    assignment.cleaning_type === 'regular' ? 'Regular ($80)' :
                                    assignment.cleaning_type === 'deep' ? 'Deep ($150)' : '-'}
                                 </Badge>
-                                {assignment.celebration_surcharge && assignment.celebration_surcharge > 0 && (
+                                {Number(assignment.celebration_surcharge) > 0 && (
                                   <Badge variant="outline" className="text-xs w-fit">
                                     +${assignment.celebration_surcharge} celebration
                                   </Badge>

@@ -16,6 +16,7 @@ export default defineConfig({
       "supabase/functions/_tests/billing-integrity.test.ts",
       "supabase/functions/_tests/readiness-lifecycle.test.ts",
       "supabase/functions/_tests/phase1a-security.test.ts",
+      "supabase/functions/_tests/phase1b-quickwins.test.ts",
     ],
   },
 });

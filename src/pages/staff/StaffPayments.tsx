@@ -395,7 +395,7 @@ export default function StaffPayments() {
                           <span className="text-sm text-muted-foreground">
                             {item.description || "—"}
                           </span>
-                          {item.hours && item.rate && (
+                          {Number(item.hours) > 0 && Number(item.rate) > 0 && (
                             <p className="text-xs text-muted-foreground mt-0.5">
                               {item.hours}h x ${item.rate}/hr
                             </p>
@@ -484,7 +484,7 @@ export default function StaffPayments() {
                       {item.description && (
                         <p className="text-xs">{item.description}</p>
                       )}
-                      {item.hours && item.rate && (
+                      {Number(item.hours) > 0 && Number(item.rate) > 0 && (
                         <p className="text-xs">
                           {item.hours}h x ${item.rate}/hr
                         </p>

@@ -303,7 +303,7 @@ export default function PayrollItemEditModal({
             <span className="text-sm text-muted-foreground">Pay Category:</span>
             <Badge>{item.pay_category.replace(/_/g, ' ')}</Badge>
           </div>
-          {item.hours && (
+          {Number(item.hours) > 0 && (
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Hours:</span>
               <span>{Number(item.hours).toFixed(2)}</span>

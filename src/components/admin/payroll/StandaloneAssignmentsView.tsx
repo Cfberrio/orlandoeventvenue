@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Edit, Trash2, CheckCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
@@ -235,7 +235,7 @@ export default function StandaloneAssignmentsView({
                             {assignment.staff_members?.full_name || 'N/A'}
                           </TableCell>
                           <TableCell>
-                            {format(new Date(assignment.scheduled_date), "MM/dd/yyyy")}
+                            {format(parseISO(assignment.scheduled_date), "MM/dd/yyyy")}
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
                             {assignment.scheduled_start_time && assignment.scheduled_end_time

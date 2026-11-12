@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { format, addMonths, addDays, addWeeks, isSameDay, getDay } from "date-fns";
+import { format, addMonths, addDays, addWeeks, isSameDay, getDay, parseISO } from "date-fns";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -291,7 +291,7 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
         const recurringDates = generateRecurringDates(date, duration);
         successMessage = `Internal recurring booking created for ${recurringDates.length} occurrence(s) every ${format(date, "EEEE")} from ${format(date, "MM/dd")} to ${format(getEndDate()!, "MM/dd/yyyy")}`;
       } else if (bookingType === "daily" && effectiveDuration !== "1_day") {
-        successMessage = `Internal booking created for ${format(date, "MM/dd")} - ${format(new Date(effectiveEndDate), "MM/dd/yyyy")}`;
+        successMessage = `Internal booking created for ${format(date, "MM/dd")} - ${format(parseISO(effectiveEndDate), "MM/dd/yyyy")}`;
       } else {
         successMessage = `Internal booking created for ${format(date, "MM/dd/yyyy")}`;
       }
