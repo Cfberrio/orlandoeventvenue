@@ -2024,9 +2024,9 @@ export default function BookingDetail() {
         onOpenChange={setShowDepositModal}
         booking={booking}
         onRecorded={() => {
-          queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
-          queryClient.invalidateQueries({ queryKey: ["booking-events", booking.id] });
-          queryClient.invalidateQueries({ queryKey: ["bookings"] });
+          // Payment status feeds readiness, lifecycle, revenue and lists:
+          // refresh everything, as the old full-page reload did.
+          queryClient.invalidateQueries();
         }}
       />
 

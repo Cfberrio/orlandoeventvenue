@@ -171,6 +171,19 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
               <Textarea id="rp-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
             </div>
 
+            <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
+              {kind === "deposit" && (
+                <p>
+                  After a manual deposit, no balance link or reminder is scheduled automatically. Use
+                  "Send Balance Payment Link" on this page when the balance is due.
+                </p>
+              )}
+              <p>
+                If the guest already received a Stripe payment link for this step, it may still be payable. If they
+                pay it too, you will get a "possible double payment" alert; refund the second charge in Stripe.
+              </p>
+            </div>
+
             {problem && <p className="text-xs text-destructive">{problem}</p>}
           </div>
         )}
