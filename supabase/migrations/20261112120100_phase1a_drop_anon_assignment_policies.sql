@@ -11,7 +11,19 @@
 -- with the public key could change any column of any assignment, including
 -- status = 'completed', which generates payroll.
 -- "Anon can update bar_service assignments": same, for bar vendor rows.
+--
+-- S-9: the guest post-event report is written only by submit_guest_report()
+-- now, so the public INSERT/UPDATE rules on booking_host_reports and the
+-- public INSERT on booking_reviews go too. That makes "a report row exists"
+-- a marker the RPC can trust for idempotency (no forged or stray rows).
+-- Admin writes keep working through the "Admin and staff can manage ..."
+-- policies.
 -- =============================================================================
 
 DROP POLICY IF EXISTS "Anon can respond to own assignments" ON public.booking_staff_assignments;
 DROP POLICY IF EXISTS "Anon can update bar_service assignments" ON public.booking_staff_assignments;
+
+DROP POLICY IF EXISTS "Anyone can submit host reports via reservation lookup" ON public.booking_host_reports;
+DROP POLICY IF EXISTS "Anyone can submit host_reports" ON public.booking_host_reports;
+DROP POLICY IF EXISTS "Anyone can update their host report" ON public.booking_host_reports;
+DROP POLICY IF EXISTS "Anyone can submit reviews" ON public.booking_reviews;

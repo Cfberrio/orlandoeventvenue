@@ -608,13 +608,31 @@ BEGIN
     RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002';
   END IF;
 
-  -- One report per booking: a resubmission (retry, second tab) records
-  -- nothing new — no second report, ticket, review or event — but still
-  -- gets the lifecycle check below. 2 bookings already carry duplicate
+  -- One report per booking: a resubmission (retry, second tab) adds no
+  -- second report, ticket, review or event, but still re-applies the
+  -- idempotent steps (host_report_step, reminder cancellation) and the
+  -- lifecycle check below — which also repairs reports the old browser flow
+  -- saved without finishing those steps. The report row is a trustworthy
+  -- marker only because migration 20261112120100 removes the public
+  -- INSERT/UPDATE rules on booking_host_reports, so after it this RPC (and
+  -- the admin) are the only writers. 2 bookings already carry duplicate
   -- reports from the browser flow; they are left as they are.
   v_duplicate := EXISTS (
     SELECT 1 FROM public.booking_host_reports WHERE booking_id = p_booking_id
   );
+
+  UPDATE public.bookings
+  SET host_report_step = 'completed', updated_at = now()
+  WHERE id = p_booking_id
+    AND host_report_step IS DISTINCT FROM 'completed';
+
+  UPDATE public.scheduled_jobs
+  SET status = 'cancelled',
+      last_error = 'host_report_completed_before_job_run',
+      updated_at = now()
+  WHERE booking_id = p_booking_id
+    AND job_type IN ('host_report_pre_start', 'host_report_during', 'host_report_post')
+    AND status = 'pending';
 
   IF NOT v_duplicate THEN
   INSERT INTO public.booking_host_reports (
@@ -637,18 +655,6 @@ BEGIN
     'submitted',
     now()
   );
-
-  UPDATE public.bookings
-  SET host_report_step = 'completed', updated_at = now()
-  WHERE id = p_booking_id;
-
-  UPDATE public.scheduled_jobs
-  SET status = 'cancelled',
-      last_error = 'host_report_completed_before_job_run',
-      updated_at = now()
-  WHERE booking_id = p_booking_id
-    AND job_type IN ('host_report_pre_start', 'host_report_during', 'host_report_post')
-    AND status = 'pending';
 
   INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
   VALUES (

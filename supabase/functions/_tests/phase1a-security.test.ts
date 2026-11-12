@@ -206,6 +206,20 @@ describe("Phase 1A migration (S-1, S-2, S-5..S-9)", () => {
     expect(fn).toMatch(/FOR UPDATE;/);
     expect(fn).toMatch(/IF NOT v_duplicate THEN\s+INSERT INTO public\.booking_host_reports/);
     expect(fn).toMatch(/END IF; -- NOT v_duplicate\s+-- Same rule/);
+    // Idempotent steps run before the duplicate branch, so retries repair them.
+    expect(fn.indexOf("host_report_completed_before_job_run")).toBeLessThan(fn.indexOf("IF NOT v_duplicate THEN"));
+  });
+
+  it("S-9: public writes to host reports / reviews are closed after publish", () => {
+    const step2 = read("supabase/migrations/20261112120100_phase1a_drop_anon_assignment_policies.sql");
+    for (const pol of [
+      "Anyone can submit host reports via reservation lookup",
+      "Anyone can submit host_reports",
+      "Anyone can update their host report",
+      "Anyone can submit reviews",
+    ]) {
+      expect(step2).toContain(`DROP POLICY IF EXISTS "${pol}"`);
+    }
   });
 
   it("S-5: backfill is idempotent and refuses non-production paid invoices", () => {
@@ -228,6 +242,6 @@ describe("front-end writes moved to RPCs (S-2, S-9)", () => {
     expect(src).not.toMatch(/lifecycle_status: 'post_event'/);
     expect(src).not.toMatch(/from\('scheduled_jobs'\)/);
     expect(src).not.toMatch(/from\('maintenance_tickets'\)/);
-    expect(src).toMatch(/if \(!result\.duplicate && reviewData/);
+    expect(src).not.toMatch(/!result\.duplicate/);
   });
 });

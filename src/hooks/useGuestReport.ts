@@ -171,8 +171,10 @@ export const useGuestReport = () => {
       };
 
       // Low rating alert (1-2 stars) stays best-effort and never blocks the report.
-      // A resubmission records nothing new, so it must not alert twice.
-      if (!result.duplicate && reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
+      // Sent on every submission with a low rating, resubmissions included:
+      // if the first response was lost after the RPC committed, the retry is
+      // the only chance to alert. A duplicate internal alert beats a missed one.
+      if (reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
         try {
           await supabase.functions.invoke('send-low-rating-alert', {
             body: {
