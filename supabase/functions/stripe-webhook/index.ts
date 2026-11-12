@@ -767,7 +767,26 @@ serve(async (req) => {
           .select("*")
           .eq("id", invoiceId)
           .single();
-        if (paidInvoiceError) console.error("Error reading paid addon invoice:", paidInvoiceError);
+        if (paidInvoiceError) {
+          // Without the invoice row no revenue line can be built. Leave the
+          // same visible trail as a failed insert so it is not lost (S-5).
+          console.error("[ADDON_REVENUE_WRITE_FAILED] could not read paid addon invoice:", paidInvoiceError);
+          if (bookingId) {
+            const { error: readFailEventError } = await supabase.from("booking_events").insert({
+              booking_id: bookingId,
+              event_type: "addon_revenue_write_failed",
+              channel: "stripe",
+              metadata: {
+                invoice_id: invoiceId,
+                session_id: sessionId,
+                error: `could not read paid add-on invoice: ${paidInvoiceError.message ?? String(paidInvoiceError)}`,
+              },
+            });
+            if (readFailEventError) {
+              console.error("Could not record addon_revenue_write_failed event:", readFailEventError);
+            }
+          }
+        }
 
         // Revenue lines for this add-on are collected and written in ONE insert
         // below, so they land together or not at all. The invoice is already

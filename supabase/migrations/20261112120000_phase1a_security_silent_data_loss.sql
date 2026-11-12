@@ -587,23 +587,36 @@ DECLARE
   v_has_issue boolean := COALESCE((p_report ->> 'has_issue')::boolean, false);
   v_rating int;
   v_event_end timestamptz;
+  v_end_date date;
   v_transitioned boolean := false;
+  v_duplicate boolean := false;
 BEGIN
   IF p_booking_id IS NULL OR p_reservation_number IS NULL OR p_report IS NULL THEN
     RAISE EXCEPTION 'booking, reservation number and report are required' USING ERRCODE = '22023';
   END IF;
 
   -- The guest found the booking by reservation number; both must match.
-  SELECT id, reservation_number, event_date, end_time, event_type
+  -- FOR UPDATE serialises double-clicks / retries on the same booking.
+  SELECT id, reservation_number, event_date, start_time, end_time, event_type
   INTO v_booking
   FROM public.bookings
   WHERE id = p_booking_id
-    AND reservation_number = upper(btrim(p_reservation_number));
+    AND reservation_number = upper(btrim(p_reservation_number))
+  FOR UPDATE;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'booking not found' USING ERRCODE = 'P0002';
   END IF;
 
+  -- One report per booking: a resubmission (retry, second tab) records
+  -- nothing new — no second report, ticket, review or event — but still
+  -- gets the lifecycle check below. 2 bookings already carry duplicate
+  -- reports from the browser flow; they are left as they are.
+  v_duplicate := EXISTS (
+    SELECT 1 FROM public.booking_host_reports WHERE booking_id = p_booking_id
+  );
+
+  IF NOT v_duplicate THEN
   INSERT INTO public.booking_host_reports (
     booking_id, guest_name, guest_email, guest_phone,
     guest_confirm_area_clean, guest_confirm_trash_bagged,
@@ -674,11 +687,20 @@ BEGIN
       'guest_report'
     );
   END IF;
+  END IF; -- NOT v_duplicate
 
   -- Same rule the browser applied (in_progress + event end + 24h), now with
   -- the event end read in Orlando time and a compare-and-set that never
   -- moves a cancelled booking.
-  v_event_end := ((v_booking.event_date + COALESCE(v_booking.end_time, time '23:59'))
+  -- Overnight events (end_time <= start_time) end the next day, same rule
+  -- as get_access_code_for_reservation().
+  v_end_date := CASE
+    WHEN v_booking.end_time IS NOT NULL AND v_booking.start_time IS NOT NULL
+         AND v_booking.end_time <= v_booking.start_time
+      THEN v_booking.event_date + 1
+    ELSE v_booking.event_date
+  END;
+  v_event_end := ((v_end_date + COALESCE(v_booking.end_time, time '23:59'))
                   AT TIME ZONE 'America/New_York');
 
   UPDATE public.bookings
@@ -716,6 +738,7 @@ BEGIN
 
   RETURN jsonb_build_object(
     'transitioned', v_transitioned,
+    'duplicate', v_duplicate,
     'event_date', v_booking.event_date,
     'event_type', v_booking.event_type
   );

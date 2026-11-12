@@ -165,12 +165,14 @@ export const useGuestReport = () => {
 
       const result = (submitResult ?? {}) as {
         transitioned?: boolean;
+        duplicate?: boolean;
         event_date?: string | null;
         event_type?: string | null;
       };
 
       // Low rating alert (1-2 stars) stays best-effort and never blocks the report.
-      if (reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
+      // A resubmission records nothing new, so it must not alert twice.
+      if (!result.duplicate && reviewData && reviewData.rating > 0 && reviewData.rating <= 2) {
         try {
           await supabase.functions.invoke('send-low-rating-alert', {
             body: {

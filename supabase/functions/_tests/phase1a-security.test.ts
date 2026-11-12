@@ -124,8 +124,8 @@ describe("stripe-webhook writes add-on revenue in one insert and records failure
     expect(branch).toMatch(/\.insert\(addonRevenueRows, \{ defaultToNull: false \}\)/);
   });
 
-  it("records a visible booking event when the write fails", () => {
-    expect(branch).toMatch(/event_type: "addon_revenue_write_failed"/);
+  it("records a visible booking event when the write fails or the invoice cannot be read", () => {
+    expect(branch.match(/event_type: "addon_revenue_write_failed"/g)?.length).toBe(2);
   });
 
   it("still labels every line payment_split = addon (allowed by the new CHECK)", () => {
@@ -200,6 +200,14 @@ describe("Phase 1A migration (S-1, S-2, S-5..S-9)", () => {
     expect(fn).toMatch(/AT TIME ZONE 'America\/New_York'/);
   });
 
+  it("S-9: overnight events end the next day; resubmissions record nothing new", () => {
+    const fn = sql.slice(sql.indexOf("FUNCTION public.submit_guest_report"));
+    expect(fn).toMatch(/v_booking\.end_time <= v_booking\.start_time\s+THEN v_booking\.event_date \+ 1/);
+    expect(fn).toMatch(/FOR UPDATE;/);
+    expect(fn).toMatch(/IF NOT v_duplicate THEN\s+INSERT INTO public\.booking_host_reports/);
+    expect(fn).toMatch(/END IF; -- NOT v_duplicate\s+-- Same rule/);
+  });
+
   it("S-5: backfill is idempotent and refuses non-production paid invoices", () => {
     expect(sql).toMatch(/CREATE UNIQUE INDEX IF NOT EXISTS booking_revenue_items_addon_invoice_line_uidx/);
     expect(sql).toMatch(/have non-production components; backfill them explicitly/);
@@ -220,5 +228,6 @@ describe("front-end writes moved to RPCs (S-2, S-9)", () => {
     expect(src).not.toMatch(/lifecycle_status: 'post_event'/);
     expect(src).not.toMatch(/from\('scheduled_jobs'\)/);
     expect(src).not.toMatch(/from\('maintenance_tickets'\)/);
+    expect(src).toMatch(/if \(!result\.duplicate && reviewData/);
   });
 });
