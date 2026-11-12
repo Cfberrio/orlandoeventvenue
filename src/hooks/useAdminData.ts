@@ -963,17 +963,10 @@ export function useCreateStaffAssignment() {
       // A new pending assignment can demote a Pre-Event Ready booking.
       invalidateBookingLifecycle(queryClient, variables.booking_id);
 
-      // Populate payroll items for Assistant ($80 flat) and Custodial (cleaning rates)
-      if (
-        (variables.assignment_role === 'Assistant' || variables.assignment_type === 'cleaning') &&
-        createdAssignment?.id
-      ) {
-        await supabase.rpc('populate_staff_payroll_items', {
-          p_assignment_id: createdAssignment.id,
-          p_is_historical: false,
-        });
-      }
-      
+      // M-4 (86e40ach2): payroll is no longer created at assignment time.
+      // It is created when the assignment is completed (accepted staff, after
+      // the event), so a reject, unassign or cancel never leaves a pay line.
+
       // Sync to GHL after staff assignment created
       syncToGHL(variables.booking_id);
 

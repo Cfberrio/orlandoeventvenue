@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeAdminOrService, supabaseAdminAuthDeps } from "../_shared/admin-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,22 @@ serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+  // Found in Phase 1B (86e40ach2): this function is public (verify_jwt=false)
+  // and marked every past-event assignment completed — pending and rejected
+  // too — and generated payroll for it, for anyone who called it. Admin or
+  // service role only, and only staff who accepted.
+  const auth = await authorizeAdminOrService(
+    req.headers.get("Authorization"),
+    supabaseServiceKey,
+    supabaseAdminAuthDeps(supabase),
+  );
+  if (!auth.ok) {
+    return new Response(
+      JSON.stringify({ error: auth.error }),
+      { status: auth.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
+  }
 
   const url = new URL(req.url);
   const backfill = url.searchParams.get("backfill") === "true";
@@ -62,6 +79,7 @@ serve(async (req: Request) => {
       `)
       .not("booking_id", "is", null)
       .neq("status", "cancelled")
+      .eq("response_status", "accepted")
       .in("bookings.payment_status", ["deposit_paid", "fully_paid"])
       .not("bookings.status", "in", "(cancelled,declined)");
 

@@ -302,35 +302,17 @@ export function useRemoveStaffAssignment() {
   const { staffMember } = useStaffSession();
   
   return useMutation({
-    mutationFn: async ({ bookingId, assignmentId }: { bookingId: string; assignmentId: string }) => {
-      // Delete the assignment
-      const { error: deleteError } = await supabase
-        .from("booking_staff_assignments")
-        .delete()
-        .eq("id", assignmentId);
-      
-      if (deleteError) throw deleteError;
-      
-      // Create a booking event to notify admin
-      const { error: eventError } = await supabase
-        .from("booking_events")
-        .insert({
-          booking_id: bookingId,
-          event_type: "staff_unassigned",
-          channel: "system",
-          metadata: {
-            staff_name: staffMember?.full_name,
-            staff_role: staffMember?.role,
-            unassigned_at: new Date().toISOString(),
-            reason: "Staff self-unassigned from booking",
-          },
-        });
-      
-      if (eventError) {
-        console.error("Failed to create booking event:", eventError);
-        // Don't throw here, assignment was deleted successfully
-      }
-      
+    mutationFn: async ({ assignmentId }: { bookingId: string; assignmentId: string }) => {
+      if (!staffMember?.id) throw new Error("Not signed in");
+      // M-33 (86e40ach2): the old browser-side delete was silently blocked by
+      // table permissions (anon has no DELETE), so staff thought they were off
+      // the event and the office never knew. The RPC removes the assignment,
+      // refuses once the work is completed or paid, and records the event.
+      const { error } = await supabase.rpc("staff_unassign_self" as any, {
+        p_assignment_id: assignmentId,
+        p_staff_id: staffMember.id,
+      });
+      if (error) throw error;
       return { success: true };
     },
     onSuccess: () => {
