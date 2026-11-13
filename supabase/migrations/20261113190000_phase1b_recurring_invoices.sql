@@ -23,3 +23,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS invoices_one_child_per_period_uidx
   WHERE recurring_parent_id IS NOT NULL
     AND recurring_period IS NOT NULL
     AND payment_status <> 'cancelled';
+
+-- Delivery is recorded only after the email went out (create-invoice sets it);
+-- a payment link alone is not proof the customer got the invoice.
+ALTER TABLE public.invoices ADD COLUMN IF NOT EXISTS email_sent_at timestamptz;

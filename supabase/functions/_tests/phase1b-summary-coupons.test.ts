@@ -68,3 +68,27 @@ describe("M-16 checkout refuses inactive services", () => {
     expect(CHECKOUT).toMatch(/eventTypeLabel\(booking\.event_type, booking\.event_type_other\)/);
   });
 });
+
+describe("Codex review round (coupons, recurring, add-on bar, GHL)", () => {
+  const RECURRING = read("supabase/functions/process-recurring-invoices/index.ts");
+  const INVOICE = read("supabase/functions/create-invoice/index.ts");
+  const JOBS = read("supabase/functions/process-scheduled-jobs/index.ts");
+  const DIALOG = read("src/components/admin/CreateAddonInvoiceDialog.tsx");
+  it("checkout reserves a limited coupon use under a per-code lock", () => {
+    expect(COUPONS).toMatch(/pg_advisory_xact_lock\(hashtext\('oev_coupon:' \|\| v_code\)\)/);
+    expect(CHECKOUT).toMatch(/rpc\("reserve_coupon_use"/);
+  });
+  it("recurring advances only after the email went out and rechecks the parent before sending", () => {
+    expect(INVOICE).toMatch(/email_sent: emailSent,/);
+    expect(RECURRING).toMatch(/if \(!child\.email_sent_at\) \{/);
+    expect(RECURRING).toMatch(/body\?\.email_sent !== true/);
+    expect(RECURRING).toMatch(/paused or rescheduled; not sending/);
+  });
+  it("add-on dialog uses live bar rates", () => {
+    expect(DIALOG).toMatch(/liveBarRate\(barPackage\)/);
+  });
+  it("event-start job keeps a failed GHL sync retryable", () => {
+    expect(JOBS).toMatch(/last_error: GHL_SYNC_PENDING/);
+    expect(JOBS).toMatch(/booking\.lifecycle_status === "in_progress" && job\.last_error === GHL_SYNC_PENDING/);
+  });
+});

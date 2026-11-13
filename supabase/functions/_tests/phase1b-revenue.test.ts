@@ -65,3 +65,15 @@ describe("dashboard, list, analytics", () => {
     expect(SQL).toMatch(/b\.status <> ALL \(ARRAY\[''cancelled''::booking_status/);
   });
 });
+
+describe("webhook add-on revenue failure handling (Codex review)", () => {
+  it("only a FAILED insert releases the claim and returns 500", () => {
+    const i = WEBHOOK.indexOf("if (addonRevenueError) {");
+    const block = WEBHOOK.slice(i, WEBHOOK.indexOf("if (reconcileOnly) {", i));
+    // the 500 sits inside the error branch: its closing brace comes after the return
+    const ret = block.indexOf('return new Response("Add-on revenue not recorded", { status: 500 });');
+    expect(ret).toBeGreaterThan(0);
+    const afterReturn = block.slice(ret);
+    expect(afterReturn).toMatch(/^return new Response\("Add-on revenue not recorded", \{ status: 500 \}\);\n\s+\}\n\s+\}/);
+  });
+});

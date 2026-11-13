@@ -69,7 +69,7 @@ export default function CreateAddonInvoiceDialog({
   const [barGuestCount, setBarGuestCount] = useState<number>(defaultGuestCount || 0);
   const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
-  const { pricing: p } = usePricing();
+  const { pricing: p, items: pricingItems } = usePricing();
 
   const PACKAGE_RATES: Record<string, number> = {
     none: 0,
@@ -104,9 +104,16 @@ export default function CreateAddonInvoiceDialog({
     return cost;
   }, [setupBreakdown, tablecloths, tableclothQuantity, SETUP_BREAKDOWN_COST, TABLECLOTH_UNIT_COST, TABLECLOTH_CLEANING_FEE]);
 
+  // M-18 (86e40ach2): live bar rates from Pricing (the server re-prices with
+  // the same list and refuses a mismatch); the constants are display defaults.
+  const liveBarRate = (key: string): number | undefined => {
+    const item = pricingItems.find((i) => i.item_key === key);
+    return item ? Number(item.price) : undefined;
+  };
   const barRate = useMemo(
-    () => BAR_PACKAGES.find((b) => b.value === barPackage)?.rate ?? 0,
-    [barPackage]
+    () => (barPackage === "none" ? 0 : liveBarRate(barPackage) ?? BAR_PACKAGES.find((b) => b.value === barPackage)?.rate ?? 0),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [barPackage, pricingItems]
   );
   const barSubtotal = useMemo(
     () => (barPackage !== "none" ? Math.round(barRate * (barGuestCount || 0) * 100) / 100 : 0),
@@ -369,7 +376,7 @@ export default function CreateAddonInvoiceDialog({
                 <div key={bp.value} className="flex items-start space-x-3 border rounded-lg p-3 hover:bg-accent/50 transition-colors">
                   <RadioGroupItem value={bp.value} id={`bar-${bp.value}`} className="mt-1" />
                   <label htmlFor={`bar-${bp.value}`} className="flex-1 cursor-pointer">
-                    <div className="font-semibold text-sm">{bp.label}: ${bp.rate.toFixed(2)}/guest</div>
+                    <div className="font-semibold text-sm">{bp.label}: ${(liveBarRate(bp.value) ?? bp.rate).toFixed(2)}/guest</div>
                     <div className="text-xs text-muted-foreground">{bp.description}</div>
                   </label>
                 </div>

@@ -128,14 +128,27 @@ serve(async (req: Request) => {
         }
 
         // 2-3. Send it, unless a previous run already did (only the schedule
-        // advance was lost then).
-        if (!child.payment_url) {
+        // advance was lost then). Sent = the email went out (email_sent_at),
+        // not just a payment link created (Codex review).
+        if (!child.email_sent_at) {
+          // The parent may have been paused or rescheduled since it was read.
+          const { data: fresh, error: freshError } = await supabase
+            .from("invoices")
+            .select("recurring_active, recurring_next_send_at")
+            .eq("id", parent.id)
+            .maybeSingle();
+          if (freshError || !fresh?.recurring_active || fresh.recurring_next_send_at !== period) {
+            console.log(`[recurring-invoices] Parent ${parent.id} paused or rescheduled; not sending ${child.id}`);
+            skipped++;
+            continue;
+          }
+
           const leaseExpired = new Date(Date.now() - SEND_LEASE_MS).toISOString();
           const { data: claimedChild, error: childClaimError } = await supabase
             .from("invoices")
             .update({ recurring_send_claimed_at: new Date().toISOString() })
             .eq("id", child.id)
-            .is("payment_url", null)
+            .is("email_sent_at", null)
             .or(`recurring_send_claimed_at.is.null,recurring_send_claimed_at.lt.${leaseExpired}`)
             .select("id");
           if (childClaimError || !claimedChild || claimedChild.length === 0) {
@@ -158,7 +171,12 @@ serve(async (req: Request) => {
                 customer_name: parent.customer_name || undefined,
               }),
             });
-            if (!fnResponse.ok) sendError = await fnResponse.text();
+            if (!fnResponse.ok) {
+              sendError = await fnResponse.text();
+            } else {
+              const body = await fnResponse.json().catch(() => ({}));
+              if (body?.email_sent !== true) sendError = "invoice created but the email was not sent";
+            }
           } catch (fetchErr) {
             sendError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
           }
@@ -167,10 +185,10 @@ serve(async (req: Request) => {
             // Did it reach the customer anyway (only the response was lost)?
             const { data: after } = await supabase
               .from("invoices")
-              .select("payment_url")
+              .select("email_sent_at")
               .eq("id", child.id)
               .maybeSingle();
-            if (!after?.payment_url) {
+            if (!after?.email_sent_at) {
               console.error(`[recurring-invoices] create-invoice failed for child ${child.id}:`, sendError);
               // Release the claim so the next run retries this same child.
               await supabase.from("invoices").update({ recurring_send_claimed_at: null }).eq("id", child.id);
@@ -178,7 +196,7 @@ serve(async (req: Request) => {
               failed++;
               continue;
             }
-            console.warn(`[recurring-invoices] create-invoice errored but ${child.id} has a payment link; treating as sent`);
+            console.warn(`[recurring-invoices] create-invoice errored but ${child.id} was emailed; treating as sent`);
           }
           console.log(`[recurring-invoices] create-invoice succeeded for child ${child.id}`);
         }

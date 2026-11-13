@@ -1014,10 +1014,10 @@ serve(async (req) => {
             if (failureEventError) {
               console.error("Could not record addon_revenue_write_failed event:", failureEventError);
             }
+            // Retryable: Stripe retries, the duplicate path reconciles.
+            if (releaseBookingEventClaim) await releaseBookingEventClaim();
+            return new Response("Add-on revenue not recorded", { status: 500 });
           }
-          // Retryable: Stripe retries, the duplicate path reconciles.
-          if (releaseBookingEventClaim) await releaseBookingEventClaim();
-          return new Response("Add-on revenue not recorded", { status: 500 });
         }
 
         if (reconcileOnly) {

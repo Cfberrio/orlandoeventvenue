@@ -27,6 +27,25 @@ const GUEST_FEEDBACK_JOB_TYPES = ["guest_feedback_post_event"];
 // Cleaning report reminder job types
 const CLEANING_REMINDER_JOB_TYPES = ["cleaning_report_reminder"];
 
+/** POST sync-to-ghl; true only when GHL accepted it. */
+async function syncBookingToGhl(supabaseUrl: string, serviceKey: string, bookingId: string, reason: string): Promise<{ ok: boolean; error: string }> {
+  try {
+    const res = await fetch(`${supabaseUrl}/functions/v1/sync-to-ghl`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${serviceKey}` },
+      body: JSON.stringify({ booking_id: bookingId, sync_reason: reason }),
+    });
+    const text = await res.text();
+    let body: { ok?: boolean } = {};
+    try { body = JSON.parse(text); } catch { /* not JSON */ }
+    return res.ok && body.ok !== false ? { ok: true, error: "" } : { ok: false, error: text.slice(0, 300) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+const GHL_SYNC_PENDING = "ghl_sync_pending";
+
 // M-26: a claimed job whose run died is retried after this long.
 const PROCESSING_LEASE_MS = 15 * 60 * 1000;
 
@@ -338,6 +357,23 @@ serve(async (req) => {
             // confirmed (staff acceptance still pending): the event happens
             // either way, and post-event automation depends on in_progress.
             // ClickUp 86e3zjfq6.
+            // Codex review: the booking moved, only the GHL sync is still owed.
+            if (booking.lifecycle_status === "in_progress" && job.last_error === GHL_SYNC_PENDING) {
+              const retry = await syncBookingToGhl(supabaseUrl, supabaseServiceKey, job.booking_id, "event_started");
+              const giveUp = !retry.ok && job.attempts + 1 >= 3;
+              await supabase
+                .from("scheduled_jobs")
+                .update(retry.ok
+                  ? { status: "completed", completed_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() }
+                  : giveUp
+                    ? { status: "failed", last_error: `ghl_sync_failed: ${retry.error}`, updated_at: new Date().toISOString() }
+                    : { status: "pending", run_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), last_error: GHL_SYNC_PENDING, updated_at: new Date().toISOString() })
+                .eq("id", job.id);
+              if (retry.ok) results.succeeded++; else results.failed++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: retry.ok ? "completed" : "ghl_sync_retry", error: retry.ok ? undefined : retry.error });
+              continue;
+            }
+
             if (!IN_PROGRESS_SOURCE_STATES.includes(booking.lifecycle_status)) {
               console.log(`Booking ${job.booking_id} lifecycle is ${booking.lifecycle_status}, not confirmed/pre_event_ready - cancelling job ${job.id}`);
               await supabase
@@ -449,6 +485,19 @@ serve(async (req) => {
                 metadata: { to_lifecycle: "in_progress", error: ghlSyncError, job_id: job.id },
               });
               if (ghlLogError) console.error("Could not log GHL sync failure:", ghlLogError);
+              // Durable retry: the job stays pending for a sync-only rerun.
+              await supabase
+                .from("scheduled_jobs")
+                .update({
+                  status: "pending",
+                  run_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
+                  last_error: GHL_SYNC_PENDING,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", job.id);
+              results.failed++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "ghl_sync_retry", error: ghlSyncError });
+              continue;
             }
 
             // Mark job as completed

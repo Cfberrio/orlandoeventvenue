@@ -97,7 +97,8 @@ BEGIN
   v_ip := COALESCE(
     NULLIF(v_headers->>'cf-connecting-ip', ''),
     NULLIF(v_headers->>'x-real-ip', ''),
-    NULLIF(btrim(split_part(COALESCE(v_headers->>'x-forwarded-for', ''), ',', 1)), ''),
+    -- last hop: the first x-forwarded-for value is client-controlled
+    NULLIF(btrim(regexp_replace(COALESCE(v_headers->>'x-forwarded-for', ''), '^.*,', '')), ''),
     'unknown'
   );
 
@@ -127,3 +128,62 @@ END;
 $function$;
 
 GRANT EXECUTE ON FUNCTION public.validate_discount_code(text) TO anon, authenticated, service_role;
+
+-- ---------------------------------------------------------------------------
+-- Codex review: counting paid uses alone lets several open checkouts pass the
+-- limit together. create-checkout reserves a use per booking under a per-code
+-- lock; open reservations (Stripe sessions live 24h) count against max_uses
+-- until they are paid or go stale.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.coupon_reservations (
+  booking_id uuid PRIMARY KEY REFERENCES public.bookings(id) ON DELETE CASCADE,
+  code text NOT NULL,
+  reserved_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.coupon_reservations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.coupon_reservations FROM anon, authenticated;
+
+-- NULL = reserved (or no limit); otherwise the reason it cannot be used.
+CREATE OR REPLACE FUNCTION public.reserve_coupon_use(p_code text, p_booking_id uuid)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_code text := upper(trim(p_code));
+  v_reason text;
+  v_max integer;
+  v_open integer;
+BEGIN
+  PERFORM public._assert_admin_or_service();
+  PERFORM pg_advisory_xact_lock(hashtext('oev_coupon:' || v_code));
+
+  v_reason := public.coupon_unusable_reason(v_code);
+  IF v_reason IS NOT NULL THEN
+    RETURN v_reason;
+  END IF;
+
+  SELECT max_uses INTO v_max FROM public.discount_coupons WHERE upper(code) = v_code LIMIT 1;
+  IF v_max IS NOT NULL THEN
+    SELECT count(*) INTO v_open
+    FROM public.coupon_reservations r
+    JOIN public.bookings b ON b.id = r.booking_id
+    WHERE r.code = v_code
+      AND r.booking_id <> p_booking_id
+      AND r.reserved_at > now() - interval '25 hours'
+      AND b.deposit_paid_at IS NULL AND b.balance_paid_at IS NULL;
+    IF public.coupon_paid_uses(v_code) + v_open >= v_max THEN
+      RETURN 'used_up';
+    END IF;
+  END IF;
+
+  INSERT INTO public.coupon_reservations (booking_id, code, reserved_at)
+  VALUES (p_booking_id, v_code, now())
+  ON CONFLICT (booking_id) DO UPDATE SET code = EXCLUDED.code, reserved_at = now();
+  RETURN NULL;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.reserve_coupon_use(text, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reserve_coupon_use(text, uuid) TO service_role;

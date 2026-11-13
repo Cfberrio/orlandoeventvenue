@@ -319,6 +319,9 @@ serve(async (req: Request) => {
 
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+    // M-31 (86e40ach2): callers (the recurring run) need to know the email
+    // actually went out; a payment_url alone is not delivery.
+    let emailSent = false;
 
     if (gmailUser && gmailPassword && session.url) {
       try {
@@ -368,7 +371,13 @@ serve(async (req: Request) => {
         });
 
         await client.close();
+        emailSent = true;
         console.log("Invoice email sent to:", customer_email);
+        const { error: sentError } = await supabase
+          .from("invoices")
+          .update({ email_sent_at: new Date().toISOString() })
+          .eq("id", invoice.id);
+        if (sentError) console.error("Could not record email_sent_at:", sentError);
       } catch (emailError) {
         console.error("Error sending invoice email:", emailError);
       }
@@ -381,6 +390,7 @@ serve(async (req: Request) => {
         success: true,
         payment_url: session.url,
         session_id: session.id,
+        email_sent: emailSent,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

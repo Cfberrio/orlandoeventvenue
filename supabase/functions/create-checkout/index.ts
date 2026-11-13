@@ -149,7 +149,7 @@ serve(async (req: Request) => {
     const storedCode = (booking.discount_code || "").trim().toUpperCase();
     const coupon = storedCode ? await loadCoupon(supabase, storedCode) : null;
 
-    const couponProblem = !storedCode
+    let couponProblem: string | null = !storedCode
       ? null
       : !coupon
         ? "code_not_found"
@@ -161,6 +161,17 @@ serve(async (req: Request) => {
           : !checkCouponForBooking(coupon, booking.booking_type).ok
             ? "code_not_for_booking_type"
             : null;
+
+    // Codex review (M-21): reserve one use of a limited code for this booking
+    // under a per-code lock, so open checkouts cannot exceed max_uses together.
+    if (!couponProblem && storedCode) {
+      const { data: reserveReason, error: reserveError } = await supabase.rpc("reserve_coupon_use", {
+        p_code: storedCode,
+        p_booking_id: bookingId,
+      });
+      if (reserveError) throw new Error(`reserve_coupon_use failed: ${reserveError.message}`);
+      if (reserveReason) couponProblem = `code_${reserveReason}`;
+    }
 
     const priceInput = {
       bookingType: booking.booking_type,
