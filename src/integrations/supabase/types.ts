@@ -1789,6 +1789,52 @@ export type Database = {
         }
         Relationships: []
       }
+      guest_report_submissions: {
+        Row: {
+          booking_id: string
+          created_at: string
+          host_report_id: string | null
+          review_comment: string | null
+          review_rating: number | null
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          host_report_id?: string | null
+          review_comment?: string | null
+          review_rating?: number | null
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          host_report_id?: string | null
+          review_comment?: string | null
+          review_rating?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_report_submissions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_report_submissions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "guest_report_submissions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       inventory_locations: {
         Row: {
           created_at: string
@@ -3392,6 +3438,7 @@ export type Database = {
       }
     }
     Functions: {
+      _assert_admin_or_service: { Args: never; Returns: undefined }
       add_internal_note: {
         Args: { _author_id: string; _booking_id: string; _note: string }
         Returns: undefined
@@ -3462,7 +3509,38 @@ export type Database = {
           total_generated: number
         }[]
       }
+      get_daily_generated_revenue_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_generated: number
+          bar_generated: number
+          baseline_generated: number
+          booking_count: number
+          cleaning_generated: number
+          discount_generated: number
+          generated_date: string
+          production_generated: number
+          tax_generated: number
+          total_generated: number
+        }[]
+      }
       get_daily_revenue: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_revenue: number
+          bar_revenue: number
+          baseline_revenue: number
+          booking_count: number
+          cleaning_revenue: number
+          discount_amount: number
+          fee_revenue: number
+          production_revenue: number
+          revenue_date: string
+          tax_amount: number
+          total_revenue: number
+        }[]
+      }
+      get_daily_revenue_unchecked: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           addon_revenue: number
@@ -3492,6 +3570,20 @@ export type Database = {
           year_month: string
         }[]
       }
+      get_monthly_revenue_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          addon_revenue: number
+          bar_revenue: number
+          baseline_revenue: number
+          booking_count: number
+          cleaning_revenue: number
+          production_revenue: number
+          revenue_month: string
+          total_revenue: number
+          year_month: string
+        }[]
+      }
       get_payroll_by_role: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
@@ -3505,7 +3597,33 @@ export type Database = {
           total_amount: number
         }[]
       }
+      get_payroll_by_role_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          assignment_count: number
+          avg_per_assignment: number
+          avg_per_staff: number
+          hours_worked: number
+          payroll_type: string
+          staff_count: number
+          staff_role: string
+          total_amount: number
+        }[]
+      }
       get_payroll_by_staff: {
+        Args: { p_end_date: string; p_staff_id?: string; p_start_date: string }
+        Returns: {
+          assignment_count: number
+          avg_per_assignment: number
+          hours_worked: number
+          payroll_type: string
+          staff_id: string
+          staff_name: string
+          staff_role: string
+          total_amount: number
+        }[]
+      }
+      get_payroll_by_staff_unchecked: {
         Args: { p_end_date: string; p_staff_id?: string; p_start_date: string }
         Returns: {
           assignment_count: number
@@ -3542,7 +3660,40 @@ export type Database = {
           staff_role: string
         }[]
       }
+      get_payroll_line_items_export_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          amount: number
+          assignment_date: string
+          assignment_id: string
+          assignment_status: string
+          assignment_type: string
+          booking_id: string
+          created_at: string
+          description: string
+          hours: number
+          paid_at: string
+          paid_status: string
+          pay_category: string
+          pay_type: string
+          payroll_item_id: string
+          payroll_type: string
+          rate: number
+          reservation_number: string
+          staff_name: string
+          staff_role: string
+        }[]
+      }
       get_revenue_by_category: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          category: string
+          item_count: number
+          item_type: string
+          total_amount: number
+        }[]
+      }
+      get_revenue_by_category_unchecked: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           category: string
@@ -3564,7 +3715,39 @@ export type Database = {
           total_revenue: number
         }[]
       }
+      get_revenue_by_segment_unchecked: {
+        Args: {
+          p_end_date: string
+          p_segment_by?: string
+          p_start_date: string
+        }
+        Returns: {
+          avg_revenue: number
+          booking_count: number
+          segment: string
+          total_revenue: number
+        }[]
+      }
       get_revenue_line_items_export: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          amount: number
+          booking_origin: string
+          booking_type: string
+          created_at: string
+          description: string
+          event_date: string
+          event_type: string
+          guest_name: string
+          item_category: string
+          item_type: string
+          payment_date: string
+          payment_split: string
+          quantity: number
+          reservation_number: string
+        }[]
+      }
+      get_revenue_line_items_export_unchecked: {
         Args: { p_end_date: string; p_start_date: string }
         Returns: {
           amount: number
@@ -3653,6 +3836,27 @@ export type Database = {
       set_recurring_day_of_month: {
         Args: { p_day: number; p_invoice_id: string }
         Returns: string
+      }
+      staff_mark_bar_contacted: {
+        Args: { p_assignment_id: string; p_staff_id: string }
+        Returns: Json
+      }
+      staff_respond_to_assignment: {
+        Args: {
+          p_assignment_id: string
+          p_response: string
+          p_staff_id: string
+        }
+        Returns: Json
+      }
+      submit_guest_report: {
+        Args: {
+          p_booking_id: string
+          p_report: Json
+          p_reservation_number: string
+          p_review?: Json
+        }
+        Returns: Json
       }
       untracked_driver_license_objects: {
         Args: { p_limit?: number }
