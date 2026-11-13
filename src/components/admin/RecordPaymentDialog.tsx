@@ -44,6 +44,22 @@ interface RecordPaymentDialogProps {
   onRecorded: () => void;
 }
 
+const BALANCE_JOB_TYPES = ["create_balance_payment_link", "balance_retry_1", "balance_retry_2", "balance_retry_3"];
+
+async function balanceFollowUpExists(bookingId: string): Promise<boolean> {
+  const [{ count, error: jobsError }, { data: b, error: bookingError }] = await Promise.all([
+    supabase
+      .from("scheduled_jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", bookingId)
+      .in("job_type", BALANCE_JOB_TYPES)
+      .eq("status", "pending"),
+    supabase.from("bookings").select("balance_payment_url").eq("id", bookingId).maybeSingle(),
+  ]);
+  if (jobsError || bookingError) return false;
+  return (count ?? 0) > 0 || Boolean(b?.balance_payment_url);
+}
+
 const KIND_LABELS: Record<PaymentKind, string> = {
   deposit: "Deposit",
   balance: "Balance",
@@ -119,7 +135,12 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
         const { data: sched, error: schedError } = await supabase.functions.invoke("schedule-balance-payment", {
           body: { booking_id: booking.id },
         });
-        if (schedError || (sched as { error?: string } | null)?.error) {
+        // The scheduler can answer 200 even when a job insert failed, so check
+        // what was actually persisted: pending balance jobs or a balance link.
+        const scheduled = !schedError && !(sched as { error?: string } | null)?.error
+          ? await balanceFollowUpExists(booking.id)
+          : false;
+        if (!scheduled) {
           toast({
             title: "Deposit recorded, but the balance link could not be scheduled",
             description: "Send it with \"Send Balance Payment Link\" on this page when it is due.",

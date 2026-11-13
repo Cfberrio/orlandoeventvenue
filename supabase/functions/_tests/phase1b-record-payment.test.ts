@@ -70,3 +70,13 @@ describe("Codex final review", () => {
     expect(dialog).toMatch(/kind === "deposit"[\s\S]{0,300}functions\.invoke\("schedule-balance-payment"/);
   });
 });
+
+describe("Codex verification: scheduler 200-with-failure is caught", () => {
+  it("checks persisted balance jobs or link after scheduling, not just the HTTP status", () => {
+    const dialog = read("src/components/admin/RecordPaymentDialog.tsx");
+    expect(dialog).toMatch(/async function balanceFollowUpExists/);
+    expect(dialog).toMatch(/\.from\("scheduled_jobs"\)[\s\S]{0,200}\.eq\("status", "pending"\)/);
+    expect(dialog).toMatch(/balance_payment_url/);
+    expect(dialog).toMatch(/if \(!scheduled\)/);
+  });
+});
