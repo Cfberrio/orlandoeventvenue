@@ -71,6 +71,33 @@ export async function loadPricingRates(supabase: Supabase): Promise<PricingRates
   return buildPricingRates(data ?? []);
 }
 
+/**
+ * M-16 (86e40ach2): the venue_pricing keys a booking needs. buildPricingRates
+ * fills a missing (inactive) key with an old hardcoded price (setup $100 vs
+ * $299); the checkout must refuse instead of charging it.
+ */
+export function requiredPriceKeys(b: {
+  booking_type: string;
+  package?: string | null;
+  setup_breakdown?: boolean | null;
+  tablecloths?: boolean | null;
+  tablecloth_quantity?: number | null;
+}): string[] {
+  const keys = ["cleaning_fee", "deposit_percentage", "processing_fee"];
+  keys.push(b.booking_type === "daily" ? "daily_rate" : "hourly_rate");
+  if (b.package && b.package !== "none") keys.push(`package_${b.package}`);
+  if (b.setup_breakdown) keys.push("setup_breakdown");
+  if (b.tablecloths && Number(b.tablecloth_quantity || 0) > 0) keys.push("tablecloth_rental");
+  return keys;
+}
+
+/** Active venue_pricing keys (service role). Throws if the table can't be read. */
+export async function loadActivePriceKeys(supabase: Supabase): Promise<Set<string>> {
+  const { data, error } = await supabase.from("venue_pricing").select("item_key").eq("is_active", true);
+  if (error) throw new Error(`venue_pricing read failed: ${error.message}`);
+  return new Set((data ?? []).map((r: { item_key: string }) => r.item_key));
+}
+
 export interface CouponRow extends CouponTerms {
   id: string;
   is_active: boolean;

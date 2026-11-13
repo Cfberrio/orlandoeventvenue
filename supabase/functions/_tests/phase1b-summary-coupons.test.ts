@@ -57,3 +57,14 @@ describe("M-21 coupons", () => {
     expect(DISCOUNTS).toMatch(/expires_at: formExpiresOn/);
   });
 });
+
+describe("M-16 checkout refuses inactive services", () => {
+  it("checks the booking's required price keys against active venue_pricing", () => {
+    expect(BILLING).toMatch(/export function requiredPriceKeys/);
+    expect(CHECKOUT).toMatch(/requiredPriceKeys\(booking\)\.filter\(\(k\) => !activeKeys\.has\(k\)\)/);
+    expect(CHECKOUT).toMatch(/error: "PRICE_UNAVAILABLE"/);
+  });
+  it("Stripe line item label comes from the stored booking (incl. typed Other)", () => {
+    expect(CHECKOUT).toMatch(/eventTypeLabel\(booking\.event_type, booking\.event_type_other\)/);
+  });
+});

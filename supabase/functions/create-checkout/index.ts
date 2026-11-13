@@ -12,9 +12,11 @@ import {
   type BookingPrice,
 } from "../_shared/booking-pricing.ts";
 import {
+  loadActivePriceKeys,
   loadCoupon,
   loadPricingRates,
   logBookingEvent,
+  requiredPriceKeys,
   sendBillingAlert,
 } from "../_shared/billing-server.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
@@ -132,6 +134,18 @@ serve(async (req: Request) => {
     // 2. Re-price it on the server and compare to what was stored.
     // ------------------------------------------------------------------
     const rates = await loadPricingRates(supabase);
+
+    // M-16 (86e40ach2): a service the office turned off must not be charged
+    // at an old hardcoded price.
+    const activeKeys = await loadActivePriceKeys(supabase);
+    const missingKeys = requiredPriceKeys(booking).filter((k) => !activeKeys.has(k));
+    if (missingKeys.length > 0) {
+      await logBookingEvent(supabase, bookingId, "checkout_price_unavailable", { missing: missingKeys });
+      return json({
+        error: "PRICE_UNAVAILABLE",
+        message: "One of the services on this booking is no longer available. Please go back, remove it and review your total.",
+      }, 409);
+    }
     const storedCode = (booking.discount_code || "").trim().toUpperCase();
     const coupon = storedCode ? await loadCoupon(supabase, storedCode) : null;
 
@@ -250,9 +264,11 @@ serve(async (req: Request) => {
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
     const displayDate = typeof eventDate === "string" && eventDate ? eventDate : booking.event_date;
-    const displayType = typeof eventType === "string" && eventType.trim()
-      ? eventTypeLabel(eventType)
-      : eventTypeLabel(booking.event_type, booking.event_type_other);
+    // The stored booking is the authority (it also carries what the guest
+    // typed for "Other"); the request's eventType is only a last resort.
+    const displayType = booking.event_type
+      ? eventTypeLabel(booking.event_type, booking.event_type_other)
+      : eventTypeLabel(typeof eventType === "string" ? eventType : null);
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
