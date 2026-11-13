@@ -39,15 +39,20 @@ interface RefundReviewCardProps {
   };
 }
 
-interface RecordedDecision {
-  decision: RefundDecision;
-  refund_amount: number;
-  kept_amount: number;
-  method?: RefundMethod | null;
-  reference?: string | null;
-  note?: string | null;
-  recorded_by_email?: string | null;
-  recorded_at?: string | null;
+interface RefundReview {
+  id: string;
+  status: "open" | "resolved" | "superseded";
+  decision: RefundDecision | null;
+  decision_details: {
+    refund_amount?: number;
+    kept_amount?: number;
+    method?: RefundMethod | null;
+    reference?: string | null;
+    note?: string | null;
+    recorded_by_email?: string | null;
+  } | null;
+  resolved_at: string | null;
+  created_at: string;
 }
 
 // M-9 (ClickUp 86e40ach2): a cancelled booking that collected money must end
@@ -67,73 +72,80 @@ export function RefundReviewCard({ booking }: RefundReviewCardProps) {
     },
   });
 
-  const { data: decision } = useQuery({
-    queryKey: ["booking-refund-decision", booking.id],
+  const { data: reviews } = useQuery({
+    queryKey: ["booking-refund-reviews", booking.id],
     enabled: cancelled,
-    queryFn: async (): Promise<RecordedDecision | null> => {
+    queryFn: async (): Promise<RefundReview[]> => {
       const { data, error } = await supabase
-        .from("booking_events")
-        .select("metadata, created_at")
+        .from("booking_money_reviews" as never)
+        .select("id, status, decision, decision_details, resolved_at, created_at")
         .eq("booking_id", booking.id)
-        .eq("event_type", "refund_decision_recorded")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .eq("kind", "refund")
+        .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data?.metadata as unknown as RecordedDecision | undefined) ?? null;
+      return (data ?? []) as unknown as RefundReview[];
     },
   });
 
-  if (!cancelled || !collected) return null;
+  if (!cancelled || !collected || !reviews) return null;
 
-  if (decision) {
-    return (
-      <Card className="border-muted">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Refund decision</CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-1">
-          <p className="font-medium">{REFUND_DECISION_LABELS[decision.decision] ?? decision.decision}</p>
-          <p>
-            Refunded ${Number(decision.refund_amount).toFixed(2)}
-            {decision.method ? ` by ${REFUND_METHOD_LABELS[decision.method] ?? decision.method}` : ""}
-            {decision.reference ? ` (ref ${decision.reference})` : ""} · kept ${Number(decision.kept_amount).toFixed(2)}
-          </p>
-          {decision.note && <p className="text-muted-foreground">Reason: {decision.note}</p>}
-          {decision.recorded_at && (
-            <p className="text-xs text-muted-foreground">
-              Recorded {format(new Date(decision.recorded_at), "MM/dd/yyyy h:mm a")}
-              {decision.recorded_by_email ? ` by ${decision.recorded_by_email}` : ""}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    );
-  }
-
-  if (collected.total <= 0 || booking.payment_status === "refunded") return null;
+  const resolved = reviews.filter((r) => r.status === "resolved");
+  const hasOpen = reviews.some((r) => r.status === "open");
+  const needsDecision = collected.undecided > 0.009 && (booking.payment_status !== "refunded" || hasOpen);
 
   return (
     <>
-      <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base text-amber-900 dark:text-amber-200">
-            Cancelled with ${collected.total.toFixed(2)} collected
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-3">
-          <ul className="text-amber-900 dark:text-amber-200 space-y-0.5">
-            {collected.deposit > 0 && <li>Deposit: ${collected.deposit.toFixed(2)}</li>}
-            {collected.balance > 0 && <li>Balance: ${collected.balance.toFixed(2)}</li>}
-            {collected.addons > 0 && <li>Add-ons: ${collected.addons.toFixed(2)}</li>}
-          </ul>
-          <p className="text-amber-900 dark:text-amber-200">
-            Issue any refund in Stripe (or by cash/Zelle/check), then record what was decided here.
-          </p>
-          <Button size="sm" onClick={() => setOpen(true)}>Record refund decision</Button>
-        </CardContent>
-      </Card>
-      <RefundDecisionDialog open={open} onOpenChange={setOpen} bookingId={booking.id} collected={collected} />
+      {resolved.map((r) => {
+        const d = r.decision_details ?? {};
+        return (
+          <Card key={r.id} className="border-muted">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">Refund decision</CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-1">
+              <p className="font-medium">{r.decision ? REFUND_DECISION_LABELS[r.decision] ?? r.decision : ""}</p>
+              <p>
+                Refunded ${Number(d.refund_amount ?? 0).toFixed(2)}
+                {d.method ? ` by ${REFUND_METHOD_LABELS[d.method] ?? d.method}` : ""}
+                {d.reference ? ` (ref ${d.reference})` : ""} · kept ${Number(d.kept_amount ?? 0).toFixed(2)}
+              </p>
+              {d.note && <p className="text-muted-foreground">Reason: {d.note}</p>}
+              {r.resolved_at && (
+                <p className="text-xs text-muted-foreground">
+                  Recorded {format(new Date(r.resolved_at), "MM/dd/yyyy h:mm a")}
+                  {d.recorded_by_email ? ` by ${d.recorded_by_email}` : ""}
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
+      {needsDecision && (
+        <>
+          <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base text-amber-900 dark:text-amber-200">
+                {resolved.length > 0
+                  ? `$${collected.undecided.toFixed(2)} more was collected after the refund decision`
+                  : `Cancelled with $${collected.undecided.toFixed(2)} collected`}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-sm space-y-3">
+              <ul className="text-amber-900 dark:text-amber-200 space-y-0.5">
+                {collected.deposit > 0 && <li>Deposit: ${collected.deposit.toFixed(2)}</li>}
+                {collected.balance > 0 && <li>Balance: ${collected.balance.toFixed(2)}</li>}
+                {collected.addons > 0 && <li>Add-ons: ${collected.addons.toFixed(2)}</li>}
+                {collected.decided > 0 && <li>Already decided: -${collected.decided.toFixed(2)}</li>}
+              </ul>
+              <p className="text-amber-900 dark:text-amber-200">
+                Issue any refund in Stripe (or by cash/Zelle/check), then record what was decided here.
+              </p>
+              <Button size="sm" onClick={() => setOpen(true)}>Record refund decision</Button>
+            </CardContent>
+          </Card>
+          <RefundDecisionDialog open={open} onOpenChange={setOpen} bookingId={booking.id} collected={collected} />
+        </>
+      )}
     </>
   );
 }
@@ -151,7 +163,7 @@ function RefundDecisionDialog({
 }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [amountText, setAmountText] = useState(collected.total.toFixed(2));
+  const [amountText, setAmountText] = useState(collected.undecided.toFixed(2));
   const [method, setMethod] = useState<RefundMethod | "">("stripe");
   const [reference, setReference] = useState("");
   const [refundedOn, setRefundedOn] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -160,25 +172,25 @@ function RefundDecisionDialog({
 
   useEffect(() => {
     if (open) {
-      setAmountText(collected.total.toFixed(2));
+      setAmountText(collected.undecided.toFixed(2));
       setMethod("stripe");
       setReference("");
       setRefundedOn(format(new Date(), "yyyy-MM-dd"));
       setNote("");
     }
-  }, [open, collected.total]);
+  }, [open, collected.undecided]);
 
   const amount = parseMoney(amountText);
   const problem = validateRefundDecision({
     amount,
-    collected: collected.total,
+    collected: collected.undecided,
     method,
     reference,
     note,
     refundedOn,
     today: format(new Date(), "yyyy-MM-dd"),
   });
-  const decision = Number.isFinite(amount) ? refundDecisionFor(amount, collected.total) : null;
+  const decision = Number.isFinite(amount) ? refundDecisionFor(amount, collected.undecided) : null;
 
   const handleSubmit = async () => {
     if (problem || saving) return;
@@ -211,7 +223,7 @@ function RefundDecisionDialog({
         <DialogHeader>
           <DialogTitle>Record refund decision</DialogTitle>
           <DialogDescription>
-            ${collected.total.toFixed(2)} was collected. This records what happened to it; it does not move money.
+            ${collected.undecided.toFixed(2)} needs a decision. This records what happened to it; it does not move money.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">

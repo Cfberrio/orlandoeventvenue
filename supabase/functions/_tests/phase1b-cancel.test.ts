@@ -39,11 +39,41 @@ describe("cancel triggers", () => {
   });
 });
 
+describe("Codex review fixes", () => {
+  it("cancelled is terminal unless an explicit reopen flag is set", () => {
+    expect(SQL).toMatch(/current_setting\('oev\.reopen_cancelled', true\)/);
+    expect(SQL).toMatch(/cannot be reopened here/);
+  });
+  it("a late cancel keeps earned pay of completed assignments", () => {
+    const fn = SQL.slice(SQL.indexOf("CREATE OR REPLACE FUNCTION public.trg_void_payroll_on_booking_cancel()"));
+    expect(fn.slice(0, 900)).toMatch(/AND status <> 'completed'/);
+  });
+  it("money landing after the cancel reopens the refund review", () => {
+    expect(SQL).toMatch(/AFTER UPDATE OF deposit_paid_at, balance_paid_at ON public\.bookings/);
+    expect(SQL).toMatch(/AFTER UPDATE OF paid_at ON public\.booking_addon_invoices/);
+    expect(SQL).toMatch(/ON CONFLICT \(booking_id, kind\) WHERE status = 'open' DO NOTHING/);
+  });
+  it("reviews live in an RLS table only definer functions write", () => {
+    expect(SQL).toMatch(/CREATE TABLE IF NOT EXISTS public\.booking_money_reviews/);
+    expect(SQL).toMatch(/ENABLE ROW LEVEL SECURITY/);
+    expect(SQL).toMatch(/REVOKE INSERT, UPDATE, DELETE ON public\.booking_money_reviews FROM authenticated/);
+  });
+  it("GHL appointment webhook fails closed and never un-cancels", () => {
+    expect(GHL_APPT).toMatch(/if \(!webhookSecret \|\| providedSecret !== webhookSecret\)/);
+    expect(GHL_APPT).toMatch(/ignoring appointment update/);
+  });
+  it("cancel-booking reports Stripe cleanup failures", () => {
+    expect(CANCEL).toMatch(/"cancel_cleanup_failed"/);
+    expect(CANCEL).toMatch(/cleanup_warnings: cleanupWarnings/);
+  });
+});
+
 describe("admin_record_refund_decision", () => {
-  it("is admin/service only, locks the booking and is one-shot", () => {
+  it("is admin/service only, locks the booking and is one decision per review", () => {
     expect(SQL.indexOf("PERFORM public._assert_admin_or_service();")).toBeLessThan(SQL.indexOf("FOR UPDATE"));
     expect(SQL).toMatch(/REVOKE ALL ON FUNCTION public\.admin_record_refund_decision\([^)]*\) FROM PUBLIC, anon;/);
     expect(SQL).toMatch(/a refund decision is already recorded/);
+    expect(SQL).toMatch(/v_total := round\(\(v_collected->>'total'\)::numeric - v_decided_before, 2\)/);
   });
   it("caps at what was collected, requires a reference and a reason for kept money", () => {
     expect(SQL).toMatch(/refund cannot exceed the % collected/);
@@ -51,7 +81,8 @@ describe("admin_record_refund_decision", () => {
     expect(SQL).toMatch(/v_decision <> 'refunded_in_full' AND v_note IS NULL/);
   });
   it("only a full refund flips payment_status to refunded", () => {
-    expect(SQL).toMatch(/IF v_decision = 'refunded_in_full' THEN\s+UPDATE public\.bookings\s+SET payment_status = 'refunded'::payment_status/);
+    expect(SQL).toMatch(/IF v_decision = 'refunded_in_full' AND NOT EXISTS \(/);
+    expect(SQL).toMatch(/\(decision_details->>'kept_amount'\)::numeric > 0\s+\) THEN\s+UPDATE public\.bookings\s+SET payment_status = 'refunded'::payment_status/);
   });
   it("only cancelled bookings take a decision", () => {
     expect(SQL).toMatch(/only a cancelled booking takes a refund decision/);

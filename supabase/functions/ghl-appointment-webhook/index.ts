@@ -16,7 +16,9 @@ serve(async (req) => {
     const webhookSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
     const providedSecret = req.headers.get("x-ghl-signature") || req.headers.get("authorization")?.replace("Bearer ", "");
     
-    if (webhookSecret && providedSecret !== webhookSecret) {
+    // Fail closed (Codex review, 86e40ach2): without the secret configured the
+    // endpoint would let anyone cancel bookings through the service role.
+    if (!webhookSecret || providedSecret !== webhookSecret) {
       console.error("[WEBHOOK] Unauthorized request");
       return new Response(
         JSON.stringify({ ok: false, error: "unauthorized" }),
@@ -138,7 +140,7 @@ async function handleAppointmentUpdate(supabase: any, payload: any) {
   // Check if booking exists
   const { data: existing } = await supabase
     .from('bookings')
-    .select('id, source')
+    .select('id, source, status, lifecycle_status')
     .eq('ghl_appointment_id', appointmentId)
     .single();
   
@@ -151,6 +153,19 @@ async function handleAppointmentUpdate(supabase: any, payload: any) {
   // Don't update website bookings (they update via sync-ghl-calendar)
   if (existing.source === 'website') {
     console.log(`[WEBHOOK] Skipping update for website booking`);
+    return;
+  }
+
+  // Cancelled is terminal (M-9): a stale appointment update must not bring
+  // the booking back; the DB also refuses it.
+  if (existing.status === 'cancelled' || existing.lifecycle_status === 'cancelled') {
+    console.log(`[WEBHOOK] Booking ${existing.id} is cancelled; ignoring appointment update`);
+    return;
+  }
+
+  // An appointment cancelled in GHL is a cancel: same path as a delete.
+  if (appointment.status === 'cancelled') {
+    await handleAppointmentDelete(supabase, payload);
     return;
   }
   
@@ -168,7 +183,7 @@ async function handleAppointmentUpdate(supabase: any, payload: any) {
       event_date: eventDate,
       start_time: startTimeStr,
       end_time: endTimeStr,
-      status: appointment.status === 'cancelled' ? 'cancelled' : 'confirmed',
+      status: 'confirmed',
       event_type: appointment.title || 'External Event'
     })
     .eq('id', existing.id);

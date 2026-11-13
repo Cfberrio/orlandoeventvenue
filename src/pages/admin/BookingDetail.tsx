@@ -723,8 +723,16 @@ export default function BookingDetail() {
             : ""),
       });
 
+      if (Array.isArray(data.cleanup_warnings) && data.cleanup_warnings.length > 0) {
+        toast({
+          title: "Cancelled, but some Stripe links could not be closed",
+          description: `${data.cleanup_warnings.join("; ")}. Expire them in Stripe; any payment that still lands will show up for a refund decision.`,
+          variant: "destructive",
+        });
+      }
+
       setShowCancelDialog(false);
-      
+
       // Reload booking data to show updated status
       window.location.reload();
       

@@ -191,6 +191,12 @@ serve(async (req) => {
       console.log(wasAlreadyCancelled ? "Booking cancellation state normalized" : "Booking status updated to 'cancelled'");
     }
 
+    // Stripe cleanup that did not go through. A session left open stays
+    // payable for at most its 24h life; a payment that lands anyway is still
+    // recorded and reopens the refund review (DB trigger). The office sees
+    // the warning so it can expire the session in Stripe.
+    const cleanupWarnings: string[] = [];
+
     // A cancelled event must not stay payable: void the balance link.
     if (booking.balance_payment_url || booking.balance_session_id) {
       const expired: string[] = [];
@@ -209,6 +215,7 @@ serve(async (req) => {
           }
         } catch (e) {
           console.error("Could not list open balance sessions:", e);
+          cleanupWarnings.push("could not list open balance sessions in Stripe");
         }
         for (const id of candidates) {
           try {
@@ -219,8 +226,11 @@ serve(async (req) => {
             }
           } catch (e) {
             console.error("Could not expire balance session", id, e);
+            cleanupWarnings.push(`balance session ${id} not expired`);
           }
         }
+      } else {
+        cleanupWarnings.push("Stripe key missing: balance link not expired");
       }
       const { error: clearError } = await supabase
         .from("bookings")
@@ -240,6 +250,10 @@ serve(async (req) => {
     const addonExpiry = await expireAddonSessions(supabase, booking_id);
     if (addonExpiry.checked > 0) {
       await logBookingEvent(supabase, booking_id, "addon_invoice_voided_on_cancel", addonExpiry);
+    }
+    for (const f of addonExpiry.failed) cleanupWarnings.push(`add-on session ${f.session_id} not expired`);
+    if (cleanupWarnings.length > 0) {
+      await logBookingEvent(supabase, booking_id, "cancel_cleanup_failed", { warnings: cleanupWarnings });
     }
 
     // What was collected decides whether the office must record a refund.
@@ -285,6 +299,7 @@ serve(async (req) => {
           blocks_deleted: deletedBlocks?.length || 0,
           addon_sessions_expired: addonExpiry.expired.length,
           collected_total: collectedTotal,
+          cleanup_warnings: cleanupWarnings,
           already_cancelled: true,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -375,6 +390,7 @@ serve(async (req) => {
         blocks_deleted: deletedBlocks?.length || 0,
         addon_sessions_expired: addonExpiry.expired.length,
         collected_total: collectedTotal,
+        cleanup_warnings: cleanupWarnings,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

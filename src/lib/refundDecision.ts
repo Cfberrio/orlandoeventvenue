@@ -23,6 +23,10 @@ export interface CollectedBreakdown {
   balance: number;
   addons: number;
   total: number;
+  /** Already refunded or kept in an earlier decision. */
+  decided: number;
+  /** What still needs a decision. */
+  undecided: number;
 }
 
 export function toCollected(raw: unknown): CollectedBreakdown {
@@ -31,7 +35,10 @@ export function toCollected(raw: unknown): CollectedBreakdown {
     const x = Number(v ?? 0);
     return Number.isFinite(x) ? Math.round(x * 100) / 100 : 0;
   };
-  return { deposit: n(r.deposit), balance: n(r.balance), addons: n(r.addons), total: n(r.total) };
+  const total = n(r.total);
+  const decided = n(r.decided);
+  const undecided = r.undecided == null ? Math.round((total - decided) * 100) / 100 : n(r.undecided);
+  return { deposit: n(r.deposit), balance: n(r.balance), addons: n(r.addons), total, decided, undecided };
 }
 
 export function refundDecisionFor(amount: number, collected: number): RefundDecision {

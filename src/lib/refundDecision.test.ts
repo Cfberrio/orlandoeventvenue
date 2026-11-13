@@ -60,7 +60,10 @@ describe("parseMoney / toCollected", () => {
       balance: 0,
       addons: 0,
       total: 484.51,
+      decided: 0,
+      undecided: 484.51,
     });
+    expect(toCollected({ total: 534.51, decided: 484.51, undecided: 50 }).undecided).toBe(50);
     expect(toCollected(null).total).toBe(0);
   });
 });
