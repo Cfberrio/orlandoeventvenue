@@ -48,7 +48,7 @@ describe("admin UI", () => {
 describe("Codex review: no offline record while a Stripe link is live", () => {
   it("refuses balance/full while balance_link_expires_at is in the future, and fresh deposits", () => {
     expect(SQL).toMatch(/v_b\.balance_link_expires_at > now\(\)/);
-    expect(SQL).toMatch(/v_b\.created_at > now\(\) - interval '24 hours'/);
+    expect(SQL).toMatch(/p_kind IN \('deposit', 'full'\) AND v_b\.booking_origin::text = 'website'/);
     expect(SQL).toMatch(/OPEN_STRIPE_LINK/);
   });
   it("the override is explicit and audited", () => {
@@ -57,5 +57,16 @@ describe("Codex review: no offline record while a Stripe link is live", () => {
     const dialog = read("src/components/admin/RecordPaymentDialog.tsx");
     expect(dialog).toMatch(/p_confirm_open_link: confirmOpenLink/);
     expect(dialog).toMatch(/msg\.includes\("OPEN_STRIPE_LINK"\)/);
+  });
+});
+
+describe("Codex final review", () => {
+  it("drops the older 7-argument overload before creating the guarded one", () => {
+    expect(SQL.indexOf("DROP FUNCTION IF EXISTS public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text);"))
+      .toBeLessThan(SQL.indexOf("CREATE OR REPLACE FUNCTION public.admin_record_payment("));
+  });
+  it("a manual deposit schedules the balance like the Stripe webhook", () => {
+    const dialog = read("src/components/admin/RecordPaymentDialog.tsx");
+    expect(dialog).toMatch(/kind === "deposit"[\s\S]{0,300}functions\.invoke\("schedule-balance-payment"/);
   });
 });

@@ -75,6 +75,14 @@ BEGIN
   IF NEW.response_status = 'accepted'
      AND OLD.response_status IS DISTINCT FROM 'accepted'
      AND NEW.status NOT IN ('cancelled', 'completed')
+     AND NEW.booking_id IS NOT NULL THEN
+    -- Serialize with a concurrent cancellation (Codex review): wait for the
+    -- booking row, then re-read its committed state.
+    PERFORM 1 FROM public.bookings WHERE id = NEW.booking_id FOR UPDATE;
+  END IF;
+  IF NEW.response_status = 'accepted'
+     AND OLD.response_status IS DISTINCT FROM 'accepted'
+     AND NEW.status NOT IN ('cancelled', 'completed')
      AND NEW.booking_id IS NOT NULL
      AND EXISTS (
        SELECT 1 FROM public.bookings b
@@ -107,12 +115,30 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 DECLARE
-  v_count integer;
+  v_count integer := 0;
+  v_booking_id uuid;
+  v_n integer;
 BEGIN
+  -- One booking at a time, row-locked, so a concurrent cancellation either
+  -- commits first (and is seen) or waits for this completion (Codex review).
+  FOR v_booking_id IN
+    SELECT b.id
+    FROM public.bookings b
+    WHERE b.lifecycle_status IN ('post_event', 'closed_review_complete')
+      AND b.status <> 'cancelled'::booking_status
+      AND EXISTS (
+        SELECT 1 FROM public.booking_staff_assignments a
+        WHERE a.booking_id = b.id
+          AND a.status NOT IN ('cancelled', 'completed')
+          AND a.response_status = 'accepted'
+      )
+    FOR UPDATE OF b SKIP LOCKED
+  LOOP
   UPDATE public.booking_staff_assignments a
   SET status = 'completed', completed_at = NOW(), updated_at = NOW()
   FROM public.bookings b
   WHERE b.id = a.booking_id
+    AND b.id = v_booking_id
     AND b.lifecycle_status IN ('post_event', 'closed_review_complete')
     AND b.status <> 'cancelled'::booking_status
     AND public._booking_event_end_at(b.id) <= now()
@@ -122,7 +148,9 @@ BEGIN
     AND public._booking_event_end_at(b.id) >= timestamptz '2026-11-12 00:00:00 America/New_York'
     AND a.status NOT IN ('cancelled', 'completed')
     AND a.response_status = 'accepted';
-  GET DIAGNOSTICS v_count = ROW_COUNT;
+  GET DIAGNOSTICS v_n = ROW_COUNT;
+  v_count := v_count + v_n;
+  END LOOP;
   RETURN v_count;
 END;
 $function$;

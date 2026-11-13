@@ -131,3 +131,14 @@ describe("Codex review: payroll needs the event to have really ended", () => {
     expect(fnBlock("complete_past_event_assignments")).toMatch(/>= timestamptz '2026-11-12 00:00:00 America\/New_York'/);
   });
 });
+
+describe("Codex final review: completion serialized with cancellation", () => {
+  it("late acceptance locks the booking before checking it", () => {
+    const body = fnBlock("trg_complete_late_acceptance");
+    expect(body.indexOf("FOR UPDATE")).toBeGreaterThan(0);
+    expect(body.indexOf("FOR UPDATE")).toBeLessThan(body.indexOf("b.status <> 'cancelled'::booking_status"));
+  });
+  it("the sweep locks each booking row before completing its assignments", () => {
+    expect(fnBlock("complete_past_event_assignments")).toMatch(/FOR UPDATE OF b SKIP LOCKED/);
+  });
+});

@@ -16,6 +16,10 @@
 --     who recorded it;
 --   * regenerates the deposit/balance revenue lines.
 
+-- Never leave an older overload callable (Codex review). The 7-argument
+-- version existed only in a rolled-back dry run, but drop it defensively.
+DROP FUNCTION IF EXISTS public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text);
+
 CREATE OR REPLACE FUNCTION public.admin_record_payment(
   p_booking_id uuid,
   p_kind text,
@@ -102,8 +106,11 @@ BEGIN
         to_char(v_b.balance_link_expires_at AT TIME ZONE 'America/New_York', 'Mon DD HH12:MI AM')
         USING ERRCODE = 'P0001';
     END IF;
-    IF p_kind IN ('deposit', 'full') AND v_b.created_at > now() - interval '24 hours' THEN
-      RAISE EXCEPTION 'OPEN_STRIPE_LINK: this booking was created less than 24h ago and its deposit checkout may still be open; confirm the guest will not use it'
+    -- The deposit Checkout session is not stored on the booking until it is
+    -- paid, and create-checkout can open a fresh one for any pending website
+    -- booking. We cannot prove none is live, so always ask.
+    IF p_kind IN ('deposit', 'full') AND v_b.booking_origin::text = 'website' THEN
+      RAISE EXCEPTION 'OPEN_STRIPE_LINK: the guest may still have a Stripe deposit checkout open for this booking; confirm the guest will not use it'
         USING ERRCODE = 'P0001';
     END IF;
   END IF;

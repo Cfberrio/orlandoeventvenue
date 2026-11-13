@@ -113,6 +113,20 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
       // Keep the CRM in step with the new payment status (fire and forget;
       // a GHL failure must not undo a recorded payment).
       void syncToGHL(booking.id);
+      if (kind === "deposit") {
+        // Same follow-up the Stripe deposit webhook runs: schedule the balance
+        // link and reminders (idempotent: skips if balance jobs exist).
+        const { data: sched, error: schedError } = await supabase.functions.invoke("schedule-balance-payment", {
+          body: { booking_id: booking.id },
+        });
+        if (schedError || (sched as { error?: string } | null)?.error) {
+          toast({
+            title: "Deposit recorded, but the balance link could not be scheduled",
+            description: "Send it with \"Send Balance Payment Link\" on this page when it is due.",
+            variant: "destructive",
+          });
+        }
+      }
     } catch (error) {
       const message = (error as { message?: string })?.message ?? String(error);
       toast({ title: "Payment not recorded", description: message, variant: "destructive" });
@@ -188,8 +202,8 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
             <div className="rounded border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 space-y-1">
               {kind === "deposit" && (
                 <p>
-                  After a manual deposit, no balance link or reminder is scheduled automatically. Use
-                  "Send Balance Payment Link" on this page when the balance is due.
+                  The balance link and reminders are scheduled the same way as after a card deposit. If that fails
+                  you will see an alert; then use "Send Balance Payment Link" when it is due.
                 </p>
               )}
               <p>
