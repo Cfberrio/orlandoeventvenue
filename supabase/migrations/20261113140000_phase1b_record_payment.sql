@@ -23,7 +23,8 @@ CREATE OR REPLACE FUNCTION public.admin_record_payment(
   p_method text,
   p_reference text DEFAULT NULL,
   p_paid_at timestamptz DEFAULT NULL,
-  p_note text DEFAULT NULL
+  p_note text DEFAULT NULL,
+  p_confirm_open_link boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -91,6 +92,22 @@ BEGIN
     v_new_status := 'fully_paid';
   END IF;
 
+  -- Codex review: a Stripe Checkout link for this step may still be live.
+  -- Recording the money offline while it is open lets the guest pay twice.
+  -- Refuse unless the office explicitly confirms (audited in the event).
+  IF NOT p_confirm_open_link THEN
+    IF p_kind IN ('balance', 'full') AND v_b.balance_link_expires_at IS NOT NULL
+       AND v_b.balance_link_expires_at > now() THEN
+      RAISE EXCEPTION 'OPEN_STRIPE_LINK: a balance payment link is live until %; confirm the guest will not use it',
+        to_char(v_b.balance_link_expires_at AT TIME ZONE 'America/New_York', 'Mon DD HH12:MI AM')
+        USING ERRCODE = 'P0001';
+    END IF;
+    IF p_kind IN ('deposit', 'full') AND v_b.created_at > now() - interval '24 hours' THEN
+      RAISE EXCEPTION 'OPEN_STRIPE_LINK: this booking was created less than 24h ago and its deposit checkout may still be open; confirm the guest will not use it'
+        USING ERRCODE = 'P0001';
+    END IF;
+  END IF;
+
   IF v_expected <= 0 THEN
     RAISE EXCEPTION 'nothing is owed for this step' USING ERRCODE = 'P0001';
   END IF;
@@ -140,6 +157,8 @@ BEGIN
       'previous_payment_status', v_b.payment_status,
       'new_payment_status', v_new_status,
       'cancelled_balance_jobs', v_cancelled_jobs,
+      'confirmed_open_stripe_link', p_confirm_open_link,
+      'balance_link_expires_at', v_b.balance_link_expires_at,
       'recorded_by', v_actor,
       'recorded_by_email', v_actor_email,
       'recorded_at', now()
@@ -157,5 +176,5 @@ BEGIN
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text, boolean) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_record_payment(uuid, text, numeric, text, text, timestamptz, text, boolean) TO authenticated, service_role;

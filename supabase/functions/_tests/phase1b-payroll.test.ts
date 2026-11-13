@@ -110,3 +110,24 @@ describe("pre-deploy review: late acceptance after the event", () => {
     expect(help).toMatch(/accepted/);
   });
 });
+
+describe("Codex review: payroll needs the event to have really ended", () => {
+  it("event end is computed in Orlando time, overnight-safe", () => {
+    const body = MIGRATION.slice(MIGRATION.indexOf("FUNCTION public._booking_event_end_at("));
+    expect(body).toMatch(/b\.end_time <= b\.start_time\s+THEN b\.event_date \+ 1/);
+    expect(body).toMatch(/AT TIME ZONE 'America\/New_York'/);
+  });
+  it("both completion triggers require the event end to have passed", () => {
+    expect(fnBlock("auto_complete_assignments_on_in_progress")).toMatch(/_booking_event_end_at\(NEW\.id\) <= now\(\)/);
+    expect(fnBlock("trg_complete_late_acceptance")).toMatch(/_booking_event_end_at\(NEW\.booking_id\) <= now\(\)/);
+  });
+  it("an hourly sweep completes accepted work once the event ends", () => {
+    const sweep = fnBlock("complete_past_event_assignments");
+    expect(sweep).toMatch(/a\.response_status = 'accepted'/);
+    expect(sweep).toMatch(/_booking_event_end_at\(b\.id\) <= now\(\)/);
+    expect(MIGRATION).toMatch(/cron\.schedule\(\s*'complete-past-event-assignments-hourly'/);
+  });
+  it("never sweeps the pre-release backlog (that is the D5 list)", () => {
+    expect(fnBlock("complete_past_event_assignments")).toMatch(/>= timestamptz '2026-11-12 00:00:00 America\/New_York'/);
+  });
+});

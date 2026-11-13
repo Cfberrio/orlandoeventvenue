@@ -62,6 +62,9 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
   const [paidOn, setPaidOn] = useState(format(new Date(), "yyyy-MM-dd"));
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
+  // Server refused because a Stripe link for this step may still be live.
+  const [openLinkWarning, setOpenLinkWarning] = useState<string | null>(null);
+  const [confirmOpenLink, setConfirmOpenLink] = useState(false);
 
   useEffect(() => {
     if (open) {
@@ -70,6 +73,8 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
       setReference("");
       setPaidOn(format(new Date(), "yyyy-MM-dd"));
       setNote("");
+      setOpenLinkWarning(null);
+      setConfirmOpenLink(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, booking.id, booking.deposit_paid_at, booking.balance_paid_at]);
@@ -79,6 +84,7 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
 
   const handleSubmit = async () => {
     if (problem || !kind || !method || saving) return;
+    if (openLinkWarning && !confirmOpenLink) return;
     setSaving(true);
     try {
       // Noon local time on the chosen day keeps the date stable across time zones.
@@ -91,8 +97,16 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
         p_reference: reference.trim() || null,
         p_paid_at: paidAt,
         p_note: note.trim() || null,
+        p_confirm_open_link: confirmOpenLink,
       } as never);
-      if (error) throw error;
+      if (error) {
+        const msg = (error as { message?: string }).message ?? "";
+        if (msg.includes("OPEN_STRIPE_LINK")) {
+          setOpenLinkWarning(msg.replace(/^.*OPEN_STRIPE_LINK:\s*/, ""));
+          return;
+        }
+        throw error;
+      }
       toast({ title: `${KIND_LABELS[kind]} of $${amount.toFixed(2)} recorded (${PAYMENT_METHOD_LABELS[method]})` });
       onOpenChange(false);
       onRecorded();
@@ -184,6 +198,22 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
               </p>
             </div>
 
+            {openLinkWarning && (
+              <div className="rounded border border-destructive/40 bg-destructive/5 p-3 text-xs space-y-2">
+                <p className="font-medium text-destructive">Stripe link still open</p>
+                <p>{openLinkWarning}.</p>
+                <label className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5"
+                    checked={confirmOpenLink}
+                    onChange={(e) => setConfirmOpenLink(e.target.checked)}
+                  />
+                  <span>I told the guest not to use that link. Record anyway (this is saved in the history).</span>
+                </label>
+              </div>
+            )}
+
             {problem && <p className="text-xs text-destructive">{problem}</p>}
           </div>
         )}
@@ -191,7 +221,7 @@ export function RecordPaymentDialog({ open, onOpenChange, booking, onRecorded }:
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>Cancel</Button>
           {kinds.length > 0 && (
-            <Button onClick={handleSubmit} disabled={!!problem || saving}>
+            <Button onClick={handleSubmit} disabled={!!problem || saving || (!!openLinkWarning && !confirmOpenLink)}>
               {saving ? "Recording..." : "Record payment"}
             </Button>
           )}

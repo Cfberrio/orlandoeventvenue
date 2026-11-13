@@ -6,6 +6,29 @@
 -- but paid) waits for Luis's D5 list.
 
 -- ---------------------------------------------------------------------------
+-- When the event ends, in Orlando time. Overnight events (end <= start) end
+-- the next day; a missing end time counts as 23:59 (same rules as
+-- submit_guest_report and get_access_code_for_reservation).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public._booking_event_end_at(p_booking_id uuid)
+RETURNS timestamptz
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT ((CASE
+             WHEN b.end_time IS NOT NULL AND b.start_time IS NOT NULL AND b.end_time <= b.start_time
+               THEN b.event_date + 1
+             ELSE b.event_date
+           END + COALESCE(b.end_time, time '23:59')) AT TIME ZONE 'America/New_York')
+  FROM public.bookings b
+  WHERE b.id = p_booking_id;
+$function$;
+
+REVOKE ALL ON FUNCTION public._booking_event_end_at(uuid) FROM PUBLIC, anon, authenticated;
+
+-- ---------------------------------------------------------------------------
 -- M-3: complete only ACCEPTED assignments, and only once the event happened
 -- (lifecycle reaches post_event / closed_review_complete), never on a
 -- cancelled booking. Before: every non-cancelled assignment (pending and
@@ -21,7 +44,11 @@ BEGIN
   IF NEW.lifecycle_status IN ('post_event', 'closed_review_complete')
      AND (OLD.lifecycle_status IS NULL
           OR OLD.lifecycle_status NOT IN ('post_event', 'closed_review_complete'))
-     AND NEW.status <> 'cancelled'::booking_status THEN
+     AND NEW.status <> 'cancelled'::booking_status
+     -- Codex review: lifecycle can be set by hand, so the label alone is not
+     -- proof the work happened. A booking closed early is completed by the
+     -- hourly sweep once the event really ends.
+     AND public._booking_event_end_at(NEW.id) <= now() THEN
 
     UPDATE public.booking_staff_assignments
     SET status = 'completed',
@@ -54,7 +81,8 @@ BEGIN
        WHERE b.id = NEW.booking_id
          AND b.lifecycle_status IN ('post_event', 'closed_review_complete')
          AND b.status <> 'cancelled'::booking_status
-     ) THEN
+     )
+     AND public._booking_event_end_at(NEW.booking_id) <= now() THEN
     UPDATE public.booking_staff_assignments
     SET status = 'completed', completed_at = NOW(), updated_at = NOW()
     WHERE id = NEW.id;
@@ -69,6 +97,49 @@ CREATE TRIGGER trg_complete_late_acceptance
   FOR EACH ROW EXECUTE FUNCTION public.trg_complete_late_acceptance();
 
 REVOKE ALL ON FUNCTION public.trg_complete_late_acceptance() FROM PUBLIC, anon, authenticated;
+
+-- Hourly sweep: accepted assignments of closed bookings whose event has
+-- really ended (covers bookings closed by hand before the event ended).
+CREATE OR REPLACE FUNCTION public.complete_past_event_assignments()
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_count integer;
+BEGIN
+  UPDATE public.booking_staff_assignments a
+  SET status = 'completed', completed_at = NOW(), updated_at = NOW()
+  FROM public.bookings b
+  WHERE b.id = a.booking_id
+    AND b.lifecycle_status IN ('post_event', 'closed_review_complete')
+    AND b.status <> 'cancelled'::booking_status
+    AND public._booking_event_end_at(b.id) <= now()
+    -- Only events from this release on. The backlog (4 accepted, never
+    -- completed assignments on past events: 8XFSPX, W5QB5H, 2D01B6, 838E92)
+    -- belongs to Luis's D5 payroll list, not to an automatic first run.
+    AND public._booking_event_end_at(b.id) >= timestamptz '2026-11-12 00:00:00 America/New_York'
+    AND a.status NOT IN ('cancelled', 'completed')
+    AND a.response_status = 'accepted';
+  GET DIAGNOSTICS v_count = ROW_COUNT;
+  RETURN v_count;
+END;
+$function$;
+
+REVOKE ALL ON FUNCTION public.complete_past_event_assignments() FROM PUBLIC, anon, authenticated;
+
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'complete-past-event-assignments-hourly') THEN
+    PERFORM cron.unschedule('complete-past-event-assignments-hourly');
+  END IF;
+  PERFORM cron.schedule(
+    'complete-past-event-assignments-hourly',
+    '50 * * * *',
+    'SELECT public.complete_past_event_assignments();'
+  );
+END $$;
 
 -- ---------------------------------------------------------------------------
 -- M-4: void (delete) unpaid, system-generated pay lines when an assignment is

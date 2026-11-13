@@ -44,3 +44,18 @@ describe("admin UI", () => {
     expect(DETAIL).toMatch(/<RecordPaymentDialog/);
   });
 });
+
+describe("Codex review: no offline record while a Stripe link is live", () => {
+  it("refuses balance/full while balance_link_expires_at is in the future, and fresh deposits", () => {
+    expect(SQL).toMatch(/v_b\.balance_link_expires_at > now\(\)/);
+    expect(SQL).toMatch(/v_b\.created_at > now\(\) - interval '24 hours'/);
+    expect(SQL).toMatch(/OPEN_STRIPE_LINK/);
+  });
+  it("the override is explicit and audited", () => {
+    expect(SQL).toMatch(/p_confirm_open_link boolean DEFAULT false/);
+    expect(SQL).toMatch(/'confirmed_open_stripe_link', p_confirm_open_link/);
+    const dialog = read("src/components/admin/RecordPaymentDialog.tsx");
+    expect(dialog).toMatch(/p_confirm_open_link: confirmOpenLink/);
+    expect(dialog).toMatch(/msg\.includes\("OPEN_STRIPE_LINK"\)/);
+  });
+});
