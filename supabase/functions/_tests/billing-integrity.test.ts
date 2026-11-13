@@ -66,7 +66,7 @@ describe("balance invoice", () => {
     const m = buildInvoiceModel("balance", paid, SNAP_BACKFILL, 3.75);
     expect(sum(m.rows.map((r) => r.paid))).toBe(277);
     expect(m.totalCharged).toBe(287.39);
-    expect(m.footnote).toContain("Deposit of $278.00 paid earlier");
+    expect(m.footnote).toContain("First 50% of $278.00 paid earlier");
     expect(m.discountNote).toContain("MILITARYSERVICE");
   });
 });

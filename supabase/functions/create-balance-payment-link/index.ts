@@ -439,7 +439,7 @@ serve(async (req) => {
               `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Payment Summary</p>` +
               detailTable([
                 ["Total Amount", totalFormatted],
-                ["Deposit Paid", depositFormatted],
+                ["First 50% Paid", depositFormatted],
                 ["Remaining Balance", balanceBaseFormatted],
                 [FEE_LABEL, processingFeeFormatted],
                 ["Total Due", balanceTotalFormatted],

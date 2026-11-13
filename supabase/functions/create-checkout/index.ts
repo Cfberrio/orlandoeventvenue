@@ -291,8 +291,8 @@ serve(async (req: Request) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Event Venue Deposit - ${displayType}`,
-              description: `50% deposit for event on ${displayDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
+              name: `Event Venue Booking, First 50% - ${displayType}`,
+              description: `First 50% for event on ${displayDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
             },
             unit_amount: depositAmountCents,
           },

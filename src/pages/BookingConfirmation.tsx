@@ -304,7 +304,7 @@ const BookingConfirmation = () => {
                   </div>
                   <div className="flex justify-between items-center text-green-600">
                     <span>
-                      Deposit Paid
+                      First 50% Paid
                       {booking.deposit_total_charged != null && (
                         <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
                       )}
@@ -532,7 +532,7 @@ const BookingConfirmation = () => {
                 </div>
                 <div className="flex justify-between items-center text-green-600">
                   <span>
-                    Deposit Paid
+                    First 50% Paid
                     {booking.deposit_total_charged != null && (
                       <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
                     )}

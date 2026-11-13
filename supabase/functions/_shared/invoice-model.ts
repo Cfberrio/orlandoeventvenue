@@ -171,15 +171,15 @@ export function buildInvoiceModel(
 
   const footnote =
     kind === "deposit"
-      ? `Remaining 50% balance: ${money(Number(b.balance_amount))}, due 15 days before your event.`
-      : `Deposit of ${money(Number(b.deposit_amount))} paid earlier. Event total: ${money(Number(b.total_amount))}. Booking now fully paid.`;
+      ? `Final 50%: ${money(Number(b.balance_amount))}, due 15 days before your event.`
+      : `First 50% of ${money(Number(b.deposit_amount))} paid earlier. Event total: ${money(Number(b.total_amount))}. Booking now fully paid.`;
 
   return {
     kind,
     rows,
     totals,
     discountNote,
-    subtotalLabel: kind === "deposit" ? "Deposit Subtotal (50%)" : "Balance Subtotal (50%)",
+    subtotalLabel: kind === "deposit" ? "First 50% Subtotal" : "Final 50% Subtotal",
     subtotal,
     feePct,
     fee,
