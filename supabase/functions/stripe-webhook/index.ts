@@ -27,6 +27,13 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // An unfinished stripe_event_log claim older than this is treated as abandoned.
 const STALE_CLAIM_MS = 5 * 60 * 1000;
 
+/** Today's date in Orlando (M-11: revenue was dated by the UTC day). */
+function orlandoToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
+
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -798,6 +805,13 @@ serve(async (req) => {
         // duplicate, so a failed write must be recorded where the office sees
         // it (booking_events), not only in the function log (S-5, 86e40ach2).
         const addonRevenueRows: Record<string, unknown>[] = [];
+        // M-32 (86e40ach2): links created after this release store the exact
+        // lines charged; revenue is written from them. Older links fall back
+        // to the stored columns (without the old $75 setup / double count).
+        const storedLines = (paidInvoice as { line_items?: unknown } | null)?.line_items;
+        const chargedLines = Array.isArray(storedLines) && storedLines.length > 0
+          ? (storedLines as Array<{ cat: string; type: string; amount: number; qty?: number; unit?: number; label: string }>)
+          : null;
 
         // If this add-on includes Bar Service, propagate to booking + insert revenue item
         const aiBarPackage = (paidInvoice as { bar_package?: string } | null)?.bar_package;
@@ -827,8 +841,8 @@ serve(async (req) => {
 
           // Insert a single bar_service revenue line for the add-on payment
           // (80/20 Stripe Connect split was already applied at checkout)
-          const paymentDate = new Date().toISOString().split("T")[0];
-          addonRevenueRows.push({
+          const paymentDate = orlandoToday();
+          if (!chargedLines) addonRevenueRows.push({
             booking_id: bookingId,
             item_category: "bar_service",
             item_type: aiBarPackage,
@@ -856,9 +870,26 @@ serve(async (req) => {
         // so reports can distinguish revenue paid AFTER the original reservation.
         // We do NOT mutate the booking's original fields — the add-on stays as its
         // own visible record (booking_addon_invoices + these revenue lines).
-        if (paidInvoice && bookingId) {
+        if (paidInvoice && bookingId && chargedLines) {
+          const paymentDate = orlandoToday();
+          for (const line of chargedLines) {
+            if (!(Number(line.amount) > 0)) continue;
+            addonRevenueRows.push({
+              booking_id: bookingId,
+              item_category: line.cat,
+              item_type: line.type,
+              amount: Number(line.amount),
+              quantity: line.qty ?? null,
+              unit_price: line.unit ?? null,
+              payment_date: paymentDate,
+              payment_split: "addon",
+              description: `${line.label} (Add-on, paid in full)`,
+              metadata: { source: "addon_invoice", addon_invoice_id: invoiceId, split: "80_20" },
+            });
+          }
+        } else if (paidInvoice && bookingId) {
           const inv = paidInvoice as Record<string, unknown>;
-          const paymentDate = new Date().toISOString().split("T")[0];
+          const paymentDate = orlandoToday();
           const baseMeta = {
             source: "addon_invoice",
             addon_invoice_id: invoiceId,
@@ -885,12 +916,15 @@ serve(async (req) => {
             });
           }
 
-          if (inv.setup_breakdown === true) {
+          const legacyTcQty = Number(inv.tablecloth_quantity ?? 0);
+          const legacyTablecloth = inv.tablecloths === true && legacyTcQty > 0 ? Math.round((legacyTcQty * 5 + 25) * 100) / 100 : 0;
+          const legacyRest = Math.round((Number(inv.total_amount ?? 0) - aiPackageCost - Number(inv.bar_subtotal ?? 0) - legacyTablecloth) * 100) / 100;
+          if (inv.setup_breakdown === true && legacyRest > 0) {
             addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "addon",
               item_type: "setup_breakdown",
-              amount: 75.00,
+              amount: legacyRest,
               payment_date: paymentDate,
               payment_split: "addon",
               description: "Setup & Breakdown Service (Add-on, paid in full)",
@@ -898,9 +932,9 @@ serve(async (req) => {
             });
           }
 
-          const tcQty = Number(inv.tablecloth_quantity ?? 0);
+          const tcQty = legacyTcQty;
           if (inv.tablecloths === true && tcQty > 0) {
-            const tcAmount = Math.round(tcQty * 5.00 * 100) / 100;
+            const tcAmount = legacyTablecloth;
             addonRevenueRows.push({
               booking_id: bookingId,
               item_category: "addon",
@@ -915,8 +949,9 @@ serve(async (req) => {
             });
           }
 
-          // optional_services_cost is the manual misc amount (excluding tablecloths line)
-          const miscAmount = Number(inv.optional_services_cost ?? 0);
+          // Anything else on the invoice total that is not setup (setup already
+          // took the remainder above, so this never double counts).
+          const miscAmount = inv.setup_breakdown === true ? 0 : legacyRest;
           if (miscAmount > 0) {
             addonRevenueRows.push({
               booking_id: bookingId,

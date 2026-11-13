@@ -264,10 +264,19 @@ serve(async (req: Request) => {
       pricingMap[row.item_key] = { price: Number(row.price), extra_fee: Number(row.extra_fee ?? 0) };
     }
 
-    const SETUP_PRICE = pricingMap["setup_breakdown"]?.price ?? 100;
-    const TABLECLOTH_UNIT_PRICE = pricingMap["tablecloth_rental"]?.price ?? 5;
-    const TABLECLOTH_CLEANING = pricingMap["tablecloth_rental"]?.extra_fee ?? 25;
-    const PROCESSING_FEE_PCT = pricingMap["processing_fee"]?.price ?? 3.5;
+    // M-16 (86e40ach2): no silent fallback to old hardcoded prices (setup
+    // $100 vs $299, fee 3.5% vs 3.75%). A price the office turned off or that
+    // failed to load stops the link instead of charging the wrong amount.
+    if (pricingError || !pricingMap["processing_fee"]) {
+      return new Response(
+        JSON.stringify({ error: "Prices could not be loaded (processing fee missing). Check the Pricing page and try again." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    const SETUP_PRICE = pricingMap["setup_breakdown"]?.price;
+    const TABLECLOTH_UNIT_PRICE = pricingMap["tablecloth_rental"]?.price;
+    const TABLECLOTH_CLEANING = pricingMap["tablecloth_rental"]?.extra_fee ?? 0;
+    const PROCESSING_FEE_PCT = pricingMap["processing_fee"].price;
 
     const { data: invoice, error: invoiceError } = await supabase
       .from("booking_addon_invoices")
@@ -326,8 +335,25 @@ serve(async (req: Request) => {
 
     const stripe = new Stripe(stripeSecretKey, { apiVersion: "2023-10-16" });
 
+    if (invoice.setup_breakdown && SETUP_PRICE == null) {
+      return new Response(
+        JSON.stringify({ error: "Setup & breakdown has no active price. Turn it on in Pricing first." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+    if (invoice.tablecloths && Number(invoice.tablecloth_quantity) > 0 && TABLECLOTH_UNIT_PRICE == null) {
+      return new Response(
+        JSON.stringify({ error: "Tablecloth rental has no active price. Turn it on in Pricing first." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
     const emailLineItems: { label: string; amount: string }[] = [];
+    // M-32: the exact priced lines charged, stored on the invoice so the
+    // webhook writes revenue from what was charged (it wrote setup as $75 and
+    // dropped the tablecloth cleaning fee).
+    const pricedLines: Array<{ cat: string; type: string; amount: number; qty?: number; unit?: number; label: string }> = [];
 
     if (invoice.package !== "none" && Number(invoice.package_cost) > 0) {
       const packageLabel = PACKAGE_LABELS[invoice.package] || invoice.package;
@@ -351,9 +377,10 @@ serve(async (req: Request) => {
         quantity: 1,
       });
       emailLineItems.push({ label: description, amount: `$${Number(invoice.package_cost).toFixed(2)}` });
+      pricedLines.push({ cat: "production", type: invoice.package, amount: Number(invoice.package_cost), label: packageLabel });
     }
 
-    if (invoice.setup_breakdown) {
+    if (invoice.setup_breakdown && SETUP_PRICE != null) {
       const setupCents = Math.round(SETUP_PRICE * 100);
       stripeLineItems.push({
         price_data: {
@@ -364,9 +391,10 @@ serve(async (req: Request) => {
         quantity: 1,
       });
       emailLineItems.push({ label: "Setup & Breakdown", amount: `$${SETUP_PRICE.toFixed(2)}` });
+      pricedLines.push({ cat: "addon", type: "setup_breakdown", amount: setupCents / 100, label: "Setup & Breakdown Service" });
     }
 
-    if (invoice.tablecloths && Number(invoice.tablecloth_quantity) > 0) {
+    if (invoice.tablecloths && Number(invoice.tablecloth_quantity) > 0 && TABLECLOTH_UNIT_PRICE != null) {
       const tableclothTotal = Number(invoice.tablecloth_quantity) * TABLECLOTH_UNIT_PRICE + TABLECLOTH_CLEANING;
       stripeLineItems.push({
         price_data: {
@@ -382,6 +410,11 @@ serve(async (req: Request) => {
       emailLineItems.push({
         label: `Tablecloths (${invoice.tablecloth_quantity} x $${TABLECLOTH_UNIT_PRICE} + $${TABLECLOTH_CLEANING} cleaning)`,
         amount: `$${tableclothTotal.toFixed(2)}`,
+      });
+      pricedLines.push({
+        cat: "addon", type: "tablecloth", amount: Math.round(tableclothTotal * 100) / 100,
+        qty: Number(invoice.tablecloth_quantity), unit: TABLECLOTH_UNIT_PRICE,
+        label: `Tablecloth Rental x${invoice.tablecloth_quantity} (incl. $${TABLECLOTH_CLEANING} cleaning)`,
       });
     }
 
@@ -406,6 +439,10 @@ serve(async (req: Request) => {
       emailLineItems.push({
         label: `Bar Service: ${barLabel} (${barGuestCount} × $${barRate.toFixed(2)})`,
         amount: `$${barSubtotal.toFixed(2)}`,
+      });
+      pricedLines.push({
+        cat: "bar_service", type: barPackage, amount: barSubtotal, qty: barGuestCount, unit: barRate,
+        label: `Bar Service: ${barLabel}`,
       });
     }
 
@@ -510,6 +547,7 @@ serve(async (req: Request) => {
         processing_fee_pct: PROCESSING_FEE_PCT,
         processing_fee: feeCents / 100,
         total_charged: (baseAmountCents + feeCents) / 100,
+        line_items: pricedLines,
       })
       .eq("id", invoice.id)
       .is("stripe_session_id", null)

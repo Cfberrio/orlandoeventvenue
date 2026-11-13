@@ -240,10 +240,13 @@ export function useTodaysBookings() {
   return useQuery({
     queryKey: ["bookings", "today", today],
     queryFn: async () => {
+      // M-19 (86e40ach2): cancelled/declined bookings are not "today".
       const { data, error } = await supabase
         .from("bookings")
         .select("*")
         .eq("event_date", today)
+        .not("status", "in", "(cancelled,declined)")
+        .neq("lifecycle_status", "cancelled")
         .order("start_time", { ascending: true });
       if (error) throw error;
       return data as Booking[];
@@ -260,6 +263,8 @@ export function useUpcomingBookings(limit = 5) {
         .from("bookings")
         .select("*")
         .gte("event_date", today)
+        .not("status", "in", "(cancelled,declined)")
+        .neq("lifecycle_status", "cancelled")
         .order("event_date", { ascending: true })
         .order("start_time", { ascending: true })
         .limit(limit);
@@ -279,7 +284,9 @@ export function useWeeklyRevenue() {
         .from("bookings")
         .select("total_amount")
         .gte("event_date", start)
-        .lte("event_date", end);
+        .lte("event_date", end)
+        .not("status", "in", "(cancelled,declined)")
+        .neq("lifecycle_status", "cancelled");
       if (error) throw error;
       const total = data.reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
       return { total, count: data.length };
@@ -293,14 +300,21 @@ export function usePipelineSummary() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("bookings")
-        .select("lifecycle_status");
+        .select("lifecycle_status, status, event_date");
       if (error) throw error;
+      const today = format(new Date(), "yyyy-MM-dd");
       const counts: Record<string, number> = {};
+      // M-19 (86e40ach2): "active" = not cancelled and still ahead (or
+      // happening now). It used to count every booking ever made (94).
+      let active = 0;
       data.forEach((b) => {
         const status = b.lifecycle_status || "pending";
         counts[status] = (counts[status] || 0) + 1;
+        const cancelled = b.status === "cancelled" || b.status === "declined" || status === "cancelled";
+        const open = ["pending", "confirmed", "pre_event_ready", "in_progress"].includes(status);
+        if (!cancelled && open && (b.event_date >= today || status === "in_progress")) active++;
       });
-      return counts;
+      return { counts, active };
     },
   });
 }
@@ -1505,7 +1519,10 @@ export function usePopupAnalytics() {
       const { data: bookings, error: bookingsError } = await supabase
         .from("bookings")
         .select("id, email, total_amount, discount_code, created_at, reservation_number")
-        .or("discount_code.eq.PLAN50,discount_code.eq.HOST100,discount_code.eq.SAVE100,discount_code.eq.SAVE50");
+        .or("discount_code.eq.PLAN50,discount_code.eq.HOST100,discount_code.eq.SAVE100,discount_code.eq.SAVE50")
+        // M-22 (86e40ach2): cancelled bookings are not popup revenue.
+        .not("status", "in", "(cancelled,declined)")
+        .neq("lifecycle_status", "cancelled");
       if (bookingsError) throw bookingsError;
 
       return { leads: leads ?? [], bookings: bookings ?? [] };

@@ -155,6 +155,24 @@ export default function BookingsList() {
     return bookings.filter(b => b.booking_origin === "internal");
   }, [bookings]);
 
+  // M-20 (86e40ach2): paid add-on invoices count toward what the booking
+  // brought in; the list showed only the original total.
+  const { data: paidAddonsByBooking } = useQuery({
+    queryKey: ["paid-addon-totals"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("booking_addon_invoices")
+        .select("booking_id, total_amount")
+        .not("paid_at", "is", null);
+      if (error) throw error;
+      const map: Record<string, number> = {};
+      for (const row of data ?? []) {
+        map[row.booking_id] = (map[row.booking_id] ?? 0) + Number(row.total_amount ?? 0);
+      }
+      return map;
+    },
+  });
+
   const { data: recurringInvoices } = useQuery({
     queryKey: ["recurring-invoices-active"],
     queryFn: async () => {
@@ -322,7 +340,12 @@ export default function BookingsList() {
                   </div>
                 </TableCell>
                 <TableCell className="text-right font-medium">
-                  ${Number(booking.total_amount).toLocaleString()}
+                  ${(Number(booking.total_amount) + (paidAddonsByBooking?.[booking.id] ?? 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {(paidAddonsByBooking?.[booking.id] ?? 0) > 0 && (
+                    <div className="text-xs font-normal text-muted-foreground">
+                      incl. ${(paidAddonsByBooking?.[booking.id] ?? 0).toFixed(2)} add-ons
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell>
                   <div className="text-sm">

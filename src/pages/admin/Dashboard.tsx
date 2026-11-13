@@ -112,9 +112,9 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loadingPipeline ? "..." : Object.values(pipeline || {}).reduce((a, b) => a + b, 0)}
+              {loadingPipeline ? "..." : pipeline?.active ?? 0}
             </div>
-            <p className="text-xs text-muted-foreground">total active bookings</p>
+            <p className="text-xs text-muted-foreground">active upcoming bookings (not cancelled)</p>
           </CardContent>
         </Card>
 
@@ -329,7 +329,7 @@ export default function AdminDashboard() {
                     <div className="flex items-center gap-2">
                       <Badge className={lifecycleColors[status]}>{status.replace(/_/g, " ")}</Badge>
                     </div>
-                    <span className="font-medium">{pipeline?.[status] || 0}</span>
+                    <span className="font-medium">{pipeline?.counts?.[status] || 0}</span>
                   </div>
                 ))}
               </div>

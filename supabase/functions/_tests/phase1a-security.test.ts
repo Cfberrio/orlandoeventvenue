@@ -119,7 +119,8 @@ describe("stripe-webhook writes add-on revenue in one insert and records failure
   const branch = src.slice(start, end);
 
   it("collects every add-on line and inserts them together", () => {
-    expect(branch.match(/addonRevenueRows\.push\(/g)?.length).toBe(5);
+    // 5 legacy column lines + 1 loop over the stored charged lines (M-32)
+    expect(branch.match(/addonRevenueRows\.push\(/g)?.length).toBe(6);
     expect(branch.match(/from\("booking_revenue_items"\)/g)?.length).toBe(1);
     expect(branch).toMatch(/\.insert\(addonRevenueRows, \{ defaultToNull: false \}\)/);
   });
@@ -129,7 +130,7 @@ describe("stripe-webhook writes add-on revenue in one insert and records failure
   });
 
   it("still labels every line payment_split = addon (allowed by the new CHECK)", () => {
-    expect(branch.match(/payment_split: "addon"/g)?.length).toBe(5);
+    expect(branch.match(/payment_split: "addon"/g)?.length).toBe(6);
     expect(read(MIGRATION)).toMatch(/'full'::text, 'addon'::text/);
   });
 });
