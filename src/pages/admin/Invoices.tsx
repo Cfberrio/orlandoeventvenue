@@ -57,6 +57,8 @@ interface Invoice {
   recurring_day_of_month: number | null;
   recurring_last_sent_at: string | null;
   recurring_template_only: boolean;
+  recurring_last_error?: string | null;
+  recurring_last_error_at?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -305,6 +307,14 @@ export default function Invoices() {
                               {inv.recurring_active && inv.recurring_next_send_at && (
                                 <span className="text-[10px] text-muted-foreground">
                                   Next: {formatSendDate(new Date(inv.recurring_next_send_at))} 3 PM ET
+                                </span>
+                              )}
+                              {/* M-31 / E-13 (86e40ach2): a failed send is visible and retried daily. */}
+                              {inv.recurring_last_error && (
+                                <span className="text-[10px] text-destructive" title={inv.recurring_last_error}>
+                                  Last send failed
+                                  {inv.recurring_last_error_at ? ` ${formatSendDate(new Date(inv.recurring_last_error_at))}` : ""}
+                                  : retried at the next run. {inv.recurring_last_error.slice(0, 80)}
                                 </span>
                               )}
                             </div>

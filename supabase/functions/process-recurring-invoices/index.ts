@@ -7,6 +7,28 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// A child claimed for sending by a run that died is retried after this long.
+const SEND_LEASE_MS = 10 * 60 * 1000;
+
+// M-31 (ClickUp 86e40ach2). Order per due parent:
+//   1. find or create THE child for this period (unique per parent+period);
+//   2. claim it for sending (no double send by overlapping runs);
+//   3. send it through create-invoice;
+//   4. only then advance the schedule (claim_recurring_invoice, CAS).
+// A failure at 1-3 leaves the period due: the next run retries the same child
+// and the failure is shown on the parent (recurring_last_error). It used to
+// advance first and skip the month for good.
+
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function recordFailure(supabase: any, parentId: string, message: string) {
+  const { error } = await supabase
+    .from("invoices")
+    .update({ recurring_last_error: message.slice(0, 500), recurring_last_error_at: new Date().toISOString() })
+    .eq("id", parentId);
+  if (error) console.error(`[recurring-invoices] Could not record failure on ${parentId}:`, error);
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -23,9 +45,7 @@ serve(async (req: Request) => {
       .from("invoices")
       .select("*")
       .eq("recurring_active", true)
-      // A row with no usable interval can never be rescheduled, so it would come
-      // back due on every run. claim_recurring_invoice refuses it too; filtering
-      // here keeps it out of the "due" count instead of logging a failure hourly.
+      // A row with no usable interval can never be rescheduled.
       .gte("recurring_interval_days", 1)
       .lte("recurring_next_send_at", new Date().toISOString());
 
@@ -53,135 +73,139 @@ serve(async (req: Request) => {
 
     for (const parent of dueInvoices) {
       try {
-        console.log(`[recurring-invoices] Processing parent ${parent.id} (${parent.invoice_number})`);
+        const period: string = parent.recurring_next_send_at;
+        console.log(`[recurring-invoices] Processing parent ${parent.id} (${parent.invoice_number}) period ${period}`);
 
-        // [ATOMIC CLAIM] Move the schedule forward before creating anything.
-        // Only one caller can win this update, so a concurrent run — or the
-        // 20:00 UTC run after a failed 19:00 one — cannot produce a second
-        // invoice for the same period.
-        const { data: claimed, error: claimError } = await supabase.rpc(
-          "claim_recurring_invoice",
-          {
-            p_invoice_id: parent.id,
-            p_expected_next_send: parent.recurring_next_send_at,
-          }
-        );
-
-        if (claimError) {
-          console.error(`[recurring-invoices] Claim failed for ${parent.id}:`, claimError);
-          failed++;
-          continue;
-        }
-
-        if (!claimed) {
-          console.log(
-            `[recurring-invoices] Parent ${parent.id} already claimed by another run, skipping`
-          );
-          skipped++;
-          continue;
-        }
-
-        const { data: child, error: insertError } = await supabase
+        // 1. The child for this period (a previous run may have created it).
+        const { data: existing, error: existingError } = await supabase
           .from("invoices")
-          .insert({
-            title: parent.title,
-            description: parent.description,
-            amount: parent.amount,
-            // Carry the discount over, otherwise the child keeps the right net
-            // amount but loses the subtotal/discount breakdown in the email and
-            // the dashboard.
-            subtotal: parent.subtotal ?? parent.amount,
-            discount_type: parent.discount_type,
-            discount_value: parent.discount_value,
-            discount_amount: parent.discount_amount ?? 0,
-            line_items: parent.line_items,
-            customer_email: parent.customer_email,
-            customer_name: parent.customer_name,
-            recurring_parent_id: parent.id,
-            created_by: parent.created_by,
-          })
-          .select()
-          .single();
-
-        if (insertError || !child) {
-          console.error(`[recurring-invoices] Failed to insert child for ${parent.id}:`, insertError);
-          console.error(
-            `[recurring-invoices] ACTION REQUIRED: period skipped for parent ${parent.id} (${parent.invoice_number}); the schedule already advanced`
-          );
+          .select("*")
+          .eq("recurring_parent_id", parent.id)
+          .eq("recurring_period", period)
+          .neq("payment_status", "cancelled")
+          .maybeSingle();
+        if (existingError) {
+          console.error(`[recurring-invoices] Could not look up child for ${parent.id}:`, existingError);
+          await recordFailure(supabase, parent.id, `lookup failed: ${existingError.message}`);
           failed++;
           continue;
         }
 
-        console.log(`[recurring-invoices] Child invoice created: ${child.id} (${child.invoice_number})`);
-
-        const createInvoiceUrl = `${supabaseUrl}/functions/v1/create-invoice`;
-
-        // A thrown fetch (network drop, gateway timeout) must land on the same
-        // cleanup path as a non-ok response. Letting it reach the outer catch
-        // left the child sitting in the dashboard as pending with no payment_url
-        // and no email — an invoice the admin reads as sent that nobody sent.
-        let fnResponse: Response | null = null;
-        let sendError: string | null = null;
-        try {
-          fnResponse = await fetch(createInvoiceUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${supabaseServiceKey}`,
-            },
-            body: JSON.stringify({
-              invoice_id: child.id,
-              customer_email: parent.customer_email,
-              customer_name: parent.customer_name || undefined,
-            }),
-          });
-          if (!fnResponse.ok) {
-            sendError = await fnResponse.text();
-          }
-        } catch (fetchErr) {
-          sendError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
-        }
-
-        if (sendError !== null) {
-          console.error(`[recurring-invoices] create-invoice failed for child ${child.id}:`, sendError);
-          // Cancel the child so it does not look like a live pending invoice.
-          // Guarded on payment_status/payment_url because create-invoice may have
-          // completed and only the response was lost: cancelling a child whose
-          // payment link is already in the customer's inbox would hide a real
-          // payment from the revenue report and invite a duplicate send by hand.
-          const { data: cancelled, error: cancelError } = await supabase
+        let child = existing;
+        if (!child) {
+          const { data: inserted, error: insertError } = await supabase
             .from("invoices")
-            .update({ payment_status: "cancelled" })
-            .eq("id", child.id)
-            .eq("payment_status", "pending")
-            .is("payment_url", null)
-            .select("id");
-
-          if (cancelError) {
-            console.error(
-              `[recurring-invoices] Could not cancel orphan child ${child.id}:`,
-              cancelError
-            );
-          } else if (!cancelled || cancelled.length === 0) {
-            console.error(
-              `[recurring-invoices] ACTION REQUIRED: child ${child.invoice_number} kept — it already has a payment link, so create-invoice may have reached the customer. Verify before resending.`
-            );
+            .insert({
+              title: parent.title,
+              description: parent.description,
+              amount: parent.amount,
+              subtotal: parent.subtotal ?? parent.amount,
+              discount_type: parent.discount_type,
+              discount_value: parent.discount_value,
+              discount_amount: parent.discount_amount ?? 0,
+              line_items: parent.line_items,
+              customer_email: parent.customer_email,
+              customer_name: parent.customer_name,
+              recurring_parent_id: parent.id,
+              recurring_period: period,
+              created_by: parent.created_by,
+            })
+            .select()
+            .single();
+          if (insertError?.code === "23505") {
+            console.log(`[recurring-invoices] Another run created the child for ${parent.id} ${period}; skipping`);
+            skipped++;
+            continue;
+          }
+          if (insertError || !inserted) {
+            console.error(`[recurring-invoices] Failed to insert child for ${parent.id}:`, insertError);
+            await recordFailure(supabase, parent.id, `could not create the invoice: ${insertError?.message ?? "unknown"}`);
             failed++;
             continue;
           }
+          child = inserted;
+          console.log(`[recurring-invoices] Child invoice created: ${child.id} (${child.invoice_number})`);
+        }
 
-          console.error(
-            `[recurring-invoices] ACTION REQUIRED: period skipped for parent ${parent.id} (${parent.invoice_number}); send ${child.invoice_number} manually if it is still owed`
-          );
+        // 2-3. Send it, unless a previous run already did (only the schedule
+        // advance was lost then).
+        if (!child.payment_url) {
+          const leaseExpired = new Date(Date.now() - SEND_LEASE_MS).toISOString();
+          const { data: claimedChild, error: childClaimError } = await supabase
+            .from("invoices")
+            .update({ recurring_send_claimed_at: new Date().toISOString() })
+            .eq("id", child.id)
+            .is("payment_url", null)
+            .or(`recurring_send_claimed_at.is.null,recurring_send_claimed_at.lt.${leaseExpired}`)
+            .select("id");
+          if (childClaimError || !claimedChild || claimedChild.length === 0) {
+            if (childClaimError) console.error(`[recurring-invoices] Could not claim child ${child.id}:`, childClaimError);
+            skipped++;
+            continue;
+          }
+
+          let sendError: string | null = null;
+          try {
+            const fnResponse = await fetch(`${supabaseUrl}/functions/v1/create-invoice`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${supabaseServiceKey}`,
+              },
+              body: JSON.stringify({
+                invoice_id: child.id,
+                customer_email: parent.customer_email,
+                customer_name: parent.customer_name || undefined,
+              }),
+            });
+            if (!fnResponse.ok) sendError = await fnResponse.text();
+          } catch (fetchErr) {
+            sendError = fetchErr instanceof Error ? fetchErr.message : String(fetchErr);
+          }
+
+          if (sendError !== null) {
+            // Did it reach the customer anyway (only the response was lost)?
+            const { data: after } = await supabase
+              .from("invoices")
+              .select("payment_url")
+              .eq("id", child.id)
+              .maybeSingle();
+            if (!after?.payment_url) {
+              console.error(`[recurring-invoices] create-invoice failed for child ${child.id}:`, sendError);
+              // Release the claim so the next run retries this same child.
+              await supabase.from("invoices").update({ recurring_send_claimed_at: null }).eq("id", child.id);
+              await recordFailure(supabase, parent.id, `could not send ${child.invoice_number}: ${sendError}`);
+              failed++;
+              continue;
+            }
+            console.warn(`[recurring-invoices] create-invoice errored but ${child.id} has a payment link; treating as sent`);
+          }
+          console.log(`[recurring-invoices] create-invoice succeeded for child ${child.id}`);
+        }
+
+        // 4. Only now move the schedule forward.
+        const { data: advanced, error: claimError } = await supabase.rpc("claim_recurring_invoice", {
+          p_invoice_id: parent.id,
+          p_expected_next_send: period,
+        });
+        if (claimError) {
+          console.error(`[recurring-invoices] Could not advance schedule for ${parent.id}:`, claimError);
+          await recordFailure(supabase, parent.id, `invoice sent but schedule not advanced: ${claimError.message}`);
           failed++;
           continue;
         }
-
-        console.log(`[recurring-invoices] create-invoice succeeded for child ${child.id}`);
+        if (!advanced) {
+          console.log(`[recurring-invoices] Schedule for ${parent.id} already advanced by another run`);
+        }
+        await supabase
+          .from("invoices")
+          .update({ recurring_last_error: null, recurring_last_error_at: null })
+          .eq("id", parent.id);
 
         processed++;
       } catch (err) {
         console.error(`[recurring-invoices] Unexpected error for parent ${parent.id}:`, err);
+        await recordFailure(supabase, parent.id, err instanceof Error ? err.message : String(err));
         failed++;
       }
     }
@@ -191,7 +215,7 @@ serve(async (req: Request) => {
     );
     return new Response(
       JSON.stringify({ processed, failed, skipped }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      { status: failed > 0 ? 500 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: unknown) {
     console.error("[recurring-invoices] Fatal error:", error);

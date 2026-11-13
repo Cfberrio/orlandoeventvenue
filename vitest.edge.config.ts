@@ -23,6 +23,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase1b-reschedule.test.ts",
       "supabase/functions/_tests/phase1b-status.test.ts",
       "supabase/functions/_tests/phase1b-revenue.test.ts",
+      "supabase/functions/_tests/phase1b-recurring.test.ts",
     ],
   },
 });
