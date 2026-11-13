@@ -40,3 +40,10 @@ describe("validatePriceDecision", () => {
     expect(describeDelta(50)).toBe("The new hours cost $50.00 more");
   });
 });
+
+describe("pre-deposit bookings (Codex review)", () => {
+  it("cannot absorb a price change in the balance before the deposit is paid", () => {
+    const opts = priceDecisionOptions(100, { balance_amount: 500, balance_paid_at: null, balance_link_expires_at: null, deposit_paid_at: null });
+    expect(opts[0].disabledReason).toMatch(/deposit is not paid/);
+  });
+});

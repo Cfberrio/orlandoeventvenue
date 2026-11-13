@@ -48,6 +48,7 @@ interface Props {
     balance_amount: number | string | null;
     balance_paid_at: string | null;
     balance_link_expires_at?: string | null;
+    deposit_paid_at?: string | null;
   };
 }
 

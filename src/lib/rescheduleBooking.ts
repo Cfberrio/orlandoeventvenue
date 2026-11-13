@@ -71,6 +71,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   admin_required: "Only admins can reschedule bookings.",
   event_already_happened: "This event already happened; it cannot be moved.",
   booking_cancelled: "Cancelled bookings cannot be rescheduled.",
+  unpaid_length_change: "The guest has not paid the deposit yet: change the date or start time only, or have them rebook with the new hours.",
   invalid_token: "Your session expired. Sign in again and retry.",
   unauthorized: "Your session expired. Sign in again and retry.",
 };

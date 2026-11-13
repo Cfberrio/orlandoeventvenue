@@ -88,3 +88,10 @@ describe("notices", () => {
     expect(DETAIL).toMatch(/<RescheduleReviewCards booking=\{booking\} \/>/);
   });
 });
+
+describe("pre-deposit guard (Codex review)", () => {
+  it("blocks a length change on an unpaid website booking and apply_to_balance before the deposit", () => {
+    expect(SQL).toMatch(/'error', 'unpaid_length_change'/);
+    expect(SQL).toMatch(/the deposit is not paid yet; the balance cannot absorb a price change/);
+  });
+});

@@ -25,6 +25,7 @@ export interface BalanceState {
   balance_amount: number | string | null;
   balance_paid_at: string | null;
   balance_link_expires_at?: string | null;
+  deposit_paid_at?: string | null;
 }
 
 /** Decisions that make sense for this difference, with why others are not offered. */
@@ -36,7 +37,8 @@ export function priceDecisionOptions(
   const balance = Number(booking.balance_amount ?? 0);
   const linkLive = booking.balance_link_expires_at != null && new Date(booking.balance_link_expires_at) > now;
   let applyReason: string | null = null;
-  if (booking.balance_paid_at) applyReason = "The balance is already paid.";
+  if (booking.deposit_paid_at === null) applyReason = "The deposit is not paid yet.";
+  else if (booking.balance_paid_at) applyReason = "The balance is already paid.";
   else if (linkLive) applyReason = "A balance link for the old amount is still live.";
   else if (balance + delta < -0.005) applyReason = "The reduction is larger than the unpaid balance.";
 
