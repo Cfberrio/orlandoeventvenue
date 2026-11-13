@@ -263,26 +263,38 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
       const now = new Date().toISOString();
       const { data: { user } } = await supabase.auth.getUser();
 
+      // *_contacted_by reference staff_members: an admin is not a staff row, so
+      // writing the admin's auth id made the whole update fail (86e40ach2).
+      // The admin is recorded in booking_events instead.
       const { error } = await supabase
         .from("bookings")
         .update({
           bar_customer_contacted: markContacted,
           bar_customer_contacted_at: markContacted ? now : null,
-          bar_customer_contacted_by: markContacted ? user?.id ?? null : null,
+          bar_customer_contacted_by: null,
         })
         .eq("id", booking.id);
       if (error) throw error;
 
       if (booking.bar_vendor_assignment_id) {
-        await supabase
+        const { error: assignmentError } = await supabase
           .from("booking_staff_assignments")
           .update({
             customer_contacted: markContacted,
             customer_contacted_at: markContacted ? now : null,
-            customer_contacted_by: markContacted ? user?.id ?? null : null,
+            customer_contacted_by: null,
           })
           .eq("id", booking.bar_vendor_assignment_id);
+        if (assignmentError) throw assignmentError;
       }
+
+      const { error: eventError } = await supabase.from("booking_events").insert({
+        booking_id: booking.id,
+        event_type: markContacted ? "bar_customer_contacted_marked" : "bar_customer_contacted_cleared",
+        channel: "admin",
+        metadata: { by_admin: user?.id ?? null, by_admin_email: user?.email ?? null },
+      });
+      if (eventError) console.error("Could not log bar contact change:", eventError);
 
       toast({
         title: markContacted ? "Marked customer contacted" : "Marked as not contacted",
