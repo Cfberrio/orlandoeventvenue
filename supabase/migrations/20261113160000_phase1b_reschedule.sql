@@ -524,24 +524,25 @@ BEGIN
     OR v_target_end::time IS DISTINCT FROM v_booking.end_time;
   v_changed := p_new_date IS DISTINCT FROM v_booking.event_date OR v_hours_changed;
 
-  -- Codex review: a website booking whose deposit is not paid yet is still
-  -- in checkout, which re-prices the stored amounts from its hours. Changing
-  -- the length here would leave amounts checkout always rejects. Moving the
-  -- date/start with the same length is fine.
-  IF v_booking.booking_origin::text = 'website'
-     AND v_booking.deposit_paid_at IS NULL AND v_booking.balance_paid_at IS NULL
-     AND COALESCE(public._hours_between(v_target_start::time, v_target_end::time), -1)
-         IS DISTINCT FROM COALESCE(public._hours_between(v_booking.start_time, v_booking.end_time), -1) THEN
-    RETURN jsonb_build_object(
-      'ok', false,
-      'error', 'unpaid_length_change',
-      'message', 'The guest has not paid the deposit yet: change the date or start time only, or have them rebook with the new hours'
-    );
-  END IF;
 
   -- M-1: price of the new hours against the settled window, at the rates
   -- the booking was sold at (before the row changes).
   v_price := public._reschedule_price_preview(p_booking_id, v_target_start::time, v_target_end::time, v_new_pkg_start, v_new_pkg_end);
+
+  -- Codex review: a website booking whose deposit is not paid yet is still
+  -- in checkout, which re-prices the stored amounts from its event AND
+  -- package hours. Any reschedule that changes the price (length, or a
+  -- package window that gets clamped) would leave amounts checkout always
+  -- rejects. Same-price moves are fine.
+  IF v_booking.booking_origin::text = 'website'
+     AND v_booking.deposit_paid_at IS NULL AND v_booking.balance_paid_at IS NULL
+     AND abs((v_price->>'delta')::numeric) >= 0.01 THEN
+    RETURN jsonb_build_object(
+      'ok', false,
+      'error', 'unpaid_length_change',
+      'message', 'The guest has not paid the deposit yet: this change would alter the price. Move the event without changing its hours or package, or have the guest rebook'
+    );
+  END IF;
 
   -- Calculate date shift for job rescheduling
   v_date_shift_days := p_new_date - v_booking.event_date;
