@@ -24,7 +24,7 @@ describe("cancel triggers", () => {
     expect(SQL).toMatch(/SET status = 'cancelled', updated_at = now\(\)\s+WHERE booking_id = NEW\.id\s+AND status IN \('assigned', 'in_progress'\)/);
     expect(SQL).toMatch(/last_error = 'booking_cancelled'/);
     expect(SQL).toMatch(/DELETE FROM public\.availability_blocks WHERE booking_id = NEW\.id/);
-    expect(SQL).toMatch(/SET payment_status = 'expired'\s+WHERE booking_id = NEW\.id\s+AND payment_status = 'pending'\s+AND paid_at IS NULL/);
+    expect(SQL).toMatch(/SET payment_status = 'expired'\s+WHERE id IN \(\s+SELECT id FROM public\.booking_addon_invoices\s+WHERE booking_id = NEW\.id\s+AND payment_status = 'pending'\s+AND paid_at IS NULL/);
   });
   it("flags a refund review when money was collected", () => {
     expect(SQL).toMatch(/'refund_review_needed'/);
@@ -70,7 +70,8 @@ describe("Codex review fixes", () => {
 
 describe("admin_record_refund_decision", () => {
   it("is admin/service only, locks the booking and is one decision per review", () => {
-    expect(SQL.indexOf("PERFORM public._assert_admin_or_service();")).toBeLessThan(SQL.indexOf("FOR UPDATE"));
+    const fn = SQL.slice(SQL.indexOf("CREATE OR REPLACE FUNCTION public.admin_record_refund_decision("));
+    expect(fn.indexOf("PERFORM public._assert_admin_or_service();")).toBeLessThan(fn.indexOf("FOR UPDATE"));
     expect(SQL).toMatch(/REVOKE ALL ON FUNCTION public\.admin_record_refund_decision\([^)]*\) FROM PUBLIC, anon;/);
     expect(SQL).toMatch(/a refund decision is already recorded/);
     expect(SQL).toMatch(/v_total := round\(\(v_collected->>'total'\)::numeric - v_decided_before, 2\)/);
@@ -80,9 +81,15 @@ describe("admin_record_refund_decision", () => {
     expect(SQL).toMatch(/p_method <> 'cash' AND v_reference IS NULL/);
     expect(SQL).toMatch(/v_decision <> 'refunded_in_full' AND v_note IS NULL/);
   });
-  it("only a full refund flips payment_status to refunded", () => {
-    expect(SQL).toMatch(/IF v_decision = 'refunded_in_full' AND NOT EXISTS \(/);
-    expect(SQL).toMatch(/\(decision_details->>'kept_amount'\)::numeric > 0\s+\) THEN\s+UPDATE public\.bookings\s+SET payment_status = 'refunded'::payment_status/);
+  it("payment status is derived from cumulative refunded/kept money, both ways", () => {
+    expect(SQL).toMatch(/CREATE OR REPLACE FUNCTION public\._sync_cancelled_payment_status/);
+    expect(SQL).toMatch(/v_kept <= 0\.009 AND abs\(v_total - v_refunded\) <= 0\.01/);
+    expect(SQL).toMatch(/ELSIF v_b\.payment_status = 'refunded'::payment_status THEN/);
+    expect(SQL).toMatch(/PERFORM public\._sync_cancelled_payment_status\(p_booking_id\);\s+INSERT INTO public\.booking_events/);
+  });
+  it("late payment serializes on the booking row; cascade skips invoices being paid", () => {
+    expect(SQL).toMatch(/PERFORM 1 FROM public\.bookings WHERE id = p_booking_id FOR UPDATE;/);
+    expect(SQL).toMatch(/FOR UPDATE SKIP LOCKED/);
   });
   it("only cancelled bookings take a decision", () => {
     expect(SQL).toMatch(/only a cancelled booking takes a refund decision/);

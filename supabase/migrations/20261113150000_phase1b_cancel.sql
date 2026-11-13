@@ -209,11 +209,18 @@ BEGIN
   -- session itself is expired by cancel-booking; a payment that still lands
   -- is recorded by the webhook (paid_at IS NULL claim) and shows up in the
   -- refund review below.
+  -- SKIP LOCKED: an invoice the webhook is marking paid right now is left
+  -- alone (waiting on it while the webhook waits on this booking row would
+  -- deadlock); that payment then reopens the refund review below.
   UPDATE public.booking_addon_invoices
   SET payment_status = 'expired'
-  WHERE booking_id = NEW.id
-    AND payment_status = 'pending'
-    AND paid_at IS NULL;
+  WHERE id IN (
+    SELECT id FROM public.booking_addon_invoices
+    WHERE booking_id = NEW.id
+      AND payment_status = 'pending'
+      AND paid_at IS NULL
+    FOR UPDATE SKIP LOCKED
+  );
   GET DIAGNOSTICS v_addons = ROW_COUNT;
 
   v_collected := public._booking_collected(NEW.id);
@@ -265,6 +272,50 @@ REVOKE ALL ON FUNCTION public.trg_booking_cancel_cascade() FROM PUBLIC, anon, au
 -- reopen the refund review so it cannot go unnoticed, even when a refund
 -- decision was already recorded.
 -- ---------------------------------------------------------------------------
+-- Payment status of a cancelled booking from its cumulative money: refunded
+-- only when everything collected was given back and nothing is undecided.
+-- Otherwise the status follows what was paid (Codex review: it used to stay
+-- "refunded" after a later kept or partial decision).
+CREATE OR REPLACE FUNCTION public._sync_cancelled_payment_status(p_booking_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_b public.bookings%ROWTYPE;
+  v_total numeric;
+  v_refunded numeric;
+  v_kept numeric;
+  v_target payment_status;
+BEGIN
+  SELECT * INTO v_b FROM public.bookings WHERE id = p_booking_id;
+  IF NOT FOUND THEN RETURN; END IF;
+  v_total := (public._booking_collected(p_booking_id)->>'total')::numeric;
+  SELECT COALESCE(sum((decision_details->>'refund_amount')::numeric), 0),
+         COALESCE(sum((decision_details->>'kept_amount')::numeric), 0)
+  INTO v_refunded, v_kept
+  FROM public.booking_money_reviews
+  WHERE booking_id = p_booking_id AND kind = 'refund' AND status = 'resolved';
+
+  IF v_total > 0 AND v_kept <= 0.009 AND abs(v_total - v_refunded) <= 0.01 THEN
+    v_target := 'refunded'::payment_status;
+  ELSIF v_b.payment_status = 'refunded'::payment_status THEN
+    v_target := CASE
+      WHEN v_b.balance_paid_at IS NOT NULL THEN 'fully_paid'::payment_status
+      WHEN v_b.deposit_paid_at IS NOT NULL THEN 'deposit_paid'::payment_status
+      ELSE 'pending'::payment_status
+    END;
+  ELSE
+    RETURN;
+  END IF;
+
+  IF v_b.payment_status IS DISTINCT FROM v_target THEN
+    UPDATE public.bookings SET payment_status = v_target, updated_at = now() WHERE id = p_booking_id;
+  END IF;
+END;
+$function$;
+
 CREATE OR REPLACE FUNCTION public._open_refund_review_after_payment(p_booking_id uuid, p_source text)
 RETURNS void
 LANGUAGE plpgsql
@@ -274,6 +325,16 @@ AS $function$
 DECLARE
   v_collected jsonb;
 BEGIN
+  -- Same lock as admin_record_refund_decision and the cancel: a decision
+  -- either sees this payment or runs after it and finds the reopened review.
+  PERFORM 1 FROM public.bookings WHERE id = p_booking_id FOR UPDATE;
+  IF NOT EXISTS (
+    SELECT 1 FROM public.bookings
+    WHERE id = p_booking_id
+      AND (status = 'cancelled'::booking_status OR lifecycle_status = 'cancelled')
+  ) THEN
+    RETURN;
+  END IF;
   v_collected := public._booking_collected(p_booking_id);
   INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
   VALUES (p_booking_id, 'payment_on_cancelled_booking', 'system',
@@ -281,6 +342,7 @@ BEGIN
   INSERT INTO public.booking_money_reviews (booking_id, kind, details)
   VALUES (p_booking_id, 'refund', jsonb_build_object('payment_after_cancel', p_source, 'collected', v_collected))
   ON CONFLICT (booking_id, kind) WHERE status = 'open' DO NOTHING;
+  PERFORM public._sync_cancelled_payment_status(p_booking_id);
 END;
 $function$;
 
@@ -313,11 +375,9 @@ SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 BEGIN
-  IF OLD.paid_at IS NULL AND NEW.paid_at IS NOT NULL AND EXISTS (
-    SELECT 1 FROM public.bookings b
-    WHERE b.id = NEW.booking_id
-      AND (b.status = 'cancelled'::booking_status OR b.lifecycle_status = 'cancelled')
-  ) THEN
+  -- The cancellation check happens inside the helper, under the booking lock,
+  -- so a cancel committing at the same moment is not missed.
+  IF OLD.paid_at IS NULL AND NEW.paid_at IS NOT NULL AND NEW.booking_id IS NOT NULL THEN
     PERFORM public._open_refund_review_after_payment(NEW.booking_id, 'addon_invoice:' || NEW.id::text);
   END IF;
   RETURN NEW;
@@ -330,6 +390,7 @@ CREATE TRIGGER trg_addon_payment_after_cancel
   FOR EACH ROW EXECUTE FUNCTION public.trg_addon_payment_after_cancel();
 
 REVOKE ALL ON FUNCTION public._open_refund_review_after_payment(uuid, text) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._sync_cancelled_payment_status(uuid) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.trg_booking_payment_after_cancel() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.trg_addon_payment_after_cancel() FROM PUBLIC, anon, authenticated;
 
@@ -431,16 +492,6 @@ BEGIN
       USING ERRCODE = '22023';
   END IF;
 
-  IF v_decision = 'refunded_in_full' AND NOT EXISTS (
-    SELECT 1 FROM public.booking_money_reviews
-    WHERE booking_id = p_booking_id AND kind = 'refund' AND status = 'resolved'
-      AND (decision_details->>'kept_amount')::numeric > 0
-  ) THEN
-    UPDATE public.bookings
-    SET payment_status = 'refunded'::payment_status, updated_at = now()
-    WHERE id = p_booking_id;
-  END IF;
-
   IF v_actor IS NOT NULL THEN
     SELECT email INTO v_actor_email FROM auth.users WHERE id = v_actor;
   END IF;
@@ -467,6 +518,8 @@ BEGIN
       (p_booking_id, 'refund', 'resolved', jsonb_build_object('collected_at_decision', v_collected),
        v_decision, v_details, now(), v_actor);
   END IF;
+
+  PERFORM public._sync_cancelled_payment_status(p_booking_id);
 
   INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
   VALUES (
