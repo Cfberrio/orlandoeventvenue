@@ -82,4 +82,23 @@ describe("describeRescheduleResult", () => {
       success: true,
     });
   });
+
+  it("M-1: tells the office about a price difference and staff hours to check", () => {
+    const t = describeRescheduleResult({
+      ok: true,
+      changed: true,
+      warnings: [],
+      price: { delta: -476 },
+      price_review_id: "r1",
+      staff_to_review: 2,
+    });
+    expect(t.description).toContain("$476.00 less");
+    expect(t.description).toContain("hours of 2 staff members");
+  });
+
+  it("M-1: explains why a past event cannot be moved", () => {
+    const t = describeRescheduleResult({ ok: false, error: "event_already_happened" });
+    expect(t.description).toMatch(/already happened/);
+    expect(t.success).toBe(false);
+  });
 });

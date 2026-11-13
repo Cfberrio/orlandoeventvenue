@@ -1040,7 +1040,7 @@ export function useCreateStaffAssignment() {
             eventTimeRange,
             staffRole: variables.assignment_role,
             adminNotes: variables.notes || "No special notes",
-            logoUrl: "https://orlandoeventvenue.org/logo.png",
+            logoUrl: "https://orlandoeventvenue.org/email/logo-dark.png",
           },
         });
 

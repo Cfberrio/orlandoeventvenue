@@ -203,7 +203,7 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
           eventTimeRange,
           staffRole: "Bar Vendor",
           adminNotes: bookingData.bar_internal_notes || "No special notes",
-          logoUrl: "https://orlandoeventvenue.org/logo.png",
+          logoUrl: "https://orlandoeventvenue.org/email/logo-dark.png",
           bookingId: bookingData.id,
           eventType: bookingData.event_type || "",
           barPackageLabel: bookingData.bar_package_label || bookingData.bar_package || "",

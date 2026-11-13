@@ -69,6 +69,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   invalid_time_range: "End time must be after start time.",
   invalid_event_window: "Event window end time must be after start time.",
   admin_required: "Only admins can reschedule bookings.",
+  event_already_happened: "This event already happened; it cannot be moved.",
+  booking_cancelled: "Cancelled bookings cannot be rescheduled.",
   invalid_token: "Your session expired. Sign in again and retry.",
   unauthorized: "Your session expired. Sign in again and retry.",
 };
@@ -78,7 +80,25 @@ const FOLLOW_UP_LABELS: Record<string, string> = {
   guest_feedback: "guest feedback email",
   balance: "remaining balance / lifecycle jobs",
   ghl_sync: "GHL contact sync",
+  staff_notice: "staff schedule-change emails",
 };
+
+/** M-1: what the office still has to look at after a reschedule. */
+export function rescheduleReviewNotes(result: RescheduleResult): string {
+  const notes: string[] = [];
+  const price = result.price as { delta?: number | string } | undefined;
+  const delta = Number(price?.delta ?? 0);
+  if (result.price_review_id && Math.abs(delta) >= 0.01) {
+    notes.push(
+      delta > 0
+        ? `The new hours cost $${delta.toFixed(2)} more: choose how to handle it on this page.`
+        : `The new hours cost $${(-delta).toFixed(2)} less: choose how to handle it on this page.`,
+    );
+  }
+  const staff = Number(result.staff_to_review ?? 0);
+  if (staff > 0) notes.push(`Check the hours of ${staff} staff member${staff === 1 ? "" : "s"}.`);
+  return notes.join(" ");
+}
 
 export interface RescheduleToast {
   title: string;
@@ -124,9 +144,11 @@ export function describeRescheduleResult(result: RescheduleResult): RescheduleTo
     };
   }
 
+  const notes = rescheduleReviewNotes(result);
   return {
     title: "Booking rescheduled successfully!",
-    description: "Date updated, reminders and balance jobs rebuilt, GHL synced.",
+    description:
+      "Date updated, reminders and balance jobs rebuilt, GHL synced, staff emailed." + (notes ? ` ${notes}` : ""),
     success: true,
   };
 }

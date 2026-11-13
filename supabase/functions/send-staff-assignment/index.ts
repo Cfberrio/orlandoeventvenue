@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeCaller } from "../_shared/billing-server.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +25,9 @@ interface StaffAssignmentEmailData {
   clientFullName?: string;
   clientEmail?: string;
   clientPhone?: string;
+  // "rescheduled" (M-1, 86e40ach2): same staff email, telling them the event
+  // date/time changed instead of announcing a new assignment.
+  kind?: "assigned" | "rescheduled";
 }
 
 function formatDate(dateString: string): string {
@@ -222,13 +227,26 @@ function generateBarVendorEmailHTML(data: StaffAssignmentEmailData): string {
 
 function generateEmailHTML(data: StaffAssignmentEmailData): string {
   const firstName = data.staffName.split(" ")[0];
+  const moved = data.kind === "rescheduled";
+  const titleText = moved ? "Schedule change" : "New Staff Assignment";
+  const preheader = moved
+    ? "The date or time of a booking you are assigned to changed. Review it in the Staff Portal."
+    : "You've been assigned to a booking. Review details in the Staff Portal.";
+  const badge = moved ? "SCHEDULE CHANGE" : "NEW ASSIGNMENT";
+  const heading = moved ? "A booking you are assigned to was rescheduled" : "You've been assigned to a booking";
+  const intro = moved
+    ? `Hi ${firstName}, the booking below has a new date or time. Check that you can still work it and review your hours in the Staff Portal.`
+    : `Hi ${firstName}, an admin has assigned you to the booking below. Please review the details in the Staff Portal.`;
+  const stepTwo = moved
+    ? "<b>If you can no longer work the new date or time, tell the office right away</b> (or use Unassign in the Staff Portal) so the booking can be covered."
+    : "<b>Accept or reject this assignment in the Staff Portal within 24 hours.</b> If you don't respond in time, the assignment is automatically rejected and may be reassigned.";
   
   return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>New Staff Assignment: OEV #${data.reservationNumber}</title>
+  <title>${titleText}: OEV #${data.reservationNumber}</title>
   <style>
     @media (max-width: 620px) {
       .container { width: 100% !important; }
@@ -241,7 +259,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
 <body style="margin:0;padding:0;background:#f6f7f9;font-family:Arial,Helvetica,sans-serif;color:#111827;">
   <!-- Preheader (hidden) -->
   <div style="display:none;max-height:0;overflow:hidden;opacity:0;color:transparent;">
-    You've been assigned to a booking. Review details in the Staff Portal.
+    ${preheader}
   </div>
 
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f6f7f9;padding:24px 0;">
@@ -268,7 +286,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
           <tr>
             <td class="px" style="padding:18px 24px 8px 24px;">
               <span style="display:inline-block;background:#ecfeff;color:#155e75;border:1px solid #a5f3fc;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;letter-spacing:.3px;">
-                NEW ASSIGNMENT
+                ${badge}
               </span>
             </td>
           </tr>
@@ -277,10 +295,10 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
           <tr>
             <td class="px" style="padding:10px 24px 8px 24px;">
               <div style="font-size:20px;line-height:28px;font-weight:800;color:#0f172a;">
-                You've been assigned to a booking
+                ${heading}
               </div>
               <div style="margin-top:8px;font-size:14px;line-height:22px;color:#475569;">
-                Hi ${firstName}, an admin has assigned you to the booking below. Please review the details in the Staff Portal.
+                ${intro}
               </div>
             </td>
           </tr>
@@ -327,7 +345,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
                 <tr>
                   <td style="padding:12px 14px;font-size:14px;line-height:22px;color:#334155;">
                     <div style="margin-bottom:6px;">1) Open the Staff Portal to review instructions and any special notes.</div>
-                    <div style="margin-bottom:6px;">2) <b>Accept or reject this assignment in the Staff Portal within 24 hours.</b> If you don't respond in time, the assignment is automatically rejected and may be reassigned.</div>
+                    <div style="margin-bottom:6px;">2) ${stepTwo}</div>
                     <div>3) On the day of service, use the Staff Portal to view booking details.</div>
                   </td>
                 </tr>
@@ -385,6 +403,17 @@ serve(async (req) => {
   }
 
   try {
+    // Sends from the OEV Gmail account: admin UI or another edge function only
+    // (it was public, so anyone could send mail as OEV to any address).
+    const authClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const caller = await authorizeCaller(req, authClient, ["admin", "service"]);
+    if (!caller) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const data: StaffAssignmentEmailData = await req.json();
     console.log("Sending staff assignment email for reservation:", data.reservationNumber);
 
@@ -411,11 +440,13 @@ serve(async (req) => {
       },
     });
 
-    const isBarVendor = data.staffRole === "Bar Vendor";
+    const isBarVendor = data.staffRole === "Bar Vendor" && data.kind !== "rescheduled";
     const emailHTML = isBarVendor ? generateBarVendorEmailHTML(data) : generateEmailHTML(data);
     const subject = isBarVendor
       ? `New Bar Service Assignment: ${data.eventDateLong} | Orlando Event Venue`
-      : `New Staff Assignment: OEV #${data.reservationNumber}`;
+      : data.kind === "rescheduled"
+        ? `Schedule change: OEV #${data.reservationNumber}`
+        : `New Staff Assignment: OEV #${data.reservationNumber}`;
     const fallbackText = isBarVendor
       ? "You have been assigned to a bar service booking. Please view this email in an HTML-compatible client."
       : "You've been assigned to a booking. Please view this email in an HTML-compatible email client.";

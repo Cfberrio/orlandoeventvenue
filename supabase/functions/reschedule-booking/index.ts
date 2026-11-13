@@ -19,6 +19,70 @@ interface FollowUpResult {
   detail?: unknown;
 }
 
+function formatTime12(t: string | null | undefined): string {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const hour = h % 12 === 0 ? 12 : h % 12;
+  return `${hour}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
+function formatDateLong(d: string): string {
+  const [y, mo, day] = d.slice(0, 10).split("-").map(Number);
+  return new Date(Date.UTC(y, mo - 1, day, 12)).toLocaleDateString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+  });
+}
+
+async function notifyStaffOfReschedule(
+  // deno-lint-ignore no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  bookingId: string,
+  callFunction: (name: string, payload: Record<string, unknown>) => Promise<FollowUpResult>,
+): Promise<FollowUpResult> {
+  const { data: booking, error: bookingError } = await supabase
+    .from("bookings")
+    .select("reservation_number, event_date, start_time, end_time, booking_type")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (bookingError || !booking) return { ok: false, detail: bookingError?.message ?? "booking not found" };
+
+  const { data: rows, error } = await supabase
+    .from("booking_staff_assignments")
+    .select("id, assignment_role, response_status, status, scheduled_start_time, scheduled_end_time, staff_members(full_name, email)")
+    .eq("booking_id", bookingId)
+    .not("status", "in", "(cancelled,completed)");
+  if (error) return { ok: false, detail: error.message };
+
+  const eventRange = booking.start_time && booking.end_time
+    ? `${formatTime12(booking.start_time)} - ${formatTime12(booking.end_time)}`
+    : booking.booking_type === "daily" ? "Full day" : "See Staff Portal";
+  const results: Array<{ assignment_id: string; ok: boolean }> = [];
+  for (const a of rows ?? []) {
+    if (a.response_status === "rejected") continue;
+    const staff = Array.isArray(a.staff_members) ? a.staff_members[0] : a.staff_members;
+    if (!staff?.email) continue;
+    const hours = a.scheduled_start_time && a.scheduled_end_time
+      ? ` Your hours on file: ${formatTime12(a.scheduled_start_time)} - ${formatTime12(a.scheduled_end_time)} (the office will confirm them).`
+      : "";
+    const r = await callFunction("send-staff-assignment", {
+      kind: "rescheduled",
+      staffEmail: staff.email,
+      staffName: staff.full_name ?? "",
+      reservationNumber: booking.reservation_number ?? "",
+      eventDateLong: formatDateLong(booking.event_date),
+      eventTimeRange: eventRange,
+      staffRole: a.assignment_role ?? "",
+      adminNotes: `The event date or time changed.${hours}`,
+      logoUrl: "https://orlandoeventvenue.org/email/logo-dark.png",
+    });
+    results.push({ assignment_id: a.id, ok: r.ok });
+  }
+  const failed = results.filter((r) => !r.ok).length;
+  return { ok: failed === 0, detail: { sent: results.length - failed, failed } };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -236,6 +300,14 @@ serve(async (req) => {
       booking_id,
       force_reschedule: true,
     });
+
+    // M-1 (86e40ach2): tell assigned staff the date/time changed. Only when
+    // something actually changed, and only to people still on the event.
+    if (rpcResult.changed) {
+      followUps.staff_notice = await notifyStaffOfReschedule(serviceClient, booking_id, callFunction);
+    } else {
+      followUps.staff_notice = { ok: true, skipped: true, detail: "nothing changed" };
+    }
 
     // Last: push the final snapshot (event_date, times, host_report_step,
     // balance link) to the GHL booking webhook. The bookings trigger only
