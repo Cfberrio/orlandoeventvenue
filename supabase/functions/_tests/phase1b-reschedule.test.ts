@@ -95,3 +95,11 @@ describe("pre-deposit guard (Codex review)", () => {
     expect(SQL).toMatch(/the deposit is not paid yet; the balance cannot absorb a price change/);
   });
 });
+
+describe("price basis lifecycle (Codex review)", () => {
+  it("never persists a basis while the deposit is unpaid", () => {
+    expect(SQL).toMatch(/_ensure_price_basis\(p_booking_id uuid, p_persist boolean DEFAULT true\)/);
+    expect(SQL).toMatch(/IF NOT p_persist THEN\s+RETURN v_basis;/);
+    expect(SQL).toMatch(/NOT \(v_b\.booking_origin::text = 'website' AND v_b\.deposit_paid_at IS NULL AND v_b\.balance_paid_at IS NULL\)/);
+  });
+});

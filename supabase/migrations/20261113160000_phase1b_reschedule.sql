@@ -56,7 +56,10 @@ $function$;
 
 -- Captures the basis the first time a booking is rescheduled (its stored
 -- money still matches its hours then). Returns the basis row.
-CREATE OR REPLACE FUNCTION public._ensure_price_basis(p_booking_id uuid)
+-- p_persist = false (Codex review): computed from the current row and NOT
+-- stored, ignoring any stored basis. Used while the deposit is unpaid:
+-- checkout can still re-price the booking, so a stored basis would go stale.
+CREATE OR REPLACE FUNCTION public._ensure_price_basis(p_booking_id uuid, p_persist boolean DEFAULT true)
 RETURNS public.booking_price_basis
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -69,9 +72,11 @@ DECLARE
   v_hours numeric;
   v_pkg_hours numeric;
 BEGIN
-  SELECT * INTO v_basis FROM public.booking_price_basis WHERE booking_id = p_booking_id;
-  IF FOUND THEN
-    RETURN v_basis;
+  IF p_persist THEN
+    SELECT * INTO v_basis FROM public.booking_price_basis WHERE booking_id = p_booking_id;
+    IF FOUND THEN
+      RETURN v_basis;
+    END IF;
   END IF;
   SELECT * INTO v_b FROM public.bookings WHERE id = p_booking_id;
   v_hours := CASE WHEN v_b.booking_type = 'hourly' THEN public._hours_between(v_b.start_time, v_b.end_time) END;
@@ -80,10 +85,8 @@ BEGIN
   SELECT discount_type, discount_value, discount_applies_to INTO v_snap
   FROM public.booking_price_snapshots WHERE booking_id = p_booking_id ORDER BY created_at DESC LIMIT 1;
 
-  INSERT INTO public.booking_price_basis (
-    booking_id, hourly_rate, package_rate, discount_type, discount_value, discount_applies_to,
-    priced_start_time, priced_end_time, priced_package_start_time, priced_package_end_time)
-  VALUES (
+  v_basis := ROW(
+
     p_booking_id,
     CASE WHEN v_hours > 0 THEN COALESCE(v_b.base_rental, 0) / v_hours END,
     CASE WHEN v_pkg_hours > 0 THEN COALESCE(v_b.package_cost, 0) / v_pkg_hours END,
@@ -105,7 +108,13 @@ BEGIN
       ELSE 'base_rental'
     END,
     v_b.start_time, v_b.end_time, v_b.package_start_time, v_b.package_end_time
-  )
+  ,
+    now(), now()
+  )::public.booking_price_basis;
+  IF NOT p_persist THEN
+    RETURN v_basis;
+  END IF;
+  INSERT INTO public.booking_price_basis SELECT (v_basis).*
   RETURNING * INTO v_basis;
   RETURN v_basis;
 END;
@@ -175,8 +184,11 @@ DECLARE
   v_old jsonb;
   v_new jsonb;
 BEGIN
-  v_basis := public._ensure_price_basis(p_booking_id);
   SELECT * INTO v_b FROM public.bookings WHERE id = p_booking_id;
+  v_basis := public._ensure_price_basis(
+    p_booking_id,
+    NOT (v_b.booking_origin::text = 'website' AND v_b.deposit_paid_at IS NULL AND v_b.balance_paid_at IS NULL)
+  );
   v_old := public._price_at_window(v_b, v_basis, v_basis.priced_start_time, v_basis.priced_end_time,
                                    v_basis.priced_package_start_time, v_basis.priced_package_end_time);
   v_new := public._price_at_window(v_b, v_basis, p_new_start, p_new_end, p_new_pkg_start, p_new_pkg_end);
@@ -219,7 +231,7 @@ AS $function$
   WHERE booking_id = p_booking_id;
 $function$;
 
-REVOKE ALL ON FUNCTION public._ensure_price_basis(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._ensure_price_basis(uuid, boolean) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._price_at_window(public.bookings, public.booking_price_basis, time, time, time, time) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._reschedule_price_preview(uuid, time, time, time, time) FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public._settle_price_window(uuid, jsonb) FROM PUBLIC, anon, authenticated;
