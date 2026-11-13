@@ -17,112 +17,212 @@
 -- from the reviewed hours (batch 2), so it follows whatever the office sets.
 
 -- ---------------------------------------------------------------------------
--- Price of the new hours at the rates this booking was sold at (implied from
--- its stored lines), not today's price list. Discount follows its snapshot
--- terms when known, otherwise scales with the base rental.
+-- Price basis (Codex review): the rates this booking was sold at, captured
+-- once, plus the window whose price is already settled. Deriving rates from
+-- the current hours broke on a second reschedule (hours moved, money did
+-- not). RLS table, written only by definer functions (bookings is writable
+-- by anon until S-10, so the basis cannot live there).
 -- ---------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION public._reschedule_price_preview(
-  p_booking public.bookings,
-  p_new_start text,
-  p_new_end text,
-  p_new_pkg_start text,
-  p_new_pkg_end text
-)
-RETURNS jsonb
+CREATE TABLE IF NOT EXISTS public.booking_price_basis (
+  booking_id uuid PRIMARY KEY REFERENCES public.bookings(id) ON DELETE CASCADE,
+  hourly_rate numeric,
+  package_rate numeric,
+  discount_type text,
+  discount_value numeric,
+  discount_applies_to text,
+  priced_start_time time,
+  priced_end_time time,
+  priced_package_start_time time,
+  priced_package_end_time time,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.booking_price_basis ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Admins read price basis" ON public.booking_price_basis;
+CREATE POLICY "Admins read price basis" ON public.booking_price_basis
+  FOR SELECT TO authenticated USING (public.has_role(auth.uid(), 'admin'::app_role));
+REVOKE ALL ON public.booking_price_basis FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.booking_price_basis FROM authenticated;
+GRANT SELECT ON public.booking_price_basis TO authenticated;
+
+CREATE OR REPLACE FUNCTION public._hours_between(p_start time, p_end time)
+RETURNS numeric
+LANGUAGE sql
+IMMUTABLE
+AS $function$
+  SELECT CASE WHEN p_start IS NOT NULL AND p_end IS NOT NULL AND p_end > p_start
+              THEN extract(epoch FROM (p_end - p_start)) / 3600.0 END;
+$function$;
+
+-- Captures the basis the first time a booking is rescheduled (its stored
+-- money still matches its hours then). Returns the basis row.
+CREATE OR REPLACE FUNCTION public._ensure_price_basis(p_booking_id uuid)
+RETURNS public.booking_price_basis
 LANGUAGE plpgsql
-STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
 DECLARE
-  v_old_hours numeric;
-  v_new_hours numeric;
-  v_old_pkg_hours numeric;
-  v_new_pkg_hours numeric;
-  v_old_base numeric := COALESCE(p_booking.base_rental, 0);
-  v_old_pkg numeric := COALESCE(p_booking.package_cost, 0);
-  v_old_disc numeric := COALESCE(p_booking.discount_amount, 0);
-  v_old_total numeric := COALESCE(p_booking.total_amount, 0);
-  v_new_base numeric;
-  v_new_pkg numeric;
-  v_new_disc numeric;
-  v_new_gross numeric;
-  v_new_total numeric;
+  v_basis public.booking_price_basis%ROWTYPE;
+  v_b public.bookings%ROWTYPE;
   v_snap record;
-  v_disc_basis text := 'none';
+  v_hours numeric;
+  v_pkg_hours numeric;
 BEGIN
-  IF p_booking.booking_type = 'hourly'
-     AND p_booking.start_time IS NOT NULL AND p_booking.end_time IS NOT NULL
-     AND p_new_start IS NOT NULL AND p_new_end IS NOT NULL THEN
-    v_old_hours := extract(epoch FROM (p_booking.end_time - p_booking.start_time)) / 3600.0;
-    v_new_hours := extract(epoch FROM (p_new_end::time - p_new_start::time)) / 3600.0;
+  SELECT * INTO v_basis FROM public.booking_price_basis WHERE booking_id = p_booking_id;
+  IF FOUND THEN
+    RETURN v_basis;
   END IF;
-  v_new_base := CASE WHEN v_old_hours > 0 AND v_new_hours > 0
-                     THEN round(v_old_base / v_old_hours * v_new_hours, 2)
-                     ELSE v_old_base END;
-
-  IF COALESCE(p_booking.package, 'none') <> 'none'
-     AND p_booking.package_start_time IS NOT NULL AND p_booking.package_end_time IS NOT NULL
-     AND p_new_pkg_start IS NOT NULL AND p_new_pkg_end IS NOT NULL
-     AND p_booking.package_end_time::time > p_booking.package_start_time::time
-     AND p_new_pkg_end::time > p_new_pkg_start::time THEN
-    v_old_pkg_hours := extract(epoch FROM (p_booking.package_end_time::time - p_booking.package_start_time::time)) / 3600.0;
-    v_new_pkg_hours := extract(epoch FROM (p_new_pkg_end::time - p_new_pkg_start::time)) / 3600.0;
-  END IF;
-  v_new_pkg := CASE WHEN v_old_pkg_hours > 0 AND v_new_pkg_hours > 0
-                    THEN round(v_old_pkg / v_old_pkg_hours * v_new_pkg_hours, 2)
-                    ELSE v_old_pkg END;
-
-  v_new_gross := (v_old_total + v_old_disc) - v_old_base - v_old_pkg + v_new_base + v_new_pkg;
-
+  SELECT * INTO v_b FROM public.bookings WHERE id = p_booking_id;
+  v_hours := CASE WHEN v_b.booking_type = 'hourly' THEN public._hours_between(v_b.start_time, v_b.end_time) END;
+  v_pkg_hours := CASE WHEN COALESCE(v_b.package, 'none') <> 'none'
+                      THEN public._hours_between(v_b.package_start_time, v_b.package_end_time) END;
   SELECT discount_type, discount_value, discount_applies_to INTO v_snap
-  FROM public.booking_price_snapshots
-  WHERE booking_id = p_booking.id
-  ORDER BY created_at DESC
-  LIMIT 1;
+  FROM public.booking_price_snapshots WHERE booking_id = p_booking_id ORDER BY created_at DESC LIMIT 1;
 
-  IF v_old_disc <= 0 THEN
-    v_new_disc := 0;
-  ELSIF v_snap.discount_type = 'fixed_amount' THEN
-    v_disc_basis := 'fixed';
-    v_new_disc := least(COALESCE(v_snap.discount_value, v_old_disc),
-                        CASE WHEN v_snap.discount_applies_to = 'total' THEN v_new_gross ELSE v_new_base END);
-  ELSIF v_snap.discount_type = 'percentage' THEN
-    v_disc_basis := 'percentage';
-    v_new_disc := round(
-      CASE WHEN v_snap.discount_applies_to = 'total' THEN v_new_gross ELSE v_new_base END
-      * least(COALESCE(v_snap.discount_value, 0), 100) / 100.0, 2);
-  ELSIF v_old_base > 0 THEN
-    v_disc_basis := 'scaled_with_base';
-    v_new_disc := round(v_old_disc * v_new_base / v_old_base, 2);
-  ELSE
-    v_disc_basis := 'unchanged';
-    v_new_disc := v_old_disc;
-  END IF;
-  v_new_disc := greatest(0, least(v_new_disc, v_new_gross));
+  INSERT INTO public.booking_price_basis (
+    booking_id, hourly_rate, package_rate, discount_type, discount_value, discount_applies_to,
+    priced_start_time, priced_end_time, priced_package_start_time, priced_package_end_time)
+  VALUES (
+    p_booking_id,
+    CASE WHEN v_hours > 0 THEN COALESCE(v_b.base_rental, 0) / v_hours END,
+    CASE WHEN v_pkg_hours > 0 THEN COALESCE(v_b.package_cost, 0) / v_pkg_hours END,
+    CASE
+      WHEN COALESCE(v_b.discount_amount, 0) <= 0 THEN 'none'
+      WHEN v_snap.discount_type IN ('percentage', 'fixed_amount') THEN v_snap.discount_type
+      WHEN COALESCE(v_b.base_rental, 0) > 0 THEN 'percentage'
+      ELSE 'fixed_amount'
+    END,
+    CASE
+      WHEN COALESCE(v_b.discount_amount, 0) <= 0 THEN 0
+      WHEN v_snap.discount_type IN ('percentage', 'fixed_amount') THEN v_snap.discount_value
+      -- Unknown terms: the discount is taken as a share of the base rental.
+      WHEN COALESCE(v_b.base_rental, 0) > 0 THEN v_b.discount_amount / v_b.base_rental * 100
+      ELSE v_b.discount_amount
+    END,
+    CASE
+      WHEN v_snap.discount_type IN ('percentage', 'fixed_amount') THEN COALESCE(v_snap.discount_applies_to, 'base_rental')
+      ELSE 'base_rental'
+    END,
+    v_b.start_time, v_b.end_time, v_b.package_start_time, v_b.package_end_time
+  )
+  RETURNING * INTO v_basis;
+  RETURN v_basis;
+END;
+$function$;
 
-  v_new_total := round(v_new_gross - v_new_disc, 2);
-
+-- Price of a window at the booking's sold rates. Fixed parts (cleaning,
+-- add-ons, bar) come from the stored row and do not depend on hours.
+CREATE OR REPLACE FUNCTION public._price_at_window(
+  p_booking public.bookings,
+  p_basis public.booking_price_basis,
+  p_start time,
+  p_end time,
+  p_pkg_start time,
+  p_pkg_end time
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+AS $function$
+DECLARE
+  v_fixed numeric := COALESCE(p_booking.total_amount, 0) + COALESCE(p_booking.discount_amount, 0)
+                     - COALESCE(p_booking.base_rental, 0) - COALESCE(p_booking.package_cost, 0);
+  v_hours numeric := public._hours_between(p_start, p_end);
+  v_pkg_hours numeric := public._hours_between(p_pkg_start, p_pkg_end);
+  v_base numeric;
+  v_pkg numeric;
+  v_gross numeric;
+  v_disc numeric;
+BEGIN
+  v_base := CASE WHEN p_booking.booking_type = 'hourly' AND p_basis.hourly_rate IS NOT NULL AND v_hours > 0
+                 THEN round(p_basis.hourly_rate * v_hours, 2)
+                 ELSE COALESCE(p_booking.base_rental, 0) END;
+  v_pkg := CASE WHEN COALESCE(p_booking.package, 'none') <> 'none' AND p_basis.package_rate IS NOT NULL AND v_pkg_hours > 0
+                THEN round(p_basis.package_rate * v_pkg_hours, 2)
+                ELSE COALESCE(p_booking.package_cost, 0) END;
+  v_gross := v_fixed + v_base + v_pkg;
+  v_disc := CASE p_basis.discount_type
+    WHEN 'percentage' THEN round(
+      CASE WHEN p_basis.discount_applies_to = 'total' THEN v_gross ELSE v_base END
+      * least(COALESCE(p_basis.discount_value, 0), 100) / 100.0, 2)
+    WHEN 'fixed_amount' THEN least(COALESCE(p_basis.discount_value, 0),
+      CASE WHEN p_basis.discount_applies_to = 'total' THEN v_gross ELSE v_base END)
+    ELSE 0 END;
+  v_disc := greatest(0, least(v_disc, v_gross));
   RETURN jsonb_build_object(
-    'old_hours', round(v_old_hours, 2),
-    'new_hours', round(v_new_hours, 2),
-    'old_package_hours', round(v_old_pkg_hours, 2),
-    'new_package_hours', round(v_new_pkg_hours, 2),
-    'old_base_rental', v_old_base,
-    'new_base_rental', v_new_base,
-    'old_package_cost', v_old_pkg,
-    'new_package_cost', v_new_pkg,
-    'old_discount', v_old_disc,
-    'new_discount', v_new_disc,
-    'discount_basis', v_disc_basis,
-    'old_total', v_old_total,
-    'new_total', v_new_total,
-    'delta', round(v_new_total - v_old_total, 2)
+    'hours', round(v_hours, 2), 'package_hours', round(v_pkg_hours, 2),
+    'base_rental', v_base, 'package_cost', v_pkg, 'discount', v_disc,
+    'total', round(v_gross - v_disc, 2));
+END;
+$function$;
+
+CREATE OR REPLACE FUNCTION public._reschedule_price_preview(
+  p_booking_id uuid,
+  p_new_start time,
+  p_new_end time,
+  p_new_pkg_start time,
+  p_new_pkg_end time
+)
+RETURNS jsonb
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+DECLARE
+  v_b public.bookings%ROWTYPE;
+  v_basis public.booking_price_basis%ROWTYPE;
+  v_old jsonb;
+  v_new jsonb;
+BEGIN
+  v_basis := public._ensure_price_basis(p_booking_id);
+  SELECT * INTO v_b FROM public.bookings WHERE id = p_booking_id;
+  v_old := public._price_at_window(v_b, v_basis, v_basis.priced_start_time, v_basis.priced_end_time,
+                                   v_basis.priced_package_start_time, v_basis.priced_package_end_time);
+  v_new := public._price_at_window(v_b, v_basis, p_new_start, p_new_end, p_new_pkg_start, p_new_pkg_end);
+  RETURN jsonb_build_object(
+    'old_hours', v_old->'hours', 'new_hours', v_new->'hours',
+    'old_package_hours', v_old->'package_hours', 'new_package_hours', v_new->'package_hours',
+    'old_base_rental', v_old->'base_rental', 'new_base_rental', v_new->'base_rental',
+    'old_package_cost', v_old->'package_cost', 'new_package_cost', v_new->'package_cost',
+    'old_discount', v_old->'discount', 'new_discount', v_new->'discount',
+    'discount_basis', v_basis.discount_type,
+    'old_total', v_old->'total', 'new_total', v_new->'total',
+    'delta_base_rental', round((v_new->>'base_rental')::numeric - (v_old->>'base_rental')::numeric, 2),
+    'delta_package_cost', round((v_new->>'package_cost')::numeric - (v_old->>'package_cost')::numeric, 2),
+    'delta_discount', round((v_new->>'discount')::numeric - (v_old->>'discount')::numeric, 2),
+    'delta', round((v_new->>'total')::numeric - (v_old->>'total')::numeric, 2),
+    'stored_total', v_b.total_amount,
+    'priced_window', jsonb_build_object(
+      'start', v_basis.priced_start_time::text, 'end', v_basis.priced_end_time::text,
+      'package_start', v_basis.priced_package_start_time::text, 'package_end', v_basis.priced_package_end_time::text),
+    'new_window', jsonb_build_object(
+      'start', p_new_start::text, 'end', p_new_end::text,
+      'package_start', p_new_pkg_start::text, 'package_end', p_new_pkg_end::text)
   );
 END;
 $function$;
 
-REVOKE ALL ON FUNCTION public._reschedule_price_preview(public.bookings, text, text, text, text) FROM PUBLIC, anon, authenticated;
+-- The window in a review becomes the settled one (its price is decided).
+CREATE OR REPLACE FUNCTION public._settle_price_window(p_booking_id uuid, p_window jsonb)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  UPDATE public.booking_price_basis
+  SET priced_start_time = (p_window->>'start')::time,
+      priced_end_time = (p_window->>'end')::time,
+      priced_package_start_time = (p_window->>'package_start')::time,
+      priced_package_end_time = (p_window->>'package_end')::time,
+      updated_at = now()
+  WHERE booking_id = p_booking_id;
+$function$;
+
+REVOKE ALL ON FUNCTION public._ensure_price_basis(uuid) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._price_at_window(public.bookings, public.booking_price_basis, time, time, time, time) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._reschedule_price_preview(uuid, time, time, time, time) FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public._settle_price_window(uuid, jsonb) FROM PUBLIC, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- reschedule_booking: live definition + M-1 (marked "M-1").
@@ -135,7 +235,6 @@ CREATE OR REPLACE FUNCTION public.reschedule_booking(p_booking_id uuid, p_new_da
 AS $function$
 DECLARE
   v_booking RECORD;
-  v_booking_row public.bookings%ROWTYPE;
   v_conflict RECORD;
   v_block RECORD;
   v_old_values jsonb;
@@ -425,9 +524,9 @@ BEGIN
     OR v_target_end::time IS DISTINCT FROM v_booking.end_time;
   v_changed := p_new_date IS DISTINCT FROM v_booking.event_date OR v_hours_changed;
 
-  -- M-1: price of the new hours (before the row changes).
-  SELECT * INTO v_booking_row FROM public.bookings WHERE id = p_booking_id;
-  v_price := public._reschedule_price_preview(v_booking_row, v_target_start, v_target_end, v_new_pkg_start::text, v_new_pkg_end::text);
+  -- M-1: price of the new hours against the settled window, at the rates
+  -- the booking was sold at (before the row changes).
+  v_price := public._reschedule_price_preview(p_booking_id, v_target_start::time, v_target_end::time, v_new_pkg_start, v_new_pkg_end);
 
   -- Calculate date shift for job rescheduling
   v_date_shift_days := p_new_date - v_booking.event_date;
@@ -521,10 +620,13 @@ BEGIN
     ))
     RETURNING id INTO v_price_review_id;
   ELSIF v_changed THEN
-    -- Back to the sold hours: an open price review no longer applies.
+    -- No price difference against the settled window (same length, or back
+    -- to the settled hours): any open review no longer applies and the new
+    -- window is the settled one.
     UPDATE public.booking_money_reviews
     SET status = 'superseded', resolved_at = now()
     WHERE booking_id = p_booking_id AND kind = 'reschedule_price' AND status = 'open';
+    PERFORM public._settle_price_window(p_booking_id, v_price->'new_window');
   END IF;
 
   -- M-1: staff hours review (flag, never clamp).
@@ -663,6 +765,7 @@ DECLARE
   v_actor uuid := auth.uid();
   v_actor_email text;
   v_details jsonb;
+  v_link_job boolean := false;
 BEGIN
   PERFORM public._assert_admin_or_service();
 
@@ -689,7 +792,7 @@ BEGIN
   v_delta := (v_review.details->>'delta')::numeric;
 
   IF p_decision = 'apply_to_balance' THEN
-    IF abs(COALESCE(v_b.total_amount, 0) - (v_review.details->>'old_total')::numeric) > 0.01 THEN
+    IF abs(COALESCE(v_b.total_amount, 0) - (v_review.details->>'stored_total')::numeric) > 0.01 THEN
       RAISE EXCEPTION 'the booking total changed since this review; reschedule again to get a fresh price'
         USING ERRCODE = 'P0001';
     END IF;
@@ -709,11 +812,13 @@ BEGIN
         USING ERRCODE = 'P0001';
     END IF;
 
+    -- Increments, not absolutes: earlier differences settled outside the
+    -- booking (charged/refunded separately) stay out of its totals.
     UPDATE public.bookings
-    SET base_rental = (v_review.details->>'new_base_rental')::numeric,
-        package_cost = (v_review.details->>'new_package_cost')::numeric,
-        discount_amount = (v_review.details->>'new_discount')::numeric,
-        total_amount = (v_review.details->>'new_total')::numeric,
+    SET base_rental = COALESCE(base_rental, 0) + (v_review.details->>'delta_base_rental')::numeric,
+        package_cost = COALESCE(package_cost, 0) + (v_review.details->>'delta_package_cost')::numeric,
+        discount_amount = COALESCE(discount_amount, 0) + (v_review.details->>'delta_discount')::numeric,
+        total_amount = COALESCE(total_amount, 0) + v_delta,
         balance_amount = v_new_balance,
         -- An expired link for the old amount must not count as "already sent":
         -- the balance chain creates a fresh one for the new amount.
@@ -723,6 +828,23 @@ BEGIN
     WHERE id = v_b.id;
 
     PERFORM public.populate_booking_revenue_items(v_b.id, false);
+
+    -- Codex review: the new amount must reach the guest. Pending balance
+    -- jobs already read the booking at run time; if none is left, queue a
+    -- link (at the T-15 point, or now if that has passed). Same transaction,
+    -- so the decision cannot be saved without its follow-up.
+    IF v_new_balance > 0 AND v_b.deposit_paid_at IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.scheduled_jobs
+      WHERE booking_id = v_b.id
+        AND job_type IN ('balance_retry_1', 'balance_retry_2', 'balance_retry_3', 'create_balance_payment_link')
+        AND status IN ('pending', 'processing')
+    ) THEN
+      INSERT INTO public.scheduled_jobs (job_type, booking_id, run_at, status)
+      VALUES ('create_balance_payment_link', v_b.id,
+              greatest(now(), ((v_b.event_date - 15) + time '09:00') AT TIME ZONE 'America/New_York'),
+              'pending');
+      v_link_job := true;
+    END IF;
   ELSIF p_decision = 'charged_separately' THEN
     IF v_delta <= 0 THEN
       RAISE EXCEPTION 'nothing to charge: the new hours cost less' USING ERRCODE = 'P0001';
@@ -751,6 +873,7 @@ BEGIN
     'reference', v_reference,
     'note', v_note,
     'new_balance', v_new_balance,
+    'balance_link_job_queued', v_link_job,
     'recorded_by_email', v_actor_email
   );
 
@@ -758,6 +881,10 @@ BEGIN
   SET status = 'resolved', decision = p_decision, decision_details = v_details,
       resolved_at = now(), resolved_by = v_actor
   WHERE id = p_review_id;
+
+  -- Whatever was decided, this window's price is settled: the next
+  -- reschedule is priced from here.
+  PERFORM public._settle_price_window(v_b.id, v_review.details->'new_window');
 
   INSERT INTO public.booking_events (booking_id, event_type, channel, metadata)
   VALUES (v_b.id, 'reschedule_price_resolved', 'admin',

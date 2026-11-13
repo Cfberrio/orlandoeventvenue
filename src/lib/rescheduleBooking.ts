@@ -122,6 +122,16 @@ export function describeRescheduleResult(result: RescheduleResult): RescheduleTo
   }
 
   const warnings = result.warnings ?? [];
+  if (warnings.length === 1 && warnings[0] === "staff_notice") {
+    // Re-saving the same date does not resend staff emails (nothing changed).
+    return {
+      title: "Booking rescheduled — staff email not sent",
+      description:
+        "Date saved, but the schedule-change email did not reach every staff member. Tell them directly; the staff review on this page lists who is on the event.",
+      variant: "destructive",
+      success: true,
+    };
+  }
   if (warnings.length > 0) {
     const failed = warnings.map((w) => FOLLOW_UP_LABELS[w] ?? w).join(", ");
     return {

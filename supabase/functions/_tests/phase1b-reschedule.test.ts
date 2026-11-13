@@ -21,13 +21,19 @@ describe("reschedule_booking", () => {
     expect(SQL).toMatch(/package_start_time = v_new_pkg_start,/);
     expect(SQL).toMatch(/'package_window_reset_to_event'/);
   });
-  it("prices the change from the stored sale before the row changes", () => {
-    const preview = SQL.indexOf("v_price := public._reschedule_price_preview(");
+  it("prices the change at the sold rates, against the settled window, before the row changes", () => {
+    const preview = SQL.indexOf("v_price := public._reschedule_price_preview(p_booking_id,");
     const update = SQL.indexOf("UPDATE public.bookings\n  SET\n    event_date = p_new_date,");
     expect(preview).toBeGreaterThan(0);
     expect(preview).toBeLessThan(update);
-    expect(SQL).toMatch(/round\(v_old_base \/ v_old_hours \* v_new_hours, 2\)/);
-    expect(SQL).toMatch(/round\(v_old_pkg \/ v_old_pkg_hours \* v_new_pkg_hours, 2\)/);
+    expect(SQL).toMatch(/CREATE TABLE IF NOT EXISTS public\.booking_price_basis/);
+    expect(SQL).toMatch(/IF FOUND THEN\s+RETURN v_basis;/);
+    expect(SQL).toMatch(/v_old := public\._price_at_window\(v_b, v_basis, v_basis\.priced_start_time/);
+    expect(SQL).toMatch(/round\(p_basis\.hourly_rate \* v_hours, 2\)/);
+  });
+  it("every decision settles the window; no difference also settles it", () => {
+    expect(SQL).toMatch(/PERFORM public\._settle_price_window\(v_b\.id, v_review\.details->'new_window'\);/);
+    expect(SQL).toMatch(/PERFORM public\._settle_price_window\(p_booking_id, v_price->'new_window'\);/);
   });
   it("opens one price review (superseding older open ones) and a staff review, never changing money", () => {
     expect(SQL).toMatch(/kind = 'reschedule_price' AND status = 'open';\s+INSERT INTO public\.booking_money_reviews/);
@@ -52,6 +58,8 @@ describe("admin_resolve_reschedule_price (D8)", () => {
   });
   it("adjusts the balance only when unpaid, no live link, no drift and never below zero", () => {
     expect(SQL).toMatch(/the booking total changed since this review/);
+    expect(SQL).toMatch(/total_amount = COALESCE\(total_amount, 0\) \+ v_delta,/);
+    expect(SQL).toMatch(/'create_balance_payment_link', v_b\.id,/);
     expect(SQL).toMatch(/the balance is already paid/);
     expect(SQL).toMatch(/a balance payment link for the old amount is live/);
     expect(SQL).toMatch(/IF v_new_balance < 0 THEN/);

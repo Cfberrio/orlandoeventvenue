@@ -96,6 +96,12 @@ describe("describeRescheduleResult", () => {
     expect(t.description).toContain("hours of 2 staff members");
   });
 
+  it("M-1: a failed staff email asks the office to tell staff, not to re-save", () => {
+    const t = describeRescheduleResult({ ok: true, changed: true, warnings: ["staff_notice"] });
+    expect(t.description).toMatch(/Tell them directly/);
+    expect(t.description).not.toMatch(/Save the same date/);
+  });
+
   it("M-1: explains why a past event cannot be moved", () => {
     const t = describeRescheduleResult({ ok: false, error: "event_already_happened" });
     expect(t.description).toMatch(/already happened/);

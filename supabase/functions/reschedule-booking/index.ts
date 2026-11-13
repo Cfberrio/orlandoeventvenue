@@ -305,6 +305,17 @@ serve(async (req) => {
     // something actually changed, and only to people still on the event.
     if (rpcResult.changed) {
       followUps.staff_notice = await notifyStaffOfReschedule(serviceClient, booking_id, callFunction);
+      if (!followUps.staff_notice.ok) {
+        // Not retried by re-saving (nothing changes then); the admin is told
+        // to contact these staff, and the staff-hours review lists them.
+        const { error: noticeLogError } = await serviceClient.from("booking_events").insert({
+          booking_id,
+          event_type: "staff_notice_failed",
+          channel: "system",
+          metadata: { detail: followUps.staff_notice.detail ?? null },
+        });
+        if (noticeLogError) console.error("Failed to log staff notice failure:", noticeLogError);
+      }
     } else {
       followUps.staff_notice = { ok: true, skipped: true, detail: "nothing changed" };
     }
