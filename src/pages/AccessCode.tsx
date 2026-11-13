@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { KeyRound, Loader2, ShieldCheck, CheckCircle2, Clock, Lightbulb, Wifi, ExternalLink, DoorOpen } from "lucide-react";
 import GuestReportForm, { GuestReportFormBooking } from "@/components/access-code/GuestReportForm";
+import { eventTypeLabel } from "@/lib/eventTypes";
 
 interface AccessStep {
   title?: string | null;
@@ -32,6 +33,7 @@ interface AccessCodeResult {
   start_time?: string | null;
   end_time: string | null;
   event_type: string;
+  event_type_other?: string | null;
   host_report_step: string | null;
   is_recurring?: boolean;
   expires_on?: string | null;
@@ -71,13 +73,6 @@ function formatTime(time: string | null | undefined): string | null {
   return `${hour12}:${m} ${suffix}`;
 }
 
-function formatEventType(eventType: string): string {
-  return eventType
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 const ReservationDetails = ({ result }: { result: AccessCodeResult }) => {
   const start = formatTime(result.start_time);
   const end = formatTime(result.end_time);
@@ -115,7 +110,7 @@ const ReservationDetails = ({ result }: { result: AccessCodeResult }) => {
           {result.event_type && (
             <p>
               <span className="text-muted-foreground">Event Type:</span>{" "}
-              <strong>{formatEventType(result.event_type)}</strong>
+              <strong>{eventTypeLabel(result.event_type, result.event_type_other)}</strong>
             </p>
           )}
         </div>

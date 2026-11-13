@@ -15,6 +15,7 @@ import {
   signature,
   textModule,
 } from "../_shared/email-layout.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const REMINDER_SUBJECT = "Your Event Access Page";
 
@@ -37,6 +38,7 @@ interface BlockWithBooking {
     email: string;
     phone: string;
     event_type: string;
+    event_type_other: string | null;
     booking_origin: string;
     number_of_guests: number;
     booking_policies: {
@@ -88,7 +90,7 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
   referenceRows.push(
     ["Event Date", formatDate(date)],
     ["Event Time", timeInfo],
-    ["Event Type", escapeHtml(formatEventType(booking.event_type))],
+    ["Event Type", escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))],
     ["Guest Count", String(booking.number_of_guests)],
   );
 
@@ -127,13 +129,6 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     preview: "Your door code and complete entry instructions will be available on your Event Page.",
     body,
   }));
-}
-
-function formatEventType(eventType: string): string {
-  return eventType
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 }
 
 /**
@@ -318,6 +313,7 @@ serve(async (req) => {
           email,
           phone,
           event_type,
+          event_type_other,
           booking_origin,
           number_of_guests,
           reservation_number,
@@ -436,7 +432,7 @@ serve(async (req) => {
           channel = "sendgrid";
         } else if (Deno.env.get("GHL_API_KEY")) {
           // Fallback to GHL (using plain text version)
-          const plainText = `Event: ${booking.event_type}\nDate: ${tomorrowStr}\nContact: ${booking.full_name}`;
+          const plainText = `Event: ${eventTypeLabel(booking.event_type, booking.event_type_other)}\nDate: ${tomorrowStr}\nContact: ${booking.full_name}`;
           await sendViaGHL(block, plainText);
           channel = "ghl";
         } else {

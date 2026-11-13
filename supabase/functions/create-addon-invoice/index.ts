@@ -348,6 +348,49 @@ serve(async (req: Request) => {
       );
     }
 
+    // M-18 (86e40ach2): the server prices the package and the bar from the
+    // live price list; it used to charge whatever the browser stored on the
+    // row (bar rates were hardcoded in the dialog). A mismatch means the
+    // office saw a different price: refuse instead of charging it.
+    const priceProblems: string[] = [];
+    if (invoice.package && invoice.package !== "none") {
+      const rate = pricingMap[`package_${invoice.package}`]?.price;
+      let hours = 0;
+      if (invoice.package_start_time && invoice.package_end_time) {
+        const [sh, sm] = String(invoice.package_start_time).split(":").map(Number);
+        const [eh, em] = String(invoice.package_end_time).split(":").map(Number);
+        hours = ((eh * 60 + em) - (sh * 60 + sm)) / 60;
+        if (hours <= 0) hours += 24;
+      }
+      if (rate == null || !(hours > 0)) {
+        priceProblems.push(`package ${invoice.package} has no active price or no valid hours`);
+      } else {
+        const expected = Math.round(rate * hours * 100) / 100;
+        if (Math.abs(expected - Number(invoice.package_cost)) > 0.01) {
+          priceProblems.push(`package should be $${expected.toFixed(2)} (${hours}h x $${rate}), invoice says $${Number(invoice.package_cost).toFixed(2)}`);
+        }
+      }
+    }
+    const invBarPackage = (invoice as { bar_package?: string }).bar_package;
+    if (invBarPackage && invBarPackage !== "none") {
+      const rate = pricingMap[invBarPackage]?.price;
+      const guests = Number((invoice as { bar_guest_count?: number }).bar_guest_count ?? 0);
+      if (rate == null || !(guests > 0)) {
+        priceProblems.push(`bar ${invBarPackage} has no active price or no guest count`);
+      } else {
+        const expected = Math.round(rate * guests * 100) / 100;
+        if (Math.abs(expected - Number((invoice as { bar_subtotal?: number }).bar_subtotal ?? 0)) > 0.01) {
+          priceProblems.push(`bar should be $${expected.toFixed(2)} (${guests} x $${rate}), invoice says $${Number((invoice as { bar_subtotal?: number }).bar_subtotal ?? 0).toFixed(2)}`);
+        }
+      }
+    }
+    if (priceProblems.length > 0) {
+      return new Response(
+        JSON.stringify({ error: `Prices do not match the current price list: ${priceProblems.join("; ")}. Create the invoice again.` }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     const stripeLineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [];
     const emailLineItems: { label: string; amount: string }[] = [];
     // M-32: the exact priced lines charged, stored on the invoice so the

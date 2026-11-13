@@ -16,6 +16,7 @@ import {
   signature,
   textModule,
 } from "../_shared/email-layout.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,7 @@ interface ExternalBookingRow {
   start_time: string | null;
   end_time: string | null;
   event_type: string | null;
+  event_type_other: string | null;
   booking_type: string | null;
   number_of_guests: number | null;
   status: string | null;
@@ -52,13 +54,6 @@ function formatTime(timeStr: string): string {
   return `${displayHours}:${String(minutes).padStart(2, "0")} ${period}`;
 }
 
-function formatEventType(eventType: string): string {
-  return eventType
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 function formatBookingType(bookingType: string): string {
   return bookingType === "daily" ? "Full Day" : "Hourly";
 }
@@ -70,7 +65,9 @@ function generateE01HTML(booking: ExternalBookingRow): string {
   const eventTime = booking.start_time && booking.end_time
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
     : "All Day";
-  const formattedEventType = booking.event_type ? escapeHtml(formatEventType(booking.event_type)) : "";
+  const formattedEventType = booking.event_type
+    ? escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))
+    : "";
   const formattedBookingType = booking.booking_type ? formatBookingType(booking.booking_type) : "";
   const reservationNumber = escapeHtml(booking.reservation_number || "");
 
@@ -145,7 +142,7 @@ serve(async (req) => {
 
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, booking_origin, reservation_number, full_name, email, event_date, start_time, end_time, event_type, booking_type, number_of_guests, status")
+      .select("id, booking_origin, reservation_number, full_name, email, event_date, start_time, end_time, event_type, event_type_other, booking_type, number_of_guests, status")
       .eq("id", booking_id)
       .maybeSingle();
 

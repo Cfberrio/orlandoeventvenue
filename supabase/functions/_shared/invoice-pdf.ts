@@ -3,6 +3,7 @@
 
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import type { InvoiceBooking, InvoiceModel } from "./invoice-model.ts";
+import { eventTypeLabel } from "./event-types.ts";
 
 function money(n: number): string {
   const sign = n < 0 ? "-" : "";
@@ -22,11 +23,10 @@ function formatTime(t: string | null | undefined): string {
   return `${hour % 12 || 12}:${mm} ${hour >= 12 ? "PM" : "AM"}`;
 }
 
-function formatEventType(t: string | null): string {
-  return (t || "Event").split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-}
-
-export async function renderInvoicePdf(model: InvoiceModel, b: InvoiceBooking): Promise<Uint8Array> {
+export async function renderInvoicePdf(
+  model: InvoiceModel,
+  b: InvoiceBooking & { event_type_other?: string | null },
+): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.setTitle("Invoice");
   const page = pdfDoc.addPage([595.28, 841.89]);
@@ -83,7 +83,7 @@ export async function renderInvoicePdf(model: InvoiceModel, b: InvoiceBooking): 
     y -= 13;
   };
   detail(`Date: ${formatDate(b.event_date)}`);
-  detail(`Type: ${formatEventType(b.event_type)}`);
+  detail(`Type: ${eventTypeLabel(b.event_type, b.event_type_other)}`);
   if (b.number_of_guests) detail(`Guests: ${b.number_of_guests}`);
   detail(`Booking: ${b.booking_type === "daily" ? "Full Day (24 hours)" : "Hourly"}`);
   if (b.start_time && b.end_time && b.booking_type !== "daily") {

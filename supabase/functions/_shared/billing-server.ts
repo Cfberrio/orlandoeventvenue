@@ -74,6 +74,8 @@ export async function loadPricingRates(supabase: Supabase): Promise<PricingRates
 export interface CouponRow extends CouponTerms {
   id: string;
   is_active: boolean;
+  /** M-21: null when usable; otherwise inactive / expired / used_up. */
+  unusable_reason?: string | null;
 }
 
 /** Coupon by code, active or not (service role). */
@@ -88,7 +90,11 @@ export async function loadCoupon(supabase: Supabase, code: string | null | undef
     .maybeSingle();
   if (error) throw new Error(`discount_coupons read failed: ${error.message}`);
   if (!data) return null;
+  // Same expiry / usage rule as the public validator (M-21, 86e40ach2).
+  const { data: reason, error: reasonError } = await supabase.rpc("coupon_unusable_reason", { p_code: clean });
+  if (reasonError) throw new Error(`coupon_unusable_reason failed: ${reasonError.message}`);
   return {
+    unusable_reason: (reason as string | null) ?? null,
     id: data.id,
     code: data.code,
     discount_type: data.discount_type,

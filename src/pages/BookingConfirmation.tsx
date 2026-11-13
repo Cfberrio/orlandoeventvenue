@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { trackPurchase } from "@/lib/analytics";
 import { PhotoBackdrop } from "@/components/PhotoBand";
 import { trackPurchase as trackMetaPurchase } from "@/lib/tracking/funnel";
+import { eventTypeLabel } from "@/lib/eventTypes";
 
 interface BookingDetails {
   id: string;
@@ -20,6 +21,7 @@ interface BookingDetails {
   booking_type: string;
   number_of_guests: number;
   event_type: string;
+  event_type_other: string | null;
   deposit_amount: number;
   balance_amount: number;
   total_amount: number;
@@ -64,7 +66,7 @@ const BookingConfirmation = () => {
         if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 2000));
         const result = await supabase
           .from("bookings")
-          .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged, deposit_total_charged, deposit_paid_at, stripe_session_id")
+          .select("id, reservation_number, event_date, start_time, end_time, booking_type, number_of_guests, event_type, event_type_other, deposit_amount, balance_amount, total_amount, full_name, email, payment_status, balance_total_charged, deposit_total_charged, deposit_paid_at, stripe_session_id")
           .eq("id", bookingId)
           .maybeSingle();
         data = result.data;
@@ -288,7 +290,7 @@ const BookingConfirmation = () => {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Event Type</p>
-                    <p className="font-medium capitalize">{(booking.event_type || "").replace(/_/g, " ")}</p>
+                    <p className="font-medium">{eventTypeLabel(booking.event_type, booking.event_type_other)}</p>
                   </div>
                 </div>
               </Card>
@@ -301,8 +303,13 @@ const BookingConfirmation = () => {
                     <span className="font-medium">${Number(booking.total_amount).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center text-green-600">
-                    <span>Deposit Paid</span>
-                    <span className="font-bold">${Number(booking.deposit_amount).toFixed(2)}</span>
+                    <span>
+                      Deposit Paid
+                      {booking.deposit_total_charged != null && (
+                        <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
+                      )}
+                    </span>
+                    <span className="font-bold">${Number(booking.deposit_total_charged ?? booking.deposit_amount).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-center text-green-600">
                     <span>
@@ -510,7 +517,7 @@ const BookingConfirmation = () => {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Event Type</p>
-                  <p className="font-medium capitalize">{(booking.event_type || "").replace(/_/g, " ")}</p>
+                  <p className="font-medium">{eventTypeLabel(booking.event_type, booking.event_type_other)}</p>
                 </div>
               </div>
             </Card>
@@ -524,15 +531,20 @@ const BookingConfirmation = () => {
                   <span className="font-medium">${Number(booking.total_amount).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-green-600">
-                  <span>Deposit Paid (50%)</span>
-                  <span className="font-bold">${Number(booking.deposit_amount).toFixed(2)}</span>
+                  <span>
+                    Deposit Paid
+                    {booking.deposit_total_charged != null && (
+                      <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
+                    )}
+                  </span>
+                  <span className="font-bold">${Number(booking.deposit_total_charged ?? booking.deposit_amount).toFixed(2)}</span>
                 </div>
                 <div className="border-t pt-3">
                   <div className="flex justify-between items-center">
                     <div>
                       <span className="font-medium">Remaining Balance</span>
                       <p className="text-sm text-muted-foreground">
-                        Due by {format(balanceDueDate, "MMMM d, yyyy")}
+                        Due by {format(balanceDueDate, "MMMM d, yyyy")} (plus card processing fee)
                       </p>
                     </div>
                     <span className="text-xl font-bold">${Number(booking.balance_amount).toFixed(2)}</span>

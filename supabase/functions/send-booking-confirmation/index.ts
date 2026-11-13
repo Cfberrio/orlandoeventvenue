@@ -20,6 +20,7 @@ import {
 import { resolveReceiptBooking } from "../_shared/billing-server.ts";
 import { buildInvoiceModel } from "../_shared/invoice-model.ts";
 import { renderInvoicePdf } from "../_shared/invoice-pdf.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -88,6 +89,7 @@ interface BookingEmailData {
   reservation_number: string;
   event_date: string;
   event_type: string;
+  event_type_other?: string | null;
   number_of_guests: number;
   booking_type: string;
   start_time?: string;
@@ -171,18 +173,11 @@ function getPackageInclusions(pkg: string): string[] {
   return inclusions[pkg] || [];
 }
 
-function formatEventType(eventType: string): string {
-  return eventType
-    .split("-")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
-}
-
 function generateEmailHTML(booking: BookingEmailData): string {
   const firstName = escapeHtml(booking.full_name.split(" ")[0]);
   const formattedDate = formatDate(booking.event_date);
   const formattedBookingType = formatBookingType(booking.booking_type);
-  const formattedEventType = formatEventType(booking.event_type);
+  const formattedEventType = escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other));
 
   const eventTime = booking.start_time && booking.end_time
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`

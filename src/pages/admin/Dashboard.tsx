@@ -28,6 +28,7 @@ import {
 import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
+import { eventTypeLabel } from "@/lib/eventTypes";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -289,7 +290,7 @@ export default function AdminDashboard() {
                           {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")}
                           {booking.start_time && ` at ${booking.start_time.slice(0, 5)}`}
                         </p>
-                        <p className="text-sm text-muted-foreground">{booking.event_type}</p>
+                        <p className="text-sm text-muted-foreground">{eventTypeLabel(booking.event_type, booking.event_type_other)}</p>
                       </div>
                       <div className="text-right">
                         <p className="font-medium">${Number(booking.total_amount).toLocaleString()}</p>
@@ -362,7 +363,7 @@ export default function AdminDashboard() {
                     <div>
                       <p className="font-medium">{booking.full_name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")} - {booking.event_type}
+                        {format(new Date(booking.event_date + 'T00:00:00'), "MM/dd/yyyy")} - {eventTypeLabel(booking.event_type, booking.event_type_other)}
                       </p>
                     </div>
                     <Badge variant="outline" className="border-chart-1 text-chart-1">Not Ready</Badge>

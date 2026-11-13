@@ -42,6 +42,8 @@ interface CouponRow {
   applies_to_daily: boolean;
   is_active: boolean;
   created_at: string;
+  expires_at?: string | null;
+  max_uses?: number | null;
 }
 
 interface CouponSnapshotRow {
@@ -89,6 +91,9 @@ export default function Discounts() {
   const [formAppliesHourly, setFormAppliesHourly] = useState(true);
   const [formAppliesDaily, setFormAppliesDaily] = useState(true);
   const [formActive, setFormActive] = useState(true);
+  // M-21 (86e40ach2): optional expiry date and usage limit.
+  const [formExpiresOn, setFormExpiresOn] = useState("");
+  const [formMaxUses, setFormMaxUses] = useState("");
 
   const { data: coupons, isLoading } = useDiscountCoupons();
   const createCoupon = useCreateDiscountCoupon();
@@ -99,15 +104,17 @@ export default function Discounts() {
   const { data: usage } = useQuery({
     queryKey: ["discount-coupon-usage"],
     queryFn: async () => {
+      // Paid uses only: the same rule coupon_unusable_reason applies to
+      // max_uses (abandoned checkouts do not count). M-21, 86e40ach2.
       const { data, error } = await supabase
         .from("bookings")
-        .select("discount_code")
+        .select("discount_code, deposit_paid_at, balance_paid_at")
         .not("discount_code", "is", null);
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
-        const code = String((row as { discount_code: string | null }).discount_code || "").trim().toUpperCase();
-        if (code) counts[code] = (counts[code] ?? 0) + 1;
+      for (const row of (data ?? []) as Array<{ discount_code: string | null; deposit_paid_at: string | null; balance_paid_at: string | null }>) {
+        const code = String(row.discount_code || "").trim().toUpperCase();
+        if (code && (row.deposit_paid_at || row.balance_paid_at)) counts[code] = (counts[code] ?? 0) + 1;
       }
       return counts;
     },
@@ -167,6 +174,8 @@ export default function Discounts() {
     setFormAppliesHourly(true);
     setFormAppliesDaily(true);
     setFormActive(true);
+    setFormExpiresOn("");
+    setFormMaxUses("");
     setConfirmText("");
   };
 
@@ -201,6 +210,10 @@ export default function Discounts() {
       toast({ title: "Must apply to at least one booking type", variant: "destructive" });
       return false;
     }
+    if (formMaxUses.trim() && !(Number.isInteger(Number(formMaxUses)) && Number(formMaxUses) >= 1)) {
+      toast({ title: "Max uses must be a whole number of 1 or more (or empty for no limit)", variant: "destructive" });
+      return false;
+    }
     return true;
   };
 
@@ -212,6 +225,9 @@ export default function Discounts() {
       applies_to_hourly: formAppliesHourly,
       applies_to_daily: formAppliesDaily,
       is_active: formActive,
+      // End of the chosen day in Orlando (ET), or no expiry.
+      expires_at: formExpiresOn ? new Date(`${formExpiresOn}T23:59:59-05:00`).toISOString() : null,
+      max_uses: formMaxUses.trim() ? Number(formMaxUses) : null,
     };
     try {
       if (editingCoupon) {
@@ -249,6 +265,8 @@ export default function Discounts() {
     setFormAppliesHourly(coupon.applies_to_hourly);
     setFormAppliesDaily(coupon.applies_to_daily);
     setFormActive(coupon.is_active);
+    setFormExpiresOn(coupon.expires_at ? format(new Date(coupon.expires_at), "yyyy-MM-dd") : "");
+    setFormMaxUses(coupon.max_uses ? String(coupon.max_uses) : "");
   };
 
   const handleDelete = async () => {
@@ -423,6 +441,17 @@ export default function Discounts() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="expires">Expires on (optional)</Label>
+                  <Input id="expires" type="date" value={formExpiresOn} onChange={(e) => setFormExpiresOn(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="maxuses">Max paid uses (optional)</Label>
+                  <Input id="maxuses" inputMode="numeric" placeholder="No limit" value={formMaxUses} onChange={(e) => setFormMaxUses(e.target.value)} />
+                </div>
+              </div>
+
               <div className="flex items-center space-x-2">
                 <Checkbox id="active" checked={formActive} onCheckedChange={(c) => setFormActive(c as boolean)} />
                 <label htmlFor="active" className="text-sm cursor-pointer">Active (guests can use this code)</label>
@@ -480,7 +509,16 @@ export default function Discounts() {
                         {extreme && <AlertTriangle className="inline h-3.5 w-3.5 ml-1 text-red-600" />}
                       </TableCell>
                       <TableCell>{formatAppliesTo(coupon.applies_to_hourly, coupon.applies_to_daily)}</TableCell>
-                      <TableCell className="text-right tabular-nums">{usedCount(coupon.code)}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {usedCount(coupon.code)}
+                        {coupon.max_uses ? ` / ${coupon.max_uses}` : ""}
+                        {coupon.expires_at && (
+                          <div className={`text-xs ${new Date(coupon.expires_at) <= new Date() ? "text-destructive" : "text-muted-foreground"}`}>
+                            {new Date(coupon.expires_at) <= new Date() ? "expired " : "until "}
+                            {format(new Date(coupon.expires_at), "MM/dd/yyyy")}
+                          </div>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Button variant={coupon.is_active ? "default" : "secondary"} size="sm" onClick={() => handleToggleActive(coupon)}>
                           {coupon.is_active ? "Active" : "Inactive"}

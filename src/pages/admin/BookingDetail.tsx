@@ -4,6 +4,7 @@ import { RecordPaymentDialog } from "@/components/admin/RecordPaymentDialog";
 import { RefundReviewCard } from "@/components/admin/RefundReviewCard";
 import { EventCloseCard } from "@/components/admin/EventCloseCard";
 import { RescheduleReviewCards } from "@/components/admin/RescheduleReviewCards";
+import { amountDue, type ChargeableBooking, type ChargedAddon, formatMoney, paymentRows, totalCharged } from "@/lib/paymentSummary";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
 import { useParams, Link, useSearchParams } from "react-router-dom";
@@ -144,7 +145,8 @@ export default function BookingDetail() {
   const queryClient = useQueryClient();
 
   const { pricing: pp } = usePricing();
-  const PROC_PCT = (pp.processing_fee || 3.5).toFixed(2);
+  // M-16/M-13: no hardcoded 3.5% fallback; shown only as a hint for what is due.
+  const PROC_PCT = pp.processing_fee ? Number(pp.processing_fee).toFixed(2) : "—";
   const { data: booking, isLoading } = useBooking(id!);
   const [searchParams] = useSearchParams();
   const initialTab = searchParams.get("tab") || "review";
@@ -163,6 +165,7 @@ export default function BookingDetail() {
   const { data: addonInvoices, refetch: refetchAddonInvoices } = useBookingAddonInvoices(id!);
   const paidAddons = paidAddonInvoices(addonInvoices as Array<AddonInvoiceLike & { id: string }> | undefined);
   const paidAddonsTotal = paidAddonTotal(paidAddons);
+  const chargeRows = booking ? paymentRows(booking as unknown as ChargeableBooking, paidAddons as ChargedAddon[]) : [];
   const { data: staffMembers } = useStaffMembers({ isActive: true });
 
   const updateBooking = useUpdateBooking();
@@ -1129,10 +1132,6 @@ export default function BookingDetail() {
                       <span>-${Number(booking.discount_amount).toLocaleString()}</span>
                     </div>
                   )}
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Processing Fee ({PROC_PCT}%)</span>
-                    <span className="text-xs text-muted-foreground italic">Applied per transaction</span>
-                  </div>
                 </div>
                 
                 <div className="pt-3 border-t space-y-2">
@@ -1152,14 +1151,33 @@ export default function BookingDetail() {
                       </div>
                     </>
                   )}
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Deposit</span>
-                    <span className="font-medium">${Number(booking.deposit_amount).toLocaleString()}</span>
+                  {/* M-13 (86e40ach2): each payment with its processing fee,
+                      and what the guest was actually charged. */}
+                  {chargeRows.map((row) => (
+                    <div key={row.label} className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        {row.label}
+                        {row.paidAt
+                          ? row.fee > 0
+                            ? ` (${formatMoney(row.base)} + ${formatMoney(row.fee)} fee)`
+                            : " (no processing fee)"
+                          : " — due"}
+                      </span>
+                      <span className={`font-medium ${row.paidAt ? "" : "text-muted-foreground"}`}>
+                        {formatMoney(row.paidAt ? row.charged : row.base)}
+                      </span>
+                    </div>
+                  ))}
+                  <div className="flex justify-between text-sm font-semibold">
+                    <span>Total charged</span>
+                    <span>{formatMoney(totalCharged(chargeRows))}</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Balance</span>
-                    <span className="font-medium">${Number(booking.balance_amount).toLocaleString()}</span>
-                  </div>
+                  {amountDue(chargeRows) > 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Still due (before {PROC_PCT}% card fee)</span>
+                      <span className="font-medium">{formatMoney(amountDue(chargeRows))}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-3 border-t space-y-3">

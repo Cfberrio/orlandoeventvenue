@@ -18,6 +18,7 @@ import {
   sanitizeForSmtp,
   textModule,
 } from "../_shared/email-layout.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -155,7 +156,18 @@ serve(async (req) => {
       .single();
 
     if (feeError) console.error("Failed to fetch processing fee from venue_pricing:", feeError);
-    const FEE_PCT = Number(feeRow?.price ?? 3.5);
+    // M-17 (86e40ach2): the balance fee uses the % the guest was quoted at
+    // checkout (stored on the booking), not today's price list. M-16: no
+    // silent 3.5% fallback when neither is available.
+    const storedPct = booking.processing_fee_pct != null ? Number(booking.processing_fee_pct) : NaN;
+    const livePct = feeRow?.price != null ? Number(feeRow.price) : NaN;
+    const FEE_PCT = Number.isFinite(storedPct) && storedPct >= 0 ? storedPct : livePct;
+    if (!Number.isFinite(FEE_PCT)) {
+      return new Response(JSON.stringify({ error: "Processing fee is not configured (Pricing page)" }), {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const PROCESSING_FEE_RATE = FEE_PCT / 100;
     const FEE_LABEL = `Processing Fee (${FEE_PCT}%)`;
 
@@ -258,7 +270,7 @@ serve(async (req) => {
             currency: "usd",
             product_data: {
               name: `Balance Payment - ${booking.reservation_number || "Event Booking"}`,
-              description: `Remaining balance for ${booking.event_type} on ${booking.event_date}`,
+              description: `Remaining balance for ${eventTypeLabel(booking.event_type, booking.event_type_other)} on ${booking.event_date}`,
             },
             unit_amount: balanceAmountCents,
           },
@@ -421,7 +433,7 @@ serve(async (req) => {
               detailTable([
                 ["Event Date", eventDate],
                 ["Event Time", timeRange],
-                ["Event Type", escapeHtml(booking.event_type || "N/A")],
+                ["Event Type", escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))],
                 ["Guests", escapeHtml(String(booking.number_of_guests || "N/A"))],
               ]) +
               `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Payment Summary</p>` +

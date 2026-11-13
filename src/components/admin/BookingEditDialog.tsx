@@ -21,6 +21,7 @@ import {
 import { CalendarIcon, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateBookingDetails, type BookingFieldChange } from "@/hooks/useAdminData";
+import { EVENT_TYPE_OPTIONS } from "@/lib/eventTypes";
 
 export interface EditableBooking {
   id: string;
@@ -44,21 +45,6 @@ interface Props {
   /** Opens the conflict-checked reschedule flow — date/time are not edited here. */
   onReschedule?: () => void;
 }
-
-/** Values written by the public booking form, plus the admin wizard labels. */
-const EVENT_TYPE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: "birthday-party", label: "Birthday Party (adults or kids)" },
-  { value: "baby-shower", label: "Baby Shower" },
-  { value: "bridal-shower", label: "Bridal Shower" },
-  { value: "wedding-reception", label: "Wedding Reception" },
-  { value: "graduation-party", label: "Graduation Party" },
-  { value: "corporate-meeting", label: "Corporate Meeting / Team Meeting" },
-  { value: "training-seminar", label: "Training / Seminar" },
-  { value: "workshop-class", label: "Workshop / Class" },
-  { value: "networking-mixer", label: "Networking Mixer / Meetup" },
-  { value: "celebration-of-life", label: "Celebration of Life / Memorial Reception" },
-  { value: "other", label: "Other" },
-];
 
 const MAX_GUESTS = 90;
 const MAX_NOTES = 1000;

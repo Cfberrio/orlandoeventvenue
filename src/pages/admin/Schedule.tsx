@@ -9,6 +9,7 @@ import { useScheduleData } from "@/hooks/useAdminData";
 import { useAvailabilityBlocks } from "@/hooks/useAvailabilityBlocks";
 import { InternalBookingWizard } from "@/components/admin/InternalBookingWizard";
 import { ExternalBookingWizard } from "@/components/admin/ExternalBookingWizard";
+import { eventTypeLabel } from "@/lib/eventTypes";
 import { 
   format, 
   startOfWeek, 
@@ -156,7 +157,7 @@ export default function Schedule() {
             type: "booking",
             id: booking.id,
             title: booking.full_name,
-            subtitle: `${booking.event_type} • ${booking.number_of_guests} guests`,
+            subtitle: `${eventTypeLabel(booking.event_type, booking.event_type_other)} • ${booking.number_of_guests} guests`,
             time: booking.start_time?.slice(0, 5) || "All day",
             color: originColor,
             linkTo: `/admin/bookings/${booking.id}`,
@@ -341,7 +342,7 @@ export default function Schedule() {
                           </div>
                           <p className="font-medium text-foreground">{booking.full_name}</p>
                           <p className="text-sm text-muted-foreground">
-                            {booking.event_type} • {booking.number_of_guests} guests
+                            {eventTypeLabel(booking.event_type, booking.event_type_other)} • {booking.number_of_guests} guests
                           </p>
                         </div>
                         <div className="text-right">

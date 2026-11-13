@@ -27,6 +27,7 @@ import { CalendarIcon, Filter, X, Eye, AlertTriangle, RefreshCw } from "lucide-r
 import { useBookings } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { eventTypeLabel } from "@/lib/eventTypes";
 
 interface RecurringInvoice {
   id: string;
@@ -323,7 +324,7 @@ export default function BookingsList() {
                   <div className="text-xs text-muted-foreground">{booking.email}</div>
                 </TableCell>
                 <TableCell>
-                  <div>{booking.event_type}</div>
+                  <div>{eventTypeLabel(booking.event_type, booking.event_type_other)}</div>
                   <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
                 </TableCell>
                 <TableCell>{booking.number_of_guests}</TableCell>

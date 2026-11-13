@@ -17,6 +17,7 @@ import {
   logBookingEvent,
   sendBillingAlert,
 } from "../_shared/billing-server.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -30,7 +31,7 @@ interface CheckoutRequest {
   customerEmail?: string;
   customerName?: string;
   eventDate: string;
-  eventType: string;
+  eventType?: string;
   successUrl: string;
   cancelUrl: string;
   adConsent?: boolean | null;
@@ -140,6 +141,9 @@ serve(async (req: Request) => {
         ? "code_not_found"
         : !coupon.is_active
           ? "code_inactive"
+          // M-21 (86e40ach2): expired or out of uses, same rule as the validator.
+          : coupon.unusable_reason
+            ? `code_${coupon.unusable_reason}`
           : !checkCouponForBooking(coupon, booking.booking_type).ok
             ? "code_not_for_booking_type"
             : null;
@@ -246,7 +250,9 @@ serve(async (req: Request) => {
 
     const connectedAccountId = Deno.env.get("STRIPE_CONNECTED_ACCOUNT_ID");
     const displayDate = typeof eventDate === "string" && eventDate ? eventDate : booking.event_date;
-    const displayType = typeof eventType === "string" && eventType ? eventType : booking.event_type || "Event";
+    const displayType = typeof eventType === "string" && eventType.trim()
+      ? eventTypeLabel(eventType)
+      : eventTypeLabel(booking.event_type, booking.event_type_other);
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
