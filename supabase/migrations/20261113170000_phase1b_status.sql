@@ -126,10 +126,14 @@ AS $function$
     AND public._booking_event_start_at(b.id) <= now()
   UNION ALL
   -- Event ended 24h ago: in_progress -> post_event (D7: no guest report).
+  -- Same backlog cutoff (Codex review): closing completes accepted
+  -- assignments, so events that ended before 2026-11-12 are closed by the
+  -- office (Close event) once D5 is decided. Today that is only OEV-9CMUGG.
   SELECT b.id, b.reservation_number, b.lifecycle_status, 'post_event', 'event_end_plus_24h'
   FROM public.bookings b
   WHERE b.lifecycle_status = 'in_progress'
     AND b.status NOT IN ('cancelled'::booking_status, 'declined'::booking_status)
+    AND public._booking_event_end_at(b.id) >= timestamptz '2026-11-12 00:00 America/New_York'
     AND public._booking_event_end_at(b.id) + interval '24 hours' <= now();
 $function$;
 
@@ -236,6 +240,12 @@ CREATE TRIGGER trg_schedule_cleaning_reminder
   FOR EACH ROW EXECUTE FUNCTION public.trg_schedule_cleaning_reminder();
 
 REVOKE ALL ON FUNCTION public.trg_schedule_cleaning_reminder() FROM PUBLIC, anon, authenticated;
+
+-- The lifecycle cron owns post_event now; no set_lifecycle_post_event job
+-- may write it behind transition_booking's back (none exist today).
+UPDATE public.scheduled_jobs
+SET status = 'cancelled', last_error = 'replaced_by_lifecycle_cron', updated_at = now()
+WHERE job_type = 'set_lifecycle_post_event' AND status IN ('pending', 'processing');
 
 -- M-27: jobs that used up their 3 attempts were left "pending" forever (the
 -- processor only picks attempts < 3) and looked alive. Mark them failed so

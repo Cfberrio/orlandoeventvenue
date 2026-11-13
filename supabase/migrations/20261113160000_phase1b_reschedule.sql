@@ -829,6 +829,24 @@ BEGIN
 
     PERFORM public.populate_booking_revenue_items(v_b.id, false);
 
+    -- Codex review: create-balance-payment-link refuses a balance that differs
+    -- from the latest price snapshot, so the approved adjustment is recorded
+    -- as one (same transaction).
+    INSERT INTO public.booking_price_snapshots (
+      booking_id, reason, coupon_id, discount_code, discount_type, discount_value, discount_applies_to,
+      discount_amount, gross_subtotal, total_amount, deposit_amount, balance_amount,
+      processing_fee_pct, deposit_fee, deposit_total_charged, note, created_by)
+    SELECT b.id, 'admin_correction', s.coupon_id, b.discount_code, s.discount_type, s.discount_value, s.discount_applies_to,
+           COALESCE(b.discount_amount, 0), COALESCE(b.total_amount, 0) + COALESCE(b.discount_amount, 0), b.total_amount,
+           b.deposit_amount, b.balance_amount,
+           s.processing_fee_pct, b.deposit_fee, b.deposit_total_charged,
+           'reschedule price review ' || p_review_id::text, COALESCE(v_actor::text, 'admin')
+    FROM public.bookings b
+    LEFT JOIN LATERAL (
+      SELECT * FROM public.booking_price_snapshots ps WHERE ps.booking_id = b.id ORDER BY ps.created_at DESC LIMIT 1
+    ) s ON true
+    WHERE b.id = v_b.id;
+
     -- Codex review: the new amount must reach the guest. Pending balance
     -- jobs already read the booking at run time; if none is left, queue a
     -- link (at the T-15 point, or now if that has passed). Same transaction,

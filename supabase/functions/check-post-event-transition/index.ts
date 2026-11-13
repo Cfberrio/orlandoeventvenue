@@ -64,17 +64,37 @@ serve(async (req) => {
 
       moved.push(`${m.reservation_number}:${m.from_lifecycle}->${m.to_lifecycle}`);
 
-      // GHL gets the new lifecycle (same call the old paths made).
-      try {
-        const { error: syncError } = await supabase.functions.invoke('sync-to-ghl', {
-          body: {
-            booking_id: m.booking_id,
-            sync_reason: m.to_lifecycle === 'post_event' ? 'auto_close_24h' : 'event_started',
-          },
+      // GHL gets the new lifecycle. The booking is no longer "due" on the next
+      // run, so retry here once and leave a visible event if both fail.
+      let synced = false;
+      let lastSyncError = '';
+      for (let attempt = 1; attempt <= 2 && !synced; attempt++) {
+        try {
+          const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-to-ghl', {
+            body: {
+              booking_id: m.booking_id,
+              sync_reason: m.to_lifecycle === 'post_event' ? 'auto_close_24h' : 'event_started',
+            },
+          });
+          if (syncError || (syncData as { ok?: boolean } | null)?.ok === false) {
+            lastSyncError = String(syncError?.message ?? (syncData as { error?: string } | null)?.error ?? 'sync failed');
+          } else {
+            synced = true;
+          }
+        } catch (syncErr) {
+          lastSyncError = syncErr instanceof Error ? syncErr.message : String(syncErr);
+        }
+        if (!synced && attempt === 1) await new Promise((r) => setTimeout(r, 2000));
+      }
+      if (!synced) {
+        console.error(`sync-to-ghl failed for ${m.reservation_number}:`, lastSyncError);
+        const { error: logError } = await supabase.from('booking_events').insert({
+          booking_id: m.booking_id,
+          event_type: 'ghl_sync_failed_after_lifecycle',
+          channel: 'system',
+          metadata: { to_lifecycle: m.to_lifecycle, error: lastSyncError },
         });
-        if (syncError) console.error(`sync-to-ghl failed for ${m.reservation_number}:`, syncError);
-      } catch (syncErr) {
-        console.error(`sync-to-ghl threw for ${m.reservation_number}:`, syncErr);
+        if (logError) console.error('Could not log GHL sync failure:', logError);
       }
     }
 
