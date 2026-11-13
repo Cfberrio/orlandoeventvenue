@@ -27,6 +27,10 @@ const GUEST_FEEDBACK_JOB_TYPES = ["guest_feedback_post_event"];
 // Cleaning report reminder job types
 const CLEANING_REMINDER_JOB_TYPES = ["cleaning_report_reminder"];
 
+// M-26: a claimed job whose run died is retried after this long.
+const PROCESSING_LEASE_MS = 15 * 60 * 1000;
+
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -42,12 +46,22 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     const now = new Date().toISOString();
+    const leaseExpired = new Date(Date.now() - PROCESSING_LEASE_MS).toISOString();
 
-    // Fetch pending jobs that are due
+    // M-27: a job that used up its attempts was left "pending" forever (never
+    // picked again, still looking alive). Mark it failed so it is visible.
+    const { error: exhaustError } = await supabase
+      .from("scheduled_jobs")
+      .update({ status: "failed", last_error: "max_attempts_reached", updated_at: now })
+      .gte("attempts", 3)
+      .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${leaseExpired})`);
+    if (exhaustError) console.error("Could not mark exhausted jobs failed:", exhaustError);
+
+    // Fetch due jobs: pending, or "processing" whose run died (lease expired).
     const { data: pendingJobs, error: fetchError } = await supabase
       .from("scheduled_jobs")
       .select("*")
-      .eq("status", "pending")
+      .or(`status.eq.pending,and(status.eq.processing,updated_at.lt.${leaseExpired})`)
       .lte("run_at", now)
       .lt("attempts", 3) // Max 3 attempts per job
       .order("run_at", { ascending: true })
@@ -85,12 +99,29 @@ serve(async (req) => {
       results.processed++;
       console.log(`Processing job ${job.id}: ${job.job_type} for booking ${job.booking_id}`);
 
+      // M-26 (86e40ach2): atomic claim. Overlapping runs (cron + manual, or a
+      // slow tick) used to read the same pending job and both send it. The
+      // claim is a compare-and-set on the status and attempts this run read;
+      // only one run wins. A run that dies leaves the job "processing"; it is
+      // picked up again after PROCESSING_LEASE_MS.
+      const { data: claimed, error: claimError } = await supabase
+        .from("scheduled_jobs")
+        .update({ status: "processing", attempts: job.attempts + 1, updated_at: new Date().toISOString() })
+        .eq("id", job.id)
+        .eq("status", job.status)
+        .eq("attempts", job.attempts)
+        .select("id");
+      if (claimError || !claimed || claimed.length === 0) {
+        if (claimError) console.error(`Could not claim job ${job.id}:`, claimError);
+        results.skipped++;
+        results.details.push({ job_id: job.id, job_type: job.job_type, status: "skipped", error: claimError ? "claim_failed" : "claimed_by_another_run" });
+        continue;
+      }
+
+      // One-pass inner loop: a `continue` inside the handlers below ends this
+      // job's handling and still reaches the release step after it.
+      for (const _job of [job]) {
       try {
-        // Increment attempts first
-        await supabase
-          .from("scheduled_jobs")
-          .update({ attempts: job.attempts + 1, updated_at: new Date().toISOString() })
-          .eq("id", job.id);
 
         // ===============================
         // BALANCE RETRY JOBS
@@ -309,115 +340,50 @@ serve(async (req) => {
               continue;
             }
 
-            // Check if fully paid
-            const isFullyPaid = booking.payment_status === "fully_paid";
+            // M-24 (86e40ach2): the event happening moves the booking forward,
+            // whatever the payment state (the fully_paid + staff condition here
+            // blocked every deposit-paid / invoiced booking: 0 of 61 jobs ever
+            // completed). transition_booking locks the row, refuses a cancelled
+            // booking and compare-and-sets on the state read above.
+            const { data: moved, error: transitionError } = await supabase.rpc("transition_booking", {
+              p_booking_id: job.booking_id,
+              p_to: "in_progress",
+              p_expected_from: [booking.lifecycle_status],
+              p_reason: "event_started_job",
+              p_channel: "system",
+            });
+            const move = moved as { ok?: boolean; changed?: boolean; reason?: string } | null;
 
-            // Check if has staff assigned (query booking_staff_assignments)
-            const { data: staffAssignments, error: staffError } = await supabase
-              .from("booking_staff_assignments")
-              .select("id")
-              .eq("booking_id", job.booking_id)
-              // same population as evaluate_booking_readiness
-              .neq("status", "cancelled")
-              .neq("assignment_type", "bar_service")
-              .limit(1);
-
-            if (staffError) {
-              console.error(`Error checking staff assignments for job ${job.id}:`, staffError);
-            }
-
-            const hasStaff = staffAssignments && staffAssignments.length > 0;
-            // External bookings are staff-exempt by the readiness rule
-            // (evaluate_booking_readiness); without this they never left
-            // pre_event_ready (OEV-9SQGNT, OEV-EQRH57). ClickUp 86e3zjfq6.
-            const staffRequired = booking.booking_origin !== "external";
-
-            // Validate business conditions
-            if (!isFullyPaid || (staffRequired && !hasStaff)) {
-              const reason = `conditions_not_met: fully_paid=${isFullyPaid}, has_staff=${hasStaff}`;
-              console.log(`Booking ${job.booking_id} conditions not met - cancelling job ${job.id}: ${reason}`);
-              
+            if (transitionError) {
+              console.error(`transition_booking failed for ${job.booking_id}:`, transitionError);
+              const newAttempts = job.attempts + 1;
+              const newStatus = newAttempts >= 3 ? "failed" : "pending";
               await supabase
                 .from("scheduled_jobs")
-                .update({ 
-                  status: "cancelled",
-                  last_error: reason,
+                .update({
+                  status: newStatus,
+                  last_error: `transition_failed: ${transitionError.message}`,
                   updated_at: new Date().toISOString()
                 })
                 .eq("id", job.id);
-
-              // Log the cancellation event
-              await supabase.from("booking_events").insert({
-                booking_id: job.booking_id,
-                event_type: "lifecycle_transition_cancelled",
-                channel: "system",
-                metadata: {
-                  job_id: job.id,
-                  job_type: job.job_type,
-                  reason: "conditions_not_met",
-                  is_fully_paid: isFullyPaid,
-                  has_staff_assigned: hasStaff,
-                  current_lifecycle: booking.lifecycle_status,
-                },
-              });
-              
-              results.cancelled++;
-              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: reason });
+              results.failed++;
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `transition_failed: ${transitionError.message}` });
               continue;
             }
 
-            // All conditions met - update to in_progress
-            console.log(`All conditions met for booking ${job.booking_id} - transitioning to in_progress`);
-
-            // Conditional on the state we just read, so a concurrent change
-            // (cancel, manual status edit) is not overwritten.
-            const { data: movedRows, error: updateError } = await supabase
-              .from("bookings")
-              .update({
-                lifecycle_status: "in_progress",
-                updated_at: new Date().toISOString(),
-              })
-              .eq("id", job.booking_id)
-              .eq("lifecycle_status", booking.lifecycle_status)
-              // and still not cancelled: a status-only cancellation landing
-              // after our read must win (never in_progress + cancelled).
-              .neq("status", "cancelled")
-              .select("id");
-
-            if (!updateError && (!movedRows || movedRows.length === 0)) {
-              console.log(`Booking ${job.booking_id} lifecycle/status changed concurrently - cancelling job ${job.id}`);
-              const { error: raceCancelError } = await supabase
+            if (!move?.ok || move.changed === false) {
+              const reason = move?.reason ?? "already_in_progress";
+              console.log(`Booking ${job.booking_id} not moved (${reason}) - closing job ${job.id}`);
+              await supabase
                 .from("scheduled_jobs")
                 .update({
                   status: "cancelled",
-                  last_error: `lifecycle_changed_concurrently_from=${booking.lifecycle_status}`,
+                  last_error: `lifecycle_not_moved: ${reason}`,
                   updated_at: new Date().toISOString(),
                 })
                 .eq("id", job.id);
-              if (raceCancelError) console.error(`Failed to cancel job ${job.id}:`, raceCancelError);
               results.cancelled++;
-              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "lifecycle_changed_concurrently" });
-              continue;
-            }
-
-            if (updateError) {
-              console.error(`Failed to update booking ${job.booking_id}:`, updateError);
-              
-              // Increment attempts and keep as pending if under limit
-              const newAttempts = job.attempts + 1;
-              const newStatus = newAttempts >= 3 ? "failed" : "pending";
-              
-              await supabase
-                .from("scheduled_jobs")
-                .update({ 
-                  status: newStatus,
-                  last_error: `db_update_failed: ${updateError.message}`,
-                  updated_at: new Date().toISOString()
-                })
-                .eq("id", job.id);
-
-              results.failed++;
-              results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: `db_update_failed: ${updateError.message}` });
+              results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: reason });
               continue;
             }
 
@@ -430,8 +396,7 @@ serve(async (req) => {
                 job_id: job.id,
                 from_lifecycle: booking.lifecycle_status,
                 to_lifecycle: "in_progress",
-                is_fully_paid: isFullyPaid,
-                has_staff_assigned: hasStaff,
+                payment_status: booking.payment_status,
                 timestamp: new Date().toISOString(),
               },
             });
@@ -473,106 +438,10 @@ serve(async (req) => {
               })
               .eq("id", job.id);
 
-            // Schedule the post_event transition job for event_date + 24 hours
-            const { data: bookingForPostEvent } = await supabase
-              .from("bookings")
-              .select("event_date, end_time")
-              .eq("id", job.booking_id)
-              .single();
-
-            if (bookingForPostEvent) {
-              // Check if post_event job already exists
-              const { data: existingPostEventJob } = await supabase
-                .from("scheduled_jobs")
-                .select("id")
-                .eq("booking_id", job.booking_id)
-                .eq("job_type", "set_lifecycle_post_event")
-                .in("status", ["pending"]);
-
-              if (!existingPostEventJob || existingPostEventJob.length === 0) {
-                // Calculate run_at: event_date + 24 hours (or end_time + 24h if available)
-                let baseTime: Date;
-                if (bookingForPostEvent.end_time) {
-                  baseTime = new Date(`${bookingForPostEvent.event_date}T${bookingForPostEvent.end_time}`);
-                } else {
-                  // For daily bookings, use end of day (23:59)
-                  baseTime = new Date(`${bookingForPostEvent.event_date}T23:59:00`);
-                }
-                const postEventRunAt = new Date(baseTime.getTime() + 24 * 60 * 60 * 1000);
-
-                const { error: postEventJobError } = await supabase
-                  .from("scheduled_jobs")
-                  .insert({
-                    job_type: "set_lifecycle_post_event",
-                    booking_id: job.booking_id,
-                    run_at: postEventRunAt.toISOString(),
-                    status: "pending",
-                  });
-
-                if (postEventJobError) {
-                  console.error(`Failed to schedule set_lifecycle_post_event:`, postEventJobError);
-                } else {
-                  console.log(`Scheduled set_lifecycle_post_event for booking ${job.booking_id} at ${postEventRunAt.toISOString()}`);
-                  
-                  await supabase.from("booking_events").insert({
-                    booking_id: job.booking_id,
-                    event_type: "lifecycle_post_event_scheduled",
-                    channel: "system",
-                    metadata: {
-                      job_type: "set_lifecycle_post_event",
-                      scheduled_for: postEventRunAt.toISOString(),
-                      from_lifecycle: "in_progress",
-                      to_lifecycle: "post_event",
-                    },
-                  });
-                }
-              }
-
-              // ---- Schedule cleaning_report_reminder (24h after event end, America/New_York) ----
-              const { data: existingCleaningReminderJob } = await supabase
-                .from("scheduled_jobs")
-                .select("id")
-                .eq("booking_id", job.booking_id)
-                .eq("job_type", "cleaning_report_reminder")
-                .in("status", ["pending"]);
-
-              if (!existingCleaningReminderJob || existingCleaningReminderJob.length === 0) {
-                // Build event end time in America/New_York, then add 24 hours
-                const endTimeStr = bookingForPostEvent.end_time || "23:59:00";
-                const eventEndUtcString = `${bookingForPostEvent.event_date}T${endTimeStr}`;
-                // Interpret as America/New_York by converting to a locale string then back
-                const eventEndAsNY = new Date(
-                  new Date(eventEndUtcString).toLocaleString("en-US", { timeZone: "America/New_York" })
-                );
-                const cleaningReminderRunAt = new Date(eventEndAsNY.getTime() + 24 * 60 * 60 * 1000);
-
-                const { error: cleaningReminderJobError } = await supabase
-                  .from("scheduled_jobs")
-                  .insert({
-                    job_type: "cleaning_report_reminder",
-                    booking_id: job.booking_id,
-                    run_at: cleaningReminderRunAt.toISOString(),
-                    status: "pending",
-                  });
-
-                if (cleaningReminderJobError) {
-                  console.error(`Failed to schedule cleaning_report_reminder:`, cleaningReminderJobError);
-                } else {
-                  console.log(`Scheduled cleaning_report_reminder for booking ${job.booking_id} at ${cleaningReminderRunAt.toISOString()}`);
-
-                  await supabase.from("booking_events").insert({
-                    booking_id: job.booking_id,
-                    event_type: "cleaning_report_reminder_scheduled",
-                    channel: "system",
-                    metadata: {
-                      job_type: "cleaning_report_reminder",
-                      scheduled_for: cleaningReminderRunAt.toISOString(),
-                      event_end: eventEndUtcString,
-                    },
-                  });
-                }
-              }
-            }
+            // M-27: no set_lifecycle_post_event job any more (the lifecycle cron
+            // closes events 24h after they end, Luis D7), and the cleaning
+            // reminder is scheduled in SQL in Orlando time when the booking
+            // enters in_progress (trg_schedule_cleaning_reminder).
 
             results.succeeded++;
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "completed" });
@@ -1315,6 +1184,16 @@ serve(async (req) => {
         results.failed++;
         results.details.push({ job_id: job.id, job_type: job.job_type, status: newStatus, error: errorMessage });
       }
+      }
+
+      // Release: a handler that did not set a final status leaves the job
+      // pending for the next tick, exactly as before the claim existed.
+      const { error: releaseError } = await supabase
+        .from("scheduled_jobs")
+        .update({ status: "pending", updated_at: new Date().toISOString() })
+        .eq("id", job.id)
+        .eq("status", "processing");
+      if (releaseError) console.error(`Could not release job ${job.id}:`, releaseError);
     }
 
     console.log(`Job processing complete. Processed: ${results.processed}, Succeeded: ${results.succeeded}, Skipped: ${results.skipped}, Cancelled: ${results.cancelled}, Failed: ${results.failed}`);

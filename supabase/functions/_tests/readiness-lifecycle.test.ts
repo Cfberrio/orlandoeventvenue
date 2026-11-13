@@ -123,15 +123,13 @@ describe("source guards", () => {
     expect(src).toContain("status: 503");
   });
 
-  it("event-start job moves confirmed bookings too, conditionally", () => {
+  it("event-start job moves confirmed bookings too, through transition_booking (M-24, 86e40ach2)", () => {
     const src = read("supabase/functions/process-scheduled-jobs/index.ts");
     expect(src).toMatch(/IN_PROGRESS_SOURCE_STATES = \["confirmed", "pre_event_ready"\]/);
-    expect(src).toContain('.eq("lifecycle_status", booking.lifecycle_status)');
-    expect(src).toMatch(/\.eq\("lifecycle_status", booking\.lifecycle_status\)\s*\/\/[^\n]*\n[^\n]*\n\s*\.neq\("status", "cancelled"\)/);
-    // external bookings are staff-exempt end to end
-    expect(src).toContain('const staffRequired = booking.booking_origin !== "external";');
-    // cancelled / bar-only rows do not count as staff (mirrors the DB rule)
-    expect(src).toMatch(/\.neq\("status", "cancelled"\)\s*\.neq\("assignment_type", "bar_service"\)\s*\.limit\(1\)/);
+    // compare-and-set + cancelled guard now live in transition_booking
+    expect(src).toMatch(/rpc\("transition_booking", \{\s+p_booking_id: job\.booking_id,\s+p_to: "in_progress",\s+p_expected_from: \[booking\.lifecycle_status\]/);
+    // the fully_paid + staff condition that blocked every deposit-paid booking is gone
+    expect(src).not.toContain("const isFullyPaid");
   });
 
   it("schedule-balance-payment schedules the event-start job for confirmed", () => {

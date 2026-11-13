@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { addonInvoiceItemLabels, paidAddonInvoices, paidAddonTotal, type AddonInvoiceLike } from "@/lib/addonInvoice";
 import { RecordPaymentDialog } from "@/components/admin/RecordPaymentDialog";
 import { RefundReviewCard } from "@/components/admin/RefundReviewCard";
+import { EventCloseCard } from "@/components/admin/EventCloseCard";
 import { RescheduleReviewCards } from "@/components/admin/RescheduleReviewCards";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
@@ -849,6 +850,7 @@ export default function BookingDetail() {
 
         {/* Review Tab */}
         <TabsContent value="review" className="space-y-4">
+          <EventCloseCard booking={booking} />
           <RefundReviewCard booking={booking} />
           <RescheduleReviewCards booking={booking} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -21,6 +21,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase1b-record-payment.test.ts",
       "supabase/functions/_tests/phase1b-cancel.test.ts",
       "supabase/functions/_tests/phase1b-reschedule.test.ts",
+      "supabase/functions/_tests/phase1b-status.test.ts",
     ],
   },
 });

@@ -1,74 +1,26 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-const ALERT_EMAIL = "orlandoglobalministries@gmail.com";
+// Lifecycle cron (every 15 min). ClickUp 86e40ach2, M-23..M-25 + Luis D7:
+//   * event started  -> in_progress, whatever the payment state (M-24);
+//   * event ended 24h ago -> post_event, without waiting for the guest's
+//     report (D7; it almost never arrived and every booking waited 10 days).
+// Which bookings are due is decided in SQL (lifecycle_moves_due, Orlando time,
+// overnight-aware). Every move goes through transition_booking: row lock,
+// allowed transitions, compare-and-set on the state read here, never on a
+// cancelled booking (M-25). Safe to run concurrently or twice.
 
-// After this many days past event end without a submitted host report, the
-// booking is force-transitioned to post_event so it can't sit in in_progress
-// forever. The host report stays incomplete — payroll must review it manually.
-const HOST_REPORT_TIMEOUT_DAYS = 10;
-
-const ORLANDO_TZ = "America/New_York";
-
-/**
- * Millisecond offset of a timezone at a given instant (offset = tzWallClock - UTC).
- */
-function tzOffsetMs(date: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat("en-US", {
-    timeZone,
-    year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", second: "2-digit",
-    hour12: false,
-  });
-  const parts: Record<string, string> = {};
-  for (const p of dtf.formatToParts(date)) parts[p.type] = p.value;
-  const asIfUtc = Date.UTC(
-    Number(parts.year), Number(parts.month) - 1, Number(parts.day),
-    parts.hour === "24" ? 0 : Number(parts.hour), Number(parts.minute), Number(parts.second),
-  );
-  return asIfUtc - date.getTime();
-}
-
-/**
- * Converts a date + time interpreted as Orlando local time (DST-aware) to UTC.
- * Without this the runtime parses the naive string as UTC, so every window here
- * opened 4h (EDT) or 5h (EST) too early.
- */
-function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
-  const asUtcMs = Date.parse(`${dateStr}T${timeStr}Z`);
-  const offset = tzOffsetMs(new Date(asUtcMs), ORLANDO_TZ);
-  return new Date(asUtcMs - offset);
-}
-
-async function sendTimeoutAlert(reservationNumber: string, eventDate: string, ghlSynced = false): Promise<void> {
-  try {
-    const gmailUser = Deno.env.get("GMAIL_USER");
-    const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
-    if (!gmailUser || !gmailPassword) return;
-
-    const client = new SMTPClient({
-      connection: { hostname: "smtp.gmail.com", port: 465, tls: true, auth: { username: gmailUser, password: gmailPassword } },
-    });
-
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#d97706;">⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber}</h2><p><b>Event date:</b> ${eventDate}</p><p>Staff never submitted the host report, so the booking was force-transitioned to <b>post_event</b> after ${HOST_REPORT_TIMEOUT_DAYS} days.</p><p style="color:#dc2626;"><b>The host report remains INCOMPLETE — review before payroll.</b></p><p style="color:#666;">${ghlSynced ? 'GHL received a state-only sync (sync_reason=host_report_timeout) — no guest automations should fire.' : 'No GHL sync was performed for this transition (no automations fired).'}</p></body></html>`;
-
-    await client.send({
-      from: `"OEV Alert" <${gmailUser}>`,
-      to: ALERT_EMAIL,
-      subject: `⏰ Host report timeout (${HOST_REPORT_TIMEOUT_DAYS}d): ${reservationNumber} forced to post_event`,
-      html,
-    });
-    await client.close();
-    console.log(`[TIMEOUT] Alert sent for ${reservationNumber}`);
-  } catch (alertErr) {
-    console.error("[TIMEOUT] Failed to send alert:", alertErr);
-  }
+interface DueMove {
+  booking_id: string;
+  reservation_number: string | null;
+  from_lifecycle: string;
+  to_lifecycle: string;
+  reason: string;
 }
 
 serve(async (req) => {
@@ -81,202 +33,60 @@ serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('Checking for bookings ready to transition to post_event...');
-
-    // Get all bookings that are in_progress
-    const { data: bookings, error: fetchError } = await supabase
-      .from('bookings')
-      .select('id, reservation_number, event_date, start_time, end_time, booking_type, lifecycle_status')
-      .eq('lifecycle_status', 'in_progress');
-
-    if (fetchError) {
-      console.error('Error fetching bookings:', fetchError);
-      throw fetchError;
+    const { data: due, error: dueError } = await supabase.rpc('lifecycle_moves_due');
+    if (dueError) {
+      console.error('lifecycle_moves_due failed:', dueError);
+      throw dueError;
     }
 
-    if (!bookings || bookings.length === 0) {
-      console.log('No bookings in in_progress status');
-      return new Response(JSON.stringify({ 
-        success: true, 
-        message: 'No bookings to check',
-        transitioned: 0 
-      }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const moved: string[] = [];
+    const skipped: Array<{ reservation: string | null; reason: string }> = [];
+    const failed: Array<{ reservation: string | null; error: string }> = [];
+
+    for (const m of (due ?? []) as DueMove[]) {
+      const { data: r, error } = await supabase.rpc('transition_booking', {
+        p_booking_id: m.booking_id,
+        p_to: m.to_lifecycle,
+        p_expected_from: [m.from_lifecycle],
+        p_reason: m.reason,
+        p_channel: 'system',
       });
-    }
-
-    console.log(`Found ${bookings.length} bookings in in_progress status`);
-
-    const now = new Date();
-    const transitionedBookings: string[] = [];
-    const forcedTimeoutBookings: string[] = [];
-    const pendingHostReport: string[] = [];
-    const pendingTime: string[] = [];
-
-    for (const booking of bookings) {
-      // Check if host report is completed
-      const { data: hostReports } = await supabase
-        .from('booking_host_reports')
-        .select('id, status')
-        .eq('booking_id', booking.id)
-        .eq('status', 'submitted')
-        .limit(1);
-
-      const hostReportCompleted = (hostReports?.length || 0) > 0;
-
-      // Calculate event end time + 24 hours
-      let eventEndDateTime: Date;
-      
-      if (booking.booking_type === 'daily' || !booking.end_time) {
-        // Daily booking: use event_date at 23:59:59 Orlando time
-        eventEndDateTime = orlandoLocalToUTC(booking.event_date, '23:59:59');
-      } else {
-        // Hourly booking: use event_date + end_time, Orlando time
-        eventEndDateTime = orlandoLocalToUTC(booking.event_date, booking.end_time);
+      if (error) {
+        console.error(`transition_booking failed for ${m.reservation_number}:`, error);
+        failed.push({ reservation: m.reservation_number, error: error.message });
+        continue;
+      }
+      const result = r as { ok: boolean; changed?: boolean; reason?: string };
+      if (!result?.ok || result.changed === false) {
+        skipped.push({ reservation: m.reservation_number, reason: result?.reason ?? 'unchanged' });
+        continue;
       }
 
-      // Add 24 hours
-      const eventEndPlus24h = new Date(eventEndDateTime.getTime() + 24 * 60 * 60 * 1000);
-      const has24hPassed = now >= eventEndPlus24h;
+      moved.push(`${m.reservation_number}:${m.from_lifecycle}->${m.to_lifecycle}`);
 
-      // Timeout: force transition when the host report never arrives
-      const timeoutAt = new Date(eventEndDateTime.getTime() + HOST_REPORT_TIMEOUT_DAYS * 24 * 60 * 60 * 1000);
-      const timeoutPassed = now >= timeoutAt;
-
-      console.log(`Booking ${booking.reservation_number}: hostReportCompleted=${hostReportCompleted}, has24hPassed=${has24hPassed}, timeoutPassed=${timeoutPassed}, eventEndPlus24h=${eventEndPlus24h.toISOString()}`);
-
-      // Check both conditions
-      if (hostReportCompleted && has24hPassed) {
-        console.log(`Transitioning booking ${booking.reservation_number} to post_event`);
-
-        // Update lifecycle_status to post_event
-        const { error: updateError } = await supabase
-          .from('bookings')
-          .update({ 
-            lifecycle_status: 'post_event',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', booking.id);
-
-        if (updateError) {
-          console.error(`Error updating booking ${booking.reservation_number}:`, updateError);
-          continue;
-        }
-
-        // Log the event
-        await supabase.from('booking_events').insert({
-          booking_id: booking.id,
-          event_type: 'auto_lifecycle_post_event',
-          channel: 'system',
-          metadata: {
-            previous_status: 'in_progress',
-            new_status: 'post_event',
-            reason: 'host_report_completed_and_24h_passed',
-            triggered_at: now.toISOString()
-          }
+      // GHL gets the new lifecycle (same call the old paths made).
+      try {
+        const { error: syncError } = await supabase.functions.invoke('sync-to-ghl', {
+          body: {
+            booking_id: m.booking_id,
+            sync_reason: m.to_lifecycle === 'post_event' ? 'auto_close_24h' : 'event_started',
+          },
         });
-
-        // Sync to GHL
-        try {
-          await supabase.functions.invoke('sync-to-ghl', {
-            body: { booking_id: booking.id }
-          });
-          console.log(`Synced booking ${booking.reservation_number} to GHL`);
-        } catch (syncError) {
-          console.error(`Error syncing to GHL for ${booking.reservation_number}:`, syncError);
-        }
-
-        transitionedBookings.push(booking.reservation_number);
-      } else if (!hostReportCompleted && timeoutPassed) {
-        // Force transition: staff never submitted the host report and the
-        // timeout window elapsed. GHL is only told about it when
-        // GHL_SYNC_FORCED_TIMEOUT=true, and then with sync_reason set so the
-        // GHL workflows can filter the cleanup out instead of firing guest
-        // automations for an event that is already 10 days old.
-        console.log(`[TIMEOUT] Forcing ${booking.reservation_number} to post_event (no host report after ${HOST_REPORT_TIMEOUT_DAYS}d)`);
-
-        const { error: forceError } = await supabase
-          .from('bookings')
-          .update({
-            lifecycle_status: 'post_event',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', booking.id);
-
-        if (forceError) {
-          console.error(`Error force-updating booking ${booking.reservation_number}:`, forceError);
-          continue;
-        }
-
-        // State-only GHL sync, opt-in until the GHL workflows carry the
-        // sync_reason filter. Off => byte-for-byte the previous behaviour.
-        const forcedSyncEnabled = Deno.env.get('GHL_SYNC_FORCED_TIMEOUT') === 'true';
-        let ghlSynced = false;
-        let ghlSyncError: string | null = null;
-
-        if (forcedSyncEnabled) {
-          try {
-            const { error: syncError } = await supabase.functions.invoke('sync-to-ghl', {
-              body: { booking_id: booking.id, sync_reason: 'host_report_timeout' }
-            });
-            if (syncError) {
-              ghlSyncError = syncError.message;
-              console.error(`[TIMEOUT] sync-to-ghl failed for ${booking.reservation_number}:`, syncError);
-            } else {
-              ghlSynced = true;
-              console.log(`[TIMEOUT] Synced ${booking.reservation_number} to GHL (sync_reason=host_report_timeout)`);
-            }
-          } catch (syncErr) {
-            ghlSyncError = syncErr instanceof Error ? syncErr.message : String(syncErr);
-            console.error(`[TIMEOUT] sync-to-ghl exception for ${booking.reservation_number}:`, syncErr);
-          }
-        }
-
-        await supabase.from('booking_events').insert({
-          booking_id: booking.id,
-          event_type: 'auto_lifecycle_post_event_forced',
-          channel: 'system',
-          metadata: {
-            previous_status: 'in_progress',
-            new_status: 'post_event',
-            reason: `host_report_timeout_${HOST_REPORT_TIMEOUT_DAYS}d`,
-            host_report_completed: false,
-            ghl_sync_enabled: forcedSyncEnabled,
-            ghl_synced: ghlSynced,
-            ghl_sync_error: ghlSyncError,
-            triggered_at: now.toISOString()
-          }
-        });
-
-        await sendTimeoutAlert(booking.reservation_number, booking.event_date, ghlSynced);
-
-        forcedTimeoutBookings.push(booking.reservation_number);
-      } else if (!hostReportCompleted) {
-        pendingHostReport.push(booking.reservation_number);
-      } else if (!has24hPassed) {
-        pendingTime.push(booking.reservation_number);
+        if (syncError) console.error(`sync-to-ghl failed for ${m.reservation_number}:`, syncError);
+      } catch (syncErr) {
+        console.error(`sync-to-ghl threw for ${m.reservation_number}:`, syncErr);
       }
     }
 
-    const result = {
-      success: true,
-      checked: bookings.length,
-      transitioned: transitionedBookings.length,
-      transitioned_bookings: transitionedBookings,
-      forced_timeout: forcedTimeoutBookings,
-      pending_host_report: pendingHostReport,
-      pending_24h: pendingTime
-    };
-
-    console.log('Check complete:', result);
-
+    const result = { success: failed.length === 0, due: due?.length ?? 0, moved, skipped, failed };
+    console.log('Lifecycle check complete:', JSON.stringify(result));
     return new Response(JSON.stringify(result), {
+      status: failed.length === 0 ? 200 : 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
-
   } catch (error) {
     console.error('Error in check-post-event-transition:', error);
-    return new Response(JSON.stringify({ 
+    return new Response(JSON.stringify({
       error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,
