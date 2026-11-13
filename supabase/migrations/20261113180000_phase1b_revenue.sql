@@ -130,7 +130,14 @@ BEGIN
     END IF;
   END IF;
 
-  IF COALESCE(v_b.bar_package, 'none') <> 'none' AND COALESCE(v_b.bar_subtotal, 0) > 0 THEN
+  -- A bar bought later through an add-on invoice is copied onto the booking
+  -- by the webhook but is NOT part of its total: its revenue is the add-on
+  -- line (Codex review: it was counted twice).
+  IF COALESCE(v_b.bar_package, 'none') <> 'none' AND COALESCE(v_b.bar_subtotal, 0) > 0
+     AND NOT EXISTS (
+       SELECT 1 FROM public.booking_addon_invoices ai
+       WHERE ai.booking_id = p_booking_id AND ai.paid_at IS NOT NULL AND COALESCE(ai.bar_subtotal, 0) > 0
+     ) THEN
     v_bar_label := COALESCE(v_b.bar_package_label, public.get_bar_package_label(v_b.bar_package), v_b.bar_package);
     v_lines := v_lines || jsonb_build_object('cat', 'bar_service', 'type', v_b.bar_package, 'amount', v_b.bar_subtotal,
       'label', 'Bar Service — ' || v_bar_label, 'qty', v_b.bar_guest_count, 'unit', v_b.bar_rate_per_guest,

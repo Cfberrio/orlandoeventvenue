@@ -27,11 +27,12 @@ const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // An unfinished stripe_event_log claim older than this is treated as abandoned.
 const STALE_CLAIM_MS = 5 * 60 * 1000;
 
-/** Today's date in Orlando (M-11: revenue was dated by the UTC day). */
-function orlandoToday(): string {
+/** Orlando calendar date of an instant (M-11: revenue was dated by the UTC
+ * day of the worker clock; a delayed webhook landed on the retry day). */
+function orlandoDate(at: Date): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
+  }).format(at);
 }
 
 function roundMoney(value: number): number {
@@ -761,13 +762,31 @@ serve(async (req) => {
           if (releaseBookingEventClaim) await releaseBookingEventClaim();
           return new Response("Database error", { status: 500 });
         }
+        // Codex review (86e40ach2): a previous attempt may have marked the
+        // invoice paid and died (or failed) before writing its revenue. Only a
+        // duplicate whose revenue exists is skipped; otherwise reconcile.
+        let reconcileOnly = false;
         if (!claimedInvoice) {
-          console.log("Addon invoice already paid, skipping duplicate");
-          await finishBookingEventClaim();
-          return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
-            headers: { "Content-Type": "application/json" },
-            status: 200,
-          });
+          const { count: existingRevenue, error: revenueCheckError } = await supabase
+            .from("booking_revenue_items")
+            .select("id", { count: "exact", head: true })
+            .eq("payment_split", "addon")
+            .eq("metadata->>addon_invoice_id", invoiceId);
+          if (revenueCheckError) {
+            console.error("Could not check add-on revenue on duplicate:", revenueCheckError);
+            if (releaseBookingEventClaim) await releaseBookingEventClaim();
+            return new Response("Database error", { status: 500 });
+          }
+          if ((existingRevenue ?? 0) > 0) {
+            console.log("Addon invoice already paid, skipping duplicate");
+            await finishBookingEventClaim();
+            return new Response(JSON.stringify({ received: true, skipped: "duplicate" }), {
+              headers: { "Content-Type": "application/json" },
+              status: 200,
+            });
+          }
+          console.warn(`[ADDON_REVENUE_RECONCILE] invoice ${invoiceId} paid without revenue lines; writing them now`);
+          reconcileOnly = true;
         }
 
         console.log("Addon invoice marked as paid:", invoiceId);
@@ -797,6 +816,9 @@ serve(async (req) => {
               console.error("Could not record addon_revenue_write_failed event:", readFailEventError);
             }
           }
+          // Retryable: the next Stripe retry reconciles (duplicate path above).
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
+          return new Response("Could not read paid add-on invoice", { status: 500 });
         }
 
         // Revenue lines for this add-on are collected and written in ONE insert
@@ -841,7 +863,7 @@ serve(async (req) => {
 
           // Insert a single bar_service revenue line for the add-on payment
           // (80/20 Stripe Connect split was already applied at checkout)
-          const paymentDate = orlandoToday();
+          const paymentDate = orlandoDate(new Date(event.created * 1000));
           if (!chargedLines) addonRevenueRows.push({
             booking_id: bookingId,
             item_category: "bar_service",
@@ -871,7 +893,7 @@ serve(async (req) => {
         // We do NOT mutate the booking's original fields — the add-on stays as its
         // own visible record (booking_addon_invoices + these revenue lines).
         if (paidInvoice && bookingId && chargedLines) {
-          const paymentDate = orlandoToday();
+          const paymentDate = orlandoDate(new Date(event.created * 1000));
           for (const line of chargedLines) {
             if (!(Number(line.amount) > 0)) continue;
             addonRevenueRows.push({
@@ -889,7 +911,7 @@ serve(async (req) => {
           }
         } else if (paidInvoice && bookingId) {
           const inv = paidInvoice as Record<string, unknown>;
-          const paymentDate = orlandoToday();
+          const paymentDate = orlandoDate(new Date(event.created * 1000));
           const baseMeta = {
             source: "addon_invoice",
             addon_invoice_id: invoiceId,
@@ -993,6 +1015,19 @@ serve(async (req) => {
               console.error("Could not record addon_revenue_write_failed event:", failureEventError);
             }
           }
+          // Retryable: Stripe retries, the duplicate path reconciles.
+          if (releaseBookingEventClaim) await releaseBookingEventClaim();
+          return new Response("Add-on revenue not recorded", { status: 500 });
+        }
+
+        if (reconcileOnly) {
+          // Payment event, receipt and notifications already happened on the
+          // first attempt (or will be visible from its failure event).
+          await finishBookingEventClaim();
+          return new Response(JSON.stringify({ received: true, reconciled: "addon_revenue" }), {
+            headers: { "Content-Type": "application/json" },
+            status: 200,
+          });
         }
 
         // Log the event

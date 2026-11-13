@@ -121,7 +121,8 @@ describe("stripe-webhook writes add-on revenue in one insert and records failure
   it("collects every add-on line and inserts them together", () => {
     // 5 legacy column lines + 1 loop over the stored charged lines (M-32)
     expect(branch.match(/addonRevenueRows\.push\(/g)?.length).toBe(6);
-    expect(branch.match(/from\("booking_revenue_items"\)/g)?.length).toBe(1);
+    // one insert + one existence check on the duplicate/reconcile path (86e40ach2)
+    expect(branch.match(/from\("booking_revenue_items"\)/g)?.length).toBe(2);
     expect(branch).toMatch(/\.insert\(addonRevenueRows, \{ defaultToNull: false \}\)/);
   });
 

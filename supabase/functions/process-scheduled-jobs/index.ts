@@ -415,31 +415,40 @@ serve(async (req) => {
               },
             });
 
-            // Call syncToGHL to notify GHL of the lifecycle change
-            console.log(`Calling syncToGHL for booking ${job.booking_id}`);
-            try {
-              const syncResponse = await fetch(
-                `${supabaseUrl}/functions/v1/sync-to-ghl`,
-                {
+            // Call syncToGHL to notify GHL of the lifecycle change. Same retry +
+            // visible failure as the lifecycle cron (Codex review, 86e40ach2):
+            // once in_progress, nothing re-selects this booking for a sync.
+            let ghlSynced = false;
+            let ghlSyncError = "";
+            for (let attempt = 1; attempt <= 2 && !ghlSynced; attempt++) {
+              try {
+                const syncResponse = await fetch(`${supabaseUrl}/functions/v1/sync-to-ghl`, {
                   method: "POST",
                   headers: {
                     "Content-Type": "application/json",
                     "Authorization": `Bearer ${supabaseServiceKey}`,
                   },
-                  body: JSON.stringify({ booking_id: job.booking_id }),
-                }
-              );
-
-              if (!syncResponse.ok) {
-                const syncError = await syncResponse.text();
-                console.error(`syncToGHL failed for booking ${job.booking_id}:`, syncError);
-                // Don't fail the job, just log the error - the lifecycle is already updated
-              } else {
-                console.log(`syncToGHL completed for booking ${job.booking_id}`);
+                  body: JSON.stringify({ booking_id: job.booking_id, sync_reason: "event_started" }),
+                });
+                const syncText = await syncResponse.text();
+                let syncBody: { ok?: boolean } = {};
+                try { syncBody = JSON.parse(syncText); } catch { /* not JSON */ }
+                if (syncResponse.ok && syncBody.ok !== false) ghlSynced = true;
+                else ghlSyncError = syncText.slice(0, 300);
+              } catch (syncError) {
+                ghlSyncError = syncError instanceof Error ? syncError.message : String(syncError);
               }
-            } catch (syncError) {
-              console.error(`syncToGHL exception for booking ${job.booking_id}:`, syncError);
-              // Don't fail the job, just log the error
+              if (!ghlSynced && attempt === 1) await new Promise((r) => setTimeout(r, 2000));
+            }
+            if (!ghlSynced) {
+              console.error(`syncToGHL failed for booking ${job.booking_id}:`, ghlSyncError);
+              const { error: ghlLogError } = await supabase.from("booking_events").insert({
+                booking_id: job.booking_id,
+                event_type: "ghl_sync_failed_after_lifecycle",
+                channel: "system",
+                metadata: { to_lifecycle: "in_progress", error: ghlSyncError, job_id: job.id },
+              });
+              if (ghlLogError) console.error("Could not log GHL sync failure:", ghlLogError);
             }
 
             // Mark job as completed
