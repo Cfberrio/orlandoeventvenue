@@ -187,16 +187,41 @@ async function handleAppointmentDelete(supabase: any, payload: any) {
   
   console.log(`[WEBHOOK] Deleting booking for appointment: ${appointmentId}`);
   
-  // Mark as cancelled instead of deleting
-  const { error } = await supabase
+  // Mark as cancelled instead of deleting. The DB cancel trigger (M-9,
+  // 86e40ach2) cancels lifecycle, staff, jobs, blocks and unpaid add-ons.
+  const { data: cancelled, error } = await supabase
     .from('bookings')
     .update({ status: 'cancelled' })
-    .eq('ghl_appointment_id', appointmentId);
-  
+    .eq('ghl_appointment_id', appointmentId)
+    .neq('status', 'cancelled')
+    .select('id');
+
   if (error) {
     console.error("[WEBHOOK] Error deleting booking:", error);
     throw error;
   }
-  
-  console.log(`[WEBHOOK] ✅ Cancelled booking for appointment ${appointmentId}`);
+
+  // Close Stripe links like an admin cancel (no second guest email: the
+  // booking is already cancelled when cancel-booking reads it).
+  for (const row of (cancelled ?? []) as Array<{ id: string }>) {
+    try {
+      const { data: cleanup, error: cleanupError } = await supabase.functions.invoke('cancel-booking', {
+        body: { booking_id: row.id },
+      });
+      if (cleanupError || cleanup?.ok === false) {
+        console.error(`[WEBHOOK] cancel-booking cleanup failed for ${row.id}:`, cleanupError ?? cleanup?.error);
+        const { error: logError } = await supabase.from('booking_events').insert({
+          booking_id: row.id,
+          event_type: 'cancel_cleanup_failed',
+          channel: 'ghl',
+          metadata: { source: 'ghl_appointment_delete', error: String(cleanupError?.message ?? cleanup?.error ?? 'unknown') },
+        });
+        if (logError) console.error("[WEBHOOK] Error logging cleanup failure:", logError);
+      }
+    } catch (cleanupErr) {
+      console.error(`[WEBHOOK] cancel-booking cleanup threw for ${row.id}:`, cleanupErr);
+    }
+  }
+
+  console.log(`[WEBHOOK] ✅ Cancelled ${cancelled?.length ?? 0} booking(s) for appointment ${appointmentId}`);
 }

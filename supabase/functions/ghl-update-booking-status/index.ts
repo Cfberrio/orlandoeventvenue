@@ -343,6 +343,30 @@ serve(async (req) => {
 
     console.log(`Booking ${booking_id} updated: status=${applyStatus || 'unchanged'}, lifecycle=${applyLifecycle || 'unchanged'}`);
 
+    // M-9 (86e40ach2): a cancel from GHL gets the same cleanup as an admin
+    // cancel. The DB trigger already cancelled staff, jobs, blocks and unpaid
+    // add-on invoices; cancel-booking closes the Stripe links. It sees the
+    // booking as already cancelled, so it sends no second guest email.
+    if (applyStatus === "cancelled" || applyLifecycle === "cancelled") {
+      try {
+        const { data: cleanup, error: cleanupError } = await supabase.functions.invoke("cancel-booking", {
+          body: { booking_id },
+        });
+        if (cleanupError || cleanup?.ok === false) {
+          console.error("cancel-booking cleanup after GHL cancel failed:", cleanupError ?? cleanup?.error);
+          const { error: cleanupLogError } = await supabase.from("booking_events").insert({
+            booking_id,
+            event_type: "cancel_cleanup_failed",
+            channel: "ghl",
+            metadata: { error: String(cleanupError?.message ?? cleanup?.error ?? "unknown") },
+          });
+          if (cleanupLogError) console.error("Error logging cancel cleanup failure:", cleanupLogError);
+        }
+      } catch (cleanupErr) {
+        console.error("cancel-booking cleanup after GHL cancel threw:", cleanupErr);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         ok: true,

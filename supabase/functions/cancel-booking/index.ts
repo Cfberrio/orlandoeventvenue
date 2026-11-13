@@ -4,6 +4,11 @@ import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { authorizeCaller, logBookingEvent } from "../_shared/billing-server.ts";
 import {
+  type AddonExpiryResult,
+  type AddonSessionRow,
+  expireAddonSessionsWith,
+} from "../_shared/addon-session-expiry.ts";
+import {
   BRAND,
   CONTACT,
   detailTable,
@@ -76,6 +81,34 @@ function generateCancellationEmailHTML(booking: BookingData): string {
     body,
     accent: BRAND.danger,
   });
+}
+
+// deno-lint-ignore no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function expireAddonSessions(supabase: any, bookingId: string): Promise<AddonExpiryResult> {
+  const { data: rows, error } = await supabase
+    .from("booking_addon_invoices")
+    .select("id, stripe_session_id")
+    .eq("booking_id", bookingId)
+    .is("paid_at", null)
+    .not("stripe_session_id", "is", null);
+  if (error) {
+    console.error("Could not list add-on invoices to expire:", error);
+    return { checked: 0, expired: [], already_closed: [], failed: [{ invoice_id: "*", session_id: "*", error: error.message }] };
+  }
+  const stripeKey = Deno.env.get("Stripe_Secret_Key");
+  const stripe = stripeKey ? new Stripe(stripeKey, { apiVersion: "2023-10-16" }) : null;
+  const result = await expireAddonSessionsWith(
+    (rows ?? []) as AddonSessionRow[],
+    stripe
+      ? {
+          retrieve: (id) => stripe.checkout.sessions.retrieve(id),
+          expire: (id) => stripe.checkout.sessions.expire(id),
+        }
+      : null,
+  );
+  if (result.failed.length > 0) console.error("Add-on sessions not expired:", result.failed);
+  return result;
 }
 
 serve(async (req) => {
@@ -200,6 +233,22 @@ serve(async (req) => {
       });
     }
 
+    // M-9: unpaid add-on invoices must not stay payable. The DB cancel
+    // trigger already marked them expired; here the Stripe sessions are
+    // closed. A payment that slips in first is still recorded by the webhook
+    // and shows up in the refund review.
+    const addonExpiry = await expireAddonSessions(supabase, booking_id);
+    if (addonExpiry.checked > 0) {
+      await logBookingEvent(supabase, booking_id, "addon_invoice_voided_on_cancel", addonExpiry);
+    }
+
+    // What was collected decides whether the office must record a refund.
+    const { data: collected, error: collectedError } = await supabase.rpc("admin_booking_collected", {
+      p_booking_id: booking_id,
+    });
+    if (collectedError) console.error("Could not read collected amount:", collectedError);
+    const collectedTotal = Number((collected as { total?: number } | null)?.total ?? 0);
+
     const { data: deletedJobs, error: deleteJobsError } = await supabase
       .from("scheduled_jobs")
       .delete()
@@ -234,6 +283,8 @@ serve(async (req) => {
           reservation_number: booking.reservation_number,
           jobs_deleted: deletedJobs?.length || 0,
           blocks_deleted: deletedBlocks?.length || 0,
+          addon_sessions_expired: addonExpiry.expired.length,
+          collected_total: collectedTotal,
           already_cancelled: true,
         }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -322,6 +373,8 @@ serve(async (req) => {
         reservation_number: booking.reservation_number,
         jobs_deleted: deletedJobs?.length || 0,
         blocks_deleted: deletedBlocks?.length || 0,
+        addon_sessions_expired: addonExpiry.expired.length,
+        collected_total: collectedTotal,
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );

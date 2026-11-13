@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { addonInvoiceItemLabels, paidAddonInvoices, paidAddonTotal, type AddonInvoiceLike } from "@/lib/addonInvoice";
 import { RecordPaymentDialog } from "@/components/admin/RecordPaymentDialog";
+import { RefundReviewCard } from "@/components/admin/RefundReviewCard";
 import { supabase } from "@/integrations/supabase/client";
 import { validateProductionTimes, type ProductionPackage } from "./productionValidation";
 import { useParams, Link, useSearchParams } from "react-router-dom";
@@ -337,6 +338,12 @@ export default function BookingDetail() {
   };
 
   const handleStatusChange = async (newStatus: string) => {
+    // M-9: cancelling is never a bare status write; it goes through the
+    // cancel flow (staff, links, jobs, guest email, refund review).
+    if (newStatus === "cancelled") {
+      setShowCancelDialog(true);
+      return;
+    }
     try {
       // Bar service no longer blocks pre_event_ready; vendor can be assigned at any time.
 
@@ -709,7 +716,11 @@ export default function BookingDetail() {
 
       toast({
         title: "Booking Cancelled Successfully",
-        description: `Reservation ${booking.reservation_number} has been cancelled. ${data.jobs_deleted || 0} scheduled jobs removed. Guest has been notified.`,
+        description:
+          `Reservation ${booking.reservation_number} has been cancelled. Guest has been notified.` +
+          (Number(data.collected_total) > 0
+            ? ` $${Number(data.collected_total).toFixed(2)} was collected: record the refund decision on this page.`
+            : ""),
       });
 
       setShowCancelDialog(false);
@@ -829,6 +840,7 @@ export default function BookingDetail() {
 
         {/* Review Tab */}
         <TabsContent value="review" className="space-y-4">
+          <RefundReviewCard booking={booking} />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Contact Information */}
             <Card className="border-l-4 border-l-blue-500">
@@ -2251,10 +2263,13 @@ export default function BookingDetail() {
               <div className="text-sm space-y-2">
                 <div className="font-medium">The following actions will be performed:</div>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>Mark the booking as <strong>cancelled</strong></li>
-                  <li>Remove all pending and failed automated jobs</li>
+                  <li>Mark the booking as <strong>cancelled</strong> and free the date</li>
+                  <li>Take staff off the event and void their unpaid pay lines</li>
+                  <li>Close the balance link and any unpaid add-on payment links</li>
+                  <li>Stop all reminders and automated jobs</li>
                   <li>Send cancellation notification to <strong>{booking.email}</strong></li>
                   <li>Update status in GoHighLevel</li>
+                  <li>If money was collected, ask you to record the refund decision</li>
                 </ul>
               </div>
 
