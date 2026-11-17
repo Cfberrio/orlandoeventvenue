@@ -18,7 +18,9 @@ import {
   ExternalLink,
   Copy,
   CopyPlus,
-  Trash2,
+  Ban,
+  BadgeCheck,
+  Send,
   RefreshCw,
   Square,
   Zap,
@@ -29,6 +31,8 @@ import { format } from "date-fns";
 import CreateInvoiceDialog, { type InvoiceInitialData } from "@/components/admin/CreateInvoiceDialog";
 import EditRecurringDayDialog from "@/components/admin/EditRecurringDayDialog";
 import { formatSendDate, monthlyScheduleLabel } from "@/lib/recurringSchedule";
+import InvoiceActionDialog, { type InvoiceActionTarget } from "@/components/admin/InvoiceActionDialog";
+import AddonInvoicesCard from "@/components/admin/AddonInvoicesCard";
 
 interface Invoice {
   id: string;
@@ -59,6 +63,9 @@ interface Invoice {
   recurring_template_only: boolean;
   recurring_last_error?: string | null;
   recurring_last_error_at?: string | null;
+  void_reason?: string | null;
+  paid_offline_method?: string | null;
+  paid_offline_reference?: string | null;
 }
 
 const statusConfig: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -66,6 +73,7 @@ const statusConfig: Record<string, { label: string; variant: "default" | "second
   paid: { label: "Paid", variant: "default" },
   expired: { label: "Expired", variant: "destructive" },
   cancelled: { label: "Cancelled", variant: "outline" },
+  void: { label: "Void", variant: "outline" },
 };
 
 function frequencyLabel(inv: Pick<Invoice, "recurring_day_of_month" | "recurring_interval_days">): string {
@@ -101,6 +109,7 @@ export default function Invoices() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [duplicateData, setDuplicateData] = useState<InvoiceInitialData | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<Invoice | null>(null);
+  const [actionTarget, setActionTarget] = useState<InvoiceActionTarget | null>(null);
 
   const { data: invoices, isLoading, refetch } = useQuery({
     queryKey: ["admin-invoices"],
@@ -127,23 +136,17 @@ export default function Invoices() {
     }
   };
 
-  const deleteInvoice = async (id: string, invoiceNumber: string) => {
-    if (!confirm(`Are you sure you want to delete invoice ${invoiceNumber}? This cannot be undone.`)) {
-      return;
-    }
-
-    const { error } = await (supabase as any)
-      .from("invoices")
-      .delete()
-      .eq("id", id);
-
-    if (error) {
-      toast({ title: "Failed to delete invoice", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: `Invoice ${invoiceNumber} deleted` });
-      refetch();
-    }
-  };
+  // E-8 (86e40ach2): invoices are voided, not deleted. Delete left the Stripe
+  // link payable, and a payment on a deleted invoice failed every webhook retry.
+  const openAction = (inv: Invoice, action: InvoiceActionTarget["action"]) =>
+    setActionTarget({
+      action,
+      kind: "invoice",
+      id: inv.id,
+      label: inv.invoice_number,
+      amount: Number(inv.total_charged ?? inv.amount),
+      recurringParent: inv.is_recurring && !inv.recurring_parent_id,
+    });
 
   const stopRecurring = async (id: string, invoiceNumber: string) => {
     if (!confirm(`Stop recurring for invoice ${invoiceNumber}? No more automatic invoices will be sent.`)) {
@@ -362,6 +365,16 @@ export default function Invoices() {
                         </TableCell>
                         <TableCell>
                           <Badge variant={status.variant}>{status.label}</Badge>
+                          {inv.payment_status === "void" && inv.void_reason && (
+                            <div className="text-[10px] text-muted-foreground max-w-[160px] truncate" title={inv.void_reason}>
+                              {inv.void_reason}
+                            </div>
+                          )}
+                          {inv.paid_offline_method && (
+                            <div className="text-[10px] text-muted-foreground" title={inv.paid_offline_reference ?? ""}>
+                              Paid offline ({inv.paid_offline_method.replace(/_/g, " ")})
+                            </div>
+                          )}
                         </TableCell>
                         <TableCell className="text-sm text-muted-foreground">
                           {format(new Date(inv.created_at), "MMM d, yyyy")}
@@ -432,15 +445,25 @@ export default function Invoices() {
                                 <Square className="h-4 w-4" />
                               </Button>
                             )}
-                            {inv.payment_status !== "paid" && !inv.recurring_active && (
+                            {inv.payment_status === "pending" && !isScheduledTemplate(inv) && (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => openAction(inv, "resend")} title="Resend (new link, old one closed)">
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => openAction(inv, "mark_paid")} title="Mark paid (offline)">
+                                  <BadgeCheck className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                            {inv.payment_status !== "paid" && inv.payment_status !== "void" && !inv.paid_at && (
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() => deleteInvoice(inv.id, inv.invoice_number)}
-                                title="Delete invoice"
+                                onClick={() => openAction(inv, "void")}
+                                title="Void invoice"
                                 className="text-destructive hover:text-destructive"
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Ban className="h-4 w-4" />
                               </Button>
                             )}
                           </div>
@@ -454,6 +477,10 @@ export default function Invoices() {
           )}
         </CardContent>
       </Card>
+
+      <AddonInvoicesCard />
+
+      <InvoiceActionDialog target={actionTarget} onClose={() => setActionTarget(null)} onDone={() => refetch()} />
 
       <CreateInvoiceDialog
         open={dialogOpen}

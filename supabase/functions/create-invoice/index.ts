@@ -143,6 +143,15 @@ serve(async (req: Request) => {
       );
     }
 
+    // E-8 (86e40ach2): never issue a new payment link for a paid or void
+    // invoice (manage-invoice resend calls this after closing the old link).
+    if (invoice.paid_at || invoice.payment_status === "paid" || invoice.payment_status === "void") {
+      return new Response(
+        JSON.stringify({ error: `Invoice is ${invoice.paid_at ? "paid" : invoice.payment_status}; no new link issued` }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // The recipient is the one stored on the invoice, never one supplied by
     // the caller, so a request cannot redirect a payment link elsewhere.
     const customer_email = String(invoice.customer_email ?? "").trim().toLowerCase();
