@@ -24,6 +24,8 @@ import { useToast } from "@/hooks/use-toast";
 import { usePayrollData, PayrollLineItem } from "@/hooks/usePayrollData";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
+import PayOverridePanel from "./PayOverridePanel";
+import { payModeOf } from "@/lib/payOverride";
 
 interface PayrollItemEditModalProps {
   isOpen: boolean;
@@ -312,10 +314,11 @@ export default function PayrollItemEditModal({
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="edit">Edit</TabsTrigger>
             <TabsTrigger value="bonus">Add Bonus</TabsTrigger>
             <TabsTrigger value="deduction">Add Deduction</TabsTrigger>
+            <TabsTrigger value="override">Override / No pay</TabsTrigger>
           </TabsList>
 
           {/* Edit Tab */}
@@ -463,6 +466,27 @@ export default function PayrollItemEditModal({
                 Add Deduction
               </Button>
             </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="override" className="space-y-4">
+            {item.assignment_id && (
+              <PayOverridePanel
+                assignmentId={item.assignment_id}
+                currentMode={payModeOf(assignmentData)}
+                currentAmount={assignmentData?.pay_override_amount ?? null}
+                currentReason={assignmentData?.pay_override_reason ?? null}
+                item={{
+                  payroll_item_id: item.payroll_item_id,
+                  pay_category: item.pay_category,
+                  amount: Number(item.amount),
+                  paid_status: item.paid_status,
+                }}
+                onDone={() => {
+                  onSuccess();
+                  onClose();
+                }}
+              />
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>

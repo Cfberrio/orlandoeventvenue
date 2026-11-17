@@ -44,8 +44,20 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
   const [isMarkPaidDialogOpen, setIsMarkPaidDialogOpen] = useState(false);
   const [isMarkingPaid, setIsMarkingPaid] = useState(false);
   
-  const { fetchPayrollLineItems, markAsPaid } = usePayrollData();
+  const { fetchPayrollLineItems, markAsPaid, markAsUnpaid } = usePayrollData();
   const { toast } = useToast();
+
+  const handleMarkUnpaid = async (item: PayrollLineItem) => {
+    if (!item.payroll_item_id) return;
+    try {
+      await markAsUnpaid([item.payroll_item_id]);
+      toast({ title: "Marked as unpaid", description: `$${Number(item.amount).toFixed(2)} is pending again` });
+      await loadLineItems();
+      onDataChanged?.();
+    } catch (error: any) {
+      toast({ title: "Could not mark as unpaid", description: error.message, variant: "destructive" });
+    }
+  };
 
   const loadLineItems = async () => {
     setIsLoading(true);
@@ -237,9 +249,14 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
                     {item.paid_status === 'paid' ? 'Paid' : 'Pending'}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-right">
-                  <Button 
-                    variant="ghost" 
+                <TableCell className="text-right whitespace-nowrap">
+                  {item.paid_status === 'paid' && item.payroll_item_id && (
+                    <Button variant="ghost" size="sm" onClick={() => handleMarkUnpaid(item)} title="Mark unpaid (paid by mistake)">
+                      Undo paid
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
                     size="sm"
                     onClick={() => handleEdit(item)}
                   >

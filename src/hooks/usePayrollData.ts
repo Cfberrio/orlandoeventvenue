@@ -256,12 +256,14 @@ export function usePayrollData() {
       .in('id', payrollItemIds)
       .select('id');
     
-    if (error) {
-      console.error('Error marking as paid:', error);
-      return { success: false, count: 0, error };
+    // E-6 (86e40ach2): callers ignored the result, so a failed or blocked
+    // update still showed success. Fail loudly instead.
+    if (error) throw new Error(`Not marked as paid: ${error.message}`);
+    const count = data?.length || 0;
+    if (count !== payrollItemIds.length) {
+      throw new Error(`Only ${count} of ${payrollItemIds.length} line(s) were marked as paid; reload and check.`);
     }
-    
-    return { success: true, count: data?.length || 0, error: null };
+    return { success: true, count, error: null };
   };
 
   /**
@@ -277,12 +279,14 @@ export function usePayrollData() {
       .in('id', payrollItemIds)
       .select('id');
     
-    if (error) {
-      console.error('Error marking as unpaid:', error);
-      return { success: false, count: 0, error };
+    // E-6 (86e40ach2): callers ignored the result, so a failed or blocked
+    // update still showed success. Fail loudly instead.
+    if (error) throw new Error(`Not marked as unpaid: ${error.message}`);
+    const count = data?.length || 0;
+    if (count !== payrollItemIds.length) {
+      throw new Error(`Only ${count} of ${payrollItemIds.length} line(s) were marked as unpaid; reload and check.`);
     }
-    
-    return { success: true, count: data?.length || 0, error: null };
+    return { success: true, count, error: null };
   };
 
   /**
