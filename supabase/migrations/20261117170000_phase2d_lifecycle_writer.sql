@@ -115,10 +115,13 @@ BEGIN
     RETURN jsonb_build_object('applied', false, 'reason', 'stale_state');
   END IF;
   IF p_lifecycle IS NOT NULL AND p_lifecycle IS DISTINCT FROM v_b.lifecycle_status THEN
+    -- A GHL cancel is applied here (trg_booking_cancel_normalize + cascade do
+    -- the cleanup; the edge function then calls cancel-booking for Stripe).
     IF p_lifecycle = 'cancelled' THEN
-      RETURN jsonb_build_object('applied', false, 'reason', 'cancel_through_cancel_booking');
-    END IF;
-    IF NOT public._lifecycle_transition_allowed(COALESCE(v_b.lifecycle_status, 'pending'), p_lifecycle) THEN
+      IF COALESCE(v_b.lifecycle_status, 'pending') NOT IN ('pending', 'confirmed', 'pre_event_ready', 'in_progress', 'post_event') THEN
+        RETURN jsonb_build_object('applied', false, 'reason', 'transition_not_allowed');
+      END IF;
+    ELSIF NOT public._lifecycle_transition_allowed(COALESCE(v_b.lifecycle_status, 'pending'), p_lifecycle) THEN
       RETURN jsonb_build_object('applied', false, 'reason', 'transition_not_allowed');
     END IF;
     PERFORM set_config('oev.lifecycle_writer', 'on', true);

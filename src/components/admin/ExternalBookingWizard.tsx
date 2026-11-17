@@ -14,9 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCreateAvailabilityBlock, calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
-import { generateReservationNumber } from "@/hooks/useCreateBooking";
-import { buildExternalFullName } from "@/lib/externalBooking";
+import { calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
 import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
 
 interface ExternalBookingWizardProps {
@@ -67,7 +65,6 @@ const generateRecurringDates = (startDate: Date, duration: BlockDuration): Date[
 
 export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWizardProps) {
   const queryClient = useQueryClient();
-  const createBlock = useCreateAvailabilityBlock();
   const { data: bookedSlots = [] } = useBookedDates();
   const { data: availabilityBlocks = [] } = useAvailabilityBlocksForCalendar();
   const { data: blackoutDates = [] } = useBlackoutDates();
@@ -177,134 +174,37 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       const effectiveDuration = bookingType === "hourly" ? "1_day" : duration;
       const effectiveEndDate = bookingType === "hourly" ? eventDate : endDateStr;
 
-      // External bookings run the same automation pipeline as website
-      // bookings (host report jobs, lifecycle transitions, GHL messages).
-      // EXTERNAL_BLOCK_FLOW has requires_payment=false, which would abort
-      // schedule-balance-payment before it creates the lifecycle job.
-      const { data: policyData, error: policyError } = await supabase
-        .from("booking_policies")
-        .select("id")
-        .eq("policy_name", "WEBSITE_FULL_FLOW")
-        .single();
-
-      if (policyError || !policyData) {
-        throw new Error("Failed to fetch booking policy");
-      }
-
-      // Real name first, " - External" suffix: GHL derives firstName from the
-      // first word of the contact name, and firstName feeds customer SMS/email.
-      const externalFullName = buildExternalFullName(clientName);
-
-      // External = client already paid deposit + balance outside our Stripe.
-      // fully_paid keeps the booking out of the remaining-balance chain
-      // (schedule-balance-payment only runs for deposit_paid), so
-      // balance_payment_url never populates and the GHL balance automation
-      // (triggered by that field changing) never fires.
-      const depositPaid = Math.round((parsedTotal / 2) * 100) / 100;
-      const balancePaid = Math.round((parsedTotal - depositPaid) * 100) / 100;
-      const paidAt = new Date().toISOString();
-
-      // Step 1: Create the booking record
-      const { data: booking, error: bookingError } = await supabase
-        .from("bookings")
-        .insert({
+      // E-16 (86e40ach2): one server call locks the date, re-checks conflicts,
+      // creates the booking (fully paid, website automation policy) and its
+      // block, and moves it to pre_event_ready through the lifecycle writer.
+      const { data: created, error: createError } = await supabase.rpc("admin_create_blocking_booking" as never, {
+        p: {
+          kind: "external",
           booking_type: bookingType,
-          event_date: eventDate,
-          // Daily bookings mirror website bookings (01:00-23:00) so
-          // downstream schedulers compute the same job times.
-          start_time: bookingType === "hourly" ? startTime : "01:00",
-          end_time: bookingType === "hourly" ? endTime : "23:00",
-          number_of_guests: numberOfGuests,
-          event_type: eventType,
-          full_name: externalFullName,
-          reservation_number: generateReservationNumber(),
-          email: clientEmail,
-          phone: clientPhone,
-          lead_source: "external_admin",
-          status: "confirmed",
-          lifecycle_status: "confirmed",
-          payment_status: "fully_paid",
-          package: "none",
-          base_rental: parsedTotal,
-          cleaning_fee: 0,
-          package_cost: 0,
-          optional_services: 0,
-          taxes_fees: 0,
-          total_amount: parsedTotal,
-          deposit_amount: depositPaid,
-          balance_amount: balancePaid,
-          deposit_fee: 0,
-          balance_fee: 0,
-          deposit_total_charged: depositPaid,
-          balance_total_charged: balancePaid,
-          deposit_paid_at: paidAt,
-          balance_paid_at: paidAt,
-          agree_to_rules: true,
-          initials: clientName.split(" ").map(n => n[0]).join("").toUpperCase(),
-          signer_name: clientName,
-          signature: "External Booking",
-          signature_date: eventDate,
-          client_notes: notes || null,
-          booking_origin: "external",
-          policy_id: policyData.id,
-        })
-        .select()
-        .single();
-
-      if (bookingError) throw bookingError;
-
-      // Step 2: Create availability block(s)
-      if (bookingType === "hourly" && duration !== "1_day") {
-        // For recurring hourly bookings, create multiple blocks
-        const recurringDates = generateRecurringDates(date, duration);
-        
-        for (const recurringDate of recurringDates) {
-          const recurringDateStr = format(recurringDate, "yyyy-MM-dd");
-          await createBlock.mutateAsync({
-            // "system" (not "internal_admin") keeps external clients out of
-            // send-internal-booking-reminders, which emails the client 1 day
-            // before for internal_admin blocks — GHL already covers that.
-            source: "system",
-            booking_id: booking.id,
-            block_type: bookingType,
-            start_date: recurringDateStr,
-            end_date: recurringDateStr,
-            start_time: startTime,
-            end_time: endTime,
-            notes: `External booking (recurring): ${eventType} - ${clientName}`,
-          });
-        }
-      } else {
-        // For single occurrence or daily bookings
-        await createBlock.mutateAsync({
-          // "system" for the same reason as recurring blocks above.
-          source: "system",
-          booking_id: booking.id,
-          block_type: bookingType,
-          start_date: eventDate,
-          end_date: effectiveEndDate,
+          dates: [eventDate],
+          end_date: bookingType === "daily" ? effectiveEndDate : null,
           start_time: bookingType === "hourly" ? startTime : null,
           end_time: bookingType === "hourly" ? endTime : null,
-          notes: `External booking: ${eventType} - ${clientName}`,
-        });
+          number_of_guests: numberOfGuests,
+          event_type: eventType,
+          client_name: clientName,
+          client_email: clientEmail,
+          client_phone: clientPhone,
+          notes: notes || null,
+          total_amount: parsedTotal,
+        },
+      } as never);
+      if (createError) throw createError;
+      const result = (created ?? {}) as { booking_ids?: string[]; warnings?: string[] };
+      const booking = { id: result.booking_ids?.[0] as string };
+      if (!booking.id) throw new Error("The booking was not created");
+      if (result.warnings?.length) {
+        toast.error("Booking created, but it is not Pre-Event Ready yet", { description: result.warnings.join("; ") });
       }
 
-      // Step 3: Mark pre_event_ready and trigger automation — same pattern
-      // as BookingDetail.handleMarkPreEventReady. The lifecycle UPDATE fires
-      // the DB trigger, and the explicit invoke is the belt-and-suspenders
-      // the rest of the app uses (both paths dedupe on existing jobs).
-      // This creates the host report jobs (event-30d/-7d/-1d), one_hour_report
-      // and guest feedback. Balance jobs are skipped because fully_paid.
+      // Automation: host report jobs, one_hour_report, guest feedback (balance
+      // jobs are skipped because the booking is fully paid). Dedupes on jobs.
       try {
-        const { error: readyError } = await supabase
-          .from("bookings")
-          .update({
-            pre_event_ready: "true",
-            lifecycle_status: "pre_event_ready",
-          })
-          .eq("id", booking.id);
-        if (readyError) throw readyError;
-
         const { error: automationError } = await supabase.functions.invoke(
           "trigger-booking-automation",
           { body: { booking_id: booking.id } },
@@ -313,8 +213,8 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
           console.error("trigger-booking-automation failed:", automationError);
           toast.error("Booking created, but automation scheduling may have failed");
         }
-      } catch (readyErr) {
-        console.error("Error marking booking pre_event_ready:", readyErr);
+      } catch (automationErr) {
+        console.error("Error triggering automation:", automationErr);
         toast.error("Booking created, but automation setup failed");
       }
 
@@ -390,7 +290,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       handleClose();
     } catch (error) {
       console.error("Error creating external booking:", error);
-      toast.error("Failed to create external booking");
+      toast.error("Failed to create external booking", { description: (error as { message?: string })?.message });
     } finally {
       setIsSubmitting(false);
     }

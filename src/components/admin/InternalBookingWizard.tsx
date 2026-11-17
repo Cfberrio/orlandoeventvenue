@@ -14,7 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useCreateAvailabilityBlock, calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
+import { calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
 import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
 
 interface InternalBookingWizardProps {
@@ -65,7 +65,6 @@ const generateRecurringDates = (startDate: Date, duration: BlockDuration): Date[
 
 export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWizardProps) {
   const queryClient = useQueryClient();
-  const createBlock = useCreateAvailabilityBlock();
   const { data: bookedSlots = [] } = useBookedDates();
   const { data: availabilityBlocks = [] } = useAvailabilityBlocksForCalendar();
   const { data: blackoutDates = [] } = useBlackoutDates();
@@ -168,116 +167,41 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
       const effectiveDuration = bookingType === "hourly" ? "1_day" : duration;
       const effectiveEndDate = bookingType === "hourly" ? eventDate : endDateStr;
 
-      // Get the INTERNAL_BLOCK_FLOW policy
-      const { data: policyData, error: policyError } = await supabase
-        .from("booking_policies")
-        .select("id")
-        .eq("policy_name", "INTERNAL_BLOCK_FLOW")
-        .single();
-
-      if (policyError || !policyData) {
-        throw new Error("Failed to fetch internal booking policy");
-      }
-
-      // Step 1: Create the booking record
-      const { data: booking, error: bookingError } = await supabase
-        .from("bookings")
-        .insert({
+      // E-16 / E-17 (86e40ach2): one server call locks the dates, re-checks
+      // conflicts, and creates one booking + block per occurrence (a series
+      // shares series_id), or nothing at all.
+      const occurrenceDates =
+        bookingType === "hourly" && duration !== "1_day"
+          ? generateRecurringDates(date, duration).map((d) => format(d, "yyyy-MM-dd"))
+          : [eventDate];
+      const { data: created, error: createError } = await supabase.rpc("admin_create_blocking_booking" as never, {
+        p: {
+          kind: "internal",
           booking_type: bookingType,
-          event_date: eventDate,
+          dates: occurrenceDates,
+          end_date: bookingType === "daily" ? effectiveEndDate : null,
           start_time: bookingType === "hourly" ? startTime : null,
           end_time: bookingType === "hourly" ? endTime : null,
           number_of_guests: numberOfGuests,
           event_type: eventType,
-          full_name: clientName,
-          email: clientEmail,
-          phone: clientPhone,
-          lead_source: "internal_admin",
-          status: "confirmed",
-          lifecycle_status: "confirmed",
-          payment_status: "invoiced",
-          base_rental: 0,
-          cleaning_fee: 0,
-          package_cost: 0,
-          optional_services: 0,
-          taxes_fees: 0,
-          total_amount: 0,
-          deposit_amount: 0,
-          balance_amount: 0,
-          agree_to_rules: true,
-          initials: clientName.split(" ").map(n => n[0]).join("").toUpperCase(),
-          signer_name: clientName,
-          signature: "Internal Booking",
-          signature_date: eventDate,
-          client_notes: notes || null,
-          booking_origin: "internal",
-          policy_id: policyData.id,
-        })
-        .select()
-        .single();
+          client_name: clientName,
+          client_email: clientEmail,
+          client_phone: clientPhone,
+          notes: notes || null,
+        },
+      } as never);
+      if (createError) throw createError;
+      const bookingIds: string[] = ((created as { booking_ids?: string[] } | null)?.booking_ids) ?? [];
 
-      if (bookingError) throw bookingError;
-
-      // Step 2: Create availability block(s)
-      if (bookingType === "hourly" && duration !== "1_day") {
-        // For recurring hourly bookings, create multiple blocks
-        const recurringDates = generateRecurringDates(date, duration);
-        
-        for (const recurringDate of recurringDates) {
-          const recurringDateStr = format(recurringDate, "yyyy-MM-dd");
-          await createBlock.mutateAsync({
-            source: "internal_admin",
-            booking_id: booking.id,
-            block_type: bookingType,
-            start_date: recurringDateStr,
-            end_date: recurringDateStr,
-            start_time: startTime,
-            end_time: endTime,
-            notes: `Internal booking (recurring): ${eventType} - ${clientName}`,
+      // Follow-ups per booking; a failure here does not undo the bookings.
+      for (const bookingId of bookingIds) {
+        try {
+          await supabase.functions.invoke("sync-ghl-calendar", {
+            body: { booking_id: bookingId, skip_if_unchanged: false },
           });
+        } catch (syncError) {
+          console.error("Error syncing to GHL calendar:", syncError);
         }
-      } else {
-        // For single occurrence or daily bookings
-        await createBlock.mutateAsync({
-          source: "internal_admin",
-          booking_id: booking.id,
-          block_type: bookingType,
-          start_date: eventDate,
-          end_date: effectiveEndDate,
-          start_time: bookingType === "hourly" ? startTime : null,
-          end_time: bookingType === "hourly" ? endTime : null,
-          notes: `Internal booking: ${eventType} - ${clientName}`,
-        });
-      }
-
-      // Step 3: Sync to GHL Calendar (automatic)
-      try {
-        console.log("Syncing internal booking to GHL calendar:", booking.id);
-        await supabase.functions.invoke("sync-ghl-calendar", {
-          body: { booking_id: booking.id, skip_if_unchanged: false },
-        });
-        console.log("GHL calendar sync triggered for internal booking");
-      } catch (syncError) {
-        console.error("Error syncing to GHL calendar:", syncError);
-        // Don't fail the booking creation if sync fails
-      }
-
-      // Step 4: Populate revenue items
-      try {
-        console.log("Populating revenue items for booking:", booking.id);
-        const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
-          p_booking_id: booking.id,
-          p_is_historical: false
-        });
-        
-        if (revenueError) {
-          console.error('Failed to create revenue items:', revenueError);
-        } else {
-          console.log('Revenue items populated successfully');
-        }
-      } catch (revErr) {
-        console.error('Exception populating revenue items:', revErr);
-        // Don't fail the booking creation if revenue items fail
       }
 
       // Invalidate queries
@@ -300,7 +224,9 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
       handleClose();
     } catch (error) {
       console.error("Error creating internal booking:", error);
-      toast.error("Failed to create internal booking");
+      toast.error("Failed to create internal booking", {
+        description: (error as { message?: string })?.message,
+      });
     } finally {
       setIsSubmitting(false);
     }
