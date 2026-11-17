@@ -202,6 +202,7 @@ export type Database = {
       }
       booking_addon_invoices: {
         Row: {
+          admin_action_claimed_at: string | null
           bar_guest_count: number | null
           bar_package: string
           bar_package_label: string | null
@@ -211,6 +212,8 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          line_items: Json | null
+          link_created_at: string | null
           optional_services_cost: number
           package: string
           package_cost: number
@@ -228,8 +231,12 @@ export type Database = {
           tablecloths: boolean
           total_amount: number
           total_charged: number | null
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
+          admin_action_claimed_at?: string | null
           bar_guest_count?: number | null
           bar_package?: string
           bar_package_label?: string | null
@@ -239,6 +246,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          line_items?: Json | null
+          link_created_at?: string | null
           optional_services_cost?: number
           package?: string
           package_cost?: number
@@ -256,8 +265,12 @@ export type Database = {
           tablecloths?: boolean
           total_amount: number
           total_charged?: number | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
+          admin_action_claimed_at?: string | null
           bar_guest_count?: number | null
           bar_package?: string
           bar_package_label?: string | null
@@ -267,6 +280,8 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          line_items?: Json | null
+          link_created_at?: string | null
           optional_services_cost?: number
           package?: string
           package_cost?: number
@@ -284,6 +299,9 @@ export type Database = {
           tablecloths?: boolean
           total_amount?: number
           total_charged?: number | null
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -674,6 +692,67 @@ export type Database = {
           },
         ]
       }
+      booking_money_reviews: {
+        Row: {
+          booking_id: string
+          created_at: string
+          decision: string | null
+          decision_details: Json | null
+          details: Json
+          id: string
+          kind: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          decision?: string | null
+          decision_details?: Json | null
+          details?: Json
+          id?: string
+          kind: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          decision?: string | null
+          decision_details?: Json | null
+          details?: Json
+          id?: string
+          kind?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_money_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_money_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_money_reviews_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       booking_policies: {
         Row: {
           auto_lifecycle_transitions: boolean | null
@@ -733,6 +812,73 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      booking_price_basis: {
+        Row: {
+          booking_id: string
+          created_at: string
+          discount_applies_to: string | null
+          discount_type: string | null
+          discount_value: number | null
+          hourly_rate: number | null
+          package_rate: number | null
+          priced_end_time: string | null
+          priced_package_end_time: string | null
+          priced_package_start_time: string | null
+          priced_start_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          booking_id: string
+          created_at?: string
+          discount_applies_to?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          hourly_rate?: number | null
+          package_rate?: number | null
+          priced_end_time?: string | null
+          priced_package_end_time?: string | null
+          priced_package_start_time?: string | null
+          priced_start_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          booking_id?: string
+          created_at?: string
+          discount_applies_to?: string | null
+          discount_type?: string | null
+          discount_value?: number | null
+          hourly_rate?: number | null
+          package_rate?: number | null
+          priced_end_time?: string | null
+          priced_package_end_time?: string | null
+          priced_package_start_time?: string | null
+          priced_start_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "booking_price_basis_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "booking_price_basis_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "booking_price_basis_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
       }
       booking_price_snapshots: {
         Row: {
@@ -979,6 +1125,11 @@ export type Database = {
           hours_worked: number | null
           id: string
           notes: string | null
+          pay_override_amount: number | null
+          pay_override_at: string | null
+          pay_override_by: string | null
+          pay_override_mode: string | null
+          pay_override_reason: string | null
           reminder_sent_at: string | null
           response_at: string | null
           response_due_at: string | null
@@ -1011,6 +1162,11 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          pay_override_amount?: number | null
+          pay_override_at?: string | null
+          pay_override_by?: string | null
+          pay_override_mode?: string | null
+          pay_override_reason?: string | null
           reminder_sent_at?: string | null
           response_at?: string | null
           response_due_at?: string | null
@@ -1043,6 +1199,11 @@ export type Database = {
           hours_worked?: number | null
           id?: string
           notes?: string | null
+          pay_override_amount?: number | null
+          pay_override_at?: string | null
+          pay_override_by?: string | null
+          pay_override_mode?: string | null
+          pay_override_reason?: string | null
           reminder_sent_at?: string | null
           response_at?: string | null
           response_due_at?: string | null
@@ -1185,10 +1346,12 @@ export type Database = {
           pre_event_ready: string
           processing_fee_pct: number | null
           reservation_number: string | null
+          series_id: string | null
           setup_breakdown: boolean
           signature: string
           signature_date: string
           signer_name: string
+          slot_hold_until: string | null
           source: string | null
           start_time: string | null
           status: Database["public"]["Enums"]["booking_status"]
@@ -1277,10 +1440,12 @@ export type Database = {
           pre_event_ready?: string
           processing_fee_pct?: number | null
           reservation_number?: string | null
+          series_id?: string | null
           setup_breakdown?: boolean
           signature: string
           signature_date: string
           signer_name: string
+          slot_hold_until?: string | null
           source?: string | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -1369,10 +1534,12 @@ export type Database = {
           pre_event_ready?: string
           processing_fee_pct?: number | null
           reservation_number?: string | null
+          series_id?: string | null
           setup_breakdown?: boolean
           signature?: string
           signature_date?: string
           signer_name?: string
+          slot_hold_until?: string | null
           source?: string | null
           start_time?: string | null
           status?: Database["public"]["Enums"]["booking_status"]
@@ -1557,6 +1724,67 @@ export type Database = {
           },
         ]
       }
+      coupon_reservations: {
+        Row: {
+          booking_id: string
+          code: string
+          reserved_at: string
+        }
+        Insert: {
+          booking_id: string
+          code: string
+          reserved_at?: string
+        }
+        Update: {
+          booking_id?: string
+          code?: string
+          reserved_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coupon_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coupon_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "coupon_reservations_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: true
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
+      discount_code_attempts: {
+        Row: {
+          at: string
+          id: number
+          ip: string
+          ok: boolean
+        }
+        Insert: {
+          at?: string
+          id?: number
+          ip: string
+          ok: boolean
+        }
+        Update: {
+          at?: string
+          id?: number
+          ip?: string
+          ok?: boolean
+        }
+        Relationships: []
+      }
       discount_coupon_audit: {
         Row: {
           action: string
@@ -1603,8 +1831,10 @@ export type Database = {
           created_by: string | null
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
+          expires_at: string | null
           id: string
           is_active: boolean | null
+          max_uses: number | null
           updated_at: string | null
           updated_by: string | null
         }
@@ -1617,8 +1847,10 @@ export type Database = {
           created_by?: string | null
           discount_type: Database["public"]["Enums"]["discount_type"]
           discount_value: number
+          expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          max_uses?: number | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1631,8 +1863,10 @@ export type Database = {
           created_by?: string | null
           discount_type?: Database["public"]["Enums"]["discount_type"]
           discount_value?: number
+          expires_at?: string | null
           id?: string
           is_active?: boolean | null
+          max_uses?: number | null
           updated_at?: string | null
           updated_by?: string | null
         }
@@ -1948,6 +2182,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          admin_action_claimed_at: string | null
           amount: number
           created_at: string
           created_by: string | null
@@ -1957,11 +2192,14 @@ export type Database = {
           discount_amount: number
           discount_type: string | null
           discount_value: number | null
+          email_sent_at: string | null
           id: string
           invoice_number: string
           is_recurring: boolean
           line_items: Json | null
           paid_at: string | null
+          paid_offline_method: string | null
+          paid_offline_reference: string | null
           payment_status: string
           payment_url: string | null
           processing_fee: number | null
@@ -1969,9 +2207,13 @@ export type Database = {
           recurring_active: boolean
           recurring_day_of_month: number | null
           recurring_interval_days: number | null
+          recurring_last_error: string | null
+          recurring_last_error_at: string | null
           recurring_last_sent_at: string | null
           recurring_next_send_at: string | null
           recurring_parent_id: string | null
+          recurring_period: string | null
+          recurring_send_claimed_at: string | null
           recurring_template_only: boolean
           stripe_payment_intent_id: string | null
           stripe_session_id: string | null
@@ -1979,8 +2221,12 @@ export type Database = {
           title: string
           total_charged: number | null
           updated_at: string
+          void_reason: string | null
+          voided_at: string | null
+          voided_by: string | null
         }
         Insert: {
+          admin_action_claimed_at?: string | null
           amount: number
           created_at?: string
           created_by?: string | null
@@ -1990,11 +2236,14 @@ export type Database = {
           discount_amount?: number
           discount_type?: string | null
           discount_value?: number | null
+          email_sent_at?: string | null
           id?: string
           invoice_number?: string
           is_recurring?: boolean
           line_items?: Json | null
           paid_at?: string | null
+          paid_offline_method?: string | null
+          paid_offline_reference?: string | null
           payment_status?: string
           payment_url?: string | null
           processing_fee?: number | null
@@ -2002,9 +2251,13 @@ export type Database = {
           recurring_active?: boolean
           recurring_day_of_month?: number | null
           recurring_interval_days?: number | null
+          recurring_last_error?: string | null
+          recurring_last_error_at?: string | null
           recurring_last_sent_at?: string | null
           recurring_next_send_at?: string | null
           recurring_parent_id?: string | null
+          recurring_period?: string | null
+          recurring_send_claimed_at?: string | null
           recurring_template_only?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
@@ -2012,8 +2265,12 @@ export type Database = {
           title: string
           total_charged?: number | null
           updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Update: {
+          admin_action_claimed_at?: string | null
           amount?: number
           created_at?: string
           created_by?: string | null
@@ -2023,11 +2280,14 @@ export type Database = {
           discount_amount?: number
           discount_type?: string | null
           discount_value?: number | null
+          email_sent_at?: string | null
           id?: string
           invoice_number?: string
           is_recurring?: boolean
           line_items?: Json | null
           paid_at?: string | null
+          paid_offline_method?: string | null
+          paid_offline_reference?: string | null
           payment_status?: string
           payment_url?: string | null
           processing_fee?: number | null
@@ -2035,9 +2295,13 @@ export type Database = {
           recurring_active?: boolean
           recurring_day_of_month?: number | null
           recurring_interval_days?: number | null
+          recurring_last_error?: string | null
+          recurring_last_error_at?: string | null
           recurring_last_sent_at?: string | null
           recurring_next_send_at?: string | null
           recurring_parent_id?: string | null
+          recurring_period?: string | null
+          recurring_send_claimed_at?: string | null
           recurring_template_only?: boolean
           stripe_payment_intent_id?: string | null
           stripe_session_id?: string | null
@@ -2045,6 +2309,9 @@ export type Database = {
           title?: string
           total_charged?: number | null
           updated_at?: string
+          void_reason?: string | null
+          voided_at?: string | null
+          voided_by?: string | null
         }
         Relationships: [
           {
@@ -2084,6 +2351,7 @@ export type Database = {
           priority: string
           reported_by_role: string | null
           resolved_at: string | null
+          source_report_id: string | null
           status: string
           title: string
           updated_at: string
@@ -2098,6 +2366,7 @@ export type Database = {
           priority?: string
           reported_by_role?: string | null
           resolved_at?: string | null
+          source_report_id?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -2112,6 +2381,7 @@ export type Database = {
           priority?: string
           reported_by_role?: string | null
           resolved_at?: string | null
+          source_report_id?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -3438,10 +3708,209 @@ export type Database = {
       }
     }
     Functions: {
+      _apply_cleaning_inventory: {
+        Args: { p_items: Json; p_note: string }
+        Returns: number
+      }
       _assert_admin_or_service: { Args: never; Returns: undefined }
+      _booking_collected: { Args: { p_booking_id: string }; Returns: Json }
+      _booking_event_end_at: { Args: { p_booking_id: string }; Returns: string }
+      _booking_event_start_at: {
+        Args: { p_booking_id: string }
+        Returns: string
+      }
+      _booking_slot_conflict: {
+        Args: {
+          p_date: string
+          p_end: string
+          p_end_date: string
+          p_ignore?: string
+          p_start: string
+          p_type: string
+        }
+        Returns: string
+      }
+      _cleaning_media: { Args: { k: string; p: Json }; Returns: Json }
+      _cleaning_media_count: { Args: { k: string; p: Json }; Returns: number }
+      _ensure_price_basis: {
+        Args: { p_booking_id: string; p_persist?: boolean }
+        Returns: {
+          booking_id: string
+          created_at: string
+          discount_applies_to: string | null
+          discount_type: string | null
+          discount_value: number | null
+          hourly_rate: number | null
+          package_rate: number | null
+          priced_end_time: string | null
+          priced_package_end_time: string | null
+          priced_package_start_time: string | null
+          priced_start_time: string | null
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "booking_price_basis"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      _hours_between: {
+        Args: { p_end: string; p_start: string }
+        Returns: number
+      }
+      _is_cleaning_assignment: {
+        Args: { p_role: string; p_type: string }
+        Returns: boolean
+      }
+      _lifecycle_transition_allowed: {
+        Args: { p_from: string; p_to: string }
+        Returns: boolean
+      }
+      _open_refund_review_after_payment: {
+        Args: { p_booking_id: string; p_source: string }
+        Returns: undefined
+      }
+      _price_at_window: {
+        Args: {
+          p_basis: Database["public"]["Tables"]["booking_price_basis"]["Row"]
+          p_booking: Database["public"]["Tables"]["bookings"]["Row"]
+          p_end: string
+          p_pkg_end: string
+          p_pkg_start: string
+          p_start: string
+        }
+        Returns: Json
+      }
+      _reschedule_price_preview: {
+        Args: {
+          p_booking_id: string
+          p_new_end: string
+          p_new_pkg_end: string
+          p_new_pkg_start: string
+          p_new_start: string
+        }
+        Returns: Json
+      }
+      _settle_price_window: {
+        Args: { p_booking_id: string; p_window: Json }
+        Returns: undefined
+      }
+      _slot_taken_by_other: {
+        Args: {
+          p_b: Database["public"]["Tables"]["bookings"]["Row"]
+          p_include_holds: boolean
+        }
+        Returns: string
+      }
+      _sync_cancelled_payment_status: {
+        Args: { p_booking_id: string }
+        Returns: undefined
+      }
+      _sync_report_ticket: {
+        Args: {
+          p_booking_id: string
+          p_priority: string
+          p_report_id: string
+          p_text: string
+          p_title: string
+        }
+        Returns: string
+      }
+      _void_unpaid_payroll: {
+        Args: { p_assignment_ids: string[]; p_reason: string }
+        Returns: undefined
+      }
       add_internal_note: {
         Args: { _author_id: string; _booking_id: string; _note: string }
         Returns: undefined
+      }
+      admin_assign_bar_vendor: {
+        Args: { p_booking_id: string; p_vendor_id: string }
+        Returns: Json
+      }
+      admin_assignments_missing_hours: {
+        Args: never
+        Returns: {
+          assignment_id: string
+          assignment_role: string
+          booking_id: string
+          event_date: string
+          hourly_rate: number
+          reservation_number: string
+          staff_id: string
+          staff_name: string
+        }[]
+      }
+      admin_booking_close_eta: { Args: { p_booking_id: string }; Returns: Json }
+      admin_booking_collected: { Args: { p_booking_id: string }; Returns: Json }
+      admin_close_event: {
+        Args: { p_booking_id: string; p_note?: string }
+        Returns: Json
+      }
+      admin_create_blocking_booking: { Args: { p: Json }; Returns: Json }
+      admin_mark_staff_hours_reviewed: {
+        Args: { p_note?: string; p_review_id: string }
+        Returns: Json
+      }
+      admin_record_payment: {
+        Args: {
+          p_amount: number
+          p_booking_id: string
+          p_confirm_open_link?: boolean
+          p_kind: string
+          p_method: string
+          p_note?: string
+          p_paid_at?: string
+          p_reference?: string
+        }
+        Returns: Json
+      }
+      admin_record_refund_decision: {
+        Args: {
+          p_amount: number
+          p_booking_id: string
+          p_method?: string
+          p_note?: string
+          p_reference?: string
+          p_refunded_at?: string
+        }
+        Returns: Json
+      }
+      admin_remove_payroll_adjustment: {
+        Args: { p_item_id: string; p_reason: string }
+        Returns: Json
+      }
+      admin_resolve_reschedule_price: {
+        Args: {
+          p_decision: string
+          p_note?: string
+          p_reference?: string
+          p_review_id: string
+        }
+        Returns: Json
+      }
+      admin_set_assignment_hours: {
+        Args: { p_assignment_id: string; p_hours: number; p_note?: string }
+        Returns: Json
+      }
+      admin_set_assignment_pay: {
+        Args: {
+          p_amount?: number
+          p_assignment_id: string
+          p_mode: string
+          p_reason?: string
+        }
+        Returns: Json
+      }
+      admin_transition_booking: {
+        Args: {
+          p_booking_id: string
+          p_force?: boolean
+          p_reason?: string
+          p_to: string
+        }
+        Returns: Json
       }
       auto_fix_missing_jobs: { Args: never; Returns: undefined }
       booking_readiness: { Args: { p_booking_id: string }; Returns: Json }
@@ -3449,6 +3918,7 @@ export type Database = {
         Args: { p_invoice_id: string }
         Returns: undefined
       }
+      claim_booking_slot: { Args: { p_booking_id: string }; Returns: string }
       claim_expired_driver_licenses: {
         Args: { p_limit?: number }
         Returns: {
@@ -3460,12 +3930,16 @@ export type Database = {
         Args: { p_expected_next_send: string; p_invoice_id: string }
         Returns: boolean
       }
+      complete_past_event_assignments: { Args: never; Returns: number }
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
       count_bookings_without_host_jobs: { Args: never; Returns: number }
+      coupon_paid_uses: { Args: { p_code: string }; Returns: number }
+      coupon_unusable_reason: { Args: { p_code: string }; Returns: string }
       evaluate_booking_readiness: {
         Args: { p_booking_id: string; p_checklist: string; p_origin: string }
         Returns: Json
       }
+      expire_stale_addon_invoices: { Args: never; Returns: number }
       generate_reservation_number: { Args: never; Returns: string }
       get_access_code_for_reservation: {
         Args: { p_email?: string; p_reservation_number?: string }
@@ -3790,6 +4264,16 @@ export type Database = {
           staff_role: string
         }[]
       }
+      ghl_apply_booking_status: {
+        Args: {
+          p_booking_id: string
+          p_from_lifecycle: string
+          p_from_status: string
+          p_lifecycle: string
+          p_status: string
+        }
+        Returns: Json
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -3798,6 +4282,16 @@ export type Database = {
         Returns: boolean
       }
       is_admin_or_staff: { Args: { _user_id: string }; Returns: boolean }
+      lifecycle_moves_due: {
+        Args: never
+        Returns: {
+          booking_id: string
+          from_lifecycle: string
+          reason: string
+          reservation_number: string
+          to_lifecycle: string
+        }[]
+      }
       next_monthly_send: {
         Args: { p_day: number; p_last_sent: string }
         Returns: string
@@ -3805,6 +4299,18 @@ export type Database = {
       normalize_reservation_number: {
         Args: { p_value: string }
         Returns: string
+      }
+      persist_invoice_session: {
+        Args: {
+          p_expected_session: string
+          p_fee: number
+          p_fee_pct: number
+          p_invoice_id: string
+          p_session_id: string
+          p_total: number
+          p_url: string
+        }
+        Returns: boolean
       }
       populate_booking_revenue_items: {
         Args: { p_booking_id: string; p_is_historical?: boolean }
@@ -3833,6 +4339,10 @@ export type Database = {
         }
         Returns: Json
       }
+      reserve_coupon_use: {
+        Args: { p_booking_id: string; p_code: string }
+        Returns: string
+      }
       set_recurring_day_of_month: {
         Args: { p_day: number; p_invoice_id: string }
         Returns: string
@@ -3849,12 +4359,34 @@ export type Database = {
         }
         Returns: Json
       }
+      staff_submit_cleaning_report: {
+        Args: { p_booking_id: string; p_report: Json; p_staff_id: string }
+        Returns: Json
+      }
+      staff_submit_standalone_cleaning_report: {
+        Args: { p_assignment_id: string; p_report: Json; p_staff_id: string }
+        Returns: Json
+      }
+      staff_unassign_self: {
+        Args: { p_assignment_id: string; p_staff_id: string }
+        Returns: Json
+      }
       submit_guest_report: {
         Args: {
           p_booking_id: string
           p_report: Json
           p_reservation_number: string
           p_review?: Json
+        }
+        Returns: Json
+      }
+      transition_booking: {
+        Args: {
+          p_booking_id: string
+          p_channel?: string
+          p_expected_from?: string[]
+          p_reason?: string
+          p_to: string
         }
         Returns: Json
       }
