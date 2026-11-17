@@ -92,6 +92,8 @@ export default function PayrollItemEditModal({
         return;
       }
 
+      // Ignore a late response for an item that is no longer open.
+      if (assignment.id !== item.assignment_id) return;
       setAssignmentData(assignment);
       setEditForm({
         hours_worked: assignment.hours_worked?.toString() || "",
@@ -101,6 +103,9 @@ export default function PayrollItemEditModal({
     };
 
     if (isOpen) {
+      // Clear the previous item's assignment so the override form never shows
+      // (or submits with) another assignment's values while this one loads.
+      setAssignmentData(null);
       loadAssignmentData();
     }
   }, [isOpen, item]);
@@ -469,8 +474,12 @@ export default function PayrollItemEditModal({
           </TabsContent>
 
           <TabsContent value="override" className="space-y-4">
-            {item.assignment_id && (
+            {item.assignment_id && assignmentData?.id !== item.assignment_id && (
+              <p className="text-sm text-muted-foreground">Loading assignment…</p>
+            )}
+            {item.assignment_id && assignmentData?.id === item.assignment_id && (
               <PayOverridePanel
+                key={`${item.assignment_id}:${assignmentData.pay_override_mode ?? "computed"}:${assignmentData.pay_override_amount ?? ""}`}
                 assignmentId={item.assignment_id}
                 currentMode={payModeOf(assignmentData)}
                 currentAmount={assignmentData?.pay_override_amount ?? null}
