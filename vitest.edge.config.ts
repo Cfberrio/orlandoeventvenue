@@ -27,6 +27,7 @@ export default defineConfig({
       "supabase/functions/_tests/event-types.test.ts",
       "supabase/functions/_tests/phase1b-summary-coupons.test.ts",
       "supabase/functions/_tests/phase2-quickwins.test.ts",
+      "supabase/functions/_tests/phase2-cleaning.test.ts",
     ],
   },
 });

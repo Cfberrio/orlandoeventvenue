@@ -103,7 +103,8 @@ export function useStandaloneAssignment(assignmentId: string) {
  */
 export function useUpdateStandaloneCleaningReport() {
   const queryClient = useQueryClient();
-  
+  const { staffMember } = useStaffSession();
+
   return useMutation({
     mutationFn: async ({
       assignmentId,
@@ -112,36 +113,21 @@ export function useUpdateStandaloneCleaningReport() {
       assignmentId: string;
       reportData: Partial<StandaloneCleaningReport>;
     }) => {
-      // Check if report exists
-      const { data: existing } = await standaloneReportsTable()
-        .select("id")
-        .eq("assignment_id", assignmentId)
-        .maybeSingle();
-      
-      if (existing) {
-        // Update existing
-        const { data, error } = await standaloneReportsTable()
-          .update(reportData)
-          .eq("id", existing.id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } else {
-        // Create new
-        const { data, error } = await standaloneReportsTable()
-          .insert({ ...reportData, assignment_id: assignmentId })
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
+      if (!staffMember?.id) throw new Error("Your staff session expired; sign in again");
+      // E-12 (86e40ach2): staff portal users are anonymous, so the old insert
+      // (cleaner_id = auth.uid()) could never succeed. The server checks the
+      // assignment belongs to this staff member and saves the report.
+      const { data, error } = await supabase.rpc("staff_submit_standalone_cleaning_report" as any, {
+        p_staff_id: staffMember.id,
+        p_assignment_id: assignmentId,
+        p_report: reportData,
+      });
+      if (error) throw error;
+      return data as { report_id: string; ticket_id: string | null; inventory_lines: number };
     },
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ 
-        queryKey: ["standalone-cleaning-report", variables.assignmentId] 
+      queryClient.invalidateQueries({
+        queryKey: ["standalone-cleaning-report", variables.assignmentId]
       });
       queryClient.invalidateQueries({
         queryKey: ["staff-standalone-assignments"]

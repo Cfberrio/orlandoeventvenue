@@ -201,48 +201,30 @@ export function useBookingCleaningReport(bookingId: string) {
 // Update or create cleaning report
 export function useUpdateCleaningReport() {
   const queryClient = useQueryClient();
-  
+  const { staffMember } = useStaffSession();
+
   return useMutation({
-    mutationFn: async ({ 
-      bookingId, 
-      reportData 
-    }: { 
-      bookingId: string; 
+    mutationFn: async ({
+      bookingId,
+      reportData,
+    }: {
+      bookingId: string;
       reportData: Partial<CleaningReport>;
     }) => {
-      // Check if report exists
-      const { data: existing } = await supabase
-        .from("booking_cleaning_reports")
-        .select("id")
-        .eq("booking_id", bookingId)
-        .maybeSingle();
-      
-      if (existing) {
-        // Update existing
-        const { data, error } = await supabase
-          .from("booking_cleaning_reports")
-          .update(reportData)
-          .eq("id", existing.id)
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      } else {
-        // Create new
-        const { data, error } = await supabase
-          .from("booking_cleaning_reports")
-          .insert({ booking_id: bookingId, ...reportData })
-          .select()
-          .single();
-        
-        if (error) throw error;
-        return data;
-      }
+      if (!staffMember?.id) throw new Error("Your staff session expired; sign in again");
+      // E-10/E-11 (86e40ach2): one server call saves the report, opens the
+      // maintenance ticket and updates inventory, or fails with the reason.
+      const { data, error } = await supabase.rpc("staff_submit_cleaning_report" as any, {
+        p_staff_id: staffMember.id,
+        p_booking_id: bookingId,
+        p_report: reportData,
+      });
+      if (error) throw error;
+      return data as { report_id: string; ticket_id: string | null; inventory_lines: number };
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["booking-cleaning-report", variables.bookingId] });
-      queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });
+      queryClient.invalidateQueries({ queryKey: ["staff-booking-detail"] });
     },
   });
 }

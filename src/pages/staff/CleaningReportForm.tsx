@@ -15,7 +15,6 @@ import {
   useStaffBookingDetail,
   useBookingCleaningReport,
   useUpdateCleaningReport,
-  useCreateMaintenanceTicket,
   uploadCleaningMedia,
 } from "@/hooks/useStaffData";
 import { 
@@ -42,27 +41,6 @@ export default function CleaningReportForm() {
   const { data: existingReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
   const { staffMember } = useStaffSession();
   const updateReport = useUpdateCleaningReport();
-  const createTicket = useCreateMaintenanceTicket();
-  
-  // Block access for Production and Assistant roles
-  if (staffMember?.role === 'Production' || staffMember?.role === 'Assistant') {
-    return (
-      <div className="space-y-6">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
-            <p className="text-muted-foreground mb-4">
-              Cleaning reports are not available for your role ({staffMember.role}).
-            </p>
-            <Button asChild>
-              <Link to="/staff">Back to My Bookings</Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
   
   // Inventory data from DB
   const { data: inventoryProducts, isLoading: productsLoading } = useInventoryProducts();
@@ -233,70 +211,47 @@ export default function CleaningReportForm() {
         },
       });
 
-      // Create maintenance ticket if there are issues
-      if (issuesNotes.trim()) {
-        await createTicket.mutateAsync({
-          booking_id: id!,
-          title: `Issue from cleaning report for booking ${booking?.reservation_number || id}`,
-          description: issuesNotes,
-          reported_by_role: "cleaner",
-          priority: "medium",
-        });
-      }
-
-      // Update inventory_stock directly
-      for (const item of inventoryItems) {
-        if (!item.product_id || !item.location_id) continue;
-        
-        // Check if stock record exists
-        const { data: existingStock } = await supabase
-          .from("inventory_stock")
-          .select("id, current_level")
-          .eq("product_id", item.product_id)
-          .eq("location_id", item.location_id)
-          .maybeSingle();
-        
-        const qtyUsed = parseInt(item.qty_used) || 0;
-        const newLevel = existingStock 
-          ? Math.max(0, existingStock.current_level - qtyUsed)
-          : (item.status === "out" ? 0 : item.status === "low" ? 1 : 5);
-        
-        const notes = `Updated from cleaning report for booking ${booking?.reservation_number}`;
-        
-        if (existingStock) {
-          await supabase
-            .from("inventory_stock")
-            .update({ 
-              status: item.status, 
-              current_level: newLevel, 
-              notes 
-            })
-            .eq("id", existingStock.id);
-        } else {
-          await supabase.from("inventory_stock").insert({
-            product_id: item.product_id,
-            location_id: item.location_id,
-            status: item.status,
-            current_level: newLevel,
-            notes,
-          });
-        }
-      }
-
-      // Sync to GHL
-      await supabase.functions.invoke("sync-to-ghl", {
+      // Ticket and inventory are handled by the server call above. The GHL
+      // sync is a follow-up: the report is already saved if it fails.
+      const { error: ghlError } = await supabase.functions.invoke("sync-to-ghl", {
         body: { booking_id: id },
       });
+      if (ghlError) console.warn("[cleaning-report] GHL sync failed", ghlError);
 
       toast({ title: "Cleaning report submitted successfully" });
       navigate(`/staff/bookings/${id}`);
     } catch (error) {
-      toast({ title: "Failed to submit report", variant: "destructive" });
+      toast({
+        title: "Failed to submit report",
+        description: error instanceof Error ? error.message : (error as { message?: string })?.message ?? "Please try again",
+        variant: "destructive",
+      });
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Block access for Production and Assistant roles (after all hooks: React
+  // requires the same hook order on every render).
+  if (staffMember?.role === 'Production' || staffMember?.role === 'Assistant') {
+    return (
+      <div className="space-y-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <ClipboardCheck className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Access Restricted</h3>
+            <p className="text-muted-foreground mb-4">
+              Cleaning reports are not available for your role ({staffMember.role}).
+            </p>
+            <Button asChild>
+              <Link to="/staff">Back to My Bookings</Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+  
   if (bookingLoading || reportLoading) {
     return (
       <div className="flex items-center justify-center h-64">
