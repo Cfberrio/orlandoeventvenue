@@ -79,7 +79,7 @@ const VenueContentAdminCard = () => {
   const handleSave = async () => {
     setSaving(true);
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from("venue_access_content" as never)
       .update({
         entry_steps: entrySteps,
@@ -90,8 +90,16 @@ const VenueContentAdminCard = () => {
         updated_at: new Date().toISOString(),
         updated_by: userData?.user?.id ?? null,
       } as never)
-      .eq("id", 1);
+      .eq("id", 1)
+      .select("id");
     setSaving(false);
+    // E-15: a save blocked by table permissions returns no error and 0 rows.
+    if (!error && (!Array.isArray(saved) || saved.length === 0)) {
+      toast.error("Could not save access page content", {
+        description: "Nothing was saved: this login may not have permission to edit it. Sign in with the admin account.",
+      });
+      return;
+    }
     if (error) {
       toast.error("Could not save access page content", { description: error.message });
       return;

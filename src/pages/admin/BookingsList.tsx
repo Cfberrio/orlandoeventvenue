@@ -283,6 +283,7 @@ export default function BookingsList() {
         <TableHeader>
           <TableRow>
             <TableHead>Booked On</TableHead>
+            <TableHead>Res #</TableHead>
             <TableHead>Event Date</TableHead>
             <TableHead>Client</TableHead>
             <TableHead>Event</TableHead>
@@ -310,6 +311,9 @@ export default function BookingsList() {
                   <div className="text-xs text-muted-foreground">
                     {format(new Date(booking.created_at), "h:mm a")}
                   </div>
+                </TableCell>
+                <TableCell className="font-mono text-xs whitespace-nowrap">
+                  {booking.reservation_number?.replace(/^OEV-/, "") || "-"}
                 </TableCell>
                 <TableCell>
                   <div className="font-medium">
@@ -496,9 +500,9 @@ export default function BookingsList() {
 
               {/* Client Name Search */}
               <div>
-                <label className="text-sm font-medium mb-1 block">Client Name</label>
+                <label className="text-sm font-medium mb-1 block">Search</label>
                 <Input
-                  placeholder="Search by client name..."
+                  placeholder="Name, email or reservation #"
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                 />

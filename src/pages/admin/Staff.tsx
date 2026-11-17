@@ -11,6 +11,7 @@ import { Users, Plus, Edit, Filter } from "lucide-react";
 import { useStaffMembers, useCreateStaffMember, useUpdateStaffMember } from "@/hooks/useAdminData";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { PAYROLL_TYPES, payExplanation, rateField, staffPayValues, validateStaffPay, type PayrollType } from "@/lib/staffPay";
 
 const staffRoles = ["Custodial", "Production", "Assistant", "Bar Vendor"];
 
@@ -27,6 +28,8 @@ export default function Staff() {
   const [formPhone, setFormPhone] = useState("");
   const [formRole, setFormRole] = useState("");
   const [formActive, setFormActive] = useState(true);
+  const [formPayType, setFormPayType] = useState<PayrollType>("hourly");
+  const [formRate, setFormRate] = useState("");
 
   const { data: staffMembers, isLoading } = useStaffMembers({
     role: roleFilter && roleFilter !== "all" ? roleFilter : undefined,
@@ -42,11 +45,21 @@ export default function Staff() {
     setFormPhone("");
     setFormRole("");
     setFormActive(true);
+    setFormPayType("hourly");
+    setFormRate("");
   };
+
+  const payError = () => validateStaffPay({ payrollType: formPayType, role: formRole, rate: formRate });
+  const payValues = () => staffPayValues({ payrollType: formPayType, role: formRole, rate: formRate });
 
   const handleAdd = async () => {
     if (!formName || !formRole) {
       toast({ title: "Name and role are required", variant: "destructive" });
+      return;
+    }
+    const pErr = payError();
+    if (pErr) {
+      toast({ title: pErr, variant: "destructive" });
       return;
     }
     try {
@@ -56,12 +69,13 @@ export default function Staff() {
         phone: formPhone || null,
         role: formRole,
         is_active: formActive,
+        ...payValues(),
       });
       toast({ title: "Staff member added" });
       setIsAddOpen(false);
       resetForm();
-    } catch {
-      toast({ title: "Failed to add staff member", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Failed to add staff member", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
     }
   };
 
@@ -72,6 +86,8 @@ export default function Staff() {
     phone: string | null;
     role: string;
     is_active: boolean;
+    payroll_type?: string | null;
+    hourly_rate?: number | null;
   }) => {
     setEditingStaff(staff.id);
     setFormName(staff.full_name);
@@ -79,10 +95,20 @@ export default function Staff() {
     setFormPhone(staff.phone || "");
     setFormRole(staff.role);
     setFormActive(staff.is_active);
+    setFormPayType((staff.payroll_type as PayrollType) || "none");
+    setFormRate(staff.hourly_rate != null && Number(staff.hourly_rate) > 0 ? String(staff.hourly_rate) : "");
   };
 
   const handleUpdate = async () => {
-    if (!editingStaff || !formName || !formRole) return;
+    if (!editingStaff || !formName || !formRole) {
+      toast({ title: "Name and role are required", variant: "destructive" });
+      return;
+    }
+    const pErr = payError();
+    if (pErr) {
+      toast({ title: pErr, variant: "destructive" });
+      return;
+    }
     try {
       await updateStaff.mutateAsync({
         id: editingStaff,
@@ -92,13 +118,14 @@ export default function Staff() {
           phone: formPhone || null,
           role: formRole,
           is_active: formActive,
+          ...payValues(),
         },
       });
       toast({ title: "Staff member updated" });
       setEditingStaff(null);
       resetForm();
-    } catch {
-      toast({ title: "Failed to update staff member", variant: "destructive" });
+    } catch (e) {
+      toast({ title: "Failed to update staff member", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
     }
   };
 
@@ -145,6 +172,30 @@ export default function Staff() {
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <label className="text-sm font-medium">Pay type *</label>
+                <Select value={formPayType} onValueChange={(v) => setFormPayType(v as PayrollType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PAYROLL_TYPES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {rateField(formPayType, formRole) && (
+                <div>
+                  <label className="text-sm font-medium">{rateField(formPayType, formRole)!.label}</label>
+                  <Input type="number" min="0" step="0.01" value={formRate} onChange={(e) => setFormRate(e.target.value)} />
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground">
+                {payExplanation(formPayType, formRole, formRate ? Number(formRate) : null)}
+              </p>
               <div className="flex items-center gap-2">
                 <Checkbox checked={formActive} onCheckedChange={(c) => setFormActive(!!c)} />
                 <label className="text-sm">Active</label>
@@ -221,6 +272,7 @@ export default function Staff() {
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
                   <TableHead>Role</TableHead>
+                  <TableHead>Pay</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Added</TableHead>
                   <TableHead></TableHead>
@@ -234,6 +286,15 @@ export default function Staff() {
                     <TableCell>{staff.phone || "-"}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{staff.role.replace(/_/g, " ")}</Badge>
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {staff.payroll_type === "hourly" ? (
+                        `$${Number(staff.hourly_rate ?? 0).toFixed(2)}/h`
+                      ) : staff.payroll_type === "per_assignment" ? (
+                        staff.role === "Bar Vendor" ? `$${Number(staff.hourly_rate ?? 0).toFixed(2)} per event` : "Per event"
+                      ) : (
+                        <span className="text-amber-600">Not paid</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Badge variant={staff.is_active ? "default" : "secondary"}>
@@ -258,7 +319,7 @@ export default function Staff() {
                               <Input value={formName} onChange={(e) => setFormName(e.target.value)} />
                             </div>
                             <div>
-                              <label className="text-sm font-medium">Email *</label>
+                              <label className="text-sm font-medium">Email</label>
                               <Input type="email" value={formEmail} onChange={(e) => setFormEmail(e.target.value)} />
                             </div>
                             <div>
@@ -280,6 +341,30 @@ export default function Staff() {
                                 </SelectContent>
                               </Select>
                             </div>
+                            <div>
+                              <label className="text-sm font-medium">Pay type *</label>
+                              <Select value={formPayType} onValueChange={(v) => setFormPayType(v as PayrollType)}>
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {PAYROLL_TYPES.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>
+                                      {t.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            {rateField(formPayType, formRole) && (
+                              <div>
+                                <label className="text-sm font-medium">{rateField(formPayType, formRole)!.label}</label>
+                                <Input type="number" min="0" step="0.01" value={formRate} onChange={(e) => setFormRate(e.target.value)} />
+                              </div>
+                            )}
+                            <p className="text-xs text-muted-foreground">
+                              {payExplanation(formPayType, formRole, formRate ? Number(formRate) : null)}
+                            </p>
                             <div className="flex items-center gap-2">
                               <Checkbox checked={formActive} onCheckedChange={(c) => setFormActive(!!c)} />
                               <label className="text-sm">Active</label>

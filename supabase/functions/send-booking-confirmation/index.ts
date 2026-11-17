@@ -192,7 +192,7 @@ function generateEmailHTML(booking: BookingEmailData): string {
     gap() +
     textModule(
       `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
-      para(`Thank you. We have received your first fifty percent, and your booking is now with our team for review.`) +
+      para(`Thank you. We have received your deposit, and your booking is now with our team for review.`) +
       numberedList([
         `We take a quick look at the timing, guest count, and venue setup to make sure everything about your event will run smoothly, and we will be back in touch within about 24 hours to confirm.`,
         `Until you hear from us, please hold off on sending invitations or making any arrangements you cannot get back. And if anything about your event has changed since you booked, just reply here so we review the right details.`,
@@ -302,7 +302,7 @@ serve(async (req) => {
       from: gmailUser,
       to: booking.email,
       subject: `We Received Your First Payment`,
-      content: "We have received your first fifty percent, and your booking is now with our team for review. Please view this email in an HTML-compatible email client. Itemized receipt attached as PDF.",
+      content: "We have received your deposit, and your booking is now with our team for review. Please view this email in an HTML-compatible email client. Itemized receipt attached as PDF.",
       html: emailHTML,
       attachments: pdfBase64
         ? [

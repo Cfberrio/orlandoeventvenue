@@ -19,6 +19,7 @@ import {
   textModule,
 } from "../_shared/email-layout.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
+import { splitLabel } from "../_shared/deposit-split.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -439,7 +440,7 @@ serve(async (req) => {
               `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Payment Summary</p>` +
               detailTable([
                 ["Total Amount", totalFormatted],
-                ["First 50% Paid", depositFormatted],
+                [`${splitLabel("deposit", booking)} Paid`, depositFormatted],
                 ["Remaining Balance", balanceBaseFormatted],
                 [FEE_LABEL, processingFeeFormatted],
                 ["Total Due", balanceTotalFormatted],

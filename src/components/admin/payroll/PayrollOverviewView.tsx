@@ -27,6 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyStateCard } from "./EmptyStateCard";
 import { AssignmentDetailsTable } from "./AssignmentDetailsTable";
 import ExportPayrollButton from "./ExportPayrollButton";
+import MissingHoursCard from "./MissingHoursCard";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -234,6 +235,8 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
 
   if (!data || data.length === 0) {
     return (
+      <div className="space-y-4">
+      <MissingHoursCard onChanged={loadData} />
       <Card>
         <CardContent className="pt-6">
           <EmptyStateCard
@@ -244,11 +247,13 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
           />
         </CardContent>
       </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <MissingHoursCard onChanged={loadData} />
       {/* Main Table */}
       <Card>
         <CardHeader>

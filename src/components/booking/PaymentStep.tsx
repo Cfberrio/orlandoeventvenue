@@ -13,6 +13,7 @@ import { trackBookingCreated, trackCheckoutStarted } from "@/lib/tracking/funnel
 import { getConsent } from "@/lib/tracking/consent";
 import { getTestEventCode } from "@/lib/tracking/testMode";
 import { feeCentsFor, toCents } from "@/lib/bookingPricing";
+import { depositSplit } from "@/lib/depositSplit";
 
 interface PaymentStepProps {
   data: Partial<BookingFormData>;
@@ -31,6 +32,11 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
   const feePctLabel = `${p.processing_fee}%`;
   const depositBase = data.pricing?.deposit ?? 0;
   const balanceBase = data.pricing?.balance ?? 0;
+  // E-3: the split this booking is priced with, not a hardcoded percent.
+  const split = depositSplit(
+    { deposit_amount: data.pricing?.deposit, total_amount: data.pricing?.total },
+    p.deposit_percentage,
+  );
   // Same cents formula Stripe is charged with (shared pricing engine), so the
   // page never shows a cent different from the card statement.
   const depositFee = feeCentsFor(toCents(depositBase), p.processing_fee) / 100;
@@ -159,7 +165,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
         <Card className="p-6 bg-accent/30 text-left max-w-2xl mx-auto">
           <div className="space-y-4">
             <div>
-              <p className="text-sm text-muted-foreground">You paid (50% Deposit + Processing Fee)</p>
+              <p className="text-sm text-muted-foreground">You paid ({split.firstPct}% Deposit + Processing Fee)</p>
               <p className="text-2xl font-bold text-green-600">
                 ${depositTotal.toFixed(2)}
               </p>
@@ -206,14 +212,14 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
       <div>
         <h2 className="text-2xl font-bold mb-4">Payment</h2>
         <p className="text-muted-foreground mb-6">
-          Complete your booking with a 50% deposit
+          Complete your booking with a {split.firstPct}% deposit
         </p>
       </div>
 
       <Card className="p-6 bg-accent/30">
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <span className="font-semibold">Deposit Due Today (50%)</span>
+            <span className="font-semibold">Deposit Due Today ({split.firstPct}%)</span>
             <span className="text-2xl font-bold text-primary">
               ${depositTotal.toFixed(2)}
             </span>
@@ -240,7 +246,7 @@ const PaymentStep = ({ data, updateData, onBack }: PaymentStepProps) => {
 
           <div className="text-sm text-muted-foreground pt-2 border-t">
             <p>
-              The remaining 50% will be due 15 days before your event date. 
+              The remaining {split.finalPct}% will be due 15 days before your event date. 
               {data.date && (
                 <> That's <strong>{format(addDays(data.date, -15), "PPP")}</strong>.</>
               )}

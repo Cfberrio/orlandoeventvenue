@@ -7,6 +7,7 @@
 // - Fee and total charged are the amounts persisted when the Stripe session
 //   was created (what Stripe actually charged), never recomputed.
 
+import { depositSplit } from "./deposit-split.ts";
 import {
   allocateCents,
   describeDiscount,
@@ -61,6 +62,8 @@ export interface InvoiceRow {
 
 export interface InvoiceModel {
   kind: InvoiceKind;
+  /** E-3: percent of the total this payment covers (deposit or balance). */
+  splitPct: number;
   rows: InvoiceRow[];
   totals: { gross: number; discount: number; net: number; paid: number };
   /** e.g. "Discount code MILITARYSERVICE: 100% off base rental". Null when no discount. */
@@ -169,17 +172,19 @@ export function buildInvoiceModel(
   const fee = persistedFee != null ? Number(persistedFee) : fromCents(Math.round(target * (feePct / 100)));
   const totalCharged = persistedTotal != null ? Number(persistedTotal) : fromCents(target + toCents(fee));
 
+  const split = depositSplit(b);
   const footnote =
     kind === "deposit"
-      ? `Final 50%: ${money(Number(b.balance_amount))}, due 15 days before your event.`
-      : `First 50% of ${money(Number(b.deposit_amount))} paid earlier. Event total: ${money(Number(b.total_amount))}. Booking now fully paid.`;
+      ? `Final ${split.finalPct}%: ${money(Number(b.balance_amount))}, due 15 days before your event.`
+      : `First ${split.firstPct}% of ${money(Number(b.deposit_amount))} paid earlier. Event total: ${money(Number(b.total_amount))}. Booking now fully paid.`;
 
   return {
     kind,
     rows,
     totals,
     discountNote,
-    subtotalLabel: kind === "deposit" ? "First 50% Subtotal" : "Final 50% Subtotal",
+    subtotalLabel: kind === "deposit" ? `First ${split.firstPct}% Subtotal` : `Final ${split.finalPct}% Subtotal`,
+    splitPct: kind === "deposit" ? split.firstPct : split.finalPct,
     subtotal,
     feePct,
     fee,

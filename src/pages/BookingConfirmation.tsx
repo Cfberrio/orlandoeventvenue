@@ -8,6 +8,7 @@ import { CheckCircle2, XCircle, Loader2, Calendar, Clock, Users, Copy, Check } f
 import { format, addDays } from "date-fns";
 import { toast } from "sonner";
 import { trackPurchase } from "@/lib/analytics";
+import { splitLabel } from "@/lib/depositSplit";
 import { PhotoBackdrop } from "@/components/PhotoBand";
 import { trackPurchase as trackMetaPurchase } from "@/lib/tracking/funnel";
 import { eventTypeLabel } from "@/lib/eventTypes";
@@ -304,7 +305,7 @@ const BookingConfirmation = () => {
                   </div>
                   <div className="flex justify-between items-center text-green-600">
                     <span>
-                      First 50% Paid
+                      {splitLabel("deposit", booking)} Paid
                       {booking.deposit_total_charged != null && (
                         <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
                       )}
@@ -532,7 +533,7 @@ const BookingConfirmation = () => {
                 </div>
                 <div className="flex justify-between items-center text-green-600">
                   <span>
-                    First 50% Paid
+                    {splitLabel("deposit", booking)} Paid
                     {booking.deposit_total_charged != null && (
                       <span className="text-sm text-muted-foreground"> (incl. processing fee)</span>
                     )}

@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { bookingSearchOrFilter } from "@/lib/bookingSearch";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
@@ -88,6 +89,8 @@ export interface StaffMember {
   phone: string | null;
   role: string;
   is_active: boolean;
+  payroll_type?: "none" | "hourly" | "per_assignment" | null;
+  hourly_rate?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -567,9 +570,10 @@ export function useBookings(filters?: {
         query = query.lte("created_at", filters.dateTo);
       }
       
-      // Filter by client name (case-insensitive)
-      if (filters?.clientName) {
-        query = query.ilike("full_name", `%${filters.clientName}%`);
+      // E-14: client name, email or reservation # (case-insensitive)
+      const searchFilter = bookingSearchOrFilter(filters?.clientName);
+      if (searchFilter) {
+        query = query.or(searchFilter);
       }
       
       if (filters?.lifecycleStatus?.length) {

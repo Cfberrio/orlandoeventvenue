@@ -20,6 +20,7 @@ import {
   sendBillingAlert,
 } from "../_shared/billing-server.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
+import { splitLabel } from "../_shared/deposit-split.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -291,8 +292,8 @@ serve(async (req: Request) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Event Venue Booking, First 50% - ${displayType}`,
-              description: `First 50% for event on ${displayDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
+              name: `Event Venue Booking, ${splitLabel("deposit", { deposit_amount: price.deposit, total_amount: price.total })} - ${displayType}`,
+              description: `${splitLabel("deposit", { deposit_amount: price.deposit, total_amount: price.total })} for event on ${displayDate}. Booking ID: ${bookingId.slice(0, 8).toUpperCase()}`,
             },
             unit_amount: depositAmountCents,
           },

@@ -58,7 +58,7 @@ export async function renderInvoicePdf(
   // Header band
   page.drawRectangle({ x: 0, y: height - 100, width, height: 100, color: dark });
   page.drawText("INVOICE", { x: M, y: height - 52, size: 22, font: bold, color: white });
-  page.drawText(model.kind === "deposit" ? "Orlando Event Venue" : "Orlando Event Venue · Final 50% Payment", {
+  page.drawText(model.kind === "deposit" ? "Orlando Event Venue" : `Orlando Event Venue · Final ${model.splitPct}% Payment`, {
     x: M, y: height - 76, size: 11, font: helv, color: white,
   });
   page.drawRectangle({ x: 0, y: height - 104, width, height: 4, color: accent });
@@ -92,7 +92,7 @@ export async function renderInvoicePdf(
 
   // Table
   y -= 14;
-  page.drawText(model.kind === "deposit" ? "50% DEPOSIT: PAID TODAY" : "FINAL 50% BALANCE: PAID TODAY", {
+  page.drawText(model.kind === "deposit" ? `${model.splitPct}% DEPOSIT: PAID TODAY` : `FINAL ${model.splitPct}% BALANCE: PAID TODAY`, {
     x: M, y, size: 9, font: bold, color: gray500,
   });
   y -= 6;
@@ -162,8 +162,8 @@ export async function renderInvoicePdf(
   y -= 12;
   page.drawText(
     model.kind === "deposit"
-      ? "This invoice reflects only the 50% deposit portion paid today."
-      : "This invoice reflects only the final 50% balance paid today.",
+      ? `This invoice reflects only the ${model.splitPct}% deposit portion paid today.`
+      : `This invoice reflects only the final ${model.splitPct}% balance paid today.`,
     { x: M, y, size: 9, font: helv, color: gray500 },
   );
 
