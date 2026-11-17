@@ -311,19 +311,34 @@ serve(async (req: Request) => {
 
     console.log("Stripe checkout session created:", session.id, "URL:", session.url);
 
-    const { error: updateError } = await supabase
-      .from("invoices")
-      .update({
-        payment_url: session.url,
-        stripe_session_id: session.id,
-        processing_fee_pct: FEE_PCT,
-        processing_fee: feeCents / 100,
-        total_charged: totalWithFeeCents / 100,
-      })
-      .eq("id", invoice.id);
-
-    if (updateError) {
-      console.error("Error updating invoice with payment URL:", updateError);
+    // E-8 (Codex review): store the session only if the invoice is still
+    // unpaid, not void, on the session we started from, and (recurring child)
+    // its parent is still active. Otherwise close the new session and send
+    // nothing: an untracked live link could be paid after a void.
+    const { data: persisted, error: persistError } = await supabase.rpc("persist_invoice_session", {
+      p_invoice_id: invoice.id,
+      p_expected_session: invoice.stripe_session_id ?? null,
+      p_session_id: session.id,
+      p_url: session.url,
+      p_fee_pct: FEE_PCT,
+      p_fee: feeCents / 100,
+      p_total: totalWithFeeCents / 100,
+    });
+    if (persistError || persisted !== true) {
+      console.error("[create-invoice] session not stored; expiring it", persistError ?? "state changed");
+      try {
+        await stripe.checkout.sessions.expire(session.id);
+      } catch (expireErr) {
+        console.error(`[create-invoice] CRITICAL: could not expire untracked session ${session.id}`, expireErr);
+      }
+      return new Response(
+        JSON.stringify({
+          error: persistError
+            ? "Could not save the payment link; nothing was sent. Try again."
+            : "The invoice changed (paid, voided, or a newer link exists); nothing was sent.",
+        }),
+        { status: persistError ? 500 : 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const gmailUser = Deno.env.get("GMAIL_USER");

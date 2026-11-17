@@ -1520,7 +1520,11 @@ serve(async (req) => {
             .from("invoices")
             .update({ payment_status: "expired" })
             .eq("id", invoiceId)
-            .eq("payment_status", "pending");
+            .eq("payment_status", "pending")
+            // Only the session the invoice is on now: a resend closes the old
+            // session first, and its late expiry event must not hide the new link.
+            .eq("stripe_session_id", session.id)
+            .is("paid_at", null);
 
           if (expireError) {
             console.error("Error expiring standalone invoice:", expireError);

@@ -48,4 +48,20 @@ describe("E-8/E-9 invoice actions", () => {
     expect(read("supabase/functions/create-invoice/index.ts")).toMatch(/invoice\.payment_status === "void"/);
     expect(read("src/pages/admin/Invoices.tsx")).not.toMatch(/\.delete\(\)/);
   });
+
+  it("Codex fixes: claim before acting, CAS session persist, late expiry guarded", () => {
+    const fn = read("supabase/functions/manage-invoice/index.ts");
+    expect(fn).toMatch(/admin_action_claimed_at: new Date\(\)\.toISOString\(\)/);
+    expect(fn).toMatch(/finally \{\s+await release\(\);/);
+    const ci = read("supabase/functions/create-invoice/index.ts");
+    expect(ci).toMatch(/rpc\("persist_invoice_session"/);
+    expect(ci.indexOf("persist_invoice_session")).toBeLessThan(ci.indexOf("client.send("));
+    expect(ci).toMatch(/sessions\.expire\(session\.id\)/);
+    expect(ci).not.toMatch(/\.update\(\{\s+payment_url: session\.url/);
+    const wh = read("supabase/functions/stripe-webhook/index.ts");
+    expect(wh).toMatch(/\.eq\("stripe_session_id", session\.id\)\s+\.is\("paid_at", null\);/);
+    const mig = read("supabase/migrations/20261117140100_phase2c_invoice_races.sql");
+    expect(mig).toMatch(/v_parent\.recurring_active/);
+    expect(mig).toMatch(/stripe_session_id IS DISTINCT FROM p_expected_session/);
+  });
 });

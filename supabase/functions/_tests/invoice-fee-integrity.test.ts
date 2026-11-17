@@ -92,8 +92,9 @@ const PAY_FUNCS = [
     path: "supabase/functions/create-invoice/index.ts",
     base: "invoiceAmountCents",
     total: "totalWithFeeCents",
-    persistFee: "processing_fee",
-    persistTotal: "total_charged",
+    // Persisted through persist_invoice_session (E-8 CAS), as p_fee / p_total.
+    persistFee: "p_fee",
+    persistTotal: "p_total",
   },
   {
     name: "create-addon-invoice",

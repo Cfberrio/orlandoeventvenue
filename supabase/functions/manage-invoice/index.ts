@@ -60,6 +60,27 @@ serve(async (req: Request) => {
     const refusal = refuseAction(row, request);
     if (refusal) return json({ error: refusal }, 409);
 
+    // Claim the row so two actions on the same invoice cannot overlap. A claim
+    // older than 2 minutes is treated as abandoned.
+    const staleBefore = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const { data: claimed, error: claimError } = await supabase
+      .from(table)
+      .update({ admin_action_claimed_at: new Date().toISOString() })
+      .eq("id", id)
+      .is("paid_at", null)
+      .not("payment_status", "in", "(paid,void)")
+      .or(`admin_action_claimed_at.is.null,admin_action_claimed_at.lt.${staleBefore}`)
+      .select("id, stripe_session_id");
+    if (claimError) return json({ error: `Could not lock the invoice: ${claimError.message}` }, 500);
+    if (!claimed?.length) return json({ error: "Another change to this invoice is in progress, or it was just paid. Reload the page." }, 409);
+    // The session to close is the one on the row now, not the one first read.
+    row.stripe_session_id = claimed[0].stripe_session_id;
+    const release = async () => {
+      const { error } = await supabase.from(table).update({ admin_action_claimed_at: null }).eq("id", id);
+      if (error) console.error("[manage-invoice] claim not released", error);
+    };
+    try {
+
     // 1. Close the Stripe link first.
     let sessionResult = "none";
     if (row.stripe_session_id) {
@@ -139,6 +160,9 @@ serve(async (req: Request) => {
       return json({ error: `Old link closed, but a new one could not be created: ${out.error ?? res.status}. Use Resend again.` }, 502);
     }
     return json({ ok: true, action, id, stripe_session: sessionResult, email_sent: out.email_sent === true, payment_url: out.payment_url });
+    } finally {
+      await release();
+    }
   } catch (e) {
     console.error("[manage-invoice]", e);
     return json({ error: e instanceof Error ? e.message : "Internal error" }, 500);
