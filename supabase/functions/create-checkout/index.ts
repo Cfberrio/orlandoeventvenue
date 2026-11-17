@@ -282,7 +282,29 @@ serve(async (req: Request) => {
       ? eventTypeLabel(booking.event_type, booking.event_type_other)
       : eventTypeLabel(typeof eventType === "string" ? eventType : null);
 
+    // E-18 (86e40ach2): hold the slot before taking money. Under the per-date
+    // lock it re-checks paid bookings, other live checkouts, blocks and
+    // blackout dates; the hold (35 min) outlives the session (31 min).
+    const { data: slotProblem, error: slotError } = await supabase.rpc("claim_booking_slot", { p_booking_id: bookingId });
+    if (slotError) {
+      console.error("[create-checkout] claim_booking_slot failed:", slotError.message);
+      return json({ error: "TEMPORARY", message: "We couldn't confirm the time is still free. Please try again." }, 500);
+    }
+    if (slotProblem) {
+      return json(
+        {
+          error: "SLOT_TAKEN",
+          message:
+            slotProblem === "not_pending"
+              ? "This booking is no longer waiting for payment."
+              : "Someone just booked or is paying for this time. Please choose another date or time.",
+        },
+        409,
+      );
+    }
+
     const session = await stripe.checkout.sessions.create({
+      expires_at: Math.floor(Date.now() / 1000) + 31 * 60,
       customer: customerId,
       client_reference_id: bookingId,
       payment_method_types: ["card"],

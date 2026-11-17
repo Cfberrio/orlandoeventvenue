@@ -31,6 +31,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase2-invoices.test.ts",
       "supabase/functions/_tests/phase2-status.test.ts",
       "supabase/functions/_tests/phase2-admin-booking.test.ts",
+      "supabase/functions/_tests/phase2-slot-hold.test.ts",
     ],
   },
 });
