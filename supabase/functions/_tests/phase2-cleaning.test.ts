@@ -40,6 +40,16 @@ describe("E-10/E-11/E-12 cleaning reports go through server functions", () => {
     expect(mig).toMatch(/REVOKE ALL ON FUNCTION public\._apply_cleaning_inventory\(jsonb, text\) FROM PUBLIC, anon, authenticated/);
   });
 
+  it("fixes: cleaning scope, inventory once, unique reports, ticket per report, GHL ok:false", () => {
+    const fix = read("supabase/migrations/20261117130050_phase2b_cleaning_fixes.sql");
+    expect(fix).toMatch(/_is_cleaning_assignment\(assignment_role, assignment_type\)/);
+    expect(fix).toMatch(/v_a\.booking_id IS NOT NULL OR NOT public\._is_cleaning_assignment/);
+    expect(fix).toMatch(/IF NOT v_was_completed THEN\s+v_inv := public\._apply_cleaning_inventory/);
+    expect(fix).toMatch(/ON CONFLICT \(booking_id\) DO NOTHING/);
+    expect(fix).toMatch(/ON CONFLICT \(source_report_id\)/);
+    expect(form).toMatch(/ok\?: boolean \} \| null\)\?\.ok === false/);
+  });
+
   it("lockdown removes the open anon write policies", () => {
     expect(lockdown).toMatch(/DROP POLICY IF EXISTS "Allow anon to insert cleaning reports"/);
     expect(lockdown).toMatch(/REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON public\.booking_cleaning_reports FROM anon/);

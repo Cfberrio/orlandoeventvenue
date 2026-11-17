@@ -213,12 +213,21 @@ export default function CleaningReportForm() {
 
       // Ticket and inventory are handled by the server call above. The GHL
       // sync is a follow-up: the report is already saved if it fails.
-      const { error: ghlError } = await supabase.functions.invoke("sync-to-ghl", {
+      const { data: ghlData, error: ghlError } = await supabase.functions.invoke("sync-to-ghl", {
         body: { booking_id: id },
       });
-      if (ghlError) console.warn("[cleaning-report] GHL sync failed", ghlError);
+      // sync-to-ghl answers 200 with ok:false when GHL rejects the update.
+      const ghlFailed = !!ghlError || (ghlData as { ok?: boolean } | null)?.ok === false;
+      if (ghlFailed) console.warn("[cleaning-report] GHL sync failed", ghlError ?? ghlData);
 
-      toast({ title: "Cleaning report submitted successfully" });
+      toast(
+        ghlFailed
+          ? {
+              title: "Cleaning report saved",
+              description: "The office's CRM did not update. Tell the office the report is in.",
+            }
+          : { title: "Cleaning report submitted successfully" },
+      );
       navigate(`/staff/bookings/${id}`);
     } catch (error) {
       toast({
