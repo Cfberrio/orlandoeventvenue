@@ -52,74 +52,21 @@ export default function BarServiceCard({ booking }: BarServiceCardProps) {
 
   const handleSelectVendor = async (vendorId: string) => {
     if (!hasBar) return;
-    const previousVendorId: string | null = booking.bar_vendor_id ?? null;
-    const vendorChanged = previousVendorId !== vendorId;
 
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-
-      // Try to find existing bar service assignment
-      const { data: existing } = await supabase
-        .from("booking_staff_assignments")
-        .select("id, staff_id")
-        .eq("booking_id", booking.id)
-        .eq("assignment_type", "bar_service")
-        .neq("status", "cancelled")
-        .maybeSingle();
-
-      let assignmentId: string | undefined = existing?.id;
-
-      if (existing) {
-        const { error } = await supabase
-          .from("booking_staff_assignments")
-          .update({
-            staff_id: vendorId,
-            assignment_role: BAR_VENDOR_ROLE,
-            assignment_type: "bar_service",
-            customer_contact_required: true,
-            customer_contacted: vendorChanged ? false : existing.staff_id === vendorId ? undefined : false,
-            customer_contacted_at: vendorChanged ? null : undefined,
-            customer_contact_due_at: dueAt,
-            updated_at: now,
-          })
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { data: created, error } = await supabase
-          .from("booking_staff_assignments")
-          .insert({
-            booking_id: booking.id,
-            staff_id: vendorId,
-            assignment_role: BAR_VENDOR_ROLE,
-            assignment_type: "bar_service",
-            customer_contact_required: true,
-            customer_contacted: false,
-            customer_contact_due_at: dueAt,
-            status: "assigned",
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        assignmentId = created.id;
-      }
-
-      const { error: bErr } = await supabase
-        .from("bookings")
-        .update({
-          bar_vendor_id: vendorId,
-          bar_vendor_assignment_id: assignmentId,
-          bar_vendor_assigned_at:
-            booking.bar_vendor_assigned_at && booking.bar_vendor_id === vendorId
-              ? booking.bar_vendor_assigned_at
-              : now,
-          bar_customer_contacted: vendorChanged ? false : booking.bar_customer_contacted,
-          bar_customer_contacted_at: vendorChanged ? null : booking.bar_customer_contacted_at,
-          bar_customer_contacted_by: vendorChanged ? null : booking.bar_customer_contacted_by,
-        })
-        .eq("id", booking.id);
-      if (bErr) throw bErr;
+      // E-19 (86e40ach2): one server call assigns the vendor and updates the
+      // booking under a lock; the database allows one active bar assignment.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: assigned, error: assignError } = await (supabase.rpc as any)("admin_assign_bar_vendor", {
+        p_booking_id: booking.id,
+        p_vendor_id: vendorId,
+      });
+      if (assignError) throw assignError;
+      const result = (assigned ?? {}) as { assignment_id?: string; vendor_changed?: boolean };
+      const assignmentId: string | undefined = result.assignment_id;
+      // The server decides whether the vendor changed (the page may be stale).
+      const vendorChanged = result.vendor_changed === true;
 
       // Send notification email only if vendor actually changed (duplicate prevention)
       if (vendorChanged) {
