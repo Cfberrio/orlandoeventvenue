@@ -163,6 +163,13 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       }
     }
 
+    // External bookings are one date each (one payment); the server refuses
+    // series, so never report a recurrence that was not created (Codex E-16).
+    if (bookingType === "hourly" && duration !== "1_day") {
+      toast.error("External bookings are one date each. Create each date separately.");
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -224,10 +231,13 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       // messages, then triggers the calendar sync itself.
       try {
         console.log("Syncing external booking to GHL:", booking.id);
-        await supabase.functions.invoke("sync-to-ghl", {
+        const { data: ghlData, error: ghlError } = await supabase.functions.invoke("sync-to-ghl", {
           body: { booking_id: booking.id },
         });
-        console.log("GHL sync triggered for external booking");
+        if (ghlError || (ghlData as { ok?: boolean } | null)?.ok === false) {
+          console.error("sync-to-ghl failed:", ghlError ?? ghlData);
+          toast.error("Booking created, but GHL did not update. Use Sync to GHL on the booking.");
+        }
       } catch (syncError) {
         console.error("Error syncing to GHL:", syncError);
         // Don't fail the booking creation if sync fails
