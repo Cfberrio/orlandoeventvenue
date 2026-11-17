@@ -35,4 +35,9 @@ describe("staff pay (E-5)", () => {
     expect(payExplanation("per_assignment", "Production", null)).toMatch(/no lines/);
     expect(payExplanation("hourly", "Production", 50)).toMatch(/\$50.00 per hour/);
   });
+
+  it("rejects per-event pay for roles payroll has no per-event rule for", () => {
+    expect(validateStaffPay({ payrollType: "per_assignment", role: "Production", rate: "" })).toMatch(/choose Hourly/);
+    expect(validateStaffPay({ payrollType: "per_assignment", role: "Assistant", rate: "" })).toBeNull();
+  });
 });

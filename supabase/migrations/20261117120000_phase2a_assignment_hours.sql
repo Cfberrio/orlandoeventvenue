@@ -98,3 +98,13 @@ $function$;
 
 REVOKE ALL ON FUNCTION public.admin_set_assignment_hours(uuid, numeric, text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.admin_set_assignment_hours(uuid, numeric, text) TO authenticated, service_role;
+
+-- E-5 guard (Codex review): payroll has per-event rules only for Bar Vendor,
+-- Assistant and Custodial; hourly pay needs a rate (the $50 fallback hid it).
+ALTER TABLE public.staff_members DROP CONSTRAINT IF EXISTS staff_members_pay_config_check;
+ALTER TABLE public.staff_members ADD CONSTRAINT staff_members_pay_config_check CHECK (
+  (payroll_type IS DISTINCT FROM 'per_assignment' OR role IN ('Bar Vendor', 'Assistant', 'Custodial'))
+  AND (payroll_type IS DISTINCT FROM 'hourly' OR COALESCE(hourly_rate, 0) > 0)
+  AND (payroll_type IS DISTINCT FROM 'per_assignment' OR role <> 'Bar Vendor' OR COALESCE(hourly_rate, 0) > 0)
+) NOT VALID;
+ALTER TABLE public.staff_members VALIDATE CONSTRAINT staff_members_pay_config_check;

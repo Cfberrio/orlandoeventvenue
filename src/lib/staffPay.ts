@@ -45,7 +45,14 @@ export interface StaffPayInput {
 }
 
 /** Returns an error message, or null when the pay settings are valid. */
+export const PER_EVENT_ROLES = ["Bar Vendor", "Assistant", "Custodial"];
+
 export function validateStaffPay(input: StaffPayInput): string | null {
+  // Payroll has per-event rules only for these roles; any other role on
+  // "per event" would be completed with no pay line (Codex review, Phase 2A).
+  if (input.payrollType === "per_assignment" && !PER_EVENT_ROLES.includes(input.role)) {
+    return `${input.role || "This role"} has no per-event rate; choose Hourly`;
+  }
   const field = rateField(input.payrollType, input.role);
   if (!field) return null;
   const n = Number(input.rate);
