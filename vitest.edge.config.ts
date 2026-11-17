@@ -29,6 +29,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase2-quickwins.test.ts",
       "supabase/functions/_tests/phase2-cleaning.test.ts",
       "supabase/functions/_tests/phase2-invoices.test.ts",
+      "supabase/functions/_tests/phase2-status.test.ts",
     ],
   },
 });

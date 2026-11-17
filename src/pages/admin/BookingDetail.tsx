@@ -97,6 +97,7 @@ import { usePricing } from "@/hooks/usePricing";
 import { getAssignmentHours } from "@/lib/assignmentHours";
 import { describeRescheduleResult, rescheduleBooking } from "@/lib/rescheduleBooking";
 import { useQueryClient } from "@tanstack/react-query";
+import { transitionBooking } from "@/lib/bookingTransition";
 
 const lifecycleStatuses = [
   "pending",
@@ -226,6 +227,8 @@ export default function BookingDetail() {
 
   // Cancellation state
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  // E-4: a move outside the normal flow is a correction and needs a reason.
+  const [correction, setCorrection] = useState<{ to: string; reason: string } | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
 
   // Send balance payment state
@@ -353,8 +356,18 @@ export default function BookingDetail() {
       // Bar service no longer blocks pre_event_ready; vendor can be assigned at any time.
 
       const wasPreEventReady = booking.pre_event_ready === "true";
-      
-      await updateBooking.mutateAsync({ id: booking.id, updates: { lifecycle_status: newStatus } });
+
+      // E-4 (86e40ach2): one server function changes the lifecycle, checks the
+      // move is allowed and records it.
+      const res = await transitionBooking(supabase as never, booking.id, newStatus);
+      if (!res.ok) {
+        if (res.needsCorrection) {
+          setCorrection({ to: newStatus, reason: "" });
+          return;
+        }
+        throw new Error(res.error);
+      }
+      await queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
       
       // If changing to pre_event_ready, trigger full automation
       if (newStatus === "pre_event_ready") {
@@ -376,6 +389,26 @@ export default function BookingDetail() {
         variant: "destructive",
       });
     }
+  };
+
+  const submitCorrection = async () => {
+    if (!correction) return;
+    if (!correction.reason.trim()) {
+      toast({ title: "Say why the status is being corrected", variant: "destructive" });
+      return;
+    }
+    const res = await transitionBooking(supabase as never, booking.id, correction.to, {
+      reason: correction.reason,
+      force: true,
+    });
+    if (!res.ok) {
+      toast({ title: "Status not corrected", description: res.error, variant: "destructive" });
+      return;
+    }
+    setCorrection(null);
+    await queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
+    await supabase.functions.invoke("sync-to-ghl", { body: { booking_id: booking.id } });
+    toast({ title: "Status corrected", description: "The correction and its reason are in the booking history." });
   };
 
   const fetchReadiness = async (): Promise<BookingReadiness | null> => {
@@ -454,13 +487,17 @@ export default function BookingDetail() {
     setReviewReceived(checked);
     if (checked) {
       try {
-        await updateBooking.mutateAsync({
-          id: booking.id,
-          updates: { lifecycle_status: "closed_review_complete" },
-        });
+        const res = await transitionBooking(supabase as never, booking.id, "closed_review_complete");
+        if (!res.ok) throw new Error(res.error);
+        await queryClient.invalidateQueries({ queryKey: ["booking", booking.id] });
         toast({ title: "Booking closed successfully" });
-      } catch {
-        toast({ title: "Failed to close booking", variant: "destructive" });
+      } catch (error) {
+        setReviewReceived(false);
+        toast({
+          title: "Failed to close booking",
+          description: error instanceof Error ? error.message : undefined,
+          variant: "destructive",
+        });
       }
     }
   };
@@ -2278,6 +2315,29 @@ export default function BookingDetail() {
       </Dialog>
 
       {/* Cancel Booking Dialog */}
+      <Dialog open={!!correction} onOpenChange={(open) => !open && setCorrection(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Correct status</DialogTitle>
+            <DialogDescription>
+              Moving from {booking.lifecycle_status?.replace(/_/g, " ")} to {correction?.to.replace(/_/g, " ")} is outside the
+              normal flow. Use this only to fix a mistake; the reason is saved in the booking history.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={correction?.reason ?? ""}
+            onChange={(e) => setCorrection((c) => (c ? { ...c, reason: e.target.value } : c))}
+            placeholder="Why is the status being corrected?"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCorrection(null)}>
+              Cancel
+            </Button>
+            <Button onClick={submitCorrection}>Correct status</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showCancelDialog} onOpenChange={setShowCancelDialog}>
         <DialogContent>
           <DialogHeader>

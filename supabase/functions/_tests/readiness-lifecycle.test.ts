@@ -111,13 +111,14 @@ describe("source guards", () => {
     // the DB gate refusing (23514) is re-evaluated, not surfaced as a 500
     expect(src).toContain('code === "23514"');
     // CAS on status too, and cancelled is terminal for GHL (no stale reactivation)
-    expect(src).toContain('updateQuery.eq("status", from_status)');
+    // E-4: CAS on both fields now happens in ghl_apply_booking_status.
+    expect(src).toContain("p_from_status: from_status ?? null");
     expect(src).toContain('const isCancelled = from_status === "cancelled" || from_lifecycle === "cancelled";');
     expect(src).not.toMatch(/updateData\.status = new_status/);
-    expect(src).toContain("updateData.lifecycle_status = applyLifecycle");
+    expect(src).toContain("p_lifecycle: applyLifecycle ?? null");
     expect(src).not.toMatch(/updateData\.lifecycle_status\s*=\s*new_lifecycle_status/);
     // compare-and-set: a stale GHL request can't overwrite a concurrent move
-    expect(src).toContain('updateQuery.eq("lifecycle_status", from_lifecycle)');
+    expect(src).toContain("p_from_lifecycle: from_lifecycle ?? null");
     expect(src).toContain("stale_lifecycle_changed_concurrently");
     // a dropped status change must be retried by GHL, never acknowledged
     expect(src).toContain("status: 503");

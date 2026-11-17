@@ -254,28 +254,15 @@ serve(async (req) => {
         );
       }
 
-      const updateData: Record<string, string> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (applyStatus) {
-        updateData.status = applyStatus;
-      }
-      if (applyLifecycle) {
-        updateData.lifecycle_status = applyLifecycle;
-      }
-
-      // Compare-and-set on BOTH fields we decided from.
-      let updateQuery = supabase
-        .from("bookings")
-        .update(updateData)
-        .eq("id", booking_id);
-      updateQuery = from_lifecycle == null
-        ? updateQuery.is("lifecycle_status", null)
-        : updateQuery.eq("lifecycle_status", from_lifecycle);
-      updateQuery = from_status == null
-        ? updateQuery.is("status", null)
-        : updateQuery.eq("status", from_status);
-      const { data: updatedRows, error: updateError } = await updateQuery.select("id");
+      // E-4 (86e40ach2): status + lifecycle change through one server
+      // function (compare-and-set on both, allowed moves only, recorded).
+      const { data: applyResult, error: updateError } = await supabase.rpc("ghl_apply_booking_status", {
+        p_booking_id: booking_id,
+        p_from_status: from_status ?? null,
+        p_from_lifecycle: from_lifecycle ?? null,
+        p_status: applyStatus ?? null,
+        p_lifecycle: applyLifecycle ?? null,
+      });
 
       if (updateError) {
         // 23514 = the DB readiness gate refused pre_event_ready (eligibility
@@ -291,7 +278,23 @@ serve(async (req) => {
         );
       }
 
-      applied = !!updatedRows && updatedRows.length > 0;
+      const applyReason = (applyResult as { applied?: boolean; reason?: string } | null)?.reason;
+      if (applyReason && applyReason !== "stale_state") {
+        // Not a race: the database refused the move. Log and stop retrying.
+        console.log(`GHL status write for ${booking_id} refused: ${applyReason}`);
+        const { error: logError } = await supabase.from("booking_events").insert({
+          booking_id,
+          event_type: "ghl_lifecycle_ignored",
+          channel: "ghl",
+          metadata: { requested_lifecycle: applyLifecycle, requested_status: applyStatus, current_lifecycle: from_lifecycle, reason: applyReason },
+        });
+        if (logError) console.error("Error logging refused GHL write:", logError);
+        return new Response(
+          JSON.stringify({ ok: true, booking_id, applied: false, reason: applyReason }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      applied = (applyResult as { applied?: boolean } | null)?.applied === true;
       if (!applied) {
         console.log(`Concurrent lifecycle change on ${booking_id} (was ${from_lifecycle}); retrying (attempt ${attempt})`);
       }
