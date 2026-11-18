@@ -413,6 +413,9 @@ export type Database = {
           id: string
           inventory_items: Json | null
           inventory_update_needed: boolean | null
+          issue_resolution_note: string | null
+          issue_resolved_at: string | null
+          issue_resolved_by: string | null
           media_bathrooms: Json | null
           media_deep_cleaning: Json | null
           media_front_door: Json | null
@@ -452,6 +455,9 @@ export type Database = {
           id?: string
           inventory_items?: Json | null
           inventory_update_needed?: boolean | null
+          issue_resolution_note?: string | null
+          issue_resolved_at?: string | null
+          issue_resolved_by?: string | null
           media_bathrooms?: Json | null
           media_deep_cleaning?: Json | null
           media_front_door?: Json | null
@@ -491,6 +497,9 @@ export type Database = {
           id?: string
           inventory_items?: Json | null
           inventory_update_needed?: boolean | null
+          issue_resolution_note?: string | null
+          issue_resolved_at?: string | null
+          issue_resolved_by?: string | null
           media_bathrooms?: Json | null
           media_deep_cleaning?: Json | null
           media_front_door?: Json | null
@@ -607,6 +616,9 @@ export type Database = {
           has_issue: boolean | null
           id: string
           issue_description: string | null
+          issue_resolution_note: string | null
+          issue_resolved_at: string | null
+          issue_resolved_by: string | null
           notes: string | null
           reviewed_at: string | null
           reviewed_by_id: string | null
@@ -627,6 +639,9 @@ export type Database = {
           has_issue?: boolean | null
           id?: string
           issue_description?: string | null
+          issue_resolution_note?: string | null
+          issue_resolved_at?: string | null
+          issue_resolved_by?: string | null
           notes?: string | null
           reviewed_at?: string | null
           reviewed_by_id?: string | null
@@ -647,6 +662,9 @@ export type Database = {
           has_issue?: boolean | null
           id?: string
           issue_description?: string | null
+          issue_resolution_note?: string | null
+          issue_resolved_at?: string | null
+          issue_resolved_by?: string | null
           notes?: string | null
           reviewed_at?: string | null
           reviewed_by_id?: string | null
@@ -3881,6 +3899,10 @@ export type Database = {
         Args: { p_item_id: string; p_reason: string }
         Returns: Json
       }
+      admin_resolve_issue_alert: {
+        Args: { p_kind: string; p_note?: string; p_report_id: string }
+        Returns: Json
+      }
       admin_resolve_reschedule_price: {
         Args: {
           p_decision: string
@@ -4296,6 +4318,7 @@ export type Database = {
         Args: { p_day: number; p_last_sent: string }
         Returns: string
       }
+      normalize_event_type_slug: { Args: { p: string }; Returns: string }
       normalize_reservation_number: {
         Args: { p_value: string }
         Returns: string
