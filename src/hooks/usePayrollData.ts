@@ -391,7 +391,17 @@ export function usePayrollData() {
     }
     
     if (filters?.staffId) {
-      filteredData = filteredData.filter(item => item.staff_name === filters.staffId);
+      // C-25: the export rows carry staff_name, not staff_id; comparing the name
+      // with the id always produced an empty file. Resolve the id to its name.
+      const { data: staff, error: staffError } = await supabase
+        .from("staff_members")
+        .select("full_name")
+        .eq("id", filters.staffId)
+        .maybeSingle();
+      if (staffError || !staff) {
+        return { success: false, error: staffError ?? new Error("Staff member not found") };
+      }
+      filteredData = filteredData.filter(item => item.staff_name === staff.full_name);
     }
     
     if (filters?.role) {

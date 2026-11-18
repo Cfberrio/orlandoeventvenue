@@ -41,6 +41,24 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
 }
 
 /**
+ * Records jobs that could not be scheduled (audit Phase 2 follow-up): marks the
+ * response, logs a critical-failure event and emails the alert inbox. Never throws.
+ */
+async function reportFailedJobs(
+  supabase: any,
+  booking: { id: string; reservation_number: string | null },
+  failedJobs: string[],
+  responseData: Record<string, unknown>,
+): Promise<void> {
+  if (failedJobs.length === 0) return;
+  responseData.success = false;
+  responseData.jobs_failed = failedJobs;
+  const message = `Could not schedule ${failedJobs.length} job(s): ${failedJobs.join("; ")}`;
+  await logCriticalError(supabase, booking.id, "schedule-balance-payment", new Error(message));
+  await sendCriticalAlert("schedule-balance-payment", booking.reservation_number || booking.id, message, booking.id);
+}
+
+/**
  * Log critical error to booking_events table
  */
 async function logCriticalError(supabase: any, bookingId: string, functionName: string, error: Error): Promise<void> {
@@ -324,6 +342,10 @@ serve(async (req) => {
       booking_id,
       reservation_number: booking.reservation_number,
     };
+    // Jobs whose insert failed. The response stays 200 (stripe-webhook and
+    // trigger-booking-automation only check response.ok and must not change
+    // behavior), but a failure is now recorded and alerted instead of lost.
+    const failedJobs: string[] = [];
 
     // ===============================
     // PART 1: Schedule lifecycle transition job (set_lifecycle_in_progress)
@@ -381,6 +403,7 @@ serve(async (req) => {
           if (force_reschedule) {
             throw new Error(`Failed to recreate lifecycle job: ${lifecycleJobError.message}`);
           }
+          failedJobs.push(`set_lifecycle_in_progress: ${lifecycleJobError.message}`);
         } else {
           console.log(`Scheduled set_lifecycle_in_progress for: ${runAt.toISOString()}`);
           
@@ -416,6 +439,7 @@ serve(async (req) => {
       responseData.balance_action = "skipped";
       responseData.balance_reason = `Payment status is ${booking.payment_status}, not deposit_paid`;
       
+      await reportFailedJobs(supabase, booking, failedJobs, responseData);
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -428,6 +452,7 @@ serve(async (req) => {
       responseData.balance_action = "skipped";
       responseData.balance_reason = "Already fully paid";
       
+      await reportFailedJobs(supabase, booking, failedJobs, responseData);
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -451,6 +476,7 @@ serve(async (req) => {
       responseData.balance_action = "skipped";
       responseData.balance_reason = "Balance payment jobs already scheduled";
 
+      await reportFailedJobs(supabase, booking, failedJobs, responseData);
       return new Response(JSON.stringify(responseData), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -489,7 +515,10 @@ serve(async (req) => {
       
       if (!response.ok) {
         console.error("Failed to create initial balance payment link:", result);
-        return new Response(JSON.stringify({ 
+        // Alert it (and any lifecycle-job failure from this run) before the 500.
+        failedJobs.push(`create_balance_payment_link: HTTP ${response.status}`);
+        await reportFailedJobs(supabase, booking, failedJobs, responseData);
+        return new Response(JSON.stringify({  
           ...responseData,
           success: false, 
           error: "Failed to create balance payment link",
@@ -529,6 +558,7 @@ serve(async (req) => {
 
       if (insertError) {
         console.error("Failed to schedule retry job:", insertError);
+        failedJobs.push(`balance_retry_2: ${insertError.message}`);
       } else {
         console.log(`Scheduled balance_retry_2 for: ${retryAt.toISOString()}`);
         
@@ -584,6 +614,7 @@ serve(async (req) => {
 
         if (insertError) {
           console.error(`Failed to schedule ${retry.job_type}:`, insertError);
+          failedJobs.push(`${retry.job_type}: ${insertError.message}`);
         } else {
           console.log(`Scheduled ${retry.job_type} for: ${retry.run_at.toISOString()}`);
           
@@ -608,6 +639,7 @@ serve(async (req) => {
       responseData.days_until_event = diffDays;
     }
 
+    await reportFailedJobs(supabase, booking, failedJobs, responseData);
     return new Response(JSON.stringify(responseData), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

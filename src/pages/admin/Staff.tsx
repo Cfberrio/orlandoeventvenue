@@ -12,6 +12,7 @@ import { useStaffMembers, useCreateStaffMember, useUpdateStaffMember } from "@/h
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { PAYROLL_TYPES, payExplanation, rateField, staffPayValues, validateStaffPay, type PayrollType } from "@/lib/staffPay";
+import { staffSaveErrorMessage } from "@/lib/staffForm";
 
 const staffRoles = ["Custodial", "Production", "Assistant", "Bar Vendor"];
 
@@ -65,7 +66,7 @@ export default function Staff() {
     try {
       await createStaff.mutateAsync({
         full_name: formName,
-        email: formEmail || null,
+        email: formEmail.trim() || null,
         phone: formPhone || null,
         role: formRole,
         is_active: formActive,
@@ -75,7 +76,7 @@ export default function Staff() {
       setIsAddOpen(false);
       resetForm();
     } catch (e) {
-      toast({ title: "Failed to add staff member", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
+      toast({ title: "Failed to add staff member", description: staffSaveErrorMessage(e), variant: "destructive" });
     }
   };
 
@@ -114,7 +115,7 @@ export default function Staff() {
         id: editingStaff,
         updates: {
           full_name: formName,
-          email: formEmail || null,
+          email: formEmail.trim() || null,
           phone: formPhone || null,
           role: formRole,
           is_active: formActive,
@@ -125,7 +126,7 @@ export default function Staff() {
       setEditingStaff(null);
       resetForm();
     } catch (e) {
-      toast({ title: "Failed to update staff member", description: e instanceof Error ? e.message : undefined, variant: "destructive" });
+      toast({ title: "Failed to update staff member", description: staffSaveErrorMessage(e), variant: "destructive" });
     }
   };
 

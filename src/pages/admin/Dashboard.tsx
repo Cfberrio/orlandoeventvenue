@@ -23,8 +23,11 @@ import {
   useOperationalAlerts,
   useIssueAlerts,
   useStaffUnassignmentAlerts,
-  useResolveStaffUnassignmentAlert
+  useResolveStaffUnassignmentAlert,
+  useResolveIssueAlert
 } from "@/hooks/useAdminData";
+import { useExternalSetupAlerts, useRetryExternalSetup } from "@/hooks/useExternalSetupAlerts";
+import { AUTO_RETRY_STEPS, EXTERNAL_SETUP_LABELS } from "@/lib/externalSetup";
 import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
@@ -52,8 +55,47 @@ export default function AdminDashboard() {
   const { data: issueAlerts, isLoading: loadingIssueAlerts } = useIssueAlerts();
   const { data: staffUnassignmentAlerts, isLoading: loadingStaffUnassignments } = useStaffUnassignmentAlerts();
   const resolveAlert = useResolveStaffUnassignmentAlert();
+  const resolveIssue = useResolveIssueAlert();
+  const { data: externalSetupAlerts } = useExternalSetupAlerts();
+  const retryExternalSetup = useRetryExternalSetup();
 
-  const totalAlerts = (alerts?.length || 0) + (issueAlerts?.length || 0) + (staffUnassignmentAlerts?.length || 0);
+  const totalAlerts = (alerts?.length || 0) + (issueAlerts?.length || 0) + (staffUnassignmentAlerts?.length || 0) + (externalSetupAlerts?.length || 0);
+
+  const handleResolveIssue = async (kind: "cleaning" | "guest", reportId: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await resolveIssue.mutateAsync({ kind, reportId });
+      toast({ title: "Issue resolved", description: "It is recorded on the booking's history." });
+    } catch (error) {
+      toast({
+        title: "Could not resolve the issue",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRetryExternalSetup = async (bookingId: string, missing: Parameters<typeof retryExternalSetup.mutateAsync>[0]["missing"]) => {
+    try {
+      const { failed } = await retryExternalSetup.mutateAsync({ bookingId, missing });
+      if (failed.length) {
+        toast({
+          title: "Some steps still failed",
+          description: failed.map((s) => EXTERNAL_SETUP_LABELS[s]).join(", "),
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "External booking setup completed" });
+      }
+    } catch (error) {
+      toast({
+        title: "Retry failed",
+        description: error instanceof Error ? error.message : undefined,
+        variant: "destructive",
+      });
+    }
+  };
   
   const handleResolveAlert = async (alertId: string, e: React.MouseEvent) => {
     e.preventDefault(); // Prevent link navigation
@@ -206,6 +248,57 @@ export default function AdminDashboard() {
         </Card>
       )}
 
+      {/* External bookings whose post-create steps did not all run */}
+      {externalSetupAlerts && externalSetupAlerts.length > 0 && (
+        <Card className="border-purple-500/50">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <AlertTriangle className="h-5 w-5 text-purple-600" />
+              External bookings with incomplete setup
+            </CardTitle>
+            <p className="text-sm text-muted-foreground">
+              A step after creating these bookings did not finish (the tab may have closed). "Retry setup" reruns only the missing steps; the confirmation email goes to the guest, so it has its own button.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {externalSetupAlerts.map((alert) => (
+                <div key={alert.booking_id} className="flex items-center justify-between gap-3 p-3 rounded-lg border border-purple-500/30 flex-wrap">
+                  <Link to={`/admin/bookings/${alert.booking_id}`} className="min-w-0 hover:underline">
+                    <p className="font-medium">{alert.reservation_number || "N/A"} - {alert.full_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {format(new Date(alert.event_date + 'T00:00:00'), "MM/dd/yyyy")} · Missing: {alert.missing.map((s) => EXTERNAL_SETUP_LABELS[s]).join(", ")}
+                    </p>
+                  </Link>
+                  <div className="flex gap-2 flex-wrap">
+                    {alert.missing.some((s) => AUTO_RETRY_STEPS.includes(s)) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={retryExternalSetup.isPending}
+                        onClick={() => handleRetryExternalSetup(alert.booking_id, alert.missing.filter((s) => AUTO_RETRY_STEPS.includes(s)))}
+                      >
+                        Retry setup
+                      </Button>
+                    )}
+                    {alert.missing.includes("confirmation") && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={retryExternalSetup.isPending}
+                        onClick={() => handleRetryExternalSetup(alert.booking_id, ["confirmation"])}
+                      >
+                        Send confirmation email
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Issue Alerts Section - Prominent */}
       {issueAlerts && issueAlerts.length > 0 && (
         <Card className="border-2 border-destructive bg-destructive/5">
@@ -235,13 +328,23 @@ export default function AdminDashboard() {
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <Badge variant={alert.type === 'cleaning' ? 'secondary' : 'outline'}>
                           {alert.type === 'cleaning' ? '🧹 Staff Report' : '👤 Guest Report'}
                         </Badge>
                         <span className="text-xs text-muted-foreground">
                           {format(new Date(alert.created_at), "MM/dd/yyyy 'at' h:mm a")}
                         </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="ml-auto text-green-600 hover:text-green-700 hover:bg-green-50 border-green-500"
+                          disabled={resolveIssue.isPending}
+                          onClick={(e) => handleResolveIssue(alert.type === 'cleaning' ? 'cleaning' : 'guest', alert.id, e)}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Resolve
+                        </Button>
                       </div>
                       <p className="font-medium text-foreground">
                         {alert.booking?.reservation_number || 'N/A'} - {alert.booking?.full_name}

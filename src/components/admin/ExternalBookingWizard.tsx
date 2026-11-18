@@ -16,6 +16,8 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
 import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
+import { ADMIN_EVENT_TYPE_OPTIONS } from "@/lib/adminEventTypes";
+import { recordExternalGhlSynced } from "@/hooks/useExternalSetupAlerts";
 
 interface ExternalBookingWizardProps {
   open: boolean;
@@ -23,17 +25,6 @@ interface ExternalBookingWizardProps {
 }
 
 type BookingType = "hourly" | "daily";
-
-const EVENT_TYPES = [
-  "Birthday Party",
-  "Baby Shower",
-  "Corporate Event",
-  "Wedding Reception",
-  "Anniversary",
-  "Graduation",
-  "Holiday Party",
-  "Other",
-];
 
 const TIME_SLOTS = [
   "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
@@ -236,7 +227,9 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
         });
         if (ghlError || (ghlData as { ok?: boolean } | null)?.ok === false) {
           console.error("sync-to-ghl failed:", ghlError ?? ghlData);
-          toast.error("Booking created, but GHL did not update. Use Sync to GHL on the booking.");
+          toast.error("Booking created, but GHL did not update. The Dashboard will offer a retry.");
+        } else {
+          await recordExternalGhlSynced(booking.id);
         }
       } catch (syncError) {
         console.error("Error syncing to GHL:", syncError);
@@ -424,8 +417,8 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
                 <SelectValue placeholder="Select event type" />
               </SelectTrigger>
               <SelectContent>
-                {EVENT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                {ADMIN_EVENT_TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

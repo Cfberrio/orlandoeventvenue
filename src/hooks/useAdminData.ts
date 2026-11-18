@@ -371,7 +371,8 @@ export function useIssueAlerts() {
         .from("booking_cleaning_reports")
         .select("id, booking_id, clean_issues_notes, cleaner_name, created_at, bookings(reservation_number, full_name, event_date, lifecycle_status)")
         .not("clean_issues_notes", "is", null)
-        .neq("clean_issues_notes", "");
+        .neq("clean_issues_notes", "")
+        .is("issue_resolved_at" as never, null);
       
       if (cleaningError) throw cleaningError;
 
@@ -407,7 +408,8 @@ export function useIssueAlerts() {
         .select("id, booking_id, issue_description, guest_name, created_at, bookings(reservation_number, full_name, event_date, lifecycle_status)")
         .eq("has_issue", true)
         .not("issue_description", "is", null)
-        .neq("issue_description", "");
+        .neq("issue_description", "")
+        .is("issue_resolved_at" as never, null);
       
       if (hostError) throw hostError;
 
@@ -441,6 +443,30 @@ export function useIssueAlerts() {
       alerts.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
       return alerts;
+    },
+  });
+}
+
+/** C-8: the office clears an issue alert once handled (records who and when). */
+export function useResolveIssueAlert() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ kind, reportId, note }: { kind: "cleaning" | "guest"; reportId: string; note?: string }) => {
+      const { data, error } = await (supabase.rpc as never as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: { ok?: boolean; error?: string } | null; error: { message: string } | null }>)(
+        "admin_resolve_issue_alert",
+        { p_kind: kind, p_report_id: reportId, p_note: note ?? null },
+      );
+      if (error) throw new Error(error.message);
+      if (!data?.ok && data?.error !== "not_found_or_already_resolved") {
+        throw new Error(data?.error ?? "Could not resolve the alert");
+      }
+      return data;
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["issue-alerts"] });
     },
   });
 }

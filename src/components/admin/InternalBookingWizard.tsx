@@ -16,6 +16,7 @@ import { CalendarIcon, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateEndDate, type BlockDuration } from "@/hooks/useAvailabilityBlocks";
 import { useBookedDates, useAvailabilityBlocksForCalendar, useBlackoutDates, isDateFullyBooked, isTimeRangeAvailable } from "@/hooks/useBookedDates";
+import { ADMIN_EVENT_TYPE_OPTIONS } from "@/lib/adminEventTypes";
 
 interface InternalBookingWizardProps {
   open: boolean;
@@ -23,17 +24,6 @@ interface InternalBookingWizardProps {
 }
 
 type BookingType = "hourly" | "daily";
-
-const EVENT_TYPES = [
-  "Birthday Party",
-  "Baby Shower",
-  "Corporate Event",
-  "Wedding Reception",
-  "Anniversary",
-  "Graduation",
-  "Holiday Party",
-  "Other",
-];
 
 const TIME_SLOTS = [
   "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", 
@@ -350,8 +340,8 @@ export function InternalBookingWizard({ open, onOpenChange }: InternalBookingWiz
                 <SelectValue placeholder="Select event type" />
               </SelectTrigger>
               <SelectContent>
-                {EVENT_TYPES.map((type) => (
-                  <SelectItem key={type} value={type}>{type}</SelectItem>
+                {ADMIN_EVENT_TYPE_OPTIONS.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

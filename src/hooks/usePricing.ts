@@ -72,6 +72,10 @@ export function usePricing() {
     items: query.data ?? [],
     isLoading: query.isLoading,
     error: query.error,
+    // C-18: true when live prices never loaded and `pricing` is the fallback.
+    // The booking flow must not quote fallback prices to a guest.
+    isError: !!query.error && !query.data,
+    refetch: query.refetch,
   };
 }
 

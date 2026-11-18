@@ -169,6 +169,9 @@ export default function BookingDetail() {
   const paidAddons = paidAddonInvoices(addonInvoices as Array<AddonInvoiceLike & { id: string }> | undefined);
   const paidAddonsTotal = paidAddonTotal(paidAddons);
   const chargeRows = booking ? paymentRows(booking as unknown as ChargeableBooking, paidAddons as ChargedAddon[]) : [];
+  // C-19/C-20: internal and external bookings are charged by invoice / outside
+  // platform, never through the website deposit+balance checkout.
+  const billedOutsideCheckout = booking?.booking_origin === "internal" || booking?.booking_origin === "external";
   const { data: staffMembers } = useStaffMembers({ isActive: true });
 
   const updateBooking = useUpdateBooking();
@@ -807,11 +810,13 @@ export default function BookingDetail() {
         <div className="flex-1">
           <div className="flex items-center gap-3 mb-1">
             <h1 className="text-2xl font-bold text-foreground">{booking.full_name}</h1>
-            {booking.reservation_number && (
+            {booking.reservation_number ? (
               <Badge variant="outline" className="font-mono">
                 {booking.reservation_number}
               </Badge>
-            )}
+            ) : booking.booking_origin === "internal" ? (
+              <Badge variant="outline">Internal</Badge>
+            ) : null}
           </div>
           <p className="text-muted-foreground flex items-center gap-2">
             <CalendarIcon className="h-4 w-4" />
@@ -980,12 +985,12 @@ export default function BookingDetail() {
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
                     <p className="font-medium flex items-center gap-1">
                       <Clock className="h-3 w-3" />
-                      {booking.start_time?.slice(0, 5) || "-"} - {booking.end_time?.slice(0, 5) || "-"}
+                      {booking.start_time ? `${booking.start_time.slice(0, 5)} - ${booking.end_time?.slice(0, 5) || "?"}` : "All day"}
                     </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Event Type</p>
-                    <p className="font-medium">{booking.event_type}</p>
+                    <p className="font-medium">{eventTypeLabel(booking.event_type, booking.event_type_other)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide">Guests</p>
@@ -1141,7 +1146,7 @@ export default function BookingDetail() {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Base Rental</span>
-                    <span>${Number(booking.base_rental).toLocaleString()}</span>
+                    <span>{formatMoney(Number(booking.base_rental) || 0)}</span>
                   </div>
                   {Number(booking.package_cost) > 0 && (
                     <div className="flex justify-between">
@@ -1151,17 +1156,17 @@ export default function BookingDetail() {
                          booking.package === "workshop" ? "Workshop Package" :
                          "Package"}
                       </span>
-                      <span>${Number(booking.package_cost).toLocaleString()}</span>
+                      <span>{formatMoney(Number(booking.package_cost) || 0)}</span>
                     </div>
                   )}
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Cleaning Fee</span>
-                    <span>${Number(booking.cleaning_fee).toLocaleString()}</span>
+                    <span>{formatMoney(Number(booking.cleaning_fee) || 0)}</span>
                   </div>
                   {Number(booking.optional_services) > 0 && (
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Services</span>
-                      <span>${Number(booking.optional_services).toLocaleString()}</span>
+                      <span>{formatMoney(Number(booking.optional_services) || 0)}</span>
                     </div>
                   )}
                   {booking.bar_package && booking.bar_package !== "none" && Number(booking.bar_subtotal) > 0 && (
@@ -1170,7 +1175,7 @@ export default function BookingDetail() {
                         Bar Service: {booking.bar_package_label || booking.bar_package}
                         {booking.bar_guest_count ? ` (${booking.bar_guest_count} × $${Number(booking.bar_rate_per_guest).toFixed(2)})` : ''}
                       </span>
-                      <span>${Number(booking.bar_subtotal).toLocaleString()}</span>
+                      <span>{formatMoney(Number(booking.bar_subtotal) || 0)}</span>
                     </div>
                   )}
                   {Number(booking.discount_amount) > 0 && (
@@ -1178,7 +1183,7 @@ export default function BookingDetail() {
                       <span className="text-muted-foreground">
                         Discount {booking.discount_code ? `(${booking.discount_code})` : ''}
                       </span>
-                      <span>-${Number(booking.discount_amount).toLocaleString()}</span>
+                      <span>-{formatMoney(Number(booking.discount_amount) || 0)}</span>
                     </div>
                   )}
                 </div>
@@ -1186,23 +1191,30 @@ export default function BookingDetail() {
                 <div className="pt-3 border-t space-y-2">
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total</span>
-                    <span className="text-green-600">${Number(booking.total_amount).toLocaleString()}</span>
+                    <span className="text-green-600">{formatMoney(Number(booking.total_amount) || 0)}</span>
                   </div>
                   {paidAddons.length > 0 && (
                     <>
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Paid add-ons</span>
-                        <span className="font-medium">+${paidAddonsTotal.toFixed(2)}</span>
+                        <span className="font-medium">+{formatMoney(paidAddonsTotal)}</span>
                       </div>
                       <div className="flex justify-between text-sm font-semibold">
                         <span>Total incl. paid add-ons</span>
-                        <span>${(Number(booking.total_amount) + paidAddonsTotal).toFixed(2)}</span>
+                        <span>{formatMoney(Number(booking.total_amount) + paidAddonsTotal)}</span>
                       </div>
                     </>
                   )}
+                  {billedOutsideCheckout && (
+                    <p className="text-sm text-muted-foreground rounded-md bg-muted p-2">
+                      {booking.booking_origin === "internal"
+                        ? "Internal booking: billed separately by invoice (see Add-on invoices below and the Invoices page). No deposit split or card fee applies here."
+                        : "External booking: paid through the outside platform. No deposit split or card fee applies here."}
+                    </p>
+                  )}
                   {/* M-13 (86e40ach2): each payment with its processing fee,
                       and what the guest was actually charged. */}
-                  {chargeRows.map((row) => (
+                  {!billedOutsideCheckout && chargeRows.map((row) => (
                     <div key={row.label} className="flex justify-between text-sm">
                       <span className="text-muted-foreground">
                         {row.label}
@@ -1217,11 +1229,13 @@ export default function BookingDetail() {
                       </span>
                     </div>
                   ))}
+                  {!billedOutsideCheckout && (
                   <div className="flex justify-between text-sm font-semibold">
                     <span>Total charged</span>
                     <span>{formatMoney(totalCharged(chargeRows))}</span>
                   </div>
-                  {amountDue(chargeRows) > 0 && (
+                  )}
+                  {!billedOutsideCheckout && amountDue(chargeRows) > 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Still due (before {PROC_PCT}% card fee)</span>
                       <span className="font-medium">{formatMoney(amountDue(chargeRows))}</span>

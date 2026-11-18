@@ -21,7 +21,7 @@ import {
 import { CalendarIcon, Clock } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateBookingDetails, type BookingFieldChange } from "@/hooks/useAdminData";
-import { EVENT_TYPE_OPTIONS } from "@/lib/eventTypes";
+import { EVENT_TYPE_OPTIONS, eventTypeLabel } from "@/lib/eventTypes";
 
 export interface EditableBooking {
   id: string;
@@ -156,7 +156,7 @@ export default function BookingEditDialog({ booking, open, onOpenChange, onResch
 
   const typeOptions = EVENT_TYPE_OPTIONS.some((o) => o.value === booking.event_type)
     ? EVENT_TYPE_OPTIONS
-    : [{ value: booking.event_type, label: booking.event_type }, ...EVENT_TYPE_OPTIONS];
+    : [{ value: booking.event_type, label: eventTypeLabel(booking.event_type) }, ...EVENT_TYPE_OPTIONS];
 
   const save = async () => {
     const validationError = validateBookingEdit(form);

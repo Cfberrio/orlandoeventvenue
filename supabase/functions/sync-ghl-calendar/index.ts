@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,6 +23,7 @@ interface BookingData {
   email: string;
   phone: string;
   event_type: string;
+  event_type_other?: string | null;
   number_of_guests: number;
   lead_source: string | null;
   payment_status: string | null;
@@ -540,7 +542,7 @@ async function createAppointment(
   const url = "https://services.leadconnectorhq.com/calendars/events/appointments";
   
   // Build title: {full_name} {event_type} - Orlando Event Venue
-  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
+  const eventTypeDisplay = eventTypeLabel(booking.event_type, booking.event_type_other);
   const title = `${booking.full_name} ${eventTypeDisplay} - Orlando Event Venue`;
   
   // Combine primary assigned user with additional staff users
@@ -625,7 +627,7 @@ async function updateAppointment(
   const url = `https://services.leadconnectorhq.com/calendars/events/appointments/${appointmentId}`;
   
   // Build title: {full_name} {event_type} - Orlando Event Venue
-  const eventTypeDisplay = booking.event_type.charAt(0).toUpperCase() + booking.event_type.slice(1);
+  const eventTypeDisplay = eventTypeLabel(booking.event_type, booking.event_type_other);
   const title = `${booking.full_name} ${eventTypeDisplay} - Orlando Event Venue`;
   
   // Combine primary assigned user with additional staff users

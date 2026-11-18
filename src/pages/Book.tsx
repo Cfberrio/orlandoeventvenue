@@ -4,6 +4,8 @@ import { format } from "date-fns";
 import Navigation from "@/components/Navigation";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { usePricing } from "@/hooks/usePricing";
 import BookingTypeStep from "@/components/booking/BookingTypeStep";
 import GuestsEventStep from "@/components/booking/GuestsEventStep";
 import AddOnsStep from "@/components/booking/AddOnsStep";
@@ -85,6 +87,7 @@ export interface BookingFormData {
 const Book = () => {
   const [searchParams] = useSearchParams();
   const [currentStep, setCurrentStep] = useState(1);
+  const { isError: pricingUnavailable, refetch: refetchPricing } = usePricing();
   const [formData, setFormData] = useState<Partial<BookingFormData>>({
     bookingType: "hourly",
     numberOfGuests: 1,
@@ -226,6 +229,16 @@ const Book = () => {
 
           {/* Step Content */}
           <Card className="p-6 md:p-8">
+            {pricingUnavailable ? (
+              <div className="text-center space-y-4 py-8" role="alert">
+                <h2 className="text-xl font-semibold">We couldn't load our current prices</h2>
+                <p className="text-muted-foreground">
+                  Please check your connection and try again. Nothing has been charged.
+                </p>
+                <Button onClick={() => refetchPricing()}>Try again</Button>
+              </div>
+            ) : (
+            <>
             {currentStep === 1 && (
               <BookingTypeStep
                 data={formData}
@@ -272,6 +285,8 @@ const Book = () => {
                 updateData={updateFormData}
                 onBack={previousStep}
               />
+            )}
+            </>
             )}
           </Card>
         </div>
