@@ -29,6 +29,8 @@ import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
 import { eventTypeLabel } from "@/lib/eventTypes";
+import { lifecycleLabel } from "@/lib/statusLabels";
+import { formatMoney } from "@/lib/paymentSummary";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-muted text-muted-foreground",
@@ -98,7 +100,7 @@ export default function AdminDashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {loadingRevenue ? "..." : `$${weeklyRevenue?.total.toLocaleString() || 0}`}
+              {loadingRevenue ? "..." : formatMoney(Number(weeklyRevenue?.total) || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
               {weeklyRevenue?.count || 0} bookings this week
@@ -293,9 +295,9 @@ export default function AdminDashboard() {
                         <p className="text-sm text-muted-foreground">{eventTypeLabel(booking.event_type, booking.event_type_other)}</p>
                       </div>
                       <div className="text-right">
-                        <p className="font-medium">${Number(booking.total_amount).toLocaleString()}</p>
+                        <p className="font-medium">{formatMoney(Number(booking.total_amount) || 0)}</p>
                         <Badge className={lifecycleColors[booking.lifecycle_status] || "bg-muted"}>
-                          {booking.lifecycle_status}
+                          {lifecycleLabel(booking.lifecycle_status)}
                         </Badge>
                       </div>
                     </div>
@@ -328,7 +330,7 @@ export default function AdminDashboard() {
                 {["pending", "confirmed", "pre_event_ready", "in_progress", "post_event", "closed_review_complete", "cancelled"].map((status) => (
                   <div key={status} className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <Badge className={lifecycleColors[status]}>{status.replace(/_/g, " ")}</Badge>
+                      <Badge className={lifecycleColors[status]}>{lifecycleLabel(status)}</Badge>
                     </div>
                     <span className="font-medium">{pipeline?.counts?.[status] || 0}</span>
                   </div>

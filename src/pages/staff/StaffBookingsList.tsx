@@ -15,7 +15,7 @@ import {
 import { Calendar, Users, Clock, FileText, ChevronRight, UserMinus, Check, X } from "lucide-react";
 import { useStaffAssignedBookings, useRemoveStaffAssignment, useRespondToAssignment } from "@/hooks/useStaffData";
 import { useStaffSession } from "@/hooks/useStaffSession";
-import { format, parseISO, isAfter, isBefore, addDays } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getAssignmentHours } from "@/lib/assignmentHours";
@@ -34,14 +34,13 @@ export default function StaffBookingsList() {
   const { staffMember } = useStaffSession();
   const { data: bookings, isLoading } = useStaffAssignedBookings();
 
-  const today = new Date();
-  const upcomingBookings = bookings?.filter(b => 
-    isAfter(parseISO(b.event_date), addDays(today, -1)) && 
-    b.lifecycle_status !== 'cancelled'
+  // C-10: compare calendar days, so today's event is Upcoming only (never in both lists)
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const upcomingBookings = bookings?.filter(b =>
+    b.event_date >= todayStr && b.lifecycle_status !== 'cancelled'
   ) || [];
-  const pastBookings = bookings?.filter(b => 
-    isBefore(parseISO(b.event_date), today) ||
-    b.lifecycle_status === 'cancelled'
+  const pastBookings = bookings?.filter(b =>
+    b.event_date < todayStr || b.lifecycle_status === 'cancelled'
   ) || [];
 
   if (isLoading) {

@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { History } from "lucide-react";
 import { format } from "date-fns";
 import { useBookingEvents, type BookingEvent } from "@/hooks/useAdminData";
+import { useOptionalAuth } from "@/hooks/useAuth";
 
 interface Props {
   bookingId: string;
@@ -43,8 +44,26 @@ export function extractChanges(event: BookingEvent): ChangeRow[] {
     }));
 }
 
+/**
+ * C-2: never print a raw auth user id. Older edits only stored actor_id; the
+ * profiles table is readable only by its owner, so we can name the current
+ * admin and fall back to a short tag for anyone else.
+ */
+export function actorLabel(
+  metadata: Record<string, unknown>,
+  currentUser?: { id: string; email?: string | null } | null,
+): string {
+  const email = typeof metadata.actor_email === "string" ? metadata.actor_email.trim() : "";
+  if (email) return email;
+  const id = typeof metadata.actor_id === "string" ? metadata.actor_id.trim() : "";
+  if (!id) return "System";
+  if (currentUser && currentUser.id === id) return currentUser.email || "You";
+  return `Admin ·${id.slice(-4)}`;
+}
+
 export default function BookingEditHistoryCard({ bookingId }: Props) {
   const { data: events } = useBookingEvents(bookingId);
+  const user = useOptionalAuth()?.user ?? null;
   const editEvents = (events ?? []).filter((event) => EDIT_EVENT_TYPES.includes(event.event_type));
 
   if (editEvents.length === 0) return null;
@@ -60,7 +79,7 @@ export default function BookingEditHistoryCard({ bookingId }: Props) {
       <CardContent className="space-y-3">
         {editEvents.map((event) => {
           const metadata = (event.metadata ?? {}) as Record<string, unknown>;
-          const actor = metadata.actor_email ?? metadata.actor_id ?? "system";
+          const actor = actorLabel(metadata, user);
           const changes = extractChanges(event);
 
           return (
@@ -71,7 +90,7 @@ export default function BookingEditHistoryCard({ bookingId }: Props) {
                 </span>
                 <span>{format(new Date(event.created_at), "MM/dd/yyyy h:mm a")}</span>
                 <span>·</span>
-                <span>{String(actor)}</span>
+                <span>{actor}</span>
               </div>
               {typeof metadata.reason === "string" && metadata.reason && (
                 <p className="text-sm mt-1">Reason: {metadata.reason}</p>

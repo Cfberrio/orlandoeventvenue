@@ -98,6 +98,8 @@ import { getAssignmentHours } from "@/lib/assignmentHours";
 import { describeRescheduleResult, rescheduleBooking } from "@/lib/rescheduleBooking";
 import { useQueryClient } from "@tanstack/react-query";
 import { transitionBooking } from "@/lib/bookingTransition";
+import { eventTypeLabel } from "@/lib/eventTypes";
+import { humanizeCode, lifecycleLabel } from "@/lib/statusLabels";
 
 const lifecycleStatuses = [
   "pending",
@@ -815,8 +817,18 @@ export default function BookingDetail() {
             <CalendarIcon className="h-4 w-4" />
             {format(new Date(booking.event_date + 'T00:00:00'), "EEEE, MM/dd/yyyy")}
             <span className="mx-1">•</span>
-            {booking.event_type}
+            {eventTypeLabel(booking.event_type, booking.event_type_other)}
           </p>
+          {(booking.status === "cancelled") !== (booking.lifecycle_status === "cancelled") && (
+            <div className="flex items-start gap-2 mt-2 px-3 py-1.5 bg-amber-100 dark:bg-amber-900/30 border border-amber-300 dark:border-amber-700 rounded-md max-w-xl">
+              <AlertTriangle className="h-4 w-4 mt-0.5 text-amber-700 dark:text-amber-400 shrink-0" />
+              <span className="text-sm text-amber-900 dark:text-amber-200">
+                Status mismatch: this booking is{" "}
+                {booking.status === "cancelled" ? "cancelled" : `"${humanizeCode(booking.status)}"`} in one record and{" "}
+                "{lifecycleLabel(booking.lifecycle_status)}" in the other. Some actions may be hidden. It is waiting on an office decision; don't change it from here.
+              </span>
+            </div>
+          )}
           {booking.payment_status === "pending" && (
             <div className="flex items-center gap-2 mt-2 px-3 py-1.5 bg-red-100 dark:bg-red-900/30 border border-red-300 dark:border-red-700 rounded-md w-fit">
               <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />
@@ -853,12 +865,12 @@ export default function BookingDetail() {
                 Cancel Booking
               </Button>
             )}
-            <Select value={booking.lifecycle_status} onValueChange={handleStatusChange}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Change status" />
+            <Select value="" onValueChange={handleStatusChange}>
+              <SelectTrigger className="w-48" aria-label="Change status">
+                <SelectValue placeholder="Change status…" />
               </SelectTrigger>
               <SelectContent>
-                {lifecycleStatuses.map((status) => (
+                {lifecycleStatuses.filter((status) => status !== booking.lifecycle_status).map((status) => (
                   <SelectItem key={status} value={status}>
                     {lifecycleLabels[status] || status.replace(/_/g, " ")}
                   </SelectItem>
@@ -1826,7 +1838,7 @@ export default function BookingDetail() {
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide">Lifecycle</p>
                   <Badge variant="outline" className="mt-1">
-                    {booking.lifecycle_status}
+                    {lifecycleLabels[booking.lifecycle_status] || lifecycleLabel(booking.lifecycle_status)}
                   </Badge>
                 </div>
               </div>

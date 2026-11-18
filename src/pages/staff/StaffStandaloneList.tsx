@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useStaffStandaloneAssignments } from "@/hooks/useStandaloneCleaningData";
 import { format, parseISO } from "date-fns";
+import { workStatusLabel } from "@/lib/statusLabels";
 
 export default function StaffStandaloneList() {
   const { data: assignments, isLoading } = useStaffStandaloneAssignments();
@@ -59,7 +60,7 @@ export default function StaffStandaloneList() {
       case 'in_progress':
         return <Badge className="bg-yellow-500">In Progress</Badge>;
       default:
-        return <Badge variant="outline">{status}</Badge>;
+        return <Badge variant="outline">{workStatusLabel(status)}</Badge>;
     }
   };
 

@@ -10,6 +10,8 @@ import { useAvailabilityBlocks } from "@/hooks/useAvailabilityBlocks";
 import { InternalBookingWizard } from "@/components/admin/InternalBookingWizard";
 import { ExternalBookingWizard } from "@/components/admin/ExternalBookingWizard";
 import { eventTypeLabel } from "@/lib/eventTypes";
+import { cleaningTypeLabel, paymentStatusLabel } from "@/lib/statusLabels";
+import { formatMoney } from "@/lib/paymentSummary";
 import { 
   format, 
   startOfWeek, 
@@ -28,16 +30,6 @@ import {
   isAfter,
   startOfDay
 } from "date-fns";
-
-const lifecycleColors: Record<string, string> = {
-  pending: "bg-muted",
-  confirmed: "bg-primary",
-  pre_event_ready: "bg-chart-1",
-  in_progress: "bg-chart-2",
-  post_event: "bg-chart-3",
-  closed_review_complete: "bg-chart-4",
-  cancelled: "bg-destructive",
-};
 
 const bookingOriginColors: Record<string, { bg: string; badge: string; icon: any }> = {
   website: { bg: "bg-green-500", badge: "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400", icon: Globe },
@@ -100,6 +92,7 @@ export default function Schedule() {
       color: string;
       linkTo: string;
       bookingOrigin?: "website" | "internal" | "external";
+      cancelled?: boolean;
     }> = [];
 
     // Add availability blocks
@@ -152,11 +145,13 @@ export default function Schedule() {
         })
         .forEach((booking) => {
           const originColor = bookingOriginColors[booking.booking_origin]?.bg || "bg-muted";
-          
+          const cancelled = booking.lifecycle_status === "cancelled";
+
           events.push({
             type: "booking",
             id: booking.id,
-            title: booking.full_name,
+            title: cancelled ? `Cancelled: ${booking.full_name}` : booking.full_name,
+            cancelled,
             subtitle: `${eventTypeLabel(booking.event_type, booking.event_type_other)} • ${booking.number_of_guests} guests`,
             time: booking.start_time?.slice(0, 5) || "All day",
             color: originColor,
@@ -167,17 +162,17 @@ export default function Schedule() {
     }
 
     if (showCleaning) {
-      data?.cleaningReports
-        .filter((r) => r.scheduled_start && isSameDay(parseISO(r.scheduled_start), day))
-        .forEach((report) => {
+      data?.cleanings
+        .filter((c) => isSameDay(parseISO(c.date), day))
+        .forEach((c) => {
           events.push({
             type: "cleaning",
-            id: report.id,
-            title: `Cleaning - ${(report.bookings as { full_name: string })?.full_name || "Unknown"}`,
-            subtitle: report.status,
-            time: report.scheduled_start ? format(parseISO(report.scheduled_start), "HH:mm") : "-",
+            id: c.id,
+            title: `Cleaning${c.guestName ? ` - ${c.guestName}` : ""}${c.staffName ? ` (${c.staffName})` : ""}`,
+            subtitle: c.cleaningType ? cleaningTypeLabel(c.cleaningType) : "Cleaning",
+            time: c.startTime ? c.startTime.slice(0, 5) : "Clean",
             color: "bg-chart-5",
-            linkTo: `/admin/bookings/${report.booking_id}`,
+            linkTo: c.bookingId ? `/admin/bookings/${c.bookingId}` : "/admin/payroll",
           });
         });
     }
@@ -190,15 +185,12 @@ export default function Schedule() {
       return { hasWebsiteBookings: false, hasInternalBookings: false, hasExternalBookings: false };
     }
 
-    const hasWebsiteBookings = showWebsiteBookings && data.bookings.some(
-      b => b.booking_origin === "website" && isSameDay(parseISO(b.event_date), day)
+    const live = data.bookings.filter(
+      b => b.lifecycle_status !== "cancelled" && isSameDay(parseISO(b.event_date), day)
     );
-    const hasInternalBookings = showInternalBookings && data.bookings.some(
-      b => b.booking_origin === "internal" && isSameDay(parseISO(b.event_date), day)
-    );
-    const hasExternalBookings = showExternalBookings && data.bookings.some(
-      b => b.booking_origin === "external" && isSameDay(parseISO(b.event_date), day)
-    );
+    const hasWebsiteBookings = showWebsiteBookings && live.some(b => b.booking_origin === "website");
+    const hasInternalBookings = showInternalBookings && live.some(b => b.booking_origin === "internal");
+    const hasExternalBookings = showExternalBookings && live.some(b => b.booking_origin === "external");
 
     return { hasWebsiteBookings, hasInternalBookings, hasExternalBookings };
   };
@@ -293,7 +285,7 @@ export default function Schedule() {
       </div>
 
       {/* Highlighted Website Bookings Section */}
-      {!isLoading && data?.bookings && data.bookings.filter(b => b.booking_origin === "website" && isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date())).length > 0 && (
+      {!isLoading && data?.bookings && data.bookings.filter(b => b.booking_origin === "website" && b.lifecycle_status !== "cancelled" && (isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date()))).length > 0 && (
         <Card className="border-green-500/50 bg-green-500/5">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-green-600 dark:text-green-400">
@@ -304,7 +296,7 @@ export default function Schedule() {
           <CardContent>
             <div className="space-y-2">
               {data.bookings
-                .filter(b => b.booking_origin === "website" && (isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date())))
+                .filter(b => b.booking_origin === "website" && b.lifecycle_status !== "cancelled" && (isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date())))
                 .sort((a, b) => parseISO(a.event_date).getTime() - parseISO(b.event_date).getTime())
                 .slice(0, 5)
                 .map((booking) => {
@@ -346,15 +338,15 @@ export default function Schedule() {
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="font-medium">${Number(booking.total_amount).toLocaleString()}</p>
-                          <p className="text-xs text-muted-foreground">{booking.payment_status}</p>
+                          <p className="font-medium">{formatMoney(Number(booking.total_amount) || 0)}</p>
+                          <p className="text-xs text-muted-foreground">{paymentStatusLabel(booking.payment_status)}</p>
                         </div>
                       </div>
                     </Link>
                   );
                 })}
             </div>
-            {data.bookings.filter(b => b.booking_origin === "website" && (isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date()))).length > 5 && (
+            {data.bookings.filter(b => b.booking_origin === "website" && b.lifecycle_status !== "cancelled" && (isAfter(parseISO(b.event_date), startOfDay(new Date())) || isSameDay(parseISO(b.event_date), new Date()))).length > 5 && (
               <Link 
                 to="/admin/bookings" 
                 className="block mt-4 text-sm text-green-600 hover:underline"
@@ -442,7 +434,7 @@ export default function Schedule() {
                           <Link
                             key={event.id}
                             to={event.linkTo}
-                            className={`block p-1 rounded text-xs ${event.color} text-primary-foreground truncate hover:opacity-90 transition-opacity`}
+                            className={`block p-1 rounded text-xs ${event.color} text-primary-foreground truncate hover:opacity-90 transition-opacity${event.cancelled ? " opacity-40 line-through" : ""}`}
                             title={`${event.title} - ${event.subtitle}${event.bookingOrigin ? ` (${event.bookingOrigin})` : ""}`}
                           >
                             <div className="flex items-center gap-1">
@@ -472,16 +464,28 @@ export default function Schedule() {
         <CardContent className="py-4">
           <div className="space-y-3">
             <div className="flex flex-wrap gap-4">
-              <span className="text-sm font-medium">Booking Status:</span>
-              {Object.entries(lifecycleColors).map(([status, color]) => (
-                <div key={status} className="flex items-center gap-1">
-                  <div className={`w-3 h-3 rounded ${color}`} />
-                  <span className="text-xs">{status.replace(/_/g, " ")}</span>
+              <span className="text-sm font-medium">Colors:</span>
+              {Object.entries(bookingOriginColors).map(([origin, config]) => (
+                <div key={origin} className="flex items-center gap-1">
+                  <div className={`w-3 h-3 rounded ${config.bg}`} />
+                  <span className="text-xs capitalize">{origin} booking</span>
                 </div>
               ))}
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 rounded bg-chart-5" />
                 <span className="text-xs">Cleaning</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-slate-500" />
+                <span className="text-xs">Blackout / system block</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-amber-500" />
+                <span className="text-xs">Internal block</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <div className="w-3 h-3 rounded bg-green-500 opacity-40" />
+                <span className="text-xs line-through">Cancelled</span>
               </div>
             </div>
             <div className="flex flex-wrap gap-4">

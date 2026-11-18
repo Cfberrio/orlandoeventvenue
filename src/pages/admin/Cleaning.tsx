@@ -41,6 +41,7 @@ import {
   type Booking
 } from "@/hooks/useAdminData";
 import { format } from "date-fns";
+import { workStatusLabel } from "@/lib/statusLabels";
 
 const cleaningStatuses = ["pending", "in_progress", "completed", "approved"];
 
@@ -87,7 +88,10 @@ export default function Cleaning() {
     cleanerId: cleanerFilter && cleanerFilter !== "all" ? cleanerFilter : undefined,
   });
 
-  const { data: staffMembers } = useStaffMembers({ role: "cleaner", isActive: true });
+  // C-11: cleaning is done by "Custodial" staff; "cleaner" is the legacy role.
+  // Inactive staff stay listed so their past reports can still be filtered.
+  const { data: allStaff } = useStaffMembers();
+  const staffMembers = allStaff?.filter((s) => ["Custodial", "cleaner"].includes(s.role));
 
   const getMediaUrls = (report: CleaningReport, field: string): string[] => {
     const value = report[field as keyof CleaningReport];
@@ -175,7 +179,7 @@ export default function Cleaning() {
                   <SelectItem value="all">All statuses</SelectItem>
                   {cleaningStatuses.map((status) => (
                     <SelectItem key={status} value={status}>
-                      {status.replace(/_/g, " ")}
+                      {workStatusLabel(status)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -240,7 +244,7 @@ export default function Cleaning() {
                     <Badge className={status.color}>
                       <span className="flex items-center gap-1">
                         {status.icon}
-                        {report.status}
+                        {workStatusLabel(report.status)}
                       </span>
                     </Badge>
                   </div>
@@ -441,7 +445,7 @@ export default function Cleaning() {
                               <td className="py-2 text-center">{item.qty_used || "-"}</td>
                               <td className="py-2 text-center">
                                 <Badge variant={item.status === 'stocked' ? 'default' : item.status === 'low' ? 'secondary' : 'destructive'}>
-                                  {item.status}
+                                  {workStatusLabel(item.status)}
                                 </Badge>
                               </td>
                             </tr>

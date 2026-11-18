@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { Repeat, Loader2, Copy, Pause, Play, Trash2, Plus } from "lucide-react";
+import { PUBLIC_SITE_URL } from "@/lib/siteUrl";
 
 interface RecurringCode {
   id: string;
@@ -76,17 +77,23 @@ const RecurringAccessCodesCard = () => {
   const updateCode = async (id: string, patch: Record<string, unknown>, successMsg: string) => {
     setBusyId(id);
     const { data: userData } = await supabase.auth.getUser();
-    const { error } = await supabase
+    const { data: saved, error } = await supabase
       .from("recurring_access_codes" as never)
       .update({
         ...patch,
         updated_at: new Date().toISOString(),
         updated_by: userData?.user?.id ?? null,
       } as never)
-      .eq("id", id);
+      .eq("id", id)
+      .select("id");
     setBusyId(null);
     if (error) {
       toast.error("Update failed", { description: error.message });
+      return;
+    }
+    // C-16 / E-15: a write blocked by permissions returns no error and 0 rows.
+    if (!Array.isArray(saved) || saved.length === 0) {
+      toast.error("Update failed", { description: "Nothing was saved: this login may not have permission." });
       return;
     }
     toast.success(successMsg);
@@ -158,7 +165,7 @@ const RecurringAccessCodesCard = () => {
 
   const copyLink = (code: RecurringCode) => {
     navigator.clipboard.writeText(
-      `${window.location.origin}/accesscode?res=${encodeURIComponent(code.reservation_number)}`,
+      `${PUBLIC_SITE_URL}/accesscode?res=${encodeURIComponent(code.reservation_number)}`,
     );
     toast.success("Access link copied");
   };

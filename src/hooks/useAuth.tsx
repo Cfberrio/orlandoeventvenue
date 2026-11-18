@@ -97,3 +97,8 @@ export function useAuth() {
   }
   return context;
 }
+
+/** Same as useAuth, but returns null outside an AuthProvider (display-only callers). */
+export function useOptionalAuth(): AuthContextType | null {
+  return useContext(AuthContext) ?? null;
+}

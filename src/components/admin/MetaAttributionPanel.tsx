@@ -14,6 +14,7 @@ import { AlertTriangle, DollarSign, Megaphone, MousePointerClick, Radio } from "
 import { supabase } from "@/integrations/supabase/client";
 import { format, parseISO } from "date-fns";
 import { META_PIXEL_ID } from "@/lib/tracking/config";
+import { humanizeCode } from "@/lib/statusLabels";
 
 /*
  * Ad attribution dashboard.
@@ -175,6 +176,10 @@ export default function MetaAttributionPanel() {
   const skippedSends = delivery
     .filter((d) => d.status === "skipped_no_secrets")
     .reduce((s, d) => s + Number(d.events ?? 0), 0);
+  // C-22: the header counts every skip (no secrets, no consent, ...), not just one kind
+  const allSkippedSends = delivery
+    .filter((d) => String(d.status ?? "").startsWith("skipped"))
+    .reduce((s, d) => s + Number(d.events ?? 0), 0);
   const sentEvents = delivery
     .filter((d) => d.status === "sent" || d.status === "sent_after_consent_change")
     .reduce((s, d) => s + Number(d.events ?? 0), 0);
@@ -221,20 +226,20 @@ export default function MetaAttributionPanel() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ad-attributed bookings</CardTitle>
+            <CardTitle className="text-sm font-medium">Referral-attributed bookings</CardTitle>
             <Megaphone className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{attributedBookings}</div>
             <p className="text-xs text-muted-foreground">
-              of {totalBookings} paid bookings all time
+              of {totalBookings} paid bookings all time · any tracked source, not only paid ads
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Ad-attributed revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Referral-attributed revenue</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -268,7 +273,7 @@ export default function MetaAttributionPanel() {
           <CardContent>
             <div className="text-2xl font-bold">{sentEvents}</div>
             <p className="text-xs text-muted-foreground">
-              {failedSends} failed · {skippedSends} skipped
+              {failedSends} failed · {allSkippedSends} skipped
             </p>
           </CardContent>
         </Card>
@@ -449,7 +454,7 @@ export default function MetaAttributionPanel() {
                               : "secondary"
                         }
                       >
-                        {d.status}
+                        {humanizeCode(d.status)}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-right">{d.events}</TableCell>

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { bookingSearchOrFilter } from "@/lib/bookingSearch";
 import { supabase } from "@/integrations/supabase/client";
+import { orlandoDayRange } from "@/lib/orlandoDay";
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, addDays } from "date-fns";
 import type { Json } from "@/integrations/supabase/types";
 
@@ -563,11 +564,13 @@ export function useBookings(filters?: {
       let query = supabase.from("bookings").select("*");
       
       // Filter by created_at (booking date) instead of event_date
-      if (filters?.dateFrom) {
-        query = query.gte("created_at", filters.dateFrom);
+      // C-6: whole Orlando days, not UTC midnight
+      const createdRange = orlandoDayRange(filters?.dateFrom, filters?.dateTo);
+      if (createdRange.gte) {
+        query = query.gte("created_at", createdRange.gte);
       }
-      if (filters?.dateTo) {
-        query = query.lte("created_at", filters.dateTo);
+      if (createdRange.lt) {
+        query = query.lt("created_at", createdRange.lt);
       }
       
       // E-14: client name, email or reservation # (case-insensitive)
@@ -1350,30 +1353,91 @@ export function useUpdateMaintenanceTicket() {
 }
 
 // Schedule hooks
+/** A cleaning shift on the Schedule (C-5). Date = scheduled_date, else the booking's event date (same COALESCE as the server). */
+export type ScheduleCleaning = {
+  id: string;
+  bookingId: string | null;
+  date: string;
+  startTime: string | null;
+  staffName: string | null;
+  cleaningType: string | null;
+  status: string | null;
+  guestName: string | null;
+};
+
+const CLEANING_ROLES = ["Custodial", "cleaner"];
+const CLEANING_SELECT = `
+  id, booking_id, scheduled_date, scheduled_start_time, cleaning_type, status, response_status,
+  staff_members!booking_staff_assignments_staff_id_fkey(full_name)
+`;
+
 export function useScheduleData(dateFrom: string, dateTo: string) {
   return useQuery({
     queryKey: ["schedule", dateFrom, dateTo],
     queryFn: async () => {
-      const [bookingsRes, cleaningRes] = await Promise.all([
-        supabase
-          .from("bookings")
-          .select("*")
-          .gte("event_date", dateFrom)
-          .lte("event_date", dateTo)
-          .order("event_date"),
-        supabase
-          .from("booking_cleaning_reports")
-          .select("*, bookings(*)")
-          .not("scheduled_start", "is", null),
-      ]);
-      
+      const bookingsRes = await supabase
+        .from("bookings")
+        .select("*")
+        .gte("event_date", dateFrom)
+        .lte("event_date", dateTo)
+        .order("event_date");
       if (bookingsRes.error) throw bookingsRes.error;
-      if (cleaningRes.error) throw cleaningRes.error;
-      
-      return {
-        bookings: bookingsRes.data as Booking[],
-        cleaningReports: cleaningRes.data as (CleaningReport & { bookings: Booking })[],
+      const bookings = bookingsRes.data as Booking[];
+
+      // C-5: booking_cleaning_reports.scheduled_start is never set, so the old
+      // layer was always empty. Cleaning work lives in the staff assignments.
+      const bookingIds = bookings.map((b) => b.id);
+      const [linkedRes, standaloneRes] = await Promise.all([
+        bookingIds.length
+          ? supabase
+              .from("booking_staff_assignments")
+              .select(CLEANING_SELECT)
+              .in("assignment_role", CLEANING_ROLES)
+              .in("booking_id", bookingIds)
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("booking_staff_assignments")
+          .select(CLEANING_SELECT)
+          .in("assignment_role", CLEANING_ROLES)
+          .is("booking_id", null)
+          .gte("scheduled_date", dateFrom)
+          .lte("scheduled_date", dateTo),
+      ]);
+      if (linkedRes.error) throw linkedRes.error;
+      if (standaloneRes.error) throw standaloneRes.error;
+
+      const byId = new Map(bookings.map((b) => [b.id, b]));
+      const cleanings: ScheduleCleaning[] = [];
+      type CleaningRow = {
+        id: string;
+        booking_id: string | null;
+        scheduled_date: string | null;
+        scheduled_start_time: string | null;
+        cleaning_type: string | null;
+        status: string | null;
+        response_status: string | null;
+        staff_members: { full_name: string } | null;
       };
+      const rows = [...(linkedRes.data ?? []), ...(standaloneRes.data ?? [])] as unknown as CleaningRow[];
+      for (const a of rows) {
+        if (a.response_status === "rejected" || a.status === "cancelled") continue;
+        const booking = a.booking_id ? byId.get(a.booking_id) : undefined;
+        if (booking?.lifecycle_status === "cancelled") continue;
+        const date = a.scheduled_date ?? booking?.event_date;
+        if (!date) continue;
+        cleanings.push({
+          id: a.id,
+          bookingId: a.booking_id,
+          date,
+          startTime: a.scheduled_start_time ?? booking?.end_time ?? null,
+          staffName: a.staff_members?.full_name ?? null,
+          cleaningType: a.cleaning_type ?? null,
+          status: a.status ?? null,
+          guestName: booking?.full_name ?? null,
+        });
+      }
+
+      return { bookings, cleanings };
     },
   });
 }

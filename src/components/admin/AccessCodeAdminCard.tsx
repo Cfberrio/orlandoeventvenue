@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { KeyRound, Loader2, Copy, ExternalLink } from "lucide-react";
+import { PUBLIC_SITE_URL } from "@/lib/siteUrl";
 
 interface Row {
   code: string;
@@ -27,7 +28,9 @@ const AccessCodeAdminCard = () => {
       .select("code,label,updated_at")
       .eq("id", 1)
       .maybeSingle();
-    if (!error && data) {
+    if (error) {
+      toast.error("Could not load access code", { description: error.message });
+    } else if (data) {
       const row = data as unknown as Row;
       setOriginal(row);
       setCode(row.code);
@@ -74,7 +77,7 @@ const AccessCodeAdminCard = () => {
     await load();
   };
 
-  const accessUrl = `${window.location.origin}/accesscode`;
+  const accessUrl = `${PUBLIC_SITE_URL}/accesscode`;
 
   return (
     <Card>

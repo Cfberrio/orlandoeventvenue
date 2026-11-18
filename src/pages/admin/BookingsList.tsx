@@ -28,6 +28,7 @@ import { useBookings } from "@/hooks/useAdminData";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { eventTypeLabel } from "@/lib/eventTypes";
+import { bookingTypeLabel } from "@/lib/statusLabels";
 
 interface RecurringInvoice {
   id: string;
@@ -329,7 +330,7 @@ export default function BookingsList() {
                 </TableCell>
                 <TableCell>
                   <div>{eventTypeLabel(booking.event_type, booking.event_type_other)}</div>
-                  <div className="text-xs text-muted-foreground">{booking.booking_type}</div>
+                  <div className="text-xs text-muted-foreground">{bookingTypeLabel(booking.booking_type)}</div>
                 </TableCell>
                 <TableCell>{booking.number_of_guests}</TableCell>
                 <TableCell>
