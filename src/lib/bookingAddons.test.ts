@@ -67,3 +67,24 @@ describe("getVisibleAddons", () => {
     expect(items).toEqual([{ key: "addon-Open Bar Snacks", label: "Open Bar Snacks", detail: "2" }]);
   });
 });
+
+describe("getVisibleAddons on a paid add-on invoice (E-1)", () => {
+  it("shows a package added after booking with its hours", () => {
+    // Shape returned by staff_get_paid_addons (real prod row: LED 17:00-21:00).
+    const items = getVisibleAddons({
+      package: "led",
+      package_start_time: "17:00",
+      package_end_time: "21:00",
+      setup_breakdown: false,
+      tablecloths: false,
+      tablecloth_quantity: 0,
+      bar_package: "none",
+      bar_package_label: null,
+    });
+    expect(items).toEqual([{ key: "package", label: "Paquete AV", detail: "led (17:00 - 21:00)" }]);
+  });
+
+  it("shows nothing for an invoice with no services", () => {
+    expect(getVisibleAddons({ package: "none", bar_package: "none", tablecloth_quantity: 0 })).toEqual([]);
+  });
+});

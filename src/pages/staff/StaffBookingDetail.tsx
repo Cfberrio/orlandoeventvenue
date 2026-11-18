@@ -308,7 +308,7 @@ export default function StaffBookingDetail() {
         </CardContent>
       </Card>
 
-      <StaffAddonsPanel booking={booking} />
+      <StaffAddonsPanel booking={booking} bookingId={booking.id} />
 
       {/* Generic Hours Card - Catch-all so every assigned role (Custodial, Bar
           Vendor, Production without package times, etc.) sees their effective

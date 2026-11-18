@@ -442,3 +442,41 @@ export function useRespondToAssignment() {
   });
 }
 
+
+/** E-1 (86e40ach2): services the office added after booking and the guest
+ * already paid (add-on invoices). Read through an RPC because the staff portal
+ * cannot read booking_addon_invoices directly. The booking row is never
+ * changed for these, so they are shown apart from the original add-ons. */
+export interface StaffPaidAddon {
+  id: string;
+  paid_at: string | null;
+  package: string | null;
+  package_start_time: string | null;
+  package_end_time: string | null;
+  setup_breakdown: boolean | null;
+  tablecloths: boolean | null;
+  tablecloth_quantity: number | null;
+  bar_package: string | null;
+  bar_package_label: string | null;
+}
+
+export function useStaffPaidAddons(bookingId: string | undefined) {
+  const { staffMember } = useStaffSession();
+
+  return useQuery({
+    queryKey: ["staff-paid-addons", staffMember?.id, bookingId],
+    enabled: !!staffMember?.id && !!bookingId,
+    queryFn: async () => {
+      const rpc = supabase.rpc as unknown as (
+        fn: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ data: unknown; error: { message: string } | null }>;
+      const { data, error } = await rpc("staff_get_paid_addons", {
+        p_staff_id: staffMember!.id,
+        p_booking_id: bookingId,
+      });
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as StaffPaidAddon[];
+    },
+  });
+}
