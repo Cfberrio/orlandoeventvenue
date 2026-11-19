@@ -308,6 +308,36 @@ export default function BookingDetail() {
     }
   }, [booking, readiness?.lifecycle_status, queryClient]);
 
+  // 1dfqjx6vh17: staff often confirm by phone or text instead of the portal.
+  // The office records that answer here (audited as recorded by the office);
+  // the DB then applies the readiness rule exactly as for a portal answer.
+  const [recordingResponseId, setRecordingResponseId] = useState<string | null>(null);
+  const recordStaffResponse = async (assignmentId: string, staffName: string, response: "accepted" | "rejected") => {
+    if (!booking) return;
+    if (response === "rejected" && !window.confirm(`Record that ${staffName} declined this booking? Their unpaid pay for it is removed.`)) {
+      return;
+    }
+    setRecordingResponseId(assignmentId);
+    try {
+      const { error } = await supabase.rpc("admin_record_staff_response" as never, {
+        p_assignment_id: assignmentId,
+        p_response: response,
+        p_note: response === "accepted" ? "Confirmed outside the staff portal" : "Declined outside the staff portal",
+      } as never);
+      if (error) throw error;
+      invalidateBookingLifecycle(queryClient, booking.id);
+      toast({ title: response === "accepted" ? `${staffName}: acceptance recorded` : `${staffName}: decline recorded` });
+    } catch (err) {
+      toast({
+        title: "Response not recorded",
+        description: err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err),
+        variant: "destructive",
+      });
+    } finally {
+      setRecordingResponseId(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -1534,14 +1564,43 @@ export default function BookingDetail() {
                                 {assignment.auto_rejected && (
                                   <span className="text-xs text-muted-foreground">auto (no response)</span>
                                 )}
+                                {assignment.status !== "cancelled" && (
+                                  <Button
+                                    variant="link"
+                                    size="sm"
+                                    className="h-auto p-0 text-xs justify-start"
+                                    disabled={recordingResponseId === assignment.id}
+                                    onClick={() => recordStaffResponse(assignment.id, assignment.staff_member?.full_name ?? "Staff", "accepted")}
+                                  >
+                                    Record acceptance
+                                  </Button>
+                                )}
                               </div>
                             ) : (
                               <div className="flex flex-col gap-1">
                                 <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-400 dark:border-yellow-700 w-fit">Pending</Badge>
-                                {assignment.response_due_at && (
-                                  <span className="text-xs text-muted-foreground">
-                                    due {format(new Date(assignment.response_due_at), "MM/dd HH:mm")}
-                                  </span>
+                                {assignment.status !== "cancelled" && (
+                                  <div className="flex gap-2">
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="h-auto p-0 text-xs"
+                                      disabled={recordingResponseId === assignment.id}
+                                      onClick={() => recordStaffResponse(assignment.id, assignment.staff_member?.full_name ?? "Staff", "accepted")}
+                                      title="Staff confirmed by phone or text"
+                                    >
+                                      Record acceptance
+                                    </Button>
+                                    <Button
+                                      variant="link"
+                                      size="sm"
+                                      className="h-auto p-0 text-xs text-destructive"
+                                      disabled={recordingResponseId === assignment.id}
+                                      onClick={() => recordStaffResponse(assignment.id, assignment.staff_member?.full_name ?? "Staff", "rejected")}
+                                    >
+                                      Declined
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
                             )}

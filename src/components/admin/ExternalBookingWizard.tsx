@@ -174,7 +174,8 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
 
       // E-16 (86e40ach2): one server call locks the date, re-checks conflicts,
       // creates the booking (fully paid, website automation policy) and its
-      // block, and moves it to pre_event_ready through the lifecycle writer.
+      // block, in confirmed with the checklist done. It reaches pre_event_ready
+      // when its assigned staff accept (1dfqjx6vh17).
       const { data: created, error: createError } = await supabase.rpc("admin_create_blocking_booking" as never, {
         p: {
           kind: "external",
@@ -197,8 +198,12 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
       const booking = { id: result.booking_ids?.[0] as string };
       if (!booking.id) throw new Error("The booking was not created");
       if (result.warnings?.length) {
-        toast.error("Booking created, but it is not Pre-Event Ready yet", { description: result.warnings.join("; ") });
+        toast.error("Booking created with warnings", { description: result.warnings.join("; ") });
       }
+      // 1dfqjx6vh17: external bookings follow the same rule as every booking.
+      toast.info("Assign staff on the booking", {
+        description: "It moves to Pre-Event Ready when every assigned staff member accepts.",
+      });
 
       // Automation: host report jobs, one_hour_report, guest feedback (balance
       // jobs are skipped because the booking is fully paid). Dedupes on jobs.

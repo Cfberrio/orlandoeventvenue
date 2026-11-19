@@ -239,7 +239,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
     : `Hi ${firstName}, an admin has assigned you to the booking below. Please review the details in the Staff Portal.`;
   const stepTwo = moved
     ? "<b>If you can no longer work the new date or time, tell the office right away</b> (or use Unassign in the Staff Portal) so the booking can be covered."
-    : "<b>Accept or reject this assignment in the Staff Portal within 24 hours.</b> If you don't respond in time, the assignment is automatically rejected and may be reassigned.";
+    : "<b>Accept or reject this assignment in the Staff Portal as soon as you can.</b> The booking is not ready for the event until you accept, and the assignment is paid only after you accept and the event happens.";
   
   return `<!doctype html>
 <html lang="en">

@@ -6,12 +6,12 @@ import type { BookingReadiness, ReadinessRequirement } from "@/hooks/useAdminDat
  * Two different things used to share the label "Ready for Event":
  *   - the confirmation checklist flag (bookings.pre_event_ready)
  *   - the lifecycle state pre_event_ready (what the Bookings list groups by)
- * The lifecycle is the source of truth. The GHL workflow moves it to
- * pre_event_ready, and the database only lets that happen when the rule
- * (evaluate_booking_readiness) holds: checklist complete + every selected
- * staff member accepted THIS event (external bookings are staff-exempt).
- * Between "rule met" and "GHL moved it" there are a few seconds: that state is
- * shown explicitly as waitingOnGhl.
+ * The lifecycle is the source of truth. The rule (evaluate_booking_readiness)
+ * is checklist complete + every selected staff member accepted THIS event,
+ * for every origin (1dfqjx6vh17: externals are no longer exempt). The
+ * database moves confirmed <-> pre_event_ready itself, in the same
+ * transaction as the acceptance, and tells GHL. waitingOnGhl only shows if a
+ * row is read between the acceptance and its commit.
  */
 
 export type ReadinessBadge = "ready" | "not_ready" | "past" | "unknown";
@@ -72,9 +72,13 @@ export function describeReadiness(
   }
 
   const unmet = readiness.unmet ?? [];
+  // staff_exempt is always false since 1dfqjx6vh17 (every origin needs its
+  // staff to accept); the branch stays only for rows cached before that.
   const staffLabel = readiness.staff_exempt
     ? "Staff acceptance not required (external booking)"
-    : `Staff accepted: ${readiness.staff_accepted}/${readiness.staff_total}`;
+    : readiness.staff_total === 0
+      ? "No staff assigned yet"
+      : `Staff accepted: ${readiness.staff_accepted}/${readiness.staff_total}`;
 
   const waitingOnGhl = lifecycle === "confirmed" && readiness.ready === true;
 
@@ -101,7 +105,7 @@ export function describeReadiness(
 export function readinessToastText(readiness: BookingReadiness | null | undefined): string {
   if (!readiness) return "Saved.";
   if (readiness.lifecycle_status === "pre_event_ready") return "Booking is Pre-Event Ready.";
-  if (readiness.ready) return "All requirements met. Moving to Pre-Event Ready in a few seconds.";
+  if (readiness.ready) return "All requirements met. Moving to Pre-Event Ready.";
   const unmet = readiness.unmet ?? [];
   if (unmet.length === 0) return "Saved.";
   return `Not Pre-Event Ready yet: ${unmet.map((u) => u.message).join("; ")}`;

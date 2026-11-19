@@ -210,6 +210,7 @@ export interface StaffAssignment {
   tasks?: AssignmentTask[] | null;
   scheduled_start_time: string | null;
   scheduled_end_time: string | null;
+  status?: string | null;
   response_status?: string | null;
   response_at?: string | null;
   response_due_at?: string | null;

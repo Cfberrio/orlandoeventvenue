@@ -59,7 +59,7 @@ describe("describeReadiness", () => {
     expect(view.badge).toBe("not_ready");
     expect(view.waitingOnGhl).toBe(true);
     expect(view.label).toMatch(/Requirements met/);
-    expect(readinessToastText(base({ ready: true, lifecycle_status: "confirmed" }))).toMatch(/few seconds/);
+    expect(readinessToastText(base({ ready: true, lifecycle_status: "confirmed" }))).toMatch(/Moving to Pre-Event Ready/);
   });
 
   it("incomplete checklist offers the checklist action, not a lifecycle jump", () => {
@@ -77,6 +77,11 @@ describe("describeReadiness", () => {
   it("pending (unpaid) bookings never offer the checklist action", () => {
     const view = describeReadiness("pending", base({ checklist_complete: false }));
     expect(view.showMarkChecklist).toBe(false);
+  });
+
+  it("a booking with no staff says so instead of 0/0 (1dfqjx6vh17)", () => {
+    const view = describeReadiness("confirmed", base({ ready: false, staff_total: 0, staff_accepted: 0 }));
+    expect(view.staffLabel).toBe("No staff assigned yet");
   });
 
   it("external bookings say staff acceptance is not required", () => {
