@@ -42,8 +42,11 @@ describe("payroll only for staff who accepted", () => {
     expect(mig).toMatch(/AND a\.booking_id IS NOT NULL\s+AND COALESCE\(a\.assignment_type, ''\) <> 'bar_service'\s+FOR SHARE OF a;/);
   });
 
-  it("recording an acceptance on completed work rebuilds its pay line", () => {
-    expect(mig).toMatch(/p_response = 'accepted' AND v_row\.status = 'completed'[\s\S]*PERFORM public\.populate_staff_payroll_items\(v_row\.id, false\);/);
+  it("any late acceptance of completed work rebuilds its pay line, without blocking the acceptance", () => {
+    const fu = read("supabase/migrations/20261119130000_rebuild_pay_on_late_acceptance.sql");
+    expect(fu).toMatch(/AFTER UPDATE OF response_status ON public\.booking_staff_assignments/);
+    expect(fu).toMatch(/NEW\.status = 'completed'[\s\S]*PERFORM public\.populate_staff_payroll_items\(NEW\.id, false\);\s+EXCEPTION WHEN OTHERS THEN/);
+    expect(fu).toMatch(/'payroll_rebuild_failed'/);
   });
 
   it("the backfill does not walk past events through the lifecycle", () => {
