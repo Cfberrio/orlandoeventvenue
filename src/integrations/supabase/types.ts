@@ -3789,6 +3789,10 @@ export type Database = {
         Args: { p_booking_id: string; p_source: string }
         Returns: undefined
       }
+      _payroll_not_payable_reason: {
+        Args: { p_assignment_id: string; p_paid_status: string }
+        Returns: string
+      }
       _price_at_window: {
         Args: {
           p_basis: Database["public"]["Tables"]["booking_price_basis"]["Row"]
@@ -3809,6 +3813,57 @@ export type Database = {
           p_new_start: string
         }
         Returns: Json
+      }
+      _revenue_ledger_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          amount: number
+          booking_id: string
+          booking_origin: string
+          booking_type: string
+          created_at: string
+          description: string
+          entry_date: string
+          event_date: string
+          event_type: string
+          guest_name: string
+          invoice_id: string
+          invoice_number: string
+          item_category: string
+          item_type: string
+          payment_split: string
+          quantity: number
+          reservation_number: string
+          source: string
+        }[]
+      }
+      _revenue_rollup_unchecked: {
+        Args: { p_end_date: string; p_grain: string; p_start_date: string }
+        Returns: {
+          addon_revenue: number
+          bar_revenue: number
+          baseline_revenue: number
+          booking_count: number
+          booking_revenue: number
+          cancelled_kept_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          cancelled_unrecorded_count: number
+          card_fees: number
+          cleaning_revenue: number
+          collected_gross: number
+          collected_net: number
+          discount_amount: number
+          external_amount: number
+          external_count: number
+          invoice_count: number
+          invoice_revenue: number
+          other_revenue: number
+          payment_days: number
+          period_start: string
+          production_revenue: number
+          tax_amount: number
+        }[]
       }
       _settle_price_window: {
         Args: { p_booking_id: string; p_window: Json }
@@ -3893,6 +3948,10 @@ export type Database = {
           p_reference?: string
           p_refunded_at?: string
         }
+        Returns: Json
+      }
+      admin_record_staff_response: {
+        Args: { p_assignment_id: string; p_note?: string; p_response: string }
         Returns: Json
       }
       admin_remove_payroll_adjustment: {
@@ -4027,9 +4086,17 @@ export type Database = {
           bar_revenue: number
           baseline_revenue: number
           booking_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          card_fees: number
           cleaning_revenue: number
+          collected_gross: number
+          collected_net: number
           discount_amount: number
+          external_amount: number
           fee_revenue: number
+          invoice_revenue: number
+          other_revenue: number
           production_revenue: number
           revenue_date: string
           tax_amount: number
@@ -4043,9 +4110,17 @@ export type Database = {
           bar_revenue: number
           baseline_revenue: number
           booking_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          card_fees: number
           cleaning_revenue: number
+          collected_gross: number
+          collected_net: number
           discount_amount: number
+          external_amount: number
           fee_revenue: number
+          invoice_revenue: number
+          other_revenue: number
           production_revenue: number
           revenue_date: string
           tax_amount: number
@@ -4059,7 +4134,18 @@ export type Database = {
           bar_revenue: number
           baseline_revenue: number
           booking_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          cancelled_unrecorded_count: number
+          card_fees: number
           cleaning_revenue: number
+          collected_gross: number
+          collected_net: number
+          discount_amount: number
+          external_amount: number
+          external_count: number
+          invoice_revenue: number
+          other_revenue: number
           production_revenue: number
           revenue_month: string
           total_revenue: number
@@ -4073,7 +4159,18 @@ export type Database = {
           bar_revenue: number
           baseline_revenue: number
           booking_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          cancelled_unrecorded_count: number
+          card_fees: number
           cleaning_revenue: number
+          collected_gross: number
+          collected_net: number
+          discount_amount: number
+          external_amount: number
+          external_count: number
+          invoice_revenue: number
+          other_revenue: number
           production_revenue: number
           revenue_month: string
           total_revenue: number
@@ -4144,6 +4241,7 @@ export type Database = {
           created_at: string
           description: string
           hours: number
+          not_payable_reason: string
           paid_at: string
           paid_status: string
           pay_category: string
@@ -4152,6 +4250,7 @@ export type Database = {
           payroll_type: string
           rate: number
           reservation_number: string
+          staff_id: string
           staff_name: string
           staff_role: string
         }[]
@@ -4168,6 +4267,7 @@ export type Database = {
           created_at: string
           description: string
           hours: number
+          not_payable_reason: string
           paid_at: string
           paid_status: string
           pay_category: string
@@ -4176,6 +4276,7 @@ export type Database = {
           payroll_type: string
           rate: number
           reservation_number: string
+          staff_id: string
           staff_name: string
           staff_role: string
         }[]
@@ -4207,6 +4308,8 @@ export type Database = {
         Returns: {
           avg_revenue: number
           booking_count: number
+          external_amount: number
+          external_count: number
           segment: string
           total_revenue: number
         }[]
@@ -4220,6 +4323,8 @@ export type Database = {
         Returns: {
           avg_revenue: number
           booking_count: number
+          external_amount: number
+          external_count: number
           segment: string
           total_revenue: number
         }[]
@@ -4230,17 +4335,20 @@ export type Database = {
           amount: number
           booking_origin: string
           booking_type: string
+          counted_as: string
           created_at: string
           description: string
           event_date: string
           event_type: string
           guest_name: string
+          invoice_number: string
           item_category: string
           item_type: string
           payment_date: string
           payment_split: string
           quantity: number
           reservation_number: string
+          source: string
         }[]
       }
       get_revenue_line_items_export_unchecked: {
@@ -4249,17 +4357,60 @@ export type Database = {
           amount: number
           booking_origin: string
           booking_type: string
+          counted_as: string
           created_at: string
           description: string
           event_date: string
           event_type: string
           guest_name: string
+          invoice_number: string
           item_category: string
           item_type: string
           payment_date: string
           payment_split: string
           quantity: number
           reservation_number: string
+          source: string
+        }[]
+      }
+      get_revenue_summary: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          booking_count: number
+          booking_revenue: number
+          cancelled_kept_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          cancelled_unrecorded_count: number
+          card_fees: number
+          collected_gross: number
+          collected_net: number
+          discount_amount: number
+          external_amount: number
+          external_count: number
+          invoice_count: number
+          invoice_revenue: number
+          payment_days: number
+        }[]
+      }
+      get_revenue_summary_unchecked: {
+        Args: { p_end_date: string; p_start_date: string }
+        Returns: {
+          booking_count: number
+          booking_revenue: number
+          cancelled_kept_count: number
+          cancelled_kept_revenue: number
+          cancelled_unrecorded_amount: number
+          cancelled_unrecorded_count: number
+          card_fees: number
+          collected_gross: number
+          collected_net: number
+          discount_amount: number
+          external_amount: number
+          external_count: number
+          invoice_count: number
+          invoice_revenue: number
+          payment_days: number
         }[]
       }
       get_staff_payroll_line_items: {
@@ -4369,6 +4520,10 @@ export type Database = {
       set_recurring_day_of_month: {
         Args: { p_day: number; p_invoice_id: string }
         Returns: string
+      }
+      staff_get_paid_addons: {
+        Args: { p_booking_id: string; p_staff_id: string }
+        Returns: Json
       }
       staff_mark_bar_contacted: {
         Args: { p_assignment_id: string; p_staff_id: string }
