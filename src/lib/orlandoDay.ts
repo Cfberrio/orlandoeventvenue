@@ -15,6 +15,12 @@ export function orlandoMidnightUtc(ymd: string): Date {
   return hour === 0 ? est : new Date(Date.UTC(y, mo, d, 4, 0, 0));
 }
 
+/** "yyyy-MM-dd" Orlando calendar day of an instant (ISO string or Date). */
+export function orlandoYmd(at: string | Date): string {
+  const d = typeof at === "string" ? new Date(at) : at;
+  return d.toLocaleDateString("en-CA", { timeZone: TZ });
+}
+
 /** [start, endExclusive) ISO bounds covering whole Orlando days from..to. */
 export function orlandoDayRange(from?: string, to?: string): { gte?: string; lt?: string } {
   const out: { gte?: string; lt?: string } = {};

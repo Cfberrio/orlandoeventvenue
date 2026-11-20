@@ -12,6 +12,8 @@ import { FileText, DollarSign, TrendingUp } from "lucide-react";
 import { useRevenueData, PaidInvoiceRecord } from "@/hooks/useRevenueData";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { invoiceMoney, money } from "@/lib/reportMoney";
+import { orlandoYmd } from "@/lib/orlandoDay";
 
 interface InvoiceRevenueViewProps {
   startDate: string;
@@ -45,14 +47,16 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
     loadData();
   }, [startDate, endDate]);
 
-  // Use what Stripe actually charged (subtotal + processing fee); fall back to
-  // amount for any legacy invoice that predates the total_charged column.
-  const totalRevenue = data?.reduce((sum, inv) => sum + Number(inv.total_charged ?? inv.amount), 0) ?? 0;
-  const invoiceCount = data?.length ?? 0;
-  const avgPerInvoice = invoiceCount > 0 ? totalRevenue / invoiceCount : 0;
+  // R2-1/R2-10: net (amount) is what Collected counts; the card fee is shown
+  // apart and is 0 for an invoice paid offline (cash, Zelle, check).
+  const rows = (data ?? []).map((inv) => ({ inv, ...invoiceMoney(inv) }));
+  const totalNet = rows.reduce((sum, r) => sum + r.net, 0);
+  const totalFee = rows.reduce((sum, r) => sum + r.fee, 0);
+  const totalGross = rows.reduce((sum, r) => sum + r.gross, 0);
+  const invoiceCount = rows.length;
+  const avgPerInvoice = invoiceCount > 0 ? totalNet / invoiceCount : 0;
 
-  const fmt = (n: number) =>
-    n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt = (n: number) => money(n).replace("$", "");
 
   if (isLoading) {
     return (
@@ -110,12 +114,14 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Invoice Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Invoice Revenue (net)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${fmt(totalRevenue)}</div>
-            <p className="text-xs text-muted-foreground mt-1">From standalone invoices</p>
+            <div className="text-2xl font-bold">${fmt(totalNet)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              Included in Collected above · card fees ${fmt(totalFee)} · gross ${fmt(totalGross)}
+            </p>
           </CardContent>
         </Card>
 
@@ -137,7 +143,7 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">${fmt(avgPerInvoice)}</div>
-            <p className="text-xs text-muted-foreground mt-1">Average invoice amount</p>
+            <p className="text-xs text-muted-foreground mt-1">Average net invoice amount</p>
           </CardContent>
         </Card>
       </div>
@@ -155,14 +161,19 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
                   <TableHead>Invoice #</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>Customer</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
+                  <TableHead className="text-right">Net</TableHead>
+                  <TableHead className="text-right">Card fee</TableHead>
+                  <TableHead className="text-right">Gross</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((inv) => (
+                {rows.map(({ inv, net, fee, gross }) => (
                   <TableRow key={inv.id}>
                     <TableCell className="font-medium">
-                      {format(new Date(inv.paid_at), "MM/dd/yyyy")}
+                      {format(new Date(orlandoYmd(inv.paid_at) + "T00:00:00"), "MM/dd/yyyy")}
+                      {inv.paid_offline_method && (
+                        <div className="text-xs text-muted-foreground font-normal">Paid offline ({inv.paid_offline_method})</div>
+                      )}
                     </TableCell>
                     <TableCell className="font-mono text-xs">{inv.invoice_number}</TableCell>
                     <TableCell>
@@ -179,14 +190,9 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
                         <div className="text-xs text-muted-foreground">{inv.customer_name}</div>
                       )}
                     </TableCell>
-                    <TableCell className="text-right font-medium">
-                      <div>${fmt(Number(inv.total_charged ?? inv.amount))}</div>
-                      {inv.processing_fee != null && Number(inv.processing_fee) > 0 && (
-                        <div className="text-xs text-muted-foreground font-normal">
-                          ${fmt(Number(inv.amount))} + ${fmt(Number(inv.processing_fee))} fee
-                        </div>
-                      )}
-                    </TableCell>
+                    <TableCell className="text-right font-medium">${fmt(net)}</TableCell>
+                    <TableCell className="text-right text-muted-foreground">${fmt(fee)}</TableCell>
+                    <TableCell className="text-right">${fmt(gross)}</TableCell>
                   </TableRow>
                 ))}
                 <TableRow className="bg-muted/50 font-bold">
@@ -194,7 +200,9 @@ export default function InvoiceRevenueView({ startDate, endDate }: InvoiceRevenu
                   <TableCell />
                   <TableCell />
                   <TableCell className="text-right text-sm">{invoiceCount} invoices</TableCell>
-                  <TableCell className="text-right">${fmt(totalRevenue)}</TableCell>
+                  <TableCell className="text-right">${fmt(totalNet)}</TableCell>
+                  <TableCell className="text-right">${fmt(totalFee)}</TableCell>
+                  <TableCell className="text-right">${fmt(totalGross)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>

@@ -1,12 +1,13 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { CalendarIcon, DollarSign, Download } from "lucide-react";
+import { CalendarIcon } from "lucide-react";
 import { format, startOfMonth, endOfMonth, subMonths } from "date-fns";
-import { useRevenueData } from "@/hooks/useRevenueData";
+import { useRevenueData, RevenueSummary } from "@/hooks/useRevenueData";
+import RevenueSummaryPanel from "@/components/admin/revenue/RevenueSummaryPanel";
 import DailyRevenueView from "@/components/admin/revenue/DailyRevenueView";
 import DailyTotalsView from "@/components/admin/revenue/DailyTotalsView";
 import MonthlyRevenueView from "@/components/admin/revenue/MonthlyRevenueView";
@@ -20,10 +21,30 @@ export default function RevenueReports() {
   const [dateTo, setDateTo] = useState<Date>(endOfMonth(new Date()));
   const [activeTab, setActiveTab] = useState<string>("daily");
 
-  const { exportRevenueCsv } = useRevenueData();
+  const { exportRevenueCsv, fetchRevenueSummary } = useRevenueData();
 
   const startDate = format(dateFrom, "yyyy-MM-dd");
   const endDate = format(dateTo, "yyyy-MM-dd");
+
+  const [summary, setSummary] = useState<RevenueSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSummaryLoading(true);
+    setSummaryError(null);
+    fetchRevenueSummary(startDate, endDate).then((res) => {
+      if (cancelled) return;
+      if (res.error) setSummaryError("Failed to load the collected totals");
+      setSummary(res.data);
+      setSummaryLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startDate, endDate]);
 
   return (
     <div className="space-y-6 pb-8">
@@ -112,6 +133,8 @@ export default function RevenueReports() {
         </CardContent>
       </Card>
 
+      <RevenueSummaryPanel summary={summary} isLoading={summaryLoading} error={summaryError} />
+
       {/* Tabs for different views */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-5">
@@ -123,7 +146,7 @@ export default function RevenueReports() {
         </TabsList>
 
         <TabsContent value="daily" className="mt-6 space-y-4">
-          <DailyRevenueView startDate={startDate} endDate={endDate} />
+          <DailyRevenueView startDate={startDate} endDate={endDate} summary={summary} />
         </TabsContent>
 
         <TabsContent value="totals" className="mt-6 space-y-4">
@@ -131,7 +154,7 @@ export default function RevenueReports() {
         </TabsContent>
 
         <TabsContent value="monthly" className="mt-6 space-y-4">
-          <MonthlyRevenueView startDate={startDate} endDate={endDate} />
+          <MonthlyRevenueView startDate={startDate} endDate={endDate} summary={summary} />
         </TabsContent>
 
         <TabsContent value="category" className="mt-6 space-y-4">
@@ -143,7 +166,7 @@ export default function RevenueReports() {
         </TabsContent>
       </Tabs>
 
-      {/* Standalone Invoice Revenue - separate section */}
+      {/* Invoice detail. Its net amount is already inside Collected above. */}
       <InvoiceRevenueView startDate={startDate} endDate={endDate} />
     </div>
   );

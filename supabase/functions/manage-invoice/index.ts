@@ -134,11 +134,16 @@ serve(async (req: Request) => {
     }
 
     if (action === "mark_paid") {
+      // R2-10 (86e40ach2): paid offline means no card was charged, so no card
+      // fee. Without this, total_charged keeps the pre-filled 3.75% and Reports
+      // shows a fee nobody paid.
       const { data: updated, error } = await supabase
         .from("invoices")
         .update({
           payment_status: "paid",
           paid_at: now,
+          processing_fee: 0,
+          total_charged: row.amount,
           payment_url: null,
           paid_offline_method: request.method,
           paid_offline_reference: String(request.reference).trim(),

@@ -1258,20 +1258,47 @@ serve(async (req) => {
         // Calendar sync handled automatically by DB trigger (bookings_sync_ghl_update)
 
         // Populate revenue items for this booking
+        // R2-12 (86e40ach2): the payment is already recorded on the booking and
+        // a Stripe retry would be answered as a duplicate, so a failed revenue
+        // write must leave a trail the office sees (booking_events), as S-5
+        // does for add-ons. Recording the failure never fails the webhook.
+        let revenueFailure: string | null = null;
         try {
           console.log("[REVENUE] Populating revenue items for booking:", bookingId);
           const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
             p_booking_id: bookingId,
             p_is_historical: false
           });
-          
+
           if (revenueError) {
             console.error('[REVENUE] Failed to populate revenue items:', revenueError);
+            revenueFailure = revenueError.message ?? String(revenueError);
           } else {
             console.log('[REVENUE] Revenue items populated successfully');
           }
         } catch (revErr) {
           console.error('[REVENUE] Exception populating revenue items:', revErr);
+          revenueFailure = revErr instanceof Error ? revErr.message : String(revErr);
+        }
+        if (revenueFailure) {
+          try {
+            const { error: revenueEventError } = await supabase.from("booking_events").insert({
+              booking_id: bookingId,
+              event_type: "revenue_write_failed",
+              channel: "stripe",
+              metadata: {
+                payment_type: "balance",
+                stripe_event_id: event.id,
+                session_id: sessionId,
+                error: revenueFailure,
+              },
+            });
+            if (revenueEventError) {
+              console.error("Could not record revenue_write_failed event:", revenueEventError);
+            }
+          } catch (evErr) {
+            console.error("Could not record revenue_write_failed event:", evErr);
+          }
         }
 
         console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);
@@ -1487,20 +1514,47 @@ serve(async (req) => {
         }
 
         // Populate revenue items for this booking
+        // R2-12 (86e40ach2): the payment is already recorded on the booking and
+        // a Stripe retry would be answered as a duplicate, so a failed revenue
+        // write must leave a trail the office sees (booking_events), as S-5
+        // does for add-ons. Recording the failure never fails the webhook.
+        let revenueFailure: string | null = null;
         try {
           console.log("[REVENUE] Populating revenue items for booking:", bookingId);
           const { error: revenueError } = await supabase.rpc('populate_booking_revenue_items', {
             p_booking_id: bookingId,
             p_is_historical: false
           });
-          
+
           if (revenueError) {
             console.error('[REVENUE] Failed to populate revenue items:', revenueError);
+            revenueFailure = revenueError.message ?? String(revenueError);
           } else {
             console.log('[REVENUE] Revenue items populated successfully');
           }
         } catch (revErr) {
           console.error('[REVENUE] Exception populating revenue items:', revErr);
+          revenueFailure = revErr instanceof Error ? revErr.message : String(revErr);
+        }
+        if (revenueFailure) {
+          try {
+            const { error: revenueEventError } = await supabase.from("booking_events").insert({
+              booking_id: bookingId,
+              event_type: "revenue_write_failed",
+              channel: "stripe",
+              metadata: {
+                payment_type: "deposit",
+                stripe_event_id: event.id,
+                session_id: sessionId,
+                error: revenueFailure,
+              },
+            });
+            if (revenueEventError) {
+              console.error("Could not record revenue_write_failed event:", revenueEventError);
+            }
+          } catch (evErr) {
+            console.error("Could not record revenue_write_failed event:", evErr);
+          }
         }
 
         console.log(`[STRIPE_EVENT_LOGGED] ${event.id} for booking ${bookingId}`);

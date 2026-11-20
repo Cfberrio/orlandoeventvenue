@@ -13,6 +13,8 @@ import { useRevenueData, DailyGeneratedRevenueRecord } from "@/hooks/useRevenueD
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
+import { money } from "@/lib/reportMoney";
+import { bookingTypeLabel, humanizeCode } from "@/lib/statusLabels";
 
 interface DailyTotalsViewProps {
   startDate: string;
@@ -195,7 +197,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
     );
   }
 
-  const fmtMoney = (v: number) => `$${Number(v).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+  const fmtMoney = (v: number) => money(v);
 
   return (
     <div className="space-y-4">
@@ -203,7 +205,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Generated</CardTitle>
+            <CardTitle className="text-sm font-medium">Booked Value</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -211,7 +213,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
               {fmtMoney(totals?.total_generated || 0)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
-              Full booking value across {totals?.booking_count} bookings
+              Contract price of {totals?.booking_count} bookings that paid a deposit (later add-ons and card fees not included)
             </p>
           </CardContent>
         </Card>
@@ -224,14 +226,14 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
           <CardContent>
             <div className="text-2xl font-bold">{data.length}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Days with confirmed bookings
+              Days on which a deposit-paid booking was created
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Generated/Day</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg Booked Value/Day</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -250,9 +252,9 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle>Daily Generated Revenue</CardTitle>
+              <CardTitle>Booked Value by Booking Date</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
-                Full booking amounts grouped by booking creation date. Click a date to see individual bookings.
+                Contract price at booking, grouped by the Orlando day the booking was created. Only bookings that paid a deposit and are not cancelled. Excludes add-ons billed later and card fees; for money received see Daily Received. Click a date to see individual bookings.
               </p>
             </div>
             <Button
@@ -288,7 +290,7 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                   <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right">Add-ons</TableHead>
                   <TableHead className="text-right">Bar</TableHead>
-                  <TableHead className="text-right">Tax</TableHead>
+                  <TableHead className="text-right" title="The booking's own taxes & fees field. Card processing fees are not part of booked value.">Booking Taxes</TableHead>
                   <TableHead className="text-right">Discounts</TableHead>
                   <TableHead className="text-right font-bold">Total</TableHead>
                 </TableRow>
@@ -340,12 +342,12 @@ export default function DailyTotalsView({ startDate, endDate }: DailyTotalsViewP
                             <div className="flex flex-col">
                               <span className="font-medium">{b.full_name}</span>
                               <span className="text-xs text-muted-foreground">
-                                {b.reservation_number} · {b.event_type} · {format(new Date(b.event_date + 'T00:00:00'), "MM/dd")}
+                                {b.reservation_number} · {humanizeCode(b.event_type)} · {format(new Date(b.event_date + 'T00:00:00'), "MM/dd")}
                               </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground">
-                            {b.booking_type}
+                            {bookingTypeLabel(b.booking_type)}
                           </TableCell>
                           <TableCell className="text-right">{fmtMoney(b.base_rental)}</TableCell>
                           <TableCell className="text-right">{fmtMoney(b.cleaning_fee)}</TableCell>

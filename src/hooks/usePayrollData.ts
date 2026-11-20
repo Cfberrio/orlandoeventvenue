@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { downloadCsv, NO_ROWS_MESSAGE } from "@/hooks/useRevenueData";
 
 /**
  * Payroll Data Hook
@@ -48,6 +49,39 @@ export interface PayrollLineItem {
   paid_at: string | null;
   payroll_item_id: string;
   created_at: string;
+  /** Admin export only (20261119140000). */
+  staff_id?: string;
+  /** Admin export only: 'not_accepted' | 'booking_cancelled' for unpaid lines that are not owed (R2-17). */
+  not_payable_reason?: string | null;
+}
+
+export interface PayrollExportFilters {
+  paidStatus?: 'pending' | 'paid' | 'all';
+  staffId?: string;
+  role?: string;
+}
+
+export interface PayrollExportResult {
+  success: boolean;
+  /** true when the filtered range had nothing to export (R2-20). */
+  empty?: boolean;
+  error: { message: string } | null;
+}
+
+/** R2-19: filter export rows by staff_id (never by name) and by role code. */
+export function filterPayrollExport(rows: PayrollLineItem[], filters?: PayrollExportFilters): PayrollLineItem[] {
+  let out = rows;
+  if (filters?.paidStatus && filters.paidStatus !== 'all') {
+    out = out.filter((item) => item.paid_status === filters.paidStatus);
+  }
+  if (filters?.staffId) {
+    out = out.filter((item) => item.staff_id === filters.staffId);
+  }
+  if (filters?.role) {
+    const role = filters.role.toLowerCase();
+    out = out.filter((item) => (item.staff_role ?? '').toLowerCase() === role);
+  }
+  return out;
 }
 
 export interface StandaloneAssignmentData {
@@ -105,7 +139,9 @@ export function usePayrollData() {
    * Fetch payroll line items
    */
   const fetchPayrollLineItems = async (startDate: string, endDate: string) => {
-    const { data, error } = await supabase.rpc('get_payroll_line_items_export', {
+    // Return type grew staff_id + not_payable_reason in 20261119140000; the
+    // generated types predate it.
+    const { data, error } = await (supabase.rpc as any)('get_payroll_line_items_export', {
       p_start_date: startDate,
       p_end_date: endDate
     });
@@ -321,96 +357,27 @@ export function usePayrollData() {
   };
 
   /**
-   * Helper to convert data to CSV and trigger download
-   */
-  const downloadCsv = (data: any[], filename: string) => {
-    if (!data || data.length === 0) {
-      console.error('No data to export');
-      return;
-    }
-
-    // Get headers from first object
-    const headers = Object.keys(data[0]);
-    
-    // Build CSV content
-    const csvContent = [
-      headers.join(','), // Header row
-      ...data.map(row => 
-        headers.map(header => {
-          const value = row[header];
-          // Handle values that might contain commas or quotes
-          if (value === null || value === undefined) return '';
-          const stringValue = String(value);
-          if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-            return `"${stringValue.replace(/"/g, '""')}"`;
-          }
-          return stringValue;
-        }).join(',')
-      )
-    ].join('\n');
-
-    // Create blob and download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    URL.revokeObjectURL(url);
-  };
-
-  /**
-   * Export payroll to CSV
+   * Export payroll to CSV. R2-19: per-staff filter by staff_id (the export rows
+   * carry it since 20261119140000). R2-20: an empty range downloads nothing
+   * and says so.
    */
   const exportPayrollCsv = async (
-    startDate: string, 
+    startDate: string,
     endDate: string,
-    filters?: {
-      paidStatus?: 'pending' | 'paid' | 'all';
-      staffId?: string;
-      role?: string;
-    }
-  ) => {
+    filters?: PayrollExportFilters
+  ): Promise<PayrollExportResult> => {
     const { data, error } = await fetchPayrollLineItems(startDate, endDate);
-    
+
     if (error || !data) {
-      return { success: false, error };
+      return { success: false, error: { message: error?.message ?? 'Could not load payroll lines' } };
     }
-    
-    // Apply filters
-    let filteredData = data;
-    
-    if (filters?.paidStatus && filters.paidStatus !== 'all') {
-      filteredData = filteredData.filter(item => item.paid_status === filters.paidStatus);
+
+    const filteredData = filterPayrollExport(data, filters);
+    const filename = `payroll-export-${startDate}-to-${endDate}${filters?.staffId ? '-staff' : ''}.csv`;
+    const downloaded = downloadCsv(filteredData as unknown as Record<string, unknown>[], filename);
+    if (!downloaded) {
+      return { success: false, empty: true, error: { message: NO_ROWS_MESSAGE } };
     }
-    
-    if (filters?.staffId) {
-      // C-25: the export rows carry staff_name, not staff_id; comparing the name
-      // with the id always produced an empty file. Resolve the id to its name.
-      const { data: staff, error: staffError } = await supabase
-        .from("staff_members")
-        .select("full_name")
-        .eq("id", filters.staffId)
-        .maybeSingle();
-      if (staffError || !staff) {
-        return { success: false, error: staffError ?? new Error("Staff member not found") };
-      }
-      filteredData = filteredData.filter(item => item.staff_name === staff.full_name);
-    }
-    
-    if (filters?.role) {
-      filteredData = filteredData.filter(item => item.staff_role === filters.role);
-    }
-    
-    const filename = `payroll-export-${startDate}-to-${endDate}.csv`;
-    downloadCsv(filteredData, filename);
-    
     return { success: true, error: null };
   };
 

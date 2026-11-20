@@ -137,7 +137,7 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Week Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Booked value, events this week</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -145,7 +145,7 @@ export default function AdminDashboard() {
               {loadingRevenue ? "..." : formatMoney(Number(weeklyRevenue?.total) || 0)}
             </div>
             <p className="text-xs text-muted-foreground">
-              {weeklyRevenue?.count || 0} bookings this week
+              contract price of {weeklyRevenue?.count || 0} events this week, paid or not (money received: Reports)
             </p>
           </CardContent>
         </Card>
