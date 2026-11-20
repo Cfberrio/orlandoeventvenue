@@ -3,6 +3,30 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
 import { LEAD_SILENCE_THRESHOLD_DAYS, leadSilenceDays } from "../_shared/lead-silence.ts";
+import { authorizeInternalCaller, callerRefusal } from "../_shared/caller-auth.ts";
+
+/**
+ * What the HTTP response may carry (X2-07): counts and reservation numbers
+ * only. Guest names and emails stay in the office email, never in a response
+ * body that any caller could read.
+ */
+function publicIssueSummary(issue: {
+  type: string;
+  severity: string;
+  count: number;
+  bookings?: Array<{ reservation_number?: string | null }>;
+  failed_jobs?: Array<{ reservation_number?: string | null }>;
+}): { type: string; severity: string; count: number; reservation_numbers: string[] } {
+  const numbers = new Set<string>();
+  for (const b of issue.bookings ?? []) if (b?.reservation_number) numbers.add(String(b.reservation_number));
+  for (const j of issue.failed_jobs ?? []) if (j?.reservation_number) numbers.add(String(j.reservation_number));
+  return { type: issue.type, severity: issue.severity, count: issue.count, reservation_numbers: [...numbers] };
+}
+
+/** Orlando calendar date (YYYY-MM-DD): the office gets at most one alert email per day. */
+function orlandoDate(d = new Date()): string {
+  return d.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +83,12 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Only the pg_cron job (internal secret), another edge function (service
+    // role) or a signed-in admin may run the check: it reads guest data and
+    // emails the office (X2-07).
+    const caller = await authorizeInternalCaller(req, supabase);
+    if (!caller.ok) return callerRefusal(caller, corsHeaders);
 
     const issues: HealthIssue[] = [];
     const twentyFourHoursAgo = new Date(Date.now() - 86400000).toISOString();
@@ -646,45 +676,91 @@ serve(async (req) => {
       const totalProblems = issues.reduce((sum, i) => sum + i.count, 0);
       const criticalCount = issues.filter(i => i.severity === 'CRITICAL').length;
       const highCount = issues.filter(i => i.severity === 'HIGH').length;
-      
-      try {
-        await sendAlertEmail(issues);
-        console.log("[ALERT] Email sent successfully");
-        
-        // Log health check alert to booking_events for audit
-        await supabase.from("booking_events").insert({
-          booking_id: "00000000-0000-0000-0000-000000000000", // System event
-          event_type: "system_health_alert_sent",
-          channel: "email",
-          metadata: {
+      const publicIssues = issues.map(publicIssueSummary);
+
+      // One office email per Orlando day (X2-07): claim the day before
+      // sending. The claim row also replaces the old booking_events audit
+      // insert, which the booking_id FK always rejected (X2-16).
+      const alertDate = orlandoDate();
+      const { data: claimRows, error: claimError } = await supabase
+        .from("health_check_alert_claims")
+        .upsert(
+          {
+            alert_date: alertDate,
             issues_count: issues.length,
             total_problems: totalProblems,
             critical_count: criticalCount,
             high_count: highCount,
-            checked_at: new Date().toISOString(),
           },
+          { onConflict: "alert_date", ignoreDuplicates: true },
+        )
+        .select("alert_date");
+
+      if (claimError) {
+        // Without the claim we cannot tell whether today's email already went
+        // out; skip the email rather than risk a second one.
+        console.error("[ALERT] Could not claim today's alert:", claimError);
+        return new Response(JSON.stringify({
+          ok: false,
+          alert_sent: false,
+          reason: "alert_claim_failed",
+          issues_count: issues.length,
+          issues: publicIssues,
+        }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
-        
+      }
+
+      if (!claimRows || claimRows.length === 0) {
+        console.log(`[ALERT] Office already emailed for ${alertDate}; not sending again`);
         return new Response(JSON.stringify({
           ok: true,
-          alert_sent: true,
+          alert_sent: false,
+          reason: "already_sent_today",
+          alert_date: alertDate,
           issues_count: issues.length,
           total_problems: totalProblems,
           critical: criticalCount,
           high: highCount,
-          issues: issues,
+          issues: publicIssues,
+        }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      try {
+        await sendAlertEmail(issues);
+        console.log("[ALERT] Email sent successfully");
+
+        return new Response(JSON.stringify({
+          ok: true,
+          alert_sent: true,
+          alert_date: alertDate,
+          issues_count: issues.length,
+          total_problems: totalProblems,
+          critical: criticalCount,
+          high: highCount,
+          issues: publicIssues,
         }), {
           status: 200,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       } catch (emailError) {
         console.error("[ALERT] Failed to send email:", emailError);
-        
+        // Release the claim so a later run today can retry.
+        const { error: releaseError } = await supabase
+          .from("health_check_alert_claims")
+          .delete()
+          .eq("alert_date", alertDate);
+        if (releaseError) console.error("[ALERT] Could not release today's claim:", releaseError);
+
         return new Response(JSON.stringify({
           ok: false,
           alert_sent: false,
           issues_count: issues.length,
-          issues: issues,
+          issues: publicIssues,
           error: "Failed to send email: " + (emailError instanceof Error ? emailError.message : "Unknown error"),
         }), {
           status: 500,

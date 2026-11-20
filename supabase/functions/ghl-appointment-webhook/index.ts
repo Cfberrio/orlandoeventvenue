@@ -1,10 +1,47 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { safeEqual } from "../_shared/internal-auth.ts";
+import { escapeHtml } from "../_shared/email-layout.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-ghl-signature',
 };
+
+// Second pass X2-15 (ClickUp 86e40ach2).
+//
+// OEV is the source of truth for every booking: website, internal (admin) and
+// external (admin) bookings are all created in OEV and pushed TO GHL by
+// sync-ghl-calendar. This webhook used to act on GHL's copy:
+//   * appointment deleted in GHL -> booking cancelled, paid website bookings
+//     included, with no reason and no guest notice;
+//   * appointment created in GHL -> a booking insert that always failed
+//     (column total_guests and payment_status 'not_required' do not exist);
+//   * appointment updated in GHL -> rewrote date/time/status (never ran: every
+//     booking has source = website).
+// Now it never writes a booking OEV created. A delete or cancel of such an
+// appointment is logged on the booking and the office is emailed to decide.
+// The create path is removed. Bookings created anywhere else (none exist
+// today) keep the old cancel-on-delete behaviour.
+
+const OEV_ORIGINS = new Set(['website', 'internal', 'external']);
+
+interface BookingRow {
+  id: string;
+  reservation_number: string | null;
+  source: string | null;
+  booking_origin: string | null;
+  status: string | null;
+  lifecycle_status: string | null;
+  event_date: string | null;
+  full_name: string | null;
+}
+
+/** True for every booking OEV created (website flow or the admin wizards). */
+function isOevCreated(b: Pick<BookingRow, 'source' | 'booking_origin'>): boolean {
+  return (b.source ?? 'website') === 'website' || OEV_ORIGINS.has(b.booking_origin ?? '');
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,13 +49,11 @@ serve(async (req) => {
   }
 
   try {
-    // Verify webhook secret
-    const webhookSecret = Deno.env.get("GHL_WEBHOOK_SECRET");
-    const providedSecret = req.headers.get("x-ghl-signature") || req.headers.get("authorization")?.replace("Bearer ", "");
-    
-    // Fail closed (Codex review, 86e40ach2): without the secret configured the
-    // endpoint would let anyone cancel bookings through the service role.
-    if (!webhookSecret || providedSecret !== webhookSecret) {
+    // Verify webhook secret (fail closed, constant-time compare).
+    const webhookSecret = Deno.env.get("GHL_WEBHOOK_SECRET") ?? "";
+    const providedSecret = req.headers.get("x-ghl-signature") || req.headers.get("authorization")?.replace("Bearer ", "") || "";
+
+    if (!webhookSecret || !providedSecret || !safeEqual(providedSecret, webhookSecret)) {
       console.error("[WEBHOOK] Unauthorized request");
       return new Response(
         JSON.stringify({ ok: false, error: "unauthorized" }),
@@ -31,193 +66,137 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const payload = await req.json();
-    console.log("[WEBHOOK] Received event:", payload.type || payload.event_type);
+    const eventType = String(payload.type || payload.event_type || "");
+    console.log("[WEBHOOK] Received event:", eventType);
 
-    // Extract event type
-    const eventType = payload.type || payload.event_type || "";
-    
-    // Handle different event types
+    let result: Record<string, unknown> = { action: "ignored" };
     if (eventType.includes("appointment.create") || eventType.includes("AppointmentCreate")) {
-      await handleAppointmentCreate(supabase, payload);
+      // Bookings are created in OEV, never from GHL.
+      result = { action: "ignored", reason: "create_not_supported" };
     } else if (eventType.includes("appointment.update") || eventType.includes("AppointmentUpdate")) {
-      await handleAppointmentUpdate(supabase, payload);
+      result = await handleAppointmentUpdate(supabase, payload);
     } else if (eventType.includes("appointment.delete") || eventType.includes("AppointmentDelete")) {
-      await handleAppointmentDelete(supabase, payload);
+      result = await handleAppointmentRemoved(supabase, payload, "deleted");
     } else {
       console.log("[WEBHOOK] Unhandled event type:", eventType);
     }
 
     return new Response(
-      JSON.stringify({ ok: true, event_type: eventType }),
+      JSON.stringify({ ok: true, event_type: eventType, ...result }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (err) {
     console.error("[WEBHOOK] Error:", err);
     return new Response(
-      JSON.stringify({ ok: false, error: String(err) }),
+      JSON.stringify({ ok: false, error: "internal_error" }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
 
-async function handleAppointmentCreate(supabase: any, payload: any) {
+function appointmentIdOf(payload: any): string {
   const appointment = payload.appointment || payload;
-  const appointmentId = appointment.id || appointment.appointmentId;
-  
-  console.log(`[WEBHOOK] Creating booking for appointment: ${appointmentId}`);
-  
-  // Parse times
-  const startTime = new Date(appointment.startTime);
-  const endTime = new Date(appointment.endTime);
-  const eventDate = startTime.toISOString().split('T')[0];
-  const startTimeStr = startTime.toTimeString().slice(0, 5); // HH:MM
-  const endTimeStr = endTime.toTimeString().slice(0, 5); // HH:MM
-  
-  // Infer booking type from duration
-  const durationHours = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
-  const bookingType = durationHours >= 18 ? 'daily' : 'hourly';
-  
-  // Extract contact info
-  const contact = appointment.contact || {};
-  const fullName = contact.name || contact.firstName + ' ' + contact.lastName || 'External Booking';
-  const email = contact.email || '';
-  const phone = contact.phone || contact.phoneNumber || '';
-  
-  // Check if appointment already exists
-  const { data: existing } = await supabase
-    .from('bookings')
-    .select('id')
-    .eq('ghl_appointment_id', appointmentId)
-    .single();
-  
-  if (existing) {
-    console.log(`[WEBHOOK] Appointment ${appointmentId} already exists in DB`);
-    return;
-  }
-  
-  // Generate reservation number
-  const reservationNumber = `EXT-${Date.now().toString().slice(-8)}`;
-  
-  // Insert new booking
+  return String(appointment.id || appointment.appointmentId || "");
+}
+
+async function findBooking(supabase: any, appointmentId: string): Promise<BookingRow | null> {
+  if (!appointmentId) return null;
   const { data, error } = await supabase
     .from('bookings')
-    .insert({
-      reservation_number: reservationNumber,
-      ghl_appointment_id: appointmentId,
-      ghl_calendar_id: appointment.calendarId,
-      event_date: eventDate,
-      start_time: startTimeStr,
-      end_time: endTimeStr,
-      booking_type: bookingType,
-      full_name: fullName,
-      email: email,
-      phone: phone,
-      status: appointment.status === 'cancelled' ? 'cancelled' : 'confirmed',
-      source: 'google_calendar',
-      event_type: appointment.title || 'External Event',
-      total_guests: 50, // Default
-      total_amount: 0, // External bookings don't have payment
-      deposit_amount: 0,
-      balance_amount: 0,
-      payment_status: 'not_required'
-    });
-  
-  if (error) {
-    console.error("[WEBHOOK] Error creating booking:", error);
-    throw error;
-  }
-  
-  console.log(`[WEBHOOK] ✅ Created booking ${reservationNumber} for appointment ${appointmentId}`);
-}
-
-async function handleAppointmentUpdate(supabase: any, payload: any) {
-  const appointment = payload.appointment || payload;
-  const appointmentId = appointment.id || appointment.appointmentId;
-  
-  console.log(`[WEBHOOK] Updating booking for appointment: ${appointmentId}`);
-  
-  // Check if booking exists
-  const { data: existing } = await supabase
-    .from('bookings')
-    .select('id, source, status, lifecycle_status')
+    .select('id, reservation_number, source, booking_origin, status, lifecycle_status, event_date, full_name')
     .eq('ghl_appointment_id', appointmentId)
-    .single();
-  
-  if (!existing) {
-    console.log(`[WEBHOOK] Appointment ${appointmentId} not found in DB, creating...`);
-    await handleAppointmentCreate(supabase, payload);
-    return;
-  }
-  
-  // Don't update website bookings (they update via sync-ghl-calendar)
-  if (existing.source === 'website') {
-    console.log(`[WEBHOOK] Skipping update for website booking`);
-    return;
-  }
-
-  // Cancelled is terminal (M-9): a stale appointment update must not bring
-  // the booking back; the DB also refuses it.
-  if (existing.status === 'cancelled' || existing.lifecycle_status === 'cancelled') {
-    console.log(`[WEBHOOK] Booking ${existing.id} is cancelled; ignoring appointment update`);
-    return;
-  }
-
-  // An appointment cancelled in GHL is a cancel: same path as a delete.
-  if (appointment.status === 'cancelled') {
-    await handleAppointmentDelete(supabase, payload);
-    return;
-  }
-  
-  // Parse times
-  const startTime = new Date(appointment.startTime);
-  const endTime = new Date(appointment.endTime);
-  const eventDate = startTime.toISOString().split('T')[0];
-  const startTimeStr = startTime.toTimeString().slice(0, 5);
-  const endTimeStr = endTime.toTimeString().slice(0, 5);
-  
-  // Update booking
-  const { error } = await supabase
-    .from('bookings')
-    .update({
-      event_date: eventDate,
-      start_time: startTimeStr,
-      end_time: endTimeStr,
-      status: 'confirmed',
-      event_type: appointment.title || 'External Event'
-    })
-    .eq('id', existing.id);
-  
-  if (error) {
-    console.error("[WEBHOOK] Error updating booking:", error);
-    throw error;
-  }
-  
-  console.log(`[WEBHOOK] ✅ Updated booking for appointment ${appointmentId}`);
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as BookingRow | null) ?? null;
 }
 
-async function handleAppointmentDelete(supabase: any, payload: any) {
+async function handleAppointmentUpdate(supabase: any, payload: any): Promise<Record<string, unknown>> {
   const appointment = payload.appointment || payload;
-  const appointmentId = appointment.id || appointment.appointmentId;
-  
-  console.log(`[WEBHOOK] Deleting booking for appointment: ${appointmentId}`);
-  
-  // Mark as cancelled instead of deleting. The DB cancel trigger (M-9,
-  // 86e40ach2) cancels lifecycle, staff, jobs, blocks and unpaid add-ons.
+  const appointmentId = appointmentIdOf(payload);
+  const booking = await findBooking(supabase, appointmentId);
+
+  if (!booking) {
+    // Never create a booking from GHL.
+    return { action: "ignored", reason: "no_matching_booking" };
+  }
+
+  if (booking.status === 'cancelled' || booking.lifecycle_status === 'cancelled') {
+    return { action: "ignored", reason: "booking_cancelled" };
+  }
+
+  // An appointment cancelled in GHL is handled like a delete.
+  if (appointment.status === 'cancelled') {
+    return await handleAppointmentRemoved(supabase, payload, "cancelled");
+  }
+
+  // Date/time changes are made in OEV (Reschedule), which pushes them to GHL.
+  // A GHL-side edit is not copied back.
+  return { action: "ignored", reason: "oev_is_source_of_truth", booking_id: booking.id };
+}
+
+async function handleAppointmentRemoved(
+  supabase: any,
+  payload: any,
+  how: "deleted" | "cancelled",
+): Promise<Record<string, unknown>> {
+  const appointmentId = appointmentIdOf(payload);
+  const booking = await findBooking(supabase, appointmentId);
+
+  if (!booking) {
+    return { action: "ignored", reason: "no_matching_booking" };
+  }
+  if (booking.status === 'cancelled' || booking.lifecycle_status === 'cancelled') {
+    return { action: "ignored", reason: "booking_cancelled", booking_id: booking.id };
+  }
+
+  if (isOevCreated(booking)) {
+    // Do not cancel. Record it and ask the office.
+    const { data: prior } = await supabase
+      .from('booking_events')
+      .select('id')
+      .eq('booking_id', booking.id)
+      .eq('event_type', 'ghl_appointment_removed_externally')
+      .contains('metadata', { appointment_id: appointmentId })
+      .limit(1);
+    const alreadyLogged = Array.isArray(prior) && prior.length > 0;
+
+    if (!alreadyLogged) {
+      const { error: logError } = await supabase.from('booking_events').insert({
+        booking_id: booking.id,
+        event_type: 'ghl_appointment_removed_externally',
+        channel: 'ghl',
+        metadata: {
+          appointment_id: appointmentId,
+          how,
+          action: 'booking_not_cancelled',
+          received_at: new Date().toISOString(),
+        },
+      });
+      if (logError) {
+        console.error("[WEBHOOK] Could not log the removed appointment:", logError);
+        throw logError;
+      }
+      await alertOffice(booking, appointmentId, how);
+    }
+
+    console.log(`[WEBHOOK] Appointment ${appointmentId} ${how} in GHL; booking ${booking.reservation_number} left as is`);
+    return { action: "logged_not_cancelled", booking_id: booking.id };
+  }
+
+  // Not created by OEV (none exist today): keep the old cancel behaviour.
   const { data: cancelled, error } = await supabase
     .from('bookings')
     .update({ status: 'cancelled' })
-    .eq('ghl_appointment_id', appointmentId)
+    .eq('id', booking.id)
     .neq('status', 'cancelled')
     .select('id');
-
   if (error) {
-    console.error("[WEBHOOK] Error deleting booking:", error);
+    console.error("[WEBHOOK] Error cancelling booking:", error);
     throw error;
   }
 
-  // Close Stripe links like an admin cancel (no second guest email: the
-  // booking is already cancelled when cancel-booking reads it).
   for (const row of (cancelled ?? []) as Array<{ id: string }>) {
     try {
       const { data: cleanup, error: cleanupError } = await supabase.functions.invoke('cancel-booking', {
@@ -238,5 +217,44 @@ async function handleAppointmentDelete(supabase: any, payload: any) {
     }
   }
 
-  console.log(`[WEBHOOK] ✅ Cancelled ${cancelled?.length ?? 0} booking(s) for appointment ${appointmentId}`);
+  return { action: "cancelled", count: cancelled?.length ?? 0 };
+}
+
+async function alertOffice(booking: BookingRow, appointmentId: string, how: "deleted" | "cancelled"): Promise<void> {
+  const gmailUser = Deno.env.get("GMAIL_USER");
+  const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
+  if (!gmailUser || !gmailPassword) {
+    console.error("[WEBHOOK] Gmail not configured; office alert not sent");
+    return;
+  }
+  const reservation = booking.reservation_number || booking.id;
+  try {
+    const client = new SMTPClient({
+      connection: {
+        hostname: "smtp.gmail.com",
+        port: 465,
+        tls: true,
+        auth: { username: gmailUser, password: gmailPassword },
+      },
+    });
+    const html =
+      `<html><body style="font-family:Arial,sans-serif;padding:20px;">` +
+      `<h2>GHL appointment ${escapeHtml(how)}</h2>` +
+      `<p>The GHL calendar appointment for reservation <b>${escapeHtml(reservation)}</b>` +
+      ` (event date ${escapeHtml(booking.event_date ?? "unknown")}) was ${escapeHtml(how)} in GHL.</p>` +
+      `<p>The booking was <b>not</b> cancelled in OEV. If the event is really cancelled, cancel it from the booking page in the admin. ` +
+      `If the event is still on, the GHL calendar no longer shows it: ask the developer to re-create the appointment.</p>` +
+      `<p style="color:#666;font-size:12px;">GHL appointment id: ${escapeHtml(appointmentId)}</p>` +
+      `</body></html>`;
+    await client.send({
+      from: gmailUser,
+      to: gmailUser,
+      subject: `GHL appointment ${how} for ${reservation} (booking not cancelled)`,
+      content: `The GHL appointment for ${reservation} was ${how} in GHL. The booking was not cancelled in OEV.`,
+      html,
+    });
+    await client.close();
+  } catch (err) {
+    console.error("[WEBHOOK] Office alert failed:", err);
+  }
 }

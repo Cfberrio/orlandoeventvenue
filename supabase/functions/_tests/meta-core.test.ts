@@ -707,11 +707,13 @@ describe("consent rejection propagation", () => {
 
   it("marks a booking already linked to the rejecting visitor as opted out", () => {
     expect(trackEventSource).toContain(
-      '.select("id,booking_id,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")',
+      '.select("id,booking_id,email,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")',
     );
     expect(trackEventSource).toContain("consent?.advertising === false && linkedBookingId");
     expect(trackEventSource).toContain('.update({ ad_consent: false })');
     expect(trackEventSource).toContain('.eq("id", linkedBookingId)');
+    // X2-44: only a booking this browser is proven to own (stitched or same email).
+    expect(trackEventSource).toContain("if (stitched || emailMatches)");
   });
 });
 

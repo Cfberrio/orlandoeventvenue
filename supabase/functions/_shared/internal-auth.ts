@@ -7,7 +7,7 @@
 // edge functions (reschedule-booking) hold.
 
 /** Constant-time string comparison. */
-function safeEqual(a: string, b: string): boolean {
+export function safeEqual(a: string, b: string): boolean {
   const enc = new TextEncoder();
   const x = enc.encode(a);
   const y = enc.encode(b);

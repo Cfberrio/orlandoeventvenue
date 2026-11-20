@@ -11,9 +11,17 @@ const corsHeaders = {
  * Used by GHL workflows to send cleaning report emails.
  * 
  * Input: { booking_id: string, purpose?: string }
- * Output: 
- *   - Success: { ok: true, booking_id, custodial_email, custodial_staff_id, custodial_name, custodial_count, staffEmail }
+ * Output:
+ *   - Success: { ok: true, booking_id, custodial_email, custodial_name, custodial_count, staffEmail }
  *   - No custodial: { ok: false, booking_id, custodial_email: null, custodial_count: 0, error: "NO_CUSTODIAL_ASSIGNED" }
+ *
+ * Second pass X2-12 (ClickUp 86e40ach2): only custodians who ACCEPTED the
+ * assignment (and whose assignment is not cancelled) count. The staff id is
+ * never returned: it is the staff-portal login (S-10), so returning it let any
+ * caller act as that staff member. The caller is GHL (inferred: no caller in
+ * the repo, database or cron), which cannot be given a secret from here, so
+ * the endpoint stays open; the name and email it returns are the same ones
+ * the staff portal already exposes to anon until S-10 lands.
  */
 serve(async (req) => {
   // Handle CORS preflight
@@ -43,17 +51,19 @@ serve(async (req) => {
     const { data: custodialAssignments, error: staffError } = await supabase
       .from("booking_staff_assignments")
       .select(`
-        staff_id,
         assignment_role,
+        response_status,
+        status,
         created_at,
         staff_members!booking_staff_assignments_staff_id_fkey (
-          id,
           full_name,
           email
         )
       `)
       .eq("booking_id", booking_id)
       .eq("assignment_role", "Custodial")
+      .eq("response_status", "accepted")
+      .neq("status", "cancelled")
       .order("created_at", { ascending: true });
 
     if (staffError) {
@@ -76,7 +86,6 @@ serve(async (req) => {
           ok: false,
           booking_id,
           custodial_email: null,
-          custodial_staff_id: null,
           custodial_name: null,
           custodial_count: 0,
           staffEmail: null, // Backwards compatibility
@@ -88,11 +97,10 @@ serve(async (req) => {
 
     // Get the first (oldest) custodial assignment
     const firstCustodial = custodialAssignments[0];
-    const staffMember = firstCustodial.staff_members as unknown as { id: string; full_name: string; email: string } | null;
+    const staffMember = firstCustodial.staff_members as unknown as { full_name: string; email: string } | null;
 
     const custodial_email = staffMember?.email || null;
     const custodial_name = staffMember?.full_name || null;
-    const custodial_staff_id = staffMember?.id || null;
 
     console.log(`[get-custodial-staff] Returning custodial: email=${custodial_email}, name=${custodial_name}, count=${custodialCount}`);
 
@@ -101,7 +109,6 @@ serve(async (req) => {
         ok: true,
         booking_id,
         custodial_email,
-        custodial_staff_id,
         custodial_name,
         custodial_count: custodialCount,
         // Backwards compatibility: staffEmail = custodial_email

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeInternalCaller, callerRefusal } from "../_shared/caller-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -19,6 +20,11 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Admin or service only (X2-12): it lists every future deposit-paid
+    // booking and triggers balance scheduling with the service role.
+    const caller = await authorizeInternalCaller(req, supabase);
+    if (!caller.ok) return callerRefusal(caller, corsHeaders);
 
     // Find orphaned bookings: deposit_paid, no balance_payment_url, no pending balance jobs, future event_date
     const today = new Date().toISOString().split("T")[0];

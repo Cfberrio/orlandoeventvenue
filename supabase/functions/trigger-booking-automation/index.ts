@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeInternalCaller, callerRefusal } from "../_shared/caller-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,6 +29,16 @@ serve(async (req) => {
   }
 
   try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // X2-14: the database triggers (internal secret), other edge functions
+    // (service role) and the admin dashboard (admin session) only. The anon
+    // key no longer re-runs host-report, feedback and balance scheduling.
+    const caller = await authorizeInternalCaller(req, supabase);
+    if (!caller.ok) return callerRefusal(caller, corsHeaders);
+
     const body = await req.json();
     const booking_id = body.booking_id;
 
@@ -40,10 +51,6 @@ serve(async (req) => {
 
     console.log("=== trigger-booking-automation ===");
     console.log("Processing booking:", booking_id);
-
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Verify booking exists and is in pre_event_ready
     const { data: booking, error: bookingError } = await supabase
