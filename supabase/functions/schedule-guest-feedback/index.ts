@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { eventEndLocal, policyAllows } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,7 +25,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -90,7 +92,7 @@ function toOrlandoUTC(dateStr: string, timeStr: string): Date {
   return new Date(asUtcMs - offset);
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -125,7 +127,7 @@ serve(async (req) => {
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*")
+      .select("*, booking_policies(include_host_report)")
       .eq("id", booking_id)
       .single();
 
@@ -172,26 +174,10 @@ serve(async (req) => {
 
     console.log(`Event start (UTC): ${eventStartOrlando.toISOString()}`);
 
-    // Calculate event END time
-    let eventEndOrlando: Date;
-
-    if (booking.end_time) {
-      // Use actual end_time if provided
-      eventEndOrlando = toOrlandoUTC(booking.event_date, booking.end_time);
-      console.log(`Event has end_time: ${booking.end_time}`);
-    } else {
-      // Fallback based on booking_type
-      const eventStartMs = eventStartOrlando.getTime();
-      if (booking.booking_type === "daily") {
-        // Daily: assume 24h duration
-        eventEndOrlando = new Date(eventStartMs + (24 * 60 * 60 * 1000));
-        console.log(`Daily booking - assuming 24h duration`);
-      } else {
-        // Hourly: assume 4h duration
-        eventEndOrlando = new Date(eventStartMs + (4 * 60 * 60 * 1000));
-        console.log(`Hourly booking - assuming 4h duration`);
-      }
-    }
+    // Calculate event END time: one rule everywhere (_booking_event_end_at):
+    // end_time (next day when it is not after start_time), or 23:59 without one.
+    const endLocal = eventEndLocal(booking.event_date, booking.start_time, booking.end_time);
+    const eventEndOrlando: Date = toOrlandoUTC(endLocal.date, endLocal.time);
 
     console.log(`Event end (UTC): ${eventEndOrlando.toISOString()}`);
 
@@ -204,6 +190,18 @@ serve(async (req) => {
 
     const now = new Date();
     const nowMs = now.getTime();
+
+    // CM2-15: no Guest Report email for a policy without host reports.
+    const feedbackPolicy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+    if (!policyAllows(feedbackPolicy, "include_host_report")) {
+      console.log("[POLICY_SKIP] include_host_report is off - no guest feedback job");
+      responseData.skipped = true;
+      responseData.reason = "policy_no_host_report";
+      return new Response(JSON.stringify(responseData), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // If force_reschedule, cancel any existing pending jobs. This runs before
     // the "time already passed" early return: otherwise a job computed for the
@@ -336,4 +334,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

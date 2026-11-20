@@ -18,6 +18,8 @@ import {
 import { sendPurchase } from "../_shared/meta-capi.ts";
 import { logBookingEvent, sendBillingAlert } from "../_shared/billing-server.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 const stripe = new Stripe(Deno.env.get("Stripe_Secret_Key") || "", {
   apiVersion: "2023-10-16",
 });
@@ -195,7 +197,7 @@ ${formatCurrency(amountPaid)} ${currency.toUpperCase()}
 </tr>
 <tr>
 <td style="padding:5px 0;color:#666;">Event Type:</td>
-<td style="padding:5px 0;"><strong>${booking.event_type || "N/A"}</strong></td>
+<td style="padding:5px 0;"><strong>${booking.event_type ? eventTypeLabel(booking.event_type as string, booking.event_type_other as string | null | undefined) : "N/A"}</strong></td>
 </tr>
 <tr>
 <td style="padding:5px 0;color:#666;">Event Date:</td>
@@ -297,7 +299,7 @@ View Booking in Admin
   }
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   const signature = req.headers.get("stripe-signature");
   const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
 
@@ -1171,7 +1173,7 @@ serve(async (req) => {
             updated_at: new Date().toISOString(),
           })
           .eq("booking_id", bookingId)
-          .in("job_type", ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"])
+          .in("job_type", ["balance_retry_1", "balance_retry_2", "balance_retry_3", "balance_retry_4", "balance_retry_5", "create_balance_payment_link"])
           .eq("status", "pending")
           .select("id, job_type");
 
@@ -1572,4 +1574,4 @@ serve(async (req) => {
     const errorMessage = err instanceof Error ? err.message : "Unknown error";
     return new Response(`Webhook Error: ${errorMessage}`, { status: releaseBookingEventClaim ? 500 : 400 });
   }
-});
+}));

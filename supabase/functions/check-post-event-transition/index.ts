@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { BUILD_HEADERS, BUILD_ID } from "../_shared/build-info.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  ...BUILD_HEADERS,
 };
 
 // Lifecycle cron (every 15 min). ClickUp 86e40ach2, M-23..M-25 + Luis D7:
@@ -98,7 +100,7 @@ serve(async (req) => {
       }
     }
 
-    const result = { success: failed.length === 0, due: due?.length ?? 0, moved, skipped, failed };
+    const result = { success: failed.length === 0, build: BUILD_ID, due: due?.length ?? 0, moved, skipped, failed };
     console.log('Lifecycle check complete:', JSON.stringify(result));
     return new Response(JSON.stringify(result), {
       status: failed.length === 0 ? 200 : 500,
@@ -107,6 +109,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error in check-post-event-transition:', error);
     return new Response(JSON.stringify({
+      build: BUILD_ID,
       error: error instanceof Error ? error.message : 'Unknown error'
     }), {
       status: 500,

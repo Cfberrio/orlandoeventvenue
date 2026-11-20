@@ -9,8 +9,52 @@ export const BALANCE_JOB_TYPES = [
   "balance_retry_1",
   "balance_retry_2",
   "balance_retry_3",
+  "balance_retry_4",
+  "balance_retry_5",
   "create_balance_payment_link",
 ] as const;
+
+/**
+ * CM2-04 (86e40ach2 second pass): a balance link dies 24h after it is sent,
+ * and the last retry was T-11, so from T-10 an unpaid guest had no working
+ * link. Two re-issues, at T-3 and T-1 (09:00 Orlando), give the guest a live
+ * link close to the event. process-scheduled-jobs skips them when the booking
+ * is already paid. The first-send timing (T-15) is unchanged: Luis decides it.
+ */
+export const BALANCE_REISSUE_JOB_TYPES = ["balance_retry_4", "balance_retry_5"] as const;
+const REISSUE_DAYS_BEFORE: Record<typeof BALANCE_REISSUE_JOB_TYPES[number], number> = {
+  balance_retry_4: 3,
+  balance_retry_5: 1,
+};
+/** A re-issue this close to another planned send is redundant (the other link is still live). */
+const REISSUE_MIN_GAP_MS = 24 * 60 * 60 * 1000;
+
+export interface ReissueInput {
+  /** Event date at 09:00 Orlando, as UTC ms. */
+  eventAnchorMs: number;
+  /** Event start as UTC ms; nothing is scheduled at or after it. */
+  eventStartMs: number;
+  nowMs: number;
+  /** Other balance sends already planned (UTC ms), including "now" when a link is created now. */
+  otherSendsMs: number[];
+  /** Re-issue types that already ran. */
+  completedTypes?: string[];
+}
+
+export function planBalanceReissue(input: ReissueInput): { job_type: typeof BALANCE_REISSUE_JOB_TYPES[number]; run_at: string }[] {
+  const { eventAnchorMs, eventStartMs, nowMs, otherSendsMs, completedTypes = [] } = input;
+  const planned = [...otherSendsMs];
+  const jobs: { job_type: typeof BALANCE_REISSUE_JOB_TYPES[number]; run_at: string }[] = [];
+  for (const job_type of BALANCE_REISSUE_JOB_TYPES) {
+    if (completedTypes.includes(job_type)) continue;
+    const runAtMs = eventAnchorMs - REISSUE_DAYS_BEFORE[job_type] * DAY_MS;
+    if (runAtMs <= nowMs || runAtMs >= eventStartMs) continue;
+    if (planned.some((t) => Math.abs(t - runAtMs) < REISSUE_MIN_GAP_MS)) continue;
+    jobs.push({ job_type, run_at: new Date(runAtMs).toISOString() });
+    planned.push(runAtMs);
+  }
+  return jobs;
+}
 
 const RETRY_ORDER = ["balance_retry_1", "balance_retry_2", "balance_retry_3"] as const;
 type RetryType = typeof RETRY_ORDER[number];

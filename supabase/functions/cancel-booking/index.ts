@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import Stripe from "https://esm.sh/stripe@14.21.0";
 import { authorizeCaller, logBookingEvent } from "../_shared/billing-server.ts";
+import { withBuild } from "../_shared/build-info.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
 import {
   type AddonExpiryResult,
   type AddonSessionRow,
@@ -38,6 +40,7 @@ interface BookingData {
   email: string;
   event_date: string;
   event_type: string;
+  event_type_other?: string | null;
   status: string;
   lifecycle_status: string;
   cancelled_at?: string | null;
@@ -64,7 +67,7 @@ function generateCancellationEmailHTML(booking: BookingData): string {
       detailTable([
         ["Reservation", escapeHtml(booking.reservation_number)],
         ["Event Date", eventDate],
-        ["Event Type", escapeHtml(booking.event_type)],
+        ["Event Type", escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))],
       ]) +
       para(`If you have any questions or would like to rebook, please contact us:`) +
       para(
@@ -111,7 +114,7 @@ async function expireAddonSessions(supabase: any, bookingId: string): Promise<Ad
   return result;
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -147,7 +150,7 @@ serve(async (req) => {
 
     const { data: booking, error: fetchError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, full_name, email, event_date, event_type, status, lifecycle_status, cancelled_at, payment_status, balance_session_id, balance_payment_url")
+      .select("id, reservation_number, full_name, email, event_date, event_type, event_type_other, status, lifecycle_status, cancelled_at, payment_status, balance_session_id, balance_payment_url")
       .eq("id", booking_id)
       .single();
 
@@ -403,4 +406,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

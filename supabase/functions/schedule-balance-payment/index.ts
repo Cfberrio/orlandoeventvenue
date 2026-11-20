@@ -1,9 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
-import { BALANCE_JOB_TYPES, calendarDaysBetween, planBalanceReschedule } from "../_shared/reschedule-plan.ts";
+import { BALANCE_JOB_TYPES, calendarDaysBetween, planBalanceReissue, planBalanceReschedule } from "../_shared/reschedule-plan.ts";
+import { policyAllows } from "../_shared/guest-timeline.ts";
 import { isServiceRoleRequest } from "../_shared/internal-auth.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -25,7 +27,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -186,10 +188,23 @@ async function rescheduleBalanceJobs(supabase: any, supabaseUrl: string, booking
     `jobs=${plan.jobs.map((j) => `${j.job_type}@${j.run_at}`).join(",") || "none"}`
   );
 
-  if (plan.jobs.length > 0) {
+  // CM2-04: T-3 / T-1 re-issues, spaced from the sends planned above.
+  const reissue = planBalanceReissue({
+    eventAnchorMs: orlandoLocalToUTC(booking.event_date, "09:00:00").getTime(),
+    eventStartMs: orlandoLocalToUTC(booking.event_date, booking.start_time || "00:00:00").getTime(),
+    nowMs: now.getTime(),
+    otherSendsMs: [
+      ...plan.jobs.map((j) => Date.parse(j.run_at)),
+      ...(plan.action === "short_notice_create_now" ? [now.getTime()] : []),
+    ],
+    completedTypes,
+  });
+  const allJobs: { job_type: string; run_at: string }[] = [...plan.jobs, ...reissue];
+
+  if (allJobs.length > 0) {
     const { error: insertError } = await supabase
       .from("scheduled_jobs")
-      .insert(plan.jobs.map((j) => ({ ...j, booking_id, status: "pending" })));
+      .insert(allJobs.map((j) => ({ ...j, booking_id, status: "pending" })));
 
     if (insertError) {
       throw new Error(`Failed to recreate balance jobs: ${insertError.message}`);
@@ -197,7 +212,7 @@ async function rescheduleBalanceJobs(supabase: any, supabaseUrl: string, booking
   }
 
   responseData.balance_action = plan.action;
-  responseData.balance_jobs = plan.jobs;
+  responseData.balance_jobs = allJobs;
   responseData.balance_jobs_cancelled = cancelledPendingTypes;
   responseData.days_until_event = diffDays;
 
@@ -243,7 +258,7 @@ async function rescheduleBalanceJobs(supabase: any, supabaseUrl: string, booking
       link_already_sent: linkAlreadySent,
       cancelled_types: cancelledPendingTypes,
       completed_types: completedTypes,
-      jobs: plan.jobs,
+      jobs: allJobs,
       link_created: plan.action === "short_notice_create_now",
     },
   });
@@ -254,7 +269,28 @@ async function rescheduleBalanceJobs(supabase: any, supabaseUrl: string, booking
   return jsonResponse(responseData);
 }
 
-serve(async (req) => {
+/** Inserts the T-3 / T-1 balance re-issue jobs; a failure is reported, never thrown. */
+// deno-lint-ignore no-explicit-any
+async function insertReissueJobs(supabase: any, bookingId: string, jobs: { job_type: string; run_at: string }[], failedJobs: string[]): Promise<void> {
+  if (jobs.length === 0) return;
+  const { error } = await supabase
+    .from("scheduled_jobs")
+    .insert(jobs.map((j) => ({ ...j, booking_id: bookingId, status: "pending" })));
+  if (error) {
+    console.error("Failed to schedule balance re-issue jobs:", error);
+    failedJobs.push(`balance_reissue: ${error.message}`);
+    return;
+  }
+  const { error: eventError } = await supabase.from("booking_events").insert({
+    booking_id: bookingId,
+    event_type: "balance_payment_retry_scheduled",
+    channel: "system",
+    metadata: { type: "reissue", jobs },
+  });
+  if (eventError) console.error("Failed to log balance re-issue jobs:", eventError);
+}
+
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -316,7 +352,9 @@ serve(async (req) => {
     }
 
     // [POLICY GUARD] Check if payment processing is required for this booking
-    if (booking.booking_policies && booking.booking_policies.requires_payment === false) {
+    // (CM2-15: send_balance_emails=false also means no balance emails/links).
+    if (booking.booking_policies && (booking.booking_policies.requires_payment === false
+        || !policyAllows(booking.booking_policies, "send_balance_emails"))) {
       console.log(
         `[POLICY_SKIP] Balance payment scheduling skipped ` +
         `(booking: ${booking_id}, origin: ${booking.booking_origin}, ` +
@@ -383,8 +421,9 @@ serve(async (req) => {
           // Combine event_date with start_time (Orlando local -> UTC)
           runAt = orlandoLocalToUTC(booking.event_date, booking.start_time);
         } else {
-          // Daily booking: use 6 AM Orlando time
-          runAt = orlandoLocalToUTC(booking.event_date, "06:00:00");
+          // L2-15: same rule as _booking_event_start_at (no start time = 00:00),
+          // which the lifecycle cron and "Close event" use.
+          runAt = orlandoLocalToUTC(booking.event_date, "00:00:00");
         }
 
         const { error: lifecycleJobError } = await supabase
@@ -468,7 +507,7 @@ serve(async (req) => {
       .from("scheduled_jobs")
       .select("id, job_type")
       .eq("booking_id", booking_id)
-      .in("job_type", ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"])
+      .in("job_type", [...BALANCE_JOB_TYPES])
       .in("status", ["pending", "completed"]);
 
     if (existingJobs && existingJobs.length > 0) {
@@ -574,9 +613,19 @@ serve(async (req) => {
         });
       }
 
+      // CM2-04: re-issue at T-3 / T-1 (skipped when within 24h of another send).
+      const shortReissue = planBalanceReissue({
+        eventAnchorMs: orlandoLocalToUTC(booking.event_date, "09:00:00").getTime(),
+        eventStartMs: orlandoLocalToUTC(booking.event_date, booking.start_time || "00:00:00").getTime(),
+        nowMs: now.getTime(),
+        otherSendsMs: [now.getTime(), retryAt.getTime()],
+      });
+      await insertReissueJobs(supabase, booking_id, shortReissue, failedJobs);
+
       responseData.balance_action = "short_notice";
       responseData.balance_link_created = true;
       responseData.balance_retry_scheduled = retryAt.toISOString();
+      responseData.balance_reissues_scheduled = shortReissue;
       responseData.days_until_event = diffDays;
 
     } else {
@@ -631,11 +680,20 @@ serve(async (req) => {
         }
       }
 
+      // CM2-04: re-issue at T-3 / T-1. The first send (T-15) is unchanged.
+      const longReissue = planBalanceReissue({
+        eventAnchorMs: eventDateObj.getTime(),
+        eventStartMs: orlandoLocalToUTC(booking.event_date, booking.start_time || "00:00:00").getTime(),
+        nowMs: now.getTime(),
+        otherSendsMs: retries.map((r) => r.run_at.getTime()),
+      });
+      await insertReissueJobs(supabase, booking_id, longReissue, failedJobs);
+
       responseData.balance_action = "long_notice";
-      responseData.balance_retries_scheduled = retries.map(r => ({
-        job_type: r.job_type,
-        run_at: r.run_at.toISOString(),
-      }));
+      responseData.balance_retries_scheduled = [
+        ...retries.map(r => ({ job_type: r.job_type, run_at: r.run_at.toISOString() })),
+        ...longReissue,
+      ];
       responseData.days_until_event = diffDays;
     }
 
@@ -678,4 +736,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

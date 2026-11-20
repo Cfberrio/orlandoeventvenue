@@ -21,6 +21,8 @@ import {
 import { eventTypeLabel } from "../_shared/event-types.ts";
 import { splitLabel } from "../_shared/deposit-split.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { balanceDue, orlandoToday } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-ghl-backend-token",
@@ -30,7 +32,7 @@ interface BalancePaymentRequest {
   booking_id: string;
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -417,6 +419,12 @@ serve(async (req) => {
           const depositFormatted = fmtCurrency(booking.deposit_amount);
           const processingFeeFormatted = fmtCurrency(feeCents / 100);
           const paymentUrl = session.url;
+          // CM2-04: the real due date; "due now" when it is today or already past
+          // (short-notice bookings), never a date that has already gone by.
+          const due = balanceDue(booking.event_date, orlandoToday());
+          const dueSentence = due.dueNow
+            ? `Your balance is <strong>due now</strong>.`
+            : `Your balance is <strong>${due.phrase}</strong> (15 days before your event).`;
 
           const emailBody =
             heroModule({
@@ -430,6 +438,7 @@ serve(async (req) => {
               `<p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#92400E;text-transform:uppercase;letter-spacing:1.5px;">Remaining Balance Due</p>` +
               `<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:32px;font-weight:bold;color:${BRAND.amber};">${balanceTotalFormatted}</p>` +
               `</div>` +
+              para(dueSentence) +
               `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Event Details</p>` +
               detailTable([
                 ["Event Date", eventDate],
@@ -537,4 +546,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}));

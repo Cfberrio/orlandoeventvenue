@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+import { withBuild } from "../_shared/build-info.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -83,7 +84,7 @@ async function notifyStaffOfReschedule(
   return { ok: failed === 0, detail: { sent: results.length - failed, failed } };
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -362,4 +363,4 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : "An unexpected error occurred";
     return jsonResponse({ ok: false, error: "unexpected_error", message: errorMessage }, 500);
   }
-});
+}));

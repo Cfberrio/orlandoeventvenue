@@ -4,6 +4,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
 import { authorizeAdminOrService, supabaseAdminAuthDeps } from "../_shared/admin-auth.ts";
+import { withBuild } from "../_shared/build-info.ts";
 import {
   BRAND,
   detailTable,
@@ -216,7 +217,7 @@ function buildInvoiceEmailHTML(
   });
 }
 
-serve(async (req: Request) => {
+serve(withBuild(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -742,4 +743,4 @@ serve(async (req: Request) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

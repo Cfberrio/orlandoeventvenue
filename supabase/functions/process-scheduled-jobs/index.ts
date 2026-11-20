@@ -1,14 +1,18 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { retryFailedMetaEvents } from "../_shared/meta-capi.ts";
+import { BUILD_HEADERS, BUILD_ID } from "../_shared/build-info.ts";
+import { allowedHostReportJobs, policyAllows } from "../_shared/guest-timeline.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  ...BUILD_HEADERS,
 };
 
 // Balance retry job types
-const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_retry_3", "create_balance_payment_link"];
+// balance_retry_4/5: T-3 / T-1 re-issues (CM2-04, 86e40ach2 second pass).
+const BALANCE_RETRY_JOB_TYPES = ["balance_retry_1", "balance_retry_2", "balance_retry_3", "balance_retry_4", "balance_retry_5", "create_balance_payment_link"];
 
 // Lifecycle transition job types
 const LIFECYCLE_JOB_TYPES = ["set_lifecycle_in_progress", "set_lifecycle_post_event"];
@@ -88,7 +92,7 @@ serve(async (req) => {
 
     if (fetchError) {
       console.error("Error fetching pending jobs:", fetchError);
-      return new Response(JSON.stringify({ error: "Failed to fetch jobs" }), {
+      return new Response(JSON.stringify({ error: "Failed to fetch jobs", build: BUILD_ID }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -149,7 +153,7 @@ serve(async (req) => {
           // Fetch booking to check current payment status
           const { data: booking, error: bookingError } = await supabase
             .from("bookings")
-            .select("id, payment_status, reservation_number")
+            .select("id, payment_status, reservation_number, booking_policies(send_balance_emails)")
             .eq("id", job.booking_id)
             .single();
 
@@ -166,6 +170,21 @@ serve(async (req) => {
             
             results.failed++;
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "failed", error: "Booking not found" });
+            continue;
+          }
+
+          // CM2-15: the booking's policy turned balance emails off.
+          const balancePolicy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+          if (!policyAllows(balancePolicy, "send_balance_emails")) {
+            const { error: policyCancelError } = await supabase
+              .from("scheduled_jobs")
+              .update({ status: "cancelled", last_error: "policy_send_balance_emails_off", updated_at: new Date().toISOString() })
+              .eq("id", job.id);
+            if (policyCancelError) {
+              console.error(`[POLICY_SKIP] could not cancel job ${job.id} (policy_send_balance_emails_off):`, policyCancelError);
+            }
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "policy_send_balance_emails_off" });
             continue;
           }
 
@@ -587,7 +606,7 @@ serve(async (req) => {
           // Fetch booking with needed fields
           const { data: booking, error: bookingError } = await supabase
             .from("bookings")
-            .select("id, status, lifecycle_status, reservation_number, host_report_step")
+            .select("id, status, lifecycle_status, reservation_number, host_report_step, booking_policies(include_host_report, send_pre_event_30d, send_pre_event_7d, send_pre_event_1d)")
             .eq("id", job.booking_id)
             .maybeSingle();
 
@@ -621,6 +640,22 @@ serve(async (req) => {
             
             results.cancelled++;
             results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "booking_cancelled_before_host_report" });
+            continue;
+          }
+
+          // CM2-15: honor the booking's policy switches (include_host_report,
+          // send_pre_event_30d/7d/1d), also for jobs created before they were read.
+          const hostPolicy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+          if (!allowedHostReportJobs(hostPolicy).has(job.job_type)) {
+            const { error: policyCancelError } = await supabase
+              .from("scheduled_jobs")
+              .update({ status: "cancelled", last_error: "policy_disabled", updated_at: new Date().toISOString() })
+              .eq("id", job.id);
+            if (policyCancelError) {
+              console.error(`[POLICY_SKIP] could not cancel job ${job.id} (policy_disabled):`, policyCancelError);
+            }
+            results.cancelled++;
+            results.details.push({ job_id: job.id, job_type: job.job_type, status: "cancelled", error: "policy_disabled" });
             continue;
           }
 
@@ -804,7 +839,7 @@ serve(async (req) => {
         } else if (ONE_HOUR_REPORT_JOB_TYPES.includes(job.job_type)) {
           const { data: booking, error: bookingError } = await supabase
             .from("bookings")
-            .select("id, status, payment_status, reservation_number, one_hour_report")
+            .select("id, status, lifecycle_status, payment_status, reservation_number, one_hour_report, booking_policies(include_host_report)")
             .eq("id", job.booking_id)
             .maybeSingle();
 
@@ -828,7 +863,7 @@ serve(async (req) => {
             continue;
           }
 
-          if (booking.status === "cancelled") {
+          if (booking.status === "cancelled" || booking.lifecycle_status === "cancelled") {
             console.log(`Booking ${job.booking_id} cancelled - cancelling one_hour_report job ${job.id}`);
             await cancelOneHourJob("booking_cancelled_before_one_hour_report");
             continue;
@@ -840,16 +875,12 @@ serve(async (req) => {
             continue;
           }
 
-          // Requires at least 1 staff assigned (any role)
-          const { data: staffRows } = await supabase
-            .from("booking_staff_assignments")
-            .select("id")
-            .eq("booking_id", job.booking_id)
-            .limit(1);
-
-          if (!staffRows || staffRows.length === 0) {
-            console.log(`Booking ${job.booking_id} has no staff assigned - cancelling one_hour_report job`);
-            await cancelOneHourJob("no_staff_assigned");
+          // CM2-07 (86e40ach2 second pass): the Guest Report reminder no
+          // longer waits for staff (externals with no cleaner never got it).
+          // Paid and not cancelled is enough; the policy can still turn it off.
+          const oneHourPolicy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+          if (!allowedHostReportJobs(oneHourPolicy).has("one_hour_report")) {
+            await cancelOneHourJob("policy_disabled");
             continue;
           }
 
@@ -1138,8 +1169,9 @@ serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ 
-      success: true, 
+    return new Response(JSON.stringify({
+      success: true,
+      build: BUILD_ID,
       ...results
     }), {
       status: 200,
@@ -1150,7 +1182,7 @@ serve(async (req) => {
     console.error("Error in process-scheduled-jobs:", error);
     const errorMessage = error instanceof Error ? error.message : "Internal server error";
     return new Response(
-      JSON.stringify({ error: errorMessage }),
+      JSON.stringify({ error: errorMessage, build: BUILD_ID }),
       {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

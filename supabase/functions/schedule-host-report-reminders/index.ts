@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { shouldClearHostReportStep } from "../_shared/reschedule-plan.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { allowedHostReportJobs, eventEndLocal, hostReportJobForStep, reminderAnchorTime } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -24,7 +26,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -91,7 +93,7 @@ function orlandoLocalToUTC(dateStr: string, timeStr: string): Date {
   return new Date(asUtcMs - offset);
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -128,7 +130,7 @@ serve(async (req) => {
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("*")
+      .select("*, booking_policies(include_host_report, send_pre_event_30d, send_pre_event_7d, send_pre_event_1d)")
       .eq("id", booking_id)
       .single();
 
@@ -199,23 +201,12 @@ serve(async (req) => {
       });
     }
 
-    // Calculate event start time in Orlando timezone
-    let eventStartOrlando: Date;
-
-    if (booking.booking_type === "daily") {
-      // Daily bookings: use start_time if provided, else default 10:00 AM Orlando time
-      const startTimeStr = booking.start_time || "10:00:00";
-      eventStartOrlando = orlandoLocalToUTC(booking.event_date, startTimeStr);
-      console.log(`Daily booking - Orlando start time: ${startTimeStr}`);
-    } else if (booking.start_time) {
-      // Hourly bookings with start_time
-      eventStartOrlando = orlandoLocalToUTC(booking.event_date, booking.start_time);
-      console.log(`Hourly booking - start: ${booking.start_time}`);
-    } else {
-      // Fallback: 10:00 AM Orlando time
-      eventStartOrlando = orlandoLocalToUTC(booking.event_date, "10:00:00");
-      console.log(`Hourly booking without times - using fallback: 10:00 AM`);
-    }
+    // Reminder anchor in Orlando time. CM2-06: daily bookings are stored
+    // 01:00-23:00, so anchoring on start_time fired the 30/7/1-day steps at
+    // 1-2 AM. Daily bookings use 10:00 AM; hourly ones keep their start time.
+    const anchorTime = reminderAnchorTime(booking.booking_type, booking.start_time);
+    const eventStartOrlando: Date = orlandoLocalToUTC(booking.event_date, anchorTime);
+    console.log(`${booking.booking_type} booking - reminder anchor (Orlando): ${anchorTime}`);
 
     console.log(`Event start (UTC): ${eventStartOrlando.toISOString()}`);
 
@@ -307,14 +298,10 @@ serve(async (req) => {
     // email/SMS while the host is still on site. One-shot: never re-fires.
     // (A reschedule to another day reopens it in the reschedule_booking RPC.)
     if (booking.one_hour_report !== "true") {
-      let eventEndOrlando: Date;
-      if (booking.booking_type === "daily" || !booking.end_time) {
-        // Daily or missing end_time: end of day Orlando (same fallback as
-        // check-post-event-transition) → email at 22:59:59
-        eventEndOrlando = orlandoLocalToUTC(booking.event_date, "23:59:59");
-      } else {
-        eventEndOrlando = orlandoLocalToUTC(booking.event_date, booking.end_time);
-      }
+      // CM2-02: one end rule (_booking_event_end_at, also used by the Event
+      // Page). A daily booking stored until 23:00 used to get this at 22:59.
+      const endLocal = eventEndLocal(booking.event_date, booking.start_time, booking.end_time);
+      const eventEndOrlando: Date = orlandoLocalToUTC(endLocal.date, endLocal.time);
 
       if (nowMs > eventEndOrlando.getTime()) {
         console.log("one_hour_report: event already ended - not scheduling");
@@ -334,6 +321,23 @@ serve(async (req) => {
       }
     } else {
       console.log("one_hour_report already 'true' - not scheduling (one-shot)");
+    }
+
+    // CM2-15: drop the steps the booking's policy turns off
+    // (include_host_report, send_pre_event_30d/7d/1d). EXTERNAL_BLOCK_FLOW
+    // bookings marked "no host report" still got every step before.
+    const hostPolicy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+    const allowedJobs = allowedHostReportJobs(hostPolicy);
+    const plannedImmediateStep = immediateStep;
+    if (immediateStep && !allowedJobs.has(hostReportJobForStep(immediateStep) ?? "")) {
+      console.log(`[POLICY_SKIP] immediate step ${immediateStep} is off for this policy`);
+      immediateStep = null;
+    }
+    for (let i = jobsToCreate.length - 1; i >= 0; i--) {
+      if (!allowedJobs.has(jobsToCreate[i].job_type)) {
+        console.log(`[POLICY_SKIP] ${jobsToCreate[i].job_type} is off for this policy`);
+        jobsToCreate.splice(i, 1);
+      }
     }
 
     // If there's an immediate step to set
@@ -402,7 +406,7 @@ serve(async (req) => {
         responseData.host_report_step = immediateStep;
         responseData.reason = "already_at_step";
       }
-    } else if (shouldClearHostReportStep(force_reschedule, immediateStep, booking.host_report_step)) {
+    } else if (shouldClearHostReportStep(force_reschedule, plannedImmediateStep, booking.host_report_step)) {
       // Rescheduled to more than 30 days out: the step reached for the old
       // date no longer applies. Left in place, the pre_start job would find it
       // already set and skip the GHL update. reschedule-booking syncs to GHL
@@ -559,4 +563,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));
