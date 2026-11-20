@@ -2041,11 +2041,55 @@ export type Database = {
         }
         Relationships: []
       }
+      guest_message_sends: {
+        Row: {
+          booking_id: string
+          kind: string
+          metadata: Json
+          sent_at: string
+        }
+        Insert: {
+          booking_id: string
+          kind: string
+          metadata?: Json
+          sent_at?: string
+        }
+        Update: {
+          booking_id?: string
+          kind?: string
+          metadata?: Json
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "guest_message_sends_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "guest_message_sends_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "guest_message_sends_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+        ]
+      }
       guest_report_submissions: {
         Row: {
           booking_id: string
           created_at: string
           host_report_id: string | null
+          low_rating_alert_sent_at: string | null
           review_comment: string | null
           review_rating: number | null
         }
@@ -2053,6 +2097,7 @@ export type Database = {
           booking_id: string
           created_at?: string
           host_report_id?: string | null
+          low_rating_alert_sent_at?: string | null
           review_comment?: string | null
           review_rating?: number | null
         }
@@ -2060,6 +2105,7 @@ export type Database = {
           booking_id?: string
           created_at?: string
           host_report_id?: string | null
+          low_rating_alert_sent_at?: string | null
           review_comment?: string | null
           review_rating?: number | null
         }
@@ -2086,6 +2132,33 @@ export type Database = {
             referencedColumns: ["booking_id"]
           },
         ]
+      }
+      health_check_alert_claims: {
+        Row: {
+          alert_date: string
+          created_at: string
+          critical_count: number | null
+          high_count: number | null
+          issues_count: number | null
+          total_problems: number | null
+        }
+        Insert: {
+          alert_date: string
+          created_at?: string
+          critical_count?: number | null
+          high_count?: number | null
+          issues_count?: number | null
+          total_problems?: number | null
+        }
+        Update: {
+          alert_date?: string
+          created_at?: string
+          critical_count?: number | null
+          high_count?: number | null
+          issues_count?: number | null
+          total_problems?: number | null
+        }
+        Relationships: []
       }
       inventory_locations: {
         Row: {
@@ -2506,6 +2579,8 @@ export type Database = {
           lead_source: string | null
           phone: string | null
           preferred_event_date: string | null
+          unsubscribe_token: string
+          unsubscribed_at: string | null
         }
         Insert: {
           consent_given?: boolean
@@ -2523,6 +2598,8 @@ export type Database = {
           lead_source?: string | null
           phone?: string | null
           preferred_event_date?: string | null
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
         }
         Update: {
           consent_given?: boolean
@@ -2540,6 +2617,8 @@ export type Database = {
           lead_source?: string | null
           phone?: string | null
           preferred_event_date?: string | null
+          unsubscribe_token?: string
+          unsubscribed_at?: string | null
         }
         Relationships: []
       }
@@ -2564,6 +2643,27 @@ export type Database = {
           full_name?: string | null
           id?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      public_rate_slots: {
+        Row: {
+          bucket: string
+          created_at: string
+          id: number
+          ip: string
+        }
+        Insert: {
+          bucket: string
+          created_at?: string
+          id?: number
+          ip: string
+        }
+        Update: {
+          bucket?: string
+          created_at?: string
+          id?: number
+          ip?: string
         }
         Relationships: []
       }
@@ -2762,6 +2862,42 @@ export type Database = {
           },
         ]
       }
+      staff_assignment_deletions: {
+        Row: {
+          assignment: Json
+          assignment_id: string
+          booking_id: string | null
+          deleted_at: string
+          deleted_by: string | null
+          id: string
+          reason: string | null
+          removed_lines: Json
+          staff_id: string | null
+        }
+        Insert: {
+          assignment: Json
+          assignment_id: string
+          booking_id?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          reason?: string | null
+          removed_lines?: Json
+          staff_id?: string | null
+        }
+        Update: {
+          assignment?: Json
+          assignment_id?: string
+          booking_id?: string | null
+          deleted_at?: string
+          deleted_by?: string | null
+          id?: string
+          reason?: string | null
+          removed_lines?: Json
+          staff_id?: string | null
+        }
+        Relationships: []
+      }
       staff_members: {
         Row: {
           created_at: string
@@ -2800,6 +2936,93 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      staff_notifications: {
+        Row: {
+          assignment_id: string | null
+          attempts: number
+          booking_id: string | null
+          claimed_at: string | null
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          last_error: string | null
+          payload: Json
+          recipient: string
+          sent_at: string | null
+          staff_id: string | null
+          status: string
+        }
+        Insert: {
+          assignment_id?: string | null
+          attempts?: number
+          booking_id?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          dedupe_key: string
+          id?: string
+          kind: string
+          last_error?: string | null
+          payload?: Json
+          recipient: string
+          sent_at?: string | null
+          staff_id?: string | null
+          status?: string
+        }
+        Update: {
+          assignment_id?: string | null
+          attempts?: number
+          booking_id?: string | null
+          claimed_at?: string | null
+          created_at?: string
+          dedupe_key?: string
+          id?: string
+          kind?: string
+          last_error?: string | null
+          payload?: Json
+          recipient?: string
+          sent_at?: string | null
+          staff_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "staff_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "staff_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_bar_service_bookings"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "staff_notifications_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "v_paid_booking_attribution"
+            referencedColumns: ["booking_id"]
+          },
+          {
+            foreignKeyName: "staff_notifications_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "booking_custodial_staff"
+            referencedColumns: ["staff_id"]
+          },
+          {
+            foreignKeyName: "staff_notifications_staff_id_fkey"
+            columns: ["staff_id"]
+            isOneToOne: false
+            referencedRelation: "staff_members"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       staff_payroll_items: {
         Row: {
@@ -3777,10 +4000,12 @@ export type Database = {
         Args: { p_end: string; p_start: string }
         Returns: number
       }
+      _internal_call_headers: { Args: never; Returns: Json }
       _is_cleaning_assignment: {
         Args: { p_role: string; p_type: string }
         Returns: boolean
       }
+      _kick_staff_notices: { Args: never; Returns: undefined }
       _lifecycle_transition_allowed: {
         Args: { p_from: string; p_to: string }
         Returns: boolean
@@ -3803,6 +4028,19 @@ export type Database = {
           p_start: string
         }
         Returns: Json
+      }
+      _queue_staff_notice: {
+        Args: {
+          p_assignment_id: string
+          p_booking_id: string
+          p_dedupe_key: string
+          p_kick?: boolean
+          p_kind: string
+          p_payload: Json
+          p_recipient: string
+          p_staff_id: string
+        }
+        Returns: boolean
       }
       _reschedule_price_preview: {
         Args: {
@@ -3876,6 +4114,10 @@ export type Database = {
         }
         Returns: string
       }
+      _staff_notice_payload: {
+        Args: { p_assignment_id: string }
+        Returns: Json
+      }
       _sync_cancelled_payment_status: {
         Args: { p_booking_id: string }
         Returns: undefined
@@ -3921,7 +4163,38 @@ export type Database = {
         Args: { p_booking_id: string; p_note?: string }
         Returns: Json
       }
+      admin_close_event_silently: {
+        Args: { p_booking_id: string; p_reason: string }
+        Returns: Json
+      }
+      admin_completed_work_without_pay: {
+        Args: never
+        Returns: {
+          assignment_id: string
+          assignment_role: string
+          booking_id: string
+          reservation_number: string
+          staff_id: string
+          staff_name: string
+          work_date: string
+        }[]
+      }
       admin_create_blocking_booking: { Args: { p: Json }; Returns: Json }
+      admin_delete_staff_assignment: {
+        Args: { p_assignment_id: string; p_reason?: string }
+        Returns: Json
+      }
+      admin_deposit_unconfirmed: {
+        Args: { p_hours?: number }
+        Returns: {
+          booking_id: string
+          deposit_paid_at: string
+          event_date: string
+          full_name: string
+          hours_waiting: number
+          reservation_number: string
+        }[]
+      }
       admin_mark_staff_hours_reviewed: {
         Args: { p_note?: string; p_review_id: string }
         Returns: Json
@@ -3984,6 +4257,19 @@ export type Database = {
         }
         Returns: Json
       }
+      admin_stuck_bookings: {
+        Args: never
+        Returns: {
+          booking_id: string
+          booking_origin: string
+          event_date: string
+          full_name: string
+          lifecycle_status: string
+          overdue_since: string
+          reason: string
+          reservation_number: string
+        }[]
+      }
       admin_transition_booking: {
         Args: {
           p_booking_id: string
@@ -4007,9 +4293,43 @@ export type Database = {
         }[]
       }
       claim_license_upload_slot: { Args: { p_ip: string }; Returns: boolean }
+      claim_public_rate_slot: {
+        Args: {
+          p_bucket: string
+          p_ip: string
+          p_max: number
+          p_window_seconds: number
+        }
+        Returns: boolean
+      }
       claim_recurring_invoice: {
         Args: { p_expected_next_send: string; p_invoice_id: string }
         Returns: boolean
+      }
+      claim_staff_notifications: {
+        Args: { p_limit?: number }
+        Returns: {
+          assignment_id: string | null
+          attempts: number
+          booking_id: string | null
+          claimed_at: string | null
+          created_at: string
+          dedupe_key: string
+          id: string
+          kind: string
+          last_error: string | null
+          payload: Json
+          recipient: string
+          sent_at: string | null
+          staff_id: string | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "staff_notifications"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       complete_past_event_assignments: { Args: never; Returns: number }
       count_bookings_without_balance_jobs: { Args: never; Returns: number }
@@ -4125,6 +4445,23 @@ export type Database = {
           revenue_date: string
           tax_amount: number
           total_revenue: number
+        }[]
+      }
+      get_guest_report_window: {
+        Args: { p_email?: string; p_reservation_number?: string }
+        Returns: {
+          booking_id: string
+          email: string
+          end_time: string
+          event_date: string
+          event_ended_at: string
+          event_type: string
+          full_name: string
+          phone: string
+          report_open_until: string
+          report_submitted: boolean
+          reservation_number: string
+          start_time: string
         }[]
       }
       get_monthly_revenue: {
@@ -4433,6 +4770,7 @@ export type Database = {
           payroll_type: string
           rate: number
           reservation_number: string
+          response_status: string
           staff_name: string
           staff_role: string
         }[]
@@ -4525,8 +4863,16 @@ export type Database = {
         Args: { p_booking_id: string; p_staff_id: string }
         Returns: Json
       }
+      staff_get_standalone_cleaning_report: {
+        Args: { p_assignment_id: string; p_staff_id: string }
+        Returns: Json
+      }
       staff_mark_bar_contacted: {
         Args: { p_assignment_id: string; p_staff_id: string }
+        Returns: Json
+      }
+      staff_queue_pending_notices: {
+        Args: { p_force_digest?: boolean }
         Returns: Json
       }
       staff_respond_to_assignment: {
@@ -4568,6 +4914,7 @@ export type Database = {
         }
         Returns: Json
       }
+      unsubscribe_lead: { Args: { p_token: string }; Returns: Json }
       untracked_driver_license_objects: {
         Args: { p_limit?: number }
         Returns: {
