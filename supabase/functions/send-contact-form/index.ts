@@ -6,6 +6,12 @@ import {
   generateContactFormText,
 } from "../_shared/contact-form.ts";
 import { sendLead } from "../_shared/meta-capi.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { claimRateSlot, clientIp } from "../_shared/rate-limit.ts";
+
+// Second pass X2-09 (ClickUp 86e40ach2): per-IP limit so the form cannot be
+// used to flood the office inbox or forge Meta leads in bulk.
+const RATE_LIMIT = { bucket: "send-contact-form", max: 5, windowSeconds: 3600 };
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -56,6 +62,17 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ ok: false, error: "Message too long (max 5000 characters)" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const rateClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+    if (!(await claimRateSlot(rateClient, clientIp(req), RATE_LIMIT))) {
+      return new Response(
+        JSON.stringify({ ok: false, error: "Too many messages. Please try again later." }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

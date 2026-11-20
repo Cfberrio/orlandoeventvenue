@@ -1,6 +1,7 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { safeEqual } from "../_shared/internal-auth.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -74,17 +75,22 @@ async function getBookingsForDateRange(
   startDate: string,
   endDate: string
 ): Promise<BookingConflict[]> {
+  // Second pass X2-44: a booking holds the slot when it is paid, or while its
+  // checkout hold (claim_booking_slot, 35 min) is still running. Same rule as
+  // voice-check-availability and /book. A read error is thrown, never
+  // treated as "no bookings" (that answered "available" on a DB outage).
   const { data, error } = await supabase
     .from('bookings')
     .select('event_date, start_time, end_time, booking_type')
     .gte('event_date', startDate)
     .lte('event_date', endDate)
     .not('status', 'eq', 'cancelled')
-    .not('status', 'eq', 'declined');
+    .not('status', 'eq', 'declined')
+    .or(`payment_status.in.(deposit_paid,fully_paid,invoiced),slot_hold_until.gt.${new Date().toISOString()}`);
 
   if (error) {
     console.error('[DB] Error fetching bookings:', error);
-    return [];
+    throw new Error('availability_lookup_failed');
   }
 
   console.log(`[DB] Found ${data?.length || 0} bookings in range`);
@@ -99,19 +105,32 @@ async function getBlocksForDateRange(
   startDate: string,
   endDate: string
 ): Promise<{ start_date: string; end_date: string; block_type: string }[]> {
-  const { data, error } = await supabase
-    .from('availability_blocks')
-    .select('start_date, end_date, block_type')
-    .lte('start_date', endDate)
-    .gte('end_date', startDate);
+  const [blocksRes, blackoutsRes] = await Promise.all([
+    supabase
+      .from('availability_blocks')
+      .select('start_date, end_date, block_type')
+      .lte('start_date', endDate)
+      .gte('end_date', startDate),
+    // Blackout dates close the whole day (X2-44: they were ignored here).
+    supabase
+      .from('blackout_dates')
+      .select('start_date, end_date')
+      .lte('start_date', endDate)
+      .gte('end_date', startDate),
+  ]);
 
-  if (error) {
-    console.error('[DB] Error fetching blocks:', error);
-    return [];
+  if (blocksRes.error || blackoutsRes.error) {
+    console.error('[DB] Error fetching blocks/blackouts:', blocksRes.error ?? blackoutsRes.error);
+    throw new Error('availability_lookup_failed');
   }
 
-  console.log(`[DB] Found ${data?.length || 0} availability blocks in range`);
-  return data || [];
+  const blackouts = (blackoutsRes.data || []).map((b: { start_date: string; end_date: string }) => ({
+    start_date: b.start_date,
+    end_date: b.end_date,
+    block_type: 'blackout',
+  }));
+  console.log(`[DB] Found ${blocksRes.data?.length || 0} availability blocks and ${blackouts.length} blackouts in range`);
+  return [...(blocksRes.data || []), ...blackouts];
 }
 
 /**
@@ -248,7 +267,7 @@ serve(async (req) => {
     }
     
     const providedToken = authHeader.replace('Bearer ', '');
-    if (providedToken !== expectedSecret) {
+    if (!expectedSecret || !safeEqual(providedToken, expectedSecret)) {
       console.error('[Auth] Token mismatch');
       return new Response(JSON.stringify({ ok: false, error: 'Unauthorized' }), {
         status: 401,
@@ -359,9 +378,13 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('[Error]', error);
-    return new Response(JSON.stringify({ 
-      ok: false, 
-      error: error instanceof Error ? error.message : 'Internal server error' 
+    // Fail closed: never let the agent say a date is free when we could not check.
+    return new Response(JSON.stringify({
+      ok: false,
+      available: false,
+      next_slots: [],
+      notes_for_agent: 'I could not check the calendar right now. The customer should check orlandoeventvenue.org/book or contact us directly.',
+      error: error instanceof Error ? error.message : 'Internal server error'
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

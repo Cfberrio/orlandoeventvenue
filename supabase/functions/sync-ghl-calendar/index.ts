@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { eventTypeLabel } from "../_shared/event-types.ts";
+import { authorizeInternalCaller, callerRefusal } from "../_shared/caller-auth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -845,38 +846,22 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  // Security check (optional)
-  const expectedSecret = Deno.env.get("BOOKING_SYNC_WEBHOOK_SECRET");
-  if (expectedSecret) {
-    const providedSecret = req.headers.get("x-sync-secret");
-    if (!providedSecret || providedSecret !== expectedSecret) {
-      console.log("[AUTH] Invalid or missing sync secret");
-      return new Response(
-        JSON.stringify({ 
-          ok: false, 
-          error: "auth_failed",
-          message: "Invalid or missing x-sync-secret header"
-        }),
-        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-  }
-
-  // Debug env mode
-  const url = new URL(req.url);
-  const debugEnv = url.searchParams.get('debug_env') === '1' || req.headers.get('x-debug-env') === 'true';
-  
-  if (debugEnv) {
-    const cfg = getGhlConfig();
-    return new Response(
-      JSON.stringify({
-        ok: false,
-        error: "debug_env",
-        message: "Environment diagnostics",
-        cfg: cfg.debug
-      }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+  // X2-13 (ClickUp 86e40ach2): callers must prove who they are.
+  //   * DB triggers trigger_sync_ghl_calendar / _from_assignment send the
+  //     internal secret (x-sync-secret) read from ghl_calendar_sync_config;
+  //   * stripe-webhook and sync-to-ghl send the service-role key;
+  //   * the internal booking wizard sends the admin session.
+  // Anyone else (the public anon key, no key) is refused. The old optional
+  // check and the ?debug_env=1 mode (GHL ids + part of the private token)
+  // are gone.
+  const authClient = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const caller = await authorizeInternalCaller(req, authClient);
+  if (!caller.ok) {
+    console.log("[AUTH] sync-ghl-calendar refused:", caller.error);
+    return callerRefusal(caller, corsHeaders);
   }
 
   try {

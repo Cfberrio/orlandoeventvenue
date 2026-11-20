@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeInternalCaller, callerRefusal } from "../_shared/caller-auth.ts";
 
 import { withBuild } from "../_shared/build-info.ts";
 const corsHeaders = {
@@ -19,8 +20,53 @@ const corsHeaders = {
 const EMAIL_2_DELAY_HOURS = 24;
 const EMAIL_3_DELAY_HOURS = 24;
 const MAX_LEADS_PER_RUN = 50;
-// DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
-const DEFAULT_POPUP_COUPON_CODE = "PLAN50";
+
+// Second pass X2-19 (ClickUp 86e40ach2): the send is claimed per lead inside
+// send-discount-email (UPDATE popup_leads SET email_N_sent_at = now() WHERE
+// email_N_sent_at IS NULL RETURNING), so two overlapping runs can never send
+// the same email twice. The coupon and recipient come from the lead row there.
+
+/** Escape LIKE wildcards so an address with _ or % matches only itself. */
+function likeLiteral(value: string): string {
+  return value.replace(/[\\%_]/g, (c) => `\\${c}`);
+}
+
+/** Case-insensitive: has this address booked (any booking not cancelled)? */
+async function hasBooked(supabase: any, email: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id")
+    .ilike("email", likeLiteral(email.trim()))
+    .neq("status", "cancelled")
+    .limit(1);
+  if (error) throw error;
+  return Array.isArray(data) && data.length > 0;
+}
+
+async function sendDripEmail(
+  supabaseUrl: string,
+  serviceKey: string,
+  leadId: string,
+  emailNumber: 2 | 3,
+): Promise<{ sent: boolean; skipped: boolean; error?: string }> {
+  const response = await fetch(`${supabaseUrl}/functions/v1/send-discount-email`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({ lead_id: leadId, email_number: emailNumber }),
+  });
+  const text = await response.text();
+  if (!response.ok) return { sent: false, skipped: false, error: text.slice(0, 300) };
+  let body: Record<string, unknown> = {};
+  try {
+    body = JSON.parse(text);
+  } catch (_e) {
+    body = {};
+  }
+  return { sent: body.skipped !== true, skipped: body.skipped === true };
+}
 
 serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
@@ -34,8 +80,12 @@ serve(withBuild(async (req) => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Only process-scheduled-jobs (service role), the database or an admin.
+    const caller = await authorizeInternalCaller(req, supabase);
+    if (!caller.ok) return callerRefusal(caller, corsHeaders);
+
     const now = new Date();
-    const results = { email2_sent: 0, email3_sent: 0, converted: 0, errors: 0 };
+    const results = { email2_sent: 0, email3_sent: 0, skipped: 0, converted: 0, errors: 0 };
 
     // =============================
     // EMAIL 2 CANDIDATES (24h after Email 1 went out)
@@ -60,48 +110,31 @@ serve(withBuild(async (req) => {
 
       for (const lead of email2Leads) {
         try {
-          // Check conversion: does this email exist in bookings?
-          const { data: existingBooking } = await supabase
-            .from("bookings")
-            .select("id")
-            .eq("email", lead.email)
-            .neq("status", "cancelled")
-            .limit(1);
-
-          if (existingBooking && existingBooking.length > 0) {
-            console.log(`Lead ${lead.email} has booked - marking as converted`);
-            await supabase
+          // Check conversion (case-insensitive): has this address booked?
+          if (await hasBooked(supabase, String(lead.email ?? ""))) {
+            console.log(`Lead ${lead.id} has booked - marking as converted`);
+            const { error: convError } = await supabase
               .from("popup_leads")
               .update({ is_converted: true })
               .eq("id", lead.id);
-            results.converted++;
+            if (convError) {
+              console.error(`Could not mark lead ${lead.id} converted:`, convError);
+              results.errors++;
+            } else {
+              results.converted++;
+            }
             continue;
           }
 
-          // Send Email 2
-          const response = await fetch(
-            `${supabaseUrl}/functions/v1/send-discount-email`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                full_name: lead.full_name,
-                email: lead.email,
-                coupon_code: lead.coupon_code || DEFAULT_POPUP_COUPON_CODE,
-                email_number: 2,
-              }),
-            }
-          );
-
-          if (response.ok) {
-            console.log(`Email 2 sent to ${lead.email}`);
+          // Send Email 2 (send-discount-email claims it atomically)
+          const outcome = await sendDripEmail(supabaseUrl, supabaseServiceKey, lead.id, 2);
+          if (outcome.sent) {
+            console.log(`Email 2 sent for lead ${lead.id}`);
             results.email2_sent++;
+          } else if (outcome.skipped) {
+            results.skipped++;
           } else {
-            const errorBody = await response.text();
-            console.error(`Failed to send Email 2 to ${lead.email}:`, errorBody);
+            console.error(`Failed to send Email 2 for lead ${lead.id}:`, outcome.error);
             results.errors++;
           }
         } catch (leadError) {
@@ -136,48 +169,31 @@ serve(withBuild(async (req) => {
 
       for (const lead of email3Leads) {
         try {
-          // Check conversion: does this email exist in bookings?
-          const { data: existingBooking } = await supabase
-            .from("bookings")
-            .select("id")
-            .eq("email", lead.email)
-            .neq("status", "cancelled")
-            .limit(1);
-
-          if (existingBooking && existingBooking.length > 0) {
-            console.log(`Lead ${lead.email} has booked - marking as converted`);
-            await supabase
+          // Check conversion (case-insensitive): has this address booked?
+          if (await hasBooked(supabase, String(lead.email ?? ""))) {
+            console.log(`Lead ${lead.id} has booked - marking as converted`);
+            const { error: convError } = await supabase
               .from("popup_leads")
               .update({ is_converted: true })
               .eq("id", lead.id);
-            results.converted++;
+            if (convError) {
+              console.error(`Could not mark lead ${lead.id} converted:`, convError);
+              results.errors++;
+            } else {
+              results.converted++;
+            }
             continue;
           }
 
-          // Send Email 3
-          const response = await fetch(
-            `${supabaseUrl}/functions/v1/send-discount-email`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${supabaseServiceKey}`,
-              },
-              body: JSON.stringify({
-                full_name: lead.full_name,
-                email: lead.email,
-                coupon_code: lead.coupon_code || DEFAULT_POPUP_COUPON_CODE,
-                email_number: 3,
-              }),
-            }
-          );
-
-          if (response.ok) {
-            console.log(`Email 3 sent to ${lead.email}`);
+          // Send Email 3 (send-discount-email claims it atomically)
+          const outcome = await sendDripEmail(supabaseUrl, supabaseServiceKey, lead.id, 3);
+          if (outcome.sent) {
+            console.log(`Email 3 sent for lead ${lead.id}`);
             results.email3_sent++;
+          } else if (outcome.skipped) {
+            results.skipped++;
           } else {
-            const errorBody = await response.text();
-            console.error(`Failed to send Email 3 to ${lead.email}:`, errorBody);
+            console.error(`Failed to send Email 3 for lead ${lead.id}:`, outcome.error);
             results.errors++;
           }
         } catch (leadError) {

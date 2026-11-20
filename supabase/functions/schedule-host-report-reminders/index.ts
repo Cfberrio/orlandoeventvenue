@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { authorizeInternalCaller } from "../_shared/caller-auth.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { shouldClearHostReportStep } from "../_shared/reschedule-plan.ts";
 
@@ -106,10 +107,16 @@ serve(withBuild(async (req) => {
     });
   }
 
+  // Read once: the catch block below needs the booking id, and a request body
+  // cannot be read twice (the old req.clone() after req.json() threw, so the
+  // failure alert never went out, X2-44).
+  let alertBookingId: string | null = null;
+
   try {
     const body = await req.json();
     const booking_id = body.booking_id;
-    const force_reschedule = body.force_reschedule === true;
+    alertBookingId = typeof booking_id === "string" ? booking_id : null;
+    let force_reschedule = body.force_reschedule === true;
 
     if (!booking_id) {
       return new Response(JSON.stringify({ error: "booking_id is required" }), {
@@ -126,6 +133,20 @@ serve(withBuild(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // force_reschedule cancels and rebuilds jobs, so only trusted callers may
+    // set it (X2-11): another edge function (service role), the database
+    // (internal secret: auto_fix_missing_jobs) or a signed-in admin. Anyone
+    // else still gets the normal, duplicate-safe scheduling pass.
+    let forceRescheduleIgnored = false;
+    if (force_reschedule) {
+      const caller = await authorizeInternalCaller(req, supabase);
+      if (!caller.ok) {
+        console.warn("force_reschedule ignored: caller is not service, internal or admin");
+        force_reschedule = false;
+        forceRescheduleIgnored = true;
+      }
+    }
 
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabase
@@ -147,6 +168,7 @@ serve(withBuild(async (req) => {
       booking_id,
       reservation_number: booking.reservation_number,
     };
+    if (forceRescheduleIgnored) responseData.force_reschedule_ignored = true;
 
     // Check if host report is already completed
     const { data: hostReports } = await supabase
@@ -536,7 +558,7 @@ serve(withBuild(async (req) => {
     
     // Get booking info for alert if possible
     try {
-      const body = await req.clone().json().catch(() => ({}));
+      const body = { booking_id: alertBookingId };
       if (body.booking_id) {
         const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
         const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;

@@ -250,7 +250,8 @@ describe("front-end writes moved to RPCs (S-2, S-9)", () => {
     expect(src).not.toMatch(/from\('maintenance_tickets'\)/);
     expect(src).toMatch(/const storedRating = Number\(result\.stored_rating/);
     const alert = src.slice(src.indexOf("'send-low-rating-alert'"));
-    expect(alert).toMatch(/rating: storedRating,/);
+    // X2-10: the browser only names the booking; the function loads the stored rating.
+    expect(alert).toMatch(/body: \{ booking_id: bookingId, reservation_number: reservationNumber \}/);
     expect(alert.slice(0, 600)).not.toMatch(/reviewData/);
   });
 });

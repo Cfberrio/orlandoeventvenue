@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
       const now = new Date().toISOString();
       const { data: existing, error: readErr } = await db
         .from("tracking_visitor")
-        .select("id,booking_id,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")
+        .select("id,booking_id,email,first_utm,last_utm,first_landing_page,first_referrer,ad_consent")
         .eq("anonymous_id", anon)
         .maybeSingle();
       if (readErr) console.error("[track-event] visitor read failed", readErr);
@@ -235,13 +235,36 @@ Deno.serve(async (req) => {
       // A rejection can arrive after this browser was stitched to a booking.
       // Persist it on both sides so later server-only conversion paths fail
       // closed even though the browser identity is removed immediately.
+      //
+      // Second pass X2-44 (ClickUp 86e40ach2): a booking id in the request is
+      // not proof. The booking is only touched when this browser was already
+      // stitched to it by an earlier request (the visitor row holds that
+      // booking id) or when the booking's email matches the email this
+      // browser carries. Otherwise only the visitor row records the refusal
+      // (create-checkout snapshots it onto the booking at payment).
       if (consent?.advertising === false && linkedBookingId) {
-        const { error: bookingConsentErr } = await db
-          .from("bookings")
-          .update({ ad_consent: false })
-          .eq("id", linkedBookingId);
-        if (bookingConsentErr) {
-          console.error("[track-event] booking consent update failed", bookingConsentErr);
+        const stitched = uuid(existing?.booking_id) === linkedBookingId;
+        let emailMatches = false;
+        const knownEmail = identEmail ?? email(existing?.email);
+        if (!stitched && knownEmail) {
+          const { data: owner } = await db
+            .from("bookings")
+            .select("email")
+            .eq("id", linkedBookingId)
+            .maybeSingle();
+          const bookingEmail = String((owner as Record<string, unknown> | null)?.email ?? "").trim().toLowerCase();
+          emailMatches = bookingEmail !== "" && bookingEmail === knownEmail.toLowerCase();
+        }
+        if (stitched || emailMatches) {
+          const { error: bookingConsentErr } = await db
+            .from("bookings")
+            .update({ ad_consent: false })
+            .eq("id", linkedBookingId);
+          if (bookingConsentErr) {
+            console.error("[track-event] booking consent update failed", bookingConsentErr);
+          }
+        } else {
+          console.warn("[track-event] consent refusal not copied to an unproven booking");
         }
       }
 

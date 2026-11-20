@@ -59,8 +59,9 @@ describe("Codex review fixes", () => {
     expect(SQL).toMatch(/REVOKE INSERT, UPDATE, DELETE ON public\.booking_money_reviews FROM authenticated/);
   });
   it("GHL appointment webhook fails closed and never un-cancels", () => {
-    expect(GHL_APPT).toMatch(/if \(!webhookSecret \|\| providedSecret !== webhookSecret\)/);
-    expect(GHL_APPT).toMatch(/ignoring appointment update/);
+    expect(GHL_APPT).toMatch(/if \(!webhookSecret \|\| !providedSecret \|\| !safeEqual\(providedSecret, webhookSecret\)\)/);
+    // X2-15: an update on a cancelled booking is ignored, never applied.
+    expect(GHL_APPT).toMatch(/return \{ action: "ignored", reason: "booking_cancelled" \}/);
   });
   it("cancel-booking reports Stripe cleanup failures", () => {
     expect(CANCEL).toMatch(/"cancel_cleanup_failed"/);

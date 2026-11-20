@@ -185,15 +185,16 @@ export default function DiscountPopup() {
       // Send to GHL with tag "popup" (fire-and-forget)
       syncToGhl();
 
-      // Send Email 1 immediately (fire-and-forget, don't block the UI)
+      // Send Email 1 immediately (fire-and-forget, don't block the UI).
+      // The function reads name, address and coupon from the popup_leads row
+      // and claims the send once; it never trusts those fields from here.
+      // Without a lead id (no secure random source) it resolves the fresh
+      // row by address instead.
       supabase.functions.
       invoke("send-discount-email", {
-        body: {
-          full_name: firstName.trim(),
-          email: email.trim().toLowerCase(),
-          coupon_code: COUPON_CODE,
-          email_number: 1
-        }
+        body: leadId ?
+        { lead_id: leadId, email_number: 1 } :
+        { email: email.trim().toLowerCase(), email_number: 1 }
       }).
       then(({ error: emailError }) => {
         if (emailError) {
