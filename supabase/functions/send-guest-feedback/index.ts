@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { withBuild } from "../_shared/build-info.ts";
+import { isServiceRoleRequest } from "../_shared/internal-auth.ts";
+import { guestFeedbackSkipReason } from "../_shared/guest-message-guards.ts";
 import {
   BRAND,
   displayTitle,
@@ -38,7 +41,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -122,7 +125,10 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
         `The entrance is locked.`,
       ]) +
       para(`Then upload a few quick photos. The report shows you exactly which ones.`) +
-      para(`Your reservation stays open until we receive it, so please complete it while you are still on site if you can.`) +
+      // CM2-02: the Event Page keeps the Guest Report open for 24 hours after
+      // the reservation ends (the door code is hidden then). The old line
+      // ("Your reservation stays open until we receive it") was not true.
+      para(`Your Guest Report stays open on your Event Page for 24 hours after your reservation ends. Please complete it while you are still on site if you can.`) +
       para(`One more thing. If your event went well, an honest Google review is the single biggest way you can help future hosts find us. We would be grateful:`) +
       linkButton(REVIEW_LINK) +
       para(`Thank you again for hosting with us.`) +
@@ -141,7 +147,7 @@ function generateGuestFeedbackHTML(reservationNumber: string, guestName: string,
   });
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -149,6 +155,16 @@ serve(async (req) => {
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // CM2-21 (86e40ach2 second pass): only process-scheduled-jobs sends this,
+  // with the service-role key. Anyone else holding a booking UUID could make
+  // it email the guest.
+  if (!isServiceRoleRequest(req.headers.get("Authorization"), Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"))) {
+    return new Response(JSON.stringify({ ok: false, error: "unauthorized" }), {
+      status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
@@ -174,7 +190,7 @@ serve(async (req) => {
     // Fetch booking details
     const { data: booking, error: bookingError } = await supabase
       .from("bookings")
-      .select("id, reservation_number, full_name, email, event_date")
+      .select("id, reservation_number, full_name, email, event_date, status, lifecycle_status, booking_policies(include_host_report)")
       .eq("id", booking_id)
       .single();
 
@@ -204,6 +220,54 @@ serve(async (req) => {
       });
     }
 
+    // CM2-03: never to a cancelled/declined booking, never after the Guest
+    // Report is in, and never when the policy has no host report.
+    const { count: reportCount, error: reportError } = await supabase
+      .from("booking_host_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("booking_id", booking_id);
+    if (reportError) throw new Error(`Could not check the Guest Report: ${reportError.message}`);
+    const policy = Array.isArray(booking.booking_policies) ? booking.booking_policies[0] : booking.booking_policies;
+    const skipReason = guestFeedbackSkipReason({
+      status: booking.status,
+      lifecycle_status: booking.lifecycle_status,
+      reportSubmitted: (reportCount ?? 0) > 0,
+      policy,
+    });
+    if (skipReason) {
+      console.log(`[SKIP] guest feedback for ${booking.reservation_number}: ${skipReason}`);
+      await supabase.from("booking_events").insert({
+        booking_id,
+        event_type: "guest_feedback_email_skipped",
+        channel: "system",
+        metadata: { reason: skipReason, reservation_number: booking.reservation_number },
+      });
+      return new Response(JSON.stringify({ ok: true, skipped: true, reason: skipReason }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // CM2-03: one send per booking. Claim the marker first; a second run (or
+    // a duplicate job) finds it and stops. Released if the send fails.
+    const { error: claimError } = await supabase
+      .from("guest_message_sends")
+      .insert({ booking_id, kind: "guest_feedback", metadata: { recipient: booking.email } });
+    if (claimError) {
+      if ((claimError as { code?: string }).code === "23505") {
+        console.log(`[SKIP] guest feedback already sent for ${booking.reservation_number}`);
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: "already_sent" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      throw new Error(`Could not claim the guest feedback send: ${claimError.message}`);
+    }
+    const releaseClaim = async () => {
+      const { error } = await supabase.from("guest_message_sends").delete().eq("booking_id", booking_id).eq("kind", "guest_feedback");
+      if (error) console.error("Could not release the guest feedback claim:", error);
+    };
+
     console.log(`Sending guest feedback email to: ${booking.email}`);
 
     const gmailUser = Deno.env.get("GMAIL_USER");
@@ -211,6 +275,7 @@ serve(async (req) => {
 
     if (!gmailUser || !gmailPassword) {
       console.error("Gmail credentials not configured");
+      await releaseClaim();
       return new Response(
         JSON.stringify({ ok: false, error: "Email service not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -235,15 +300,19 @@ serve(async (req) => {
       booking.event_date
     ));
 
-    await client.send({
-      from: gmailUser,
-      to: booking.email,
-      subject: SUBJECT,
-      content: "Please view this email in an HTML-compatible email client.",
-      html: emailHTML,
-    });
-
-    await client.close();
+    try {
+      await client.send({
+        from: gmailUser,
+        to: booking.email,
+        subject: SUBJECT,
+        content: "Please view this email in an HTML-compatible email client.",
+        html: emailHTML,
+      });
+      await client.close();
+    } catch (sendError) {
+      await releaseClaim();
+      throw sendError;
+    }
 
     console.log("Guest feedback email sent successfully");
 
@@ -312,4 +381,4 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
-});
+}));

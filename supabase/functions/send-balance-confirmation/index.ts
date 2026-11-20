@@ -22,6 +22,8 @@ import { buildInvoiceModel } from "../_shared/invoice-model.ts";
 import { renderInvoicePdf } from "../_shared/invoice-pdf.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { bookingTypeLabel } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -43,7 +45,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -124,10 +126,9 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-function formatBookingType(bookingType: string): string {
-  if (bookingType === "daily") return "Full Day (24 hours)";
-  if (bookingType === "hourly") return "Hourly";
-  return bookingType;
+// CM2-06: the stored daily window (e.g. "Full Day (1:00 AM - 11:00 PM)"), not "24 hours".
+function formatBookingType(bookingType: string, startTime?: string | null, endTime?: string | null): string {
+  return bookingTypeLabel(bookingType, startTime, endTime);
 }
 
 function getPackageName(pkg: string | undefined): string {
@@ -151,10 +152,10 @@ function getPackageInclusions(pkg: string | undefined): string[] {
   return inclusions[pkg] || [];
 }
 
-function generateEmailHTML(booking: BalanceEmailData): string {
+function generateEmailHTML(booking: BalanceEmailData, hasPdf: boolean): string {
   const firstName = escapeHtml(booking.full_name.split(" ")[0]);
   const formattedDate = formatDate(booking.event_date);
-  const formattedBookingType = formatBookingType(booking.booking_type);
+  const formattedBookingType = formatBookingType(booking.booking_type, booking.start_time, booking.end_time);
   const formattedEventType = escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other));
   const timeRange = booking.start_time && booking.end_time
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
@@ -183,8 +184,8 @@ function generateEmailHTML(booking: BalanceEmailData): string {
         `Your Before You Leave checklist.`,
         `Your Guest Report.`,
       ]) +
-      para(`Your door code appears one hour before your event begins.`) +
-      para(`We will stay in touch as your date approaches. You will get a quick check in seven days out, a preparation reminder the day before, and your full access instructions one hour before you start.`) +
+      para(`Your door code and entry instructions appear on your Event Page one hour before your event begins.`) +
+      para(`We will stay in touch as your date approaches. You will get a quick check in seven days out and a preparation reminder the day before.`) +
       para(`Please make sure whoever arrives first also has your Event Page link and reservation number.`) +
       signature({ phone: true }),
     ) +
@@ -202,12 +203,13 @@ function generateEmailHTML(booking: BalanceEmailData): string {
     title: "Your Event Is Fully Paid",
     preview: "No further payment is needed. Here is how to get ready.",
     body,
-    footerNote: "Itemized receipt is attached as PDF.",
+    // CM2-23: only say a PDF is attached when it is.
+    footerNote: hasPdf ? "Itemized receipt is attached as PDF." : undefined,
   });
 }
 
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -264,8 +266,6 @@ serve(async (req) => {
       .maybeSingle();
     if (feeRow?.price) processingFeePct = Number(feeRow.price);
 
-    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking as BalanceEmailData));
-
     let pdfBase64: string | null = null;
     try {
       const model = buildInvoiceModel("balance", booking, lookup.snapshot, processingFeePct);
@@ -282,6 +282,8 @@ serve(async (req) => {
         bookingId,
       );
     }
+
+    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking as BalanceEmailData, pdfBase64 !== null));
 
     await client.send({
       from: gmailUser,
@@ -325,4 +327,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

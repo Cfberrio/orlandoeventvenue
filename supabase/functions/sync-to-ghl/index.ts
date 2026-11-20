@@ -2,6 +2,9 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
+import { eventTimeRange, format12h, formatLongDate } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -23,7 +26,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">GHL sync failure may prevent customer from entering workflow. Immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">GHL sync failure may prevent customer from entering workflow. Immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -72,6 +75,11 @@ interface BookingSnapshot {
   lifecycle_status: string | null;
   number_of_guests: number | null;
   event_type: string | null;
+  event_type_label: string;
+  event_date_formatted: string | null;
+  start_time_formatted: string | null;
+  end_time_formatted: string | null;
+  event_time_range: string | null;
   package: string | null;
   total_amount: number | null;
   deposit_amount: number | null;
@@ -131,6 +139,7 @@ interface BookingRow {
   lifecycle_status: string | null;
   number_of_guests: number | null;
   event_type: string | null;
+  event_type_other: string | null;
   package: string | null;
   total_amount: number | null;
   deposit_amount: number | null;
@@ -330,6 +339,13 @@ async function buildBookingSnapshot(
     lifecycle_status: booking.lifecycle_status,
     number_of_guests: booking.number_of_guests,
     event_type: booking.event_type,
+    // CM2-10: guest-readable values for GHL templates. The raw fields above
+    // stay for existing workflows.
+    event_type_label: eventTypeLabel(booking.event_type, booking.event_type_other),
+    event_date_formatted: booking.event_date ? formatLongDate(booking.event_date) : null,
+    start_time_formatted: booking.start_time ? format12h(booking.start_time) : null,
+    end_time_formatted: booking.end_time ? format12h(booking.end_time) : null,
+    event_time_range: eventTimeRange(booking.start_time, booking.end_time),
     package: booking.package,
     total_amount: booking.total_amount ? Number(booking.total_amount) : null,
     deposit_amount: booking.deposit_amount ? Number(booking.deposit_amount) : null,
@@ -376,7 +392,7 @@ async function buildBookingSnapshot(
  * Edge function that sends a booking snapshot to GHL.
  * Called internally after important booking events.
  */
-serve(async (req) => {
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -574,4 +590,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

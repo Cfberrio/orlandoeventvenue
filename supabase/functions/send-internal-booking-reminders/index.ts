@@ -17,6 +17,7 @@ import {
 } from "../_shared/email-layout.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
 const REMINDER_SUBJECT = "Your Event Access Page";
 
 const corsHeaders = {
@@ -278,7 +279,7 @@ async function sendViaSendGrid(block: BlockWithBooking, htmlContent: string): Pr
 /**
  * Main handler
  */
-serve(async (req) => {
+serve(withBuild(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -532,4 +533,4 @@ serve(async (req) => {
       }
     );
   }
-});
+}));

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
+import { withBuild } from "../_shared/build-info.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -21,7 +22,7 @@ const MAX_LEADS_PER_RUN = 50;
 // DEFAULT_POPUP_COUPON_CODE must match COUPON_CODE in src/components/DiscountPopup.tsx
 const DEFAULT_POPUP_COUPON_CODE = "PLAN50";
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -202,4 +203,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

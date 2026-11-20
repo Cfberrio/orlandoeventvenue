@@ -19,6 +19,7 @@ import {
   type PriceLine,
   type StoredBookingForInvoice,
 } from "./booking-pricing.ts";
+import { balanceDue, bookingTypeLabel, orlandoToday } from "./guest-timeline.ts";
 
 export type InvoiceKind = "deposit" | "balance";
 
@@ -119,12 +120,15 @@ export function buildInvoiceModel(
   b: InvoiceBooking,
   snap: InvoiceSnapshot | null,
   fallbackFeePct: number,
+  /** Orlando date the receipt is issued (YYYY-MM-DD); decides "due now" vs a due date. */
+  todayOrlando: string = orlandoToday(),
 ): InvoiceModel {
   const lines = resolveLines(b, snap);
 
   const rows: InvoiceRow[] = lines.map((l) => {
     let sub: string | undefined;
-    if (l.key === "base_rental") sub = b.booking_type === "daily" ? "Full Day (24 hours)" : "Hourly";
+    // CM2-06: the daily window that is actually stored, not "24 hours".
+    if (l.key === "base_rental") sub = bookingTypeLabel(b.booking_type, b.start_time, b.end_time) || "Hourly";
     if (l.key === "bar" && b.bar_guest_count) {
       sub = `${b.bar_guest_count} guests${b.bar_rate_per_guest ? ` × ${money(Number(b.bar_rate_per_guest))}` : ""}`;
     }
@@ -173,9 +177,12 @@ export function buildInvoiceModel(
   const totalCharged = persistedTotal != null ? Number(persistedTotal) : fromCents(target + toCents(fee));
 
   const split = depositSplit(b);
+  // CM2-04: the real due date, or "due now" for short-notice bookings (it
+  // used to print "due 15 days before your event" even when that had passed).
+  const due = balanceDue(b.event_date, todayOrlando);
   const footnote =
     kind === "deposit"
-      ? `Final ${split.finalPct}%: ${money(Number(b.balance_amount))}, due 15 days before your event.`
+      ? `Final ${split.finalPct}%: ${money(Number(b.balance_amount))}, ${due.dueNow ? "due now" : `${due.phrase} (15 days before your event)`}.`
       : `First ${split.firstPct}% of ${money(Number(b.deposit_amount))} paid earlier. Event total: ${money(Number(b.total_amount))}. Booking now fully paid.`;
 
   return {

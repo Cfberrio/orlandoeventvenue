@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { eventTypeLabel } from "../_shared/event-types.ts";
+import { escapeHtml } from "../_shared/email-layout.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -89,7 +92,7 @@ Booking Details
 </tr>
 <tr>
 <td style="padding:8px 0;color:#64748b;font-size:14px;">Event Type</td>
-<td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;text-align:right;">${data.event_type}</td>
+<td style="padding:8px 0;color:#0f172a;font-size:14px;font-weight:600;text-align:right;">${escapeHtml(eventTypeLabel(data.event_type))}</td>
 </tr>
 </table>
 
@@ -130,7 +133,7 @@ This is an automated alert from Orlando Event Venue booking system.
 </html>`;
 }
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -189,4 +192,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

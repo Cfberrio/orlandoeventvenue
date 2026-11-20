@@ -22,6 +22,8 @@ import { buildInvoiceModel } from "../_shared/invoice-model.ts";
 import { renderInvoicePdf } from "../_shared/invoice-pdf.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 
+import { withBuild } from "../_shared/build-info.ts";
+import { bookingTypeLabel, policyAllows } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -43,7 +45,7 @@ async function sendCriticalAlert(functionName: string, reservationNumber: string
     });
 
     const timestamp = new Date().toLocaleString("en-US", { timeZone: "America/New_York" });
-    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} EST</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
+    const html = `<html><body style="font-family:Arial;padding:20px;"><h2 style="color:#dc2626;">CRITICAL FAILURE: ${functionName}</h2><p><b>Reservation:</b> ${reservationNumber}</p><p><b>Error:</b> ${errorMsg}</p><p><b>Time:</b> ${timestamp} ET</p>${bookingId ? `<p><b>Booking ID:</b> ${bookingId}</p>` : ""}<p style="margin-top:20px;color:#666;">This is an automated alert - immediate action required.</p></body></html>`;
 
     await client.send({
       from: `"OEV Alert" <${gmailUser}>`,
@@ -158,10 +160,9 @@ function getPackageName(pkg: string): string {
   return names[pkg] || pkg;
 }
 
-function formatBookingType(bookingType: string): string {
-  if (bookingType === "daily") return "Full Day (24 hours)";
-  if (bookingType === "hourly") return "Hourly";
-  return bookingType;
+// CM2-06: the stored daily window (e.g. "Full Day (1:00 AM - 11:00 PM)"), not "24 hours".
+function formatBookingType(bookingType: string, startTime?: string | null, endTime?: string | null): string {
+  return bookingTypeLabel(bookingType, startTime, endTime);
 }
 
 function getPackageInclusions(pkg: string): string[] {
@@ -173,10 +174,10 @@ function getPackageInclusions(pkg: string): string[] {
   return inclusions[pkg] || [];
 }
 
-function generateEmailHTML(booking: BookingEmailData): string {
+function generateEmailHTML(booking: BookingEmailData, hasPdf: boolean): string {
   const firstName = escapeHtml(booking.full_name.split(" ")[0]);
   const formattedDate = formatDate(booking.event_date);
-  const formattedBookingType = formatBookingType(booking.booking_type);
+  const formattedBookingType = formatBookingType(booking.booking_type, booking.start_time, booking.end_time);
   const formattedEventType = escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other));
 
   const eventTime = booking.start_time && booking.end_time
@@ -217,12 +218,13 @@ function generateEmailHTML(booking: BookingEmailData): string {
     title: "We Received Your First Payment",
     preview: "Your booking is now being reviewed by our team.",
     body,
-    footerNote: "Itemized receipt is attached as PDF.",
+    // CM2-23: only say a PDF is attached when it is.
+    footerNote: hasPdf ? "Itemized receipt is attached as PDF." : undefined,
   });
 }
 
 
-serve(async (req) => {
+serve(withBuild(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
@@ -245,6 +247,22 @@ serve(async (req) => {
     reservationNumber = booking.reservation_number;
     bookingId = booking.id;
     console.log("Sending confirmation email for booking:", reservationNumber, `(via ${lookup.via})`);
+
+    // CM2-15: the booking's policy can turn the deposit email off.
+    if (booking.policy_id) {
+      const { data: policy } = await supabase
+        .from("booking_policies")
+        .select("send_deposit_emails")
+        .eq("id", booking.policy_id)
+        .maybeSingle();
+      if (!policyAllows(policy, "send_deposit_emails")) {
+        console.log(`[POLICY_SKIP] send_deposit_emails is off for ${reservationNumber}`);
+        return new Response(JSON.stringify({ ok: true, skipped: true, reason: "policy_send_deposit_emails_off" }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
 
     const gmailUser = Deno.env.get("GMAIL_USER");
     const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
@@ -279,8 +297,6 @@ serve(async (req) => {
       .maybeSingle();
     if (feeRow?.price) processingFeePct = Number(feeRow.price);
 
-    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking as BookingEmailData));
-
     let pdfBase64: string | null = null;
     try {
       const model = buildInvoiceModel("deposit", booking, lookup.snapshot, processingFeePct);
@@ -297,6 +313,8 @@ serve(async (req) => {
         bookingId,
       );
     }
+
+    const emailHTML = sanitizeForSmtp(generateEmailHTML(booking as BookingEmailData, pdfBase64 !== null));
 
     await client.send({
       from: gmailUser,
@@ -336,4 +354,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
-});
+}));

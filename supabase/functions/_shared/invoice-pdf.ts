@@ -4,6 +4,7 @@
 import { PDFDocument, StandardFonts, rgb } from "https://esm.sh/pdf-lib@1.17.1";
 import type { InvoiceBooking, InvoiceModel } from "./invoice-model.ts";
 import { eventTypeLabel } from "./event-types.ts";
+import { bookingTypeLabel } from "./guest-timeline.ts";
 
 function money(n: number): string {
   const sign = n < 0 ? "-" : "";
@@ -85,7 +86,8 @@ export async function renderInvoicePdf(
   detail(`Date: ${formatDate(b.event_date)}`);
   detail(`Type: ${eventTypeLabel(b.event_type, b.event_type_other)}`);
   if (b.number_of_guests) detail(`Guests: ${b.number_of_guests}`);
-  detail(`Booking: ${b.booking_type === "daily" ? "Full Day (24 hours)" : "Hourly"}`);
+  // CM2-06: the stored daily window, not "24 hours".
+  detail(`Booking: ${bookingTypeLabel(b.booking_type, b.start_time, b.end_time) || "Hourly"}`);
   if (b.start_time && b.end_time && b.booking_type !== "daily") {
     detail(`Time: ${formatTime(b.start_time)} to ${formatTime(b.end_time)}`);
   }
