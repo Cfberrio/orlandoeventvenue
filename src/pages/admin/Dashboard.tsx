@@ -32,6 +32,7 @@ import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
 import StaffResponsesCard from "@/components/admin/StaffResponsesCard";
+import StuckBookingsCard from "@/components/admin/StuckBookingsCard";
 import { eventTypeLabel } from "@/lib/eventTypes";
 import { lifecycleLabel } from "@/lib/statusLabels";
 import { formatMoney } from "@/lib/paymentSummary";
@@ -250,6 +251,7 @@ export default function AdminDashboard() {
       )}
 
       {/* ST2-16: staff accept / decline answers */}
+      <StuckBookingsCard />
       <StaffResponsesCard />
 
       {/* External bookings whose post-create steps did not all run */}

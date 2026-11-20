@@ -26,7 +26,7 @@ export function EventCloseCard({ booking }: Props) {
     queryFn: async () => {
       const { data, error } = await supabase.rpc("admin_booking_close_eta" as never, { p_booking_id: booking.id } as never);
       if (error) throw error;
-      return data as unknown as { event_start_at: string; event_end_at: string; auto_close_at: string };
+      return data as unknown as { event_start_at: string; event_end_at: string; auto_close_at: string; auto_close_eligible?: boolean };
     },
   });
 
@@ -52,9 +52,14 @@ export function EventCloseCard({ booking }: Props) {
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
-      <span className="text-muted-foreground">
-        Closes automatically {format(new Date(eta.auto_close_at), "MM/dd/yyyy h:mm a")} (24h after the event ends).
-      </span>
+      {/* L2-06: never promise a past date, or a close the cron will not do. */}
+      {eta.auto_close_eligible === false || new Date(eta.auto_close_at) <= new Date() ? (
+        <span className="font-medium text-amber-700">Overdue — will not close on its own. Use Close event.</span>
+      ) : (
+        <span className="text-muted-foreground">
+          Closes automatically {format(new Date(eta.auto_close_at), "MM/dd/yyyy h:mm a")} (24h after the event ends).
+        </span>
+      )}
       <Button size="sm" variant="outline" onClick={close} disabled={closing}>
         {closing ? "Closing..." : "Close event now"}
       </Button>

@@ -21,6 +21,7 @@ import { lazy, Suspense } from "react";
 const VirtualTour = lazy(() => import("./pages/VirtualTour"));
 import NotFound from "./pages/NotFound";
 import AccessCode from "./pages/AccessCode";
+import Unsubscribe from "./pages/Unsubscribe";
 import AdminLayout from "./components/admin/AdminLayout";
 import ProtectedRoute from "./components/admin/ProtectedRoute";
 import AdminDashboard from "./pages/admin/Dashboard";
@@ -133,6 +134,7 @@ const App = () => (
 
               {/* Public access code + post-event guest report (unified) */}
               <Route path="/accesscode" element={<AccessCode />} />
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
               
               
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

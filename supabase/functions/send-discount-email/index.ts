@@ -238,6 +238,7 @@ serve(withBuild(async (req) => {
       .from("popup_leads")
       .update({ [sentAtColumn]: claimedAt })
       .is(sentAtColumn, null)
+      .is("unsubscribed_at", null) // CM2-12: never email a lead who opted out
       .eq("is_converted", false);
     claim = leadId ? claim.eq("id", leadId) : claim.eq("email", leadEmail);
     if (emailNumber === 2) claim = claim.not("email_1_sent_at", "is", null);
@@ -246,7 +247,7 @@ serve(withBuild(async (req) => {
       claim = claim.gte("created_at", new Date(Date.now() - PUBLIC_LEAD_MAX_AGE_MS).toISOString());
     }
 
-    const { data: claimed, error: claimError } = await claim.select("id, full_name, email, coupon_code");
+    const { data: claimed, error: claimError } = await claim.select("id, full_name, email, coupon_code, unsubscribe_token");
     if (claimError) {
       console.error(`Kit email #${emailNumber}: claim failed`, claimError);
       return respond(500, { ok: false, error: "Could not reserve the email" });
@@ -276,7 +277,15 @@ serve(withBuild(async (req) => {
 
     const couponCode = (lead.coupon_code as string | null) || DEFAULT_COUPON_CODE;
     const firstName = escapeHtml(String(lead.full_name ?? "").trim().split(" ")[0] || "there");
-    const emailHTML = sanitizeForSmtp(EMAIL_GENERATORS[emailNumber](firstName, couponCode));
+    // CM2-12: every Planning Kit email carries a one-click opt-out (opaque
+    // per-lead token, no email address in the URL).
+    const unsubscribeUrl = `https://orlandoeventvenue.org/unsubscribe?t=${encodeURIComponent(String(lead.unsubscribe_token ?? ""))}`;
+    const emailHTML = sanitizeForSmtp(
+      EMAIL_GENERATORS[emailNumber](firstName, couponCode).replace(
+        "This is an automated email. Please keep it for your records.",
+        `You received this because you asked for our Event Planning Kit. <a href="${unsubscribeUrl}" style="color:rgba(255,255,255,.6);text-decoration:underline;">Unsubscribe</a>`,
+      ),
+    );
     const subject = SUBJECT_LINES[emailNumber];
 
     try {

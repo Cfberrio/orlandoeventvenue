@@ -373,7 +373,7 @@ function generateEmailHTML(data: StaffAssignmentEmailData): string {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border:1px dashed #cbd5e1;border-radius:12px;">
                 <tr>
                   <td style="padding:12px 14px;font-size:13px;line-height:20px;color:#334155;">
-                    If you can't make this assignment or you don't have your Staff PIN, reply to this email.
+                    If you can't make this assignment, decline it in the Staff Portal or reply to this email.
                   </td>
                 </tr>
               </table>

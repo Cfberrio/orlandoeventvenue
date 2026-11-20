@@ -252,7 +252,7 @@ serve(withBuild(async (req) => {
     // and shows up in the refund review.
     const addonExpiry = await expireAddonSessions(supabase, booking_id);
     if (addonExpiry.checked > 0) {
-      await logBookingEvent(supabase, booking_id, "addon_invoice_voided_on_cancel", addonExpiry);
+      await logBookingEvent(supabase, booking_id, "addon_invoice_voided_on_cancel", { ...addonExpiry });
     }
     for (const f of addonExpiry.failed) cleanupWarnings.push(`add-on session ${f.session_id} not expired`);
     if (cleanupWarnings.length > 0) {
