@@ -1,6 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 import { PayrollByStaff, PayrollLineItem } from "@/hooks/usePayrollData";
 
+/** ST2-18: the staff RPC also returns the staff member's answer, so lines that
+ * cannot be paid until they accept can be labelled. */
+export type StaffPayrollLineItem = PayrollLineItem & { response_status?: string | null };
+
 /**
  * Staff Payroll Data Hook
  *
@@ -52,7 +56,7 @@ export function useStaffPayrollData() {
       return { data: null, error };
     }
 
-    return { data: data as unknown as PayrollLineItem[], error: null };
+    return { data: data as unknown as StaffPayrollLineItem[], error: null };
   };
 
   /**

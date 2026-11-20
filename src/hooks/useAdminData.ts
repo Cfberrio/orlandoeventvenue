@@ -1089,6 +1089,8 @@ export function useCreateStaffAssignment() {
             staffRole: variables.assignment_role,
             adminNotes: variables.notes || "No special notes",
             logoUrl: "https://orlandoeventvenue.org/email/logo-dark.png",
+            // ST2-15: the email links straight to this booking in the portal.
+            bookingId: variables.booking_id,
           },
         });
 
@@ -1123,8 +1125,13 @@ function formatTimeRange(startTime: string | null, endTime: string | null): stri
 export function useDeleteStaffAssignment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, bookingId }: { id: string; bookingId: string }) => {
-      const { error } = await supabase.from("booking_staff_assignments").delete().eq("id", id);
+    mutationFn: async ({ id }: { id: string; bookingId: string; reason?: string }) => {
+      // ST2-19: the RPC refuses when a pay line is paid, records what it
+      // removed, and tells the staff member (future events only).
+      const { error } = await supabase.rpc("admin_delete_staff_assignment" as never, {
+        p_assignment_id: id,
+        p_reason: "Removed from the booking page",
+      } as never);
       if (error) throw error;
     },
     onSuccess: (_, { bookingId }) => {
@@ -1226,11 +1233,30 @@ export function useUpdateStaffAssignment() {
     mutationFn: async ({ id, scheduledStartTime, scheduledEndTime }: {
       id: string; bookingId: string; scheduledStartTime: string | null; scheduledEndTime: string | null;
     }) => {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("booking_staff_assignments")
         .update({ scheduled_start_time: scheduledStartTime, scheduled_end_time: scheduledEndTime })
-        .eq("id", id);
+        .eq("id", id)
+        .select("id, status")
+        .maybeSingle();
       if (error) throw error;
+      if (!data) throw new Error("The assignment was not updated; reload and try again.");
+      // ST2-09: the database rebuilds unpaid pay lines of completed work when
+      // hours change. A line that is already paid is never changed, so tell
+      // the office it needs a bonus or deduction instead.
+      let paidLocked = false;
+      if (data.status === "completed") {
+        const { data: paid, error: paidError } = await supabase
+          .from("staff_payroll_items")
+          .select("id")
+          .eq("assignment_id", id)
+          .eq("paid_status", "paid")
+          .not("pay_category", "in", "(bonus,deduction)")
+          .limit(1);
+        if (paidError) throw paidError;
+        paidLocked = (paid?.length ?? 0) > 0;
+      }
+      return { completed: data.status === "completed", paidLocked };
     },
     onSuccess: (_, { bookingId }) => {
       queryClient.invalidateQueries({ queryKey: ["booking-staff-assignments", bookingId] });

@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useStaffSession } from "./useStaffSession";
+import { isScheduledWork } from "@/lib/staffPortal";
 
 export interface StaffBooking {
   id: string;
@@ -31,6 +32,7 @@ export interface StaffBooking {
   customer_contacted: boolean | null;
   response_status: string | null;
   response_due_at: string | null;
+  assignment_type: string | null;
 }
 
 export interface CleaningReport {
@@ -77,6 +79,7 @@ export function useStaffAssignedBookings() {
           id,
           assignment_role,
           assignment_type,
+          status,
           booking_id,
           customer_contact_due_at,
           customer_contacted,
@@ -107,6 +110,8 @@ export function useStaffAssignedBookings() {
           )
         `)
         .eq("staff_id", staffMember.id)
+        // ST2-12: a cancelled row (e.g. the 11/19 backfill duplicate) is not work.
+        .neq("status", "cancelled")
         .order("created_at", { ascending: false });
       
       if (error) throw error;
@@ -119,6 +124,7 @@ export function useStaffAssignedBookings() {
           ...assignment.bookings,
           assignment_role: assignment.assignment_role,
           assignment_id: assignment.id,
+          assignment_type: assignment.assignment_type ?? null,
           customer_contact_due_at: assignment.customer_contact_due_at,
           customer_contacted: assignment.customer_contacted,
           response_status: assignment.response_status ?? null,
@@ -156,6 +162,10 @@ export function useStaffBookingDetail(bookingId: string) {
         .select("id, assignment_role, assignment_type, tasks, customer_contact_due_at, customer_contacted, customer_contacted_at, status, response_status, response_due_at, scheduled_start_time, scheduled_end_time")
         .eq("booking_id", bookingId)
         .eq("staff_id", staffMember.id)
+        // ST2-12: ignore cancelled rows; never error when a duplicate exists.
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: true })
+        .limit(1)
         .maybeSingle();
 
       if (assignmentError) throw assignmentError;
@@ -325,19 +335,22 @@ export function useStaffScheduleData(dateFrom: string, dateTo: string) {
       // Get all assignments for this staff member
       const { data: assignmentsData, error: assignmentsError } = await supabase
         .from("booking_staff_assignments")
-        .select("booking_id, assignment_role")
-        .eq("staff_id", staffMember.id);
+        .select("booking_id, assignment_role, status, response_status")
+        .eq("staff_id", staffMember.id)
+        .not("booking_id", "is", null);
       
       if (assignmentsError) throw assignmentsError;
       
+      // ST2-13: only work the staff member still has (not cancelled, not declined).
+      
       // Create a map of booking_id -> assignment_role
       const assignmentMap = new Map(
-        assignmentsData?.map(a => [a.booking_id, a.assignment_role]) || []
+        (assignmentsData || []).filter(isScheduledWork).map(a => [a.booking_id, a.assignment_role])
       );
       
       // Filter bookings to only include those assigned to this staff member
       const bookings = (bookingsData || [])
-        .filter(booking => assignmentMap.has(booking.id))
+        .filter(booking => assignmentMap.has(booking.id) && booking.lifecycle_status !== "cancelled")
         .map(booking => ({
           ...booking,
           assignment_role: assignmentMap.get(booking.id),
@@ -379,56 +392,31 @@ export function useMarkBarCustomerContacted() {
 }
 
 // Staff accepts or rejects a booking assignment from the staff portal.
-// Updates response_status, logs a booking_events audit row and notifies admin by email.
+// ST2-16: the RPC records the answer and the database queues the office email
+// (send-staff-notices). The browser no longer calls a public mail function.
 export function useRespondToAssignment() {
   const queryClient = useQueryClient();
   const { staffMember } = useStaffSession();
 
   return useMutation({
     mutationFn: async ({
-      bookingId,
       assignmentId,
       response,
-      reservationNumber,
-      eventDate,
-      assignmentRole,
     }: {
       bookingId: string;
       assignmentId: string;
       response: "accepted" | "rejected";
-      reservationNumber?: string | null;
-      eventDate?: string | null;
-      assignmentRole?: string | null;
     }) => {
       if (!staffMember?.id) throw new Error("Staff session expired. Please log in again.");
 
-      // The RPC writes only the response (and the audit event) and refuses an
-      // assignment that is not this staff member's. It replaced an open table
-      // UPDATE rule that let any visitor change any column (86e40ach2, S-2).
-      const { error } = await (supabase.rpc as any)("staff_respond_to_assignment", {
+      const { data, error } = await (supabase.rpc as any)("staff_respond_to_assignment", {
         p_assignment_id: assignmentId,
         p_staff_id: staffMember.id,
         p_response: response,
       });
       if (error) throw error;
 
-      // Notify admin by email (best-effort; don't fail the response on email issues)
-      try {
-        await supabase.functions.invoke("send-staff-response-notification", {
-          body: {
-            response,
-            staffName: staffMember?.full_name || "Unknown staff",
-            staffRole: assignmentRole || staffMember?.role || "Staff",
-            reservationNumber: reservationNumber || "N/A",
-            eventDate: eventDate || "N/A",
-            bookingId,
-          },
-        });
-      } catch (emailError) {
-        console.error("Failed to send staff response notification:", emailError);
-      }
-
-      return { success: true };
+      return { success: true, changed: (data as { changed?: boolean } | null)?.changed !== false };
     },
     onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["staff-assigned-bookings"] });

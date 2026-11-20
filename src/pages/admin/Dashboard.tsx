@@ -31,6 +31,7 @@ import { AUTO_RETRY_STEPS, EXTERNAL_SETUP_LABELS } from "@/lib/externalSetup";
 import { format } from "date-fns";
 import AccessCodeAdminCard from "@/components/admin/AccessCodeAdminCard";
 import RecurringAccessCodesCard from "@/components/admin/RecurringAccessCodesCard";
+import StaffResponsesCard from "@/components/admin/StaffResponsesCard";
 import { eventTypeLabel } from "@/lib/eventTypes";
 import { lifecycleLabel } from "@/lib/statusLabels";
 import { formatMoney } from "@/lib/paymentSummary";
@@ -247,6 +248,9 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* ST2-16: staff accept / decline answers */}
+      <StaffResponsesCard />
 
       {/* External bookings whose post-create steps did not all run */}
       {externalSetupAlerts && externalSetupAlerts.length > 0 && (

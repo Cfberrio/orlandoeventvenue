@@ -1,4 +1,4 @@
-import { Navigate } from "react-router-dom";
+import { Navigate, useLocation } from "react-router-dom";
 import { useStaffSession } from "@/hooks/useStaffSession";
 
 interface StaffProtectedRouteProps {
@@ -7,6 +7,7 @@ interface StaffProtectedRouteProps {
 
 export default function StaffProtectedRoute({ children }: StaffProtectedRouteProps) {
   const { staffMember, isLoading } = useStaffSession();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -17,7 +18,9 @@ export default function StaffProtectedRoute({ children }: StaffProtectedRoutePro
   }
 
   if (!staffMember) {
-    return <Navigate to="/staff/login" replace />;
+    // ST2-14: come back to the page the email linked to after signing in.
+    const next = `${location.pathname}${location.search}`;
+    return <Navigate to={`/staff/login?next=${encodeURIComponent(next)}`} replace />;
   }
 
   return <>{children}</>;

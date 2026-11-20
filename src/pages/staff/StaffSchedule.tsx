@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,8 +18,10 @@ import {
   subMonths,
   eachDayOfInterval,
   isSameDay,
+  isSameMonth,
   parseISO
 } from "date-fns";
+import { monthGridRange } from "@/lib/staffPortal";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500 text-white",
@@ -38,29 +40,21 @@ export default function StaffSchedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const { staffMember } = useStaffSession();
 
-  const dateFrom = viewMode === "week" 
-    ? format(startOfWeek(currentDate), "yyyy-MM-dd")
-    : format(startOfMonth(currentDate), "yyyy-MM-dd");
-  const dateTo = viewMode === "week"
-    ? format(endOfWeek(currentDate), "yyyy-MM-dd")
-    : format(endOfMonth(currentDate), "yyyy-MM-dd");
+  // ST2-13: the month grid starts on the Sunday of the first week (Dec 1, a
+  // Tuesday, sits under Tue), like the admin Schedule.
+  const range = viewMode === "week"
+    ? { start: startOfWeek(currentDate), end: endOfWeek(currentDate) }
+    : monthGridRange(currentDate);
+  const dateFrom = format(range.start, "yyyy-MM-dd");
+  const dateTo = format(range.end, "yyyy-MM-dd");
+  // The header count covers the month itself, not the padding days.
+  const periodFrom = viewMode === "week" ? dateFrom : format(startOfMonth(currentDate), "yyyy-MM-dd");
+  const periodTo = viewMode === "week" ? dateTo : format(endOfMonth(currentDate), "yyyy-MM-dd");
 
   const { data, isLoading } = useStaffScheduleData(dateFrom, dateTo);
+  const periodBookings = (data?.bookings ?? []).filter((b) => b.event_date >= periodFrom && b.event_date <= periodTo);
 
-  // Debug logging
-  useEffect(() => {
-    if (data?.bookings) {
-      console.log(`[Staff Calendar] ${staffMember?.full_name} (${staffMember?.role}) - ${data.bookings.length} bookings found for ${dateFrom} to ${dateTo}`);
-      data.bookings.forEach(b => {
-        console.log(`  - ${b.event_date}: ${b.full_name} (${b.event_type}) - Role: ${b.assignment_role}`);
-      });
-    }
-  }, [data, staffMember, dateFrom, dateTo]);
-
-  const days = eachDayOfInterval({
-    start: viewMode === "week" ? startOfWeek(currentDate) : startOfMonth(currentDate),
-    end: viewMode === "week" ? endOfWeek(currentDate) : endOfMonth(currentDate),
-  });
+  const days = eachDayOfInterval(range);
 
   const navigate = (direction: "prev" | "next") => {
     if (viewMode === "week") {
@@ -106,7 +100,7 @@ export default function StaffSchedule() {
           <p className="text-sm text-muted-foreground mt-1">
             {staffMember?.full_name} ({staffMember?.role})
             {!isLoading && data && (
-              <> • <span className="font-medium text-primary">{data.bookings.length} assigned booking{data.bookings.length !== 1 ? 's' : ''}</span> in this period</>
+              <> • <span className="font-medium text-primary">{periodBookings.length} assigned booking{periodBookings.length !== 1 ? 's' : ''}</span> in this period</>
             )}
           </p>
         </div>
@@ -149,13 +143,37 @@ export default function StaffSchedule() {
         <CardContent>
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading schedule...</div>
-          ) : data?.bookings.length === 0 ? (
+          ) : periodBookings.length === 0 ? (
             <div className="p-8 text-center">
               <p className="text-muted-foreground">No bookings assigned to you in this period.</p>
               <p className="text-sm text-muted-foreground mt-2">Navigate to other weeks/months to see your assignments.</p>
             </div>
           ) : (
-            <div className={`grid gap-2 ${viewMode === "week" ? "grid-cols-7" : "grid-cols-7"}`}>
+            <>
+            {/* Phones: a 7-column grid is ~43px per day, so list the days with work instead. */}
+            <div className="md:hidden space-y-3">
+              {days
+                .filter((day) => getEventsForDay(day).length > 0 && (viewMode === "week" || isSameMonth(day, currentDate)))
+                .map((day) => (
+                  <div key={day.toISOString()} className="space-y-2">
+                    <div className={`text-sm font-semibold ${isSameDay(day, new Date()) ? "text-primary" : "text-foreground"}`}>
+                      {format(day, "EEE, MMM d")}
+                    </div>
+                    {getEventsForDay(day).map((event) => (
+                      <Link
+                        key={event.id}
+                        to={event.linkTo}
+                        className={`block p-3 rounded-md text-sm ${event.color} hover:opacity-90`}
+                      >
+                        <div className="font-medium break-words">{event.time} · {event.title}</div>
+                        <div className="text-xs opacity-90 break-words">{event.subtitle}</div>
+                        <div className="text-xs opacity-90">Your role: {event.role}</div>
+                      </Link>
+                    ))}
+                  </div>
+                ))}
+            </div>
+            <div className="hidden md:grid gap-2 grid-cols-7">
               {/* Day headers */}
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
@@ -169,10 +187,11 @@ export default function StaffSchedule() {
                 const isToday = isSameDay(day, new Date());
                 const hasEvents = events.length > 0;
                 
+                const outside = viewMode === "month" && !isSameMonth(day, currentDate);
                 return (
                   <div
                     key={day.toISOString()}
-                    className={`min-h-[120px] border rounded-lg p-2 ${
+                    className={`min-h-[120px] border rounded-lg p-2 ${outside ? "opacity-50 " : ""}${
                       isToday 
                         ? "border-primary bg-primary/5" 
                         : hasEvents
@@ -214,12 +233,13 @@ export default function StaffSchedule() {
                 );
               })}
             </div>
+            </>
           )}
         </CardContent>
       </Card>
 
       {/* Visual Guide */}
-      {!isLoading && data && data.bookings.length > 0 && (
+      {!isLoading && periodBookings.length > 0 && (
         <div className="text-sm p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
           <strong className="text-blue-900 dark:text-blue-100">📅 Visual Guide:</strong>{" "}
           <span className="text-blue-800 dark:text-blue-200">

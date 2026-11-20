@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,11 +9,13 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useStaffSession } from "@/hooks/useStaffSession";
 import oevLogoIcon from "@/assets/oev-logo-icon.png";
+import { safeStaffNext } from "@/lib/staffPortal";
 
 export default function StaffLogin() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { refreshSession } = useStaffSession();
 
@@ -89,7 +91,7 @@ export default function StaffLogin() {
       await refreshSession();
 
       toast({ title: `Welcome, ${staffMember.full_name}!` });
-      navigate("/staff");
+      navigate(safeStaffNext(searchParams.get("next")), { replace: true });
     } catch (error) {
       console.error("Login error:", error);
       toast({ 

@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import StandaloneAssignmentModal from "./StandaloneAssignmentModal";
+import MissingHoursCard from "./MissingHoursCard";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -143,13 +144,13 @@ export default function StandaloneAssignmentsView({
     if (result.error) {
       toast({
         title: "Update Failed",
-        description: "Failed to mark assignment as complete",
+        description: result.error.message || "Failed to mark assignment as complete",
         variant: "destructive",
       });
     } else {
       toast({
         title: "Assignment Completed",
-        description: "Assignment marked as complete and payroll calculated",
+        description: "Pay was calculated from the staff member's pay type. Hourly work with no hours shows under Hours missing.",
       });
       loadAssignments();
     }
@@ -187,6 +188,8 @@ export default function StandaloneAssignmentsView({
   return (
     <>
       <div className="space-y-4">
+        {/* ST2-03: hourly standalone jobs completed without hours get no pay line; list them here too. */}
+        <MissingHoursCard onChanged={loadAssignments} />
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">

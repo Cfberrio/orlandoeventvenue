@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useUpdateStaffAssignment, type StaffAssignment } from "@/hooks/useAdminData";
 import { getAssignmentHours, isValidTimeRange, toTimeInputValue } from "@/lib/assignmentHours";
+import { errorText } from "@/lib/staffPortal";
 
 interface Props {
   assignment: StaffAssignment;
@@ -39,27 +40,43 @@ export default function StaffHoursEditDialog({ assignment, bookingId, open, onOp
     bookingEndTime: assignment.booking?.end_time ?? null,
   });
 
+  // ST2-09: completed work gets its unpaid pay line rebuilt from the new
+  // hours; a paid line is never changed, so say so.
+  const notifyPay = (result: { completed?: boolean; paidLocked?: boolean } | undefined, title: string) => {
+    if (result?.paidLocked) {
+      toast({
+        title: `${title}, but pay was not changed`,
+        description: "This work is already marked paid. Add a bonus or deduction in Payroll if the amount must change.",
+        variant: "destructive",
+      });
+    } else if (result?.completed) {
+      toast({ title, description: "The unpaid pay line was recalculated from these hours." });
+    } else {
+      toast({ title });
+    }
+  };
+
   const save = async () => {
     if (!isValidTimeRange(start, end)) {
       toast({ title: "Invalid schedule", description: "The end time must be after the start time.", variant: "destructive" });
       return;
     }
     try {
-      await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: start, scheduledEndTime: end });
-      toast({ title: "Staff hours updated" });
+      const result = await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: start, scheduledEndTime: end });
+      notifyPay(result, "Staff hours updated");
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "Could not update", description: "Try again.", variant: "destructive" });
+      toast({ title: "Could not update", description: errorText(e, "Try again."), variant: "destructive" });
     }
   };
 
   const reset = async () => {
     try {
-      await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: null, scheduledEndTime: null });
-      toast({ title: "Hours reset to the event schedule" });
+      const result = await mutateAsync({ id: assignment.id, bookingId, scheduledStartTime: null, scheduledEndTime: null });
+      notifyPay(result, "Hours reset to the event schedule");
       onOpenChange(false);
     } catch (e) {
-      toast({ title: "Could not reset", description: "Try again.", variant: "destructive" });
+      toast({ title: "Could not reset", description: errorText(e, "Try again."), variant: "destructive" });
     }
   };
 
