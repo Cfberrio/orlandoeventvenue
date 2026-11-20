@@ -90,7 +90,7 @@ const GuestsEventStep = ({ data, updateData, onNext, onBack }: GuestsEventStepPr
                     <SelectValue placeholder="Select event type" />
                   </SelectTrigger>
                 </FormControl>
-                <SelectContent className="bg-background">
+                <SelectContent className="bg-background w-[var(--radix-select-trigger-width)] max-w-[calc(100vw-2rem)]">
                   <SelectItem value="birthday-party">Birthday Party (adults or kids)</SelectItem>
                   <SelectItem value="baby-shower">Baby Shower</SelectItem>
                   <SelectItem value="bridal-shower">Bridal Shower</SelectItem>

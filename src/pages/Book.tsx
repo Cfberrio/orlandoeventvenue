@@ -13,6 +13,7 @@ import SummaryStep from "@/components/booking/SummaryStep";
 import ContactPoliciesStep from "@/components/booking/ContactPoliciesStep";
 import PaymentStep from "@/components/booking/PaymentStep";
 import { PhotoBackdrop } from "@/components/PhotoBand";
+import { canJumpToStep } from "@/lib/bookSteps";
 import {
   trackAddonsSelected,
   trackBookLandingViewed,
@@ -213,17 +214,29 @@ const Book = () => {
           <div className="mb-8">
             <Progress value={progress} className="h-3" />
             <div className="flex justify-between mt-2 text-sm text-muted-foreground">
-              {stepTitles.map((title, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToStep(index + 1)}
-                  className={`text-xs md:text-sm hover:text-foreground transition-colors ${
-                    currentStep === index + 1 ? "text-primary font-semibold" : ""
-                  } ${currentStep > index + 1 ? "text-foreground" : ""}`}
-                >
-                  {index + 1}. {title}
-                </button>
-              ))}
+              {stepTitles.map((title, index) => {
+                const step = index + 1;
+                // UI2-15: the labels used to jump to any step with no validation
+                // (step 6 with nothing filled showed "Pay $0.00"). Only steps
+                // already completed can be revisited.
+                const reachable = canJumpToStep(step, currentStep);
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => reachable && goToStep(step)}
+                    disabled={!reachable}
+                    aria-current={currentStep === step ? "step" : undefined}
+                    className={`-my-2 px-0.5 py-2 text-xs md:text-sm transition-colors disabled:cursor-default ${
+                      reachable ? "hover:text-foreground underline-offset-2 hover:underline" : ""
+                    } ${currentStep === step ? "text-primary font-semibold" : ""} ${
+                      currentStep > step ? "text-foreground" : ""
+                    }`}
+                  >
+                    {step}. {title}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

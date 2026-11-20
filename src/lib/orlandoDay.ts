@@ -27,3 +27,18 @@ export function orlandoDayRange(from?: string, to?: string): { gte?: string; lt?
   }
   return out;
 }
+
+/**
+ * Today's calendar date in Orlando as "yyyy-MM-dd". `toISOString()` gives the
+ * UTC date, which is already tomorrow after ~7-8 pm Orlando time (UI2-13/14).
+ */
+export function orlandoToday(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(now);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}

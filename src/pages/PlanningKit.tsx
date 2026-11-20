@@ -119,7 +119,7 @@ function FillField({
       placeholder={placeholder}
       value={kit.state.fields[key] ?? ""}
       onChange={(e) => kit.setField(id, row, column, e.target.value)}
-      className="h-9 text-[15px]"
+      className="h-9 text-base sm:text-[15px]"
     />
   );
 }

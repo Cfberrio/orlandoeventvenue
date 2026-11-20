@@ -300,7 +300,7 @@ export default function Cleaning() {
 
       {/* View Report Dialog */}
       <Dialog open={!!selectedReport} onOpenChange={(open) => !open && setSelectedReport(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh]">
+        <DialogContent className="max-w-4xl max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh]">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="h-5 w-5" />
@@ -389,7 +389,8 @@ export default function Cleaning() {
                                   alt={`${field.label} ${idx + 1}`}
                                   className="w-full h-24 object-cover rounded-md border border-border"
                                 />
-                                <div className="absolute inset-0 bg-background/80 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-md">
+                                {/* UI2-11: no hover on a phone, so the buttons stay visible below md. */}
+                                <div className="absolute inset-x-0 bottom-0 md:inset-0 bg-background/80 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-b-md md:rounded-md py-1 md:py-0">
                                   <Button
                                     size="sm"
                                     variant="secondary"

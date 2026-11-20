@@ -414,17 +414,23 @@ const VirtualTour = () => {
             <ChevronLeft className="h-6 w-6 sm:h-5 sm:w-5" />
           </button>
 
-          <div className="flex items-center gap-2 rounded-full bg-black/40 px-4 py-2 backdrop-blur">
+          {/* UI2-16: each dot is a 40px-tall button (the padding is the tap area,
+              and replaces the old 8px gap); the pill looks the same. */}
+          <div className="flex items-center rounded-full bg-black/40 px-3 py-2 backdrop-blur">
             {SCENES.map((s, i) => (
               <button
                 key={s.id}
                 onClick={() => goTo(i, i > stateRef.current.index ? 1 : -1)}
                 aria-label={`Go to ${sceneLabel(s)}`}
                 aria-current={i === index}
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  i === index ? "w-6 bg-white" : "w-2 bg-white/40 hover:bg-white/70"
-                }`}
-              />
+                className="group -my-4 flex items-center px-1 py-4"
+              >
+                <span
+                  className={`block h-2 rounded-full transition-all duration-300 ${
+                    i === index ? "w-6 bg-white" : "w-2 bg-white/40 group-hover:bg-white/70"
+                  }`}
+                />
+              </button>
             ))}
           </div>
 

@@ -18,6 +18,7 @@ import {
 import { toast } from "sonner";
 import { Repeat, Loader2, Copy, Pause, Play, Trash2, Plus } from "lucide-react";
 import { PUBLIC_SITE_URL } from "@/lib/siteUrl";
+import { orlandoToday } from "@/lib/orlandoDay";
 
 interface RecurringCode {
   id: string;
@@ -41,7 +42,8 @@ function formatDate(d: string): string {
 
 function isExpired(code: RecurringCode): boolean {
   if (!code.expires_on) return false;
-  const today = new Date().toISOString().slice(0, 10);
+  // Orlando date, same clock as the door lookup (UI2-13).
+  const today = orlandoToday();
   return code.expires_on < today;
 }
 
@@ -145,7 +147,8 @@ const RecurringAccessCodesCard = () => {
       reservation_number: number,
       holder_name: name,
       email: newEmail.trim() || null,
-      valid_from: new Date().toISOString().slice(0, 10),
+      // Orlando date: a UTC date starts the code tomorrow after ~8 pm ET (UI2-13).
+      valid_from: orlandoToday(),
       // No expiration — the code stays valid until it is paused or deleted.
       expires_on: null,
       updated_by: userData?.user?.id ?? null,

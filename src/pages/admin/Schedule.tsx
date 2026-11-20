@@ -12,6 +12,9 @@ import { ExternalBookingWizard } from "@/components/admin/ExternalBookingWizard"
 import { eventTypeLabel } from "@/lib/eventTypes";
 import { cleaningTypeLabel, paymentStatusLabel } from "@/lib/statusLabels";
 import { formatMoney } from "@/lib/paymentSummary";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScheduleAgenda, ScheduleDayEvents } from "@/components/admin/ScheduleAgenda";
+import { agendaDays, type ScheduleEvent } from "@/lib/scheduleAgenda";
 import { 
   format, 
   startOfWeek, 
@@ -50,6 +53,8 @@ export default function Schedule() {
   const [showExternalBookings, setShowExternalBookings] = useState(true);
   const [internalBookingOpen, setInternalBookingOpen] = useState(false);
   const [externalBookingOpen, setExternalBookingOpen] = useState(false);
+  // "+N more" in a calendar cell opens that day's full list (UI2-4).
+  const [openDay, setOpenDay] = useState<Date | null>(null);
 
   // Month view pads the grid to whole weeks (Sun–Sat) so each date sits
   // under its real weekday; the padding days come from the adjacent months.
@@ -83,17 +88,7 @@ export default function Schedule() {
   };
 
   const getEventsForDay = (day: Date) => {
-    const events: Array<{
-      type: "booking" | "cleaning" | "block";
-      id: string;
-      title: string;
-      subtitle: string;
-      time: string;
-      color: string;
-      linkTo: string;
-      bookingOrigin?: "website" | "internal" | "external";
-      cancelled?: boolean;
-    }> = [];
+    const events: ScheduleEvent[] = [];
 
     // Add availability blocks
     if (showBlocks) {
@@ -380,7 +375,15 @@ export default function Schedule() {
           {isLoading ? (
             <div className="p-8 text-center text-muted-foreground">Loading schedule...</div>
           ) : (
-            <div className={`grid gap-2 ${viewMode === "week" ? "grid-cols-7" : "grid-cols-7"}`}>
+            <>
+            {/* Phones: agenda list (UI2-4). The 7-column grid starts at md. */}
+            <div className="md:hidden">
+              <ScheduleAgenda
+                groups={agendaDays(days, getEventsForDay, viewMode, currentDate)}
+                emptyLabel={viewMode === "week" ? "Nothing scheduled this week." : "Nothing scheduled this month."}
+              />
+            </div>
+            <div className="hidden md:grid gap-2 grid-cols-7">
               {/* Day headers */}
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
                 <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
@@ -446,18 +449,35 @@ export default function Schedule() {
                         );
                       })}
                       {events.length > 5 && (
-                        <div className="text-xs text-muted-foreground">
+                        <button
+                          type="button"
+                          onClick={() => setOpenDay(day)}
+                          className="text-xs text-muted-foreground hover:text-foreground hover:underline"
+                        >
                           +{events.length - 5} more
-                        </div>
+                        </button>
                       )}
                     </div>
                   </div>
                 );
               })}
             </div>
+            </>
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={openDay !== null} onOpenChange={(o) => !o && setOpenDay(null)}>
+        <DialogContent
+          aria-describedby={undefined}
+          className="max-w-lg max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto"
+        >
+          <DialogHeader>
+            <DialogTitle>{openDay ? format(openDay, "EEEE, MMMM d, yyyy") : ""}</DialogTitle>
+          </DialogHeader>
+          {openDay && <ScheduleDayEvents events={getEventsForDay(openDay)} />}
+        </DialogContent>
+      </Dialog>
 
       {/* Legend */}
       <Card>

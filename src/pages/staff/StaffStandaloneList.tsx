@@ -25,7 +25,7 @@ export default function StaffStandaloneList() {
         <Card>
           <CardHeader>
             <Skeleton className="h-8 w-64" />
-            <Skeleton className="h-4 w-96 mt-2" />
+            <Skeleton className="h-4 w-full max-w-96 mt-2" />
           </CardHeader>
           <CardContent className="space-y-4">
             {[1, 2, 3].map((i) => (
