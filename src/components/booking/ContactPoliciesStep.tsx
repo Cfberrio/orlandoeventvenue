@@ -13,6 +13,7 @@ import { formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import { ShieldCheck, Loader2 } from "lucide-react";
 import { LicenseUploadError, uploadLicenseFile, validateLicenseFile } from "@/lib/licenseUpload";
 import LicenseCapture from "./LicenseCapture";
+import { fitSavedSignature, shouldResizeSignatureCanvas } from "@/lib/signatureCanvas";
 import { toast } from "sonner";
 
 
@@ -95,6 +96,7 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
   }, [form]);
 
   // Initialize canvas size
+  const padWidthRef = useRef<number | null>(null);
   useEffect(() => {
     const resizeCanvas = () => {
       const canvas = canvasRef.current;
@@ -103,6 +105,13 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
 
       const rect = container.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
+
+      // UI2-1: setting canvas.width wipes the drawing, and iPhone Safari fires
+      // `resize` whenever its toolbar collapses on scroll. Only resize when the
+      // width really changed, and then repaint the saved signature.
+      if (!shouldResizeSignatureCanvas(padWidthRef.current, rect.width)) return;
+      padWidthRef.current = rect.width;
+      const saved = form.getValues("signature");
 
       // Set canvas internal size (scaled by device pixel ratio for crisp lines)
       canvas.width = rect.width * dpr;
@@ -120,13 +129,23 @@ const ContactPoliciesStep = ({ data, updateData, onNext, onBack }: ContactPolici
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
+
+        // Repaint the signature already given (also covers coming back to this step).
+        if (saved && saved.startsWith('data:image/')) {
+          const img = new Image();
+          img.onload = () => {
+            const { width, height } = fitSavedSignature(img.width, img.height, dpr, rect.width, 200);
+            if (width > 0 && height > 0) ctx.drawImage(img, 0, 0, width, height);
+          };
+          img.src = saved;
+        }
       }
     };
 
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     return () => window.removeEventListener('resize', resizeCanvas);
-  }, []);
+  }, [form]);
 
   const getCoordinates = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;

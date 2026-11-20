@@ -82,16 +82,24 @@ export function ConsentBanner() {
   );
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[70] sm:inset-x-auto sm:right-4 sm:bottom-4 sm:max-w-md">
-      <div className="rounded-2xl border bg-background p-4 shadow-2xl sm:p-5">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
+    // UI2-2: on a phone the full text covered half the screen, so below `sm`
+    // the banner shows a one-line summary of the same policy.
+    <div role="region" aria-label="Cookies at Orlando Event Venue" className="fixed inset-x-3 bottom-3 z-[70] sm:inset-x-auto sm:right-4 sm:bottom-4 sm:max-w-md">
+      <div className="rounded-2xl border bg-background p-3 shadow-2xl sm:p-5">
+        <h3 className="hidden text-sm font-bold uppercase tracking-wider text-primary sm:block">
           Cookies at Orlando Event Venue
         </h3>
-        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-          We use essential cookies to run the site and to process your booking, first-party
-          analytics to understand how guests plan their events, and advertising cookies (Meta,
-          Google) so we can show relevant ads and measure which ones bring real bookings. We never
-          sell your information.{" "}
+        <p className="text-xs leading-snug text-muted-foreground sm:mt-1 sm:leading-relaxed">
+          <span className="sm:hidden">
+            We use cookies to run the site, measure visits and show relevant ads (Meta, Google).
+            We never sell your information.
+          </span>
+          <span className="hidden sm:inline">
+            We use essential cookies to run the site and to process your booking, first-party
+            analytics to understand how guests plan their events, and advertising cookies (Meta,
+            Google) so we can show relevant ads and measure which ones bring real bookings. We never
+            sell your information.
+          </span>{" "}
           <Link to="/privacy-policy" className="font-semibold text-primary hover:underline">
             Privacy Policy
           </Link>
@@ -115,7 +123,7 @@ export function ConsentBanner() {
           </div>
         )}
 
-        <div className="mt-3 flex flex-wrap items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2 sm:mt-3">
           {manage ? (
             <Button size="sm" onClick={() => decide(toggles, "custom")}>
               Save choices

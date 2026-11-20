@@ -17,6 +17,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { EMAIL_REGEX, formatPhoneNumber, isValidPhone } from "@/lib/utils";
 import { randomUuid } from "@/lib/tracking/core";
 import { trackPopupLead } from "@/lib/tracking/funnel";
+import { getConsent, onConsentChange } from "@/lib/tracking/consent";
+import { orlandoToday } from "@/lib/orlandoDay";
 
 const POPUP_DELAY_MS = 5000;
 // New key so visitors who dismissed the old $100 popup still see the kit offer once.
@@ -51,17 +53,33 @@ export default function DiscountPopup() {
   const [submitted, setSubmitted] = useState(false);
   const { toast } = useToast();
 
-  const todayISO = new Date().toISOString().split("T")[0];
+  // Orlando date: the UTC date is already tomorrow after ~7 pm ET (UI2-14).
+  const todayISO = orlandoToday();
 
   useEffect(() => {
     const alreadyShown = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (alreadyShown) return;
 
-    const timer = setTimeout(() => {
-      setIsOpen(true);
-    }, POPUP_DELAY_MS);
+    // UI2-2: while the cookie banner is still waiting for an answer it sits on
+    // top of this modal, covers its fields and can't be tapped. Start the
+    // 5 s clock only once consent is decided.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const startTimer = () => {
+      if (timer) return;
+      timer = setTimeout(() => setIsOpen(true), POPUP_DELAY_MS);
+    };
 
-    return () => clearTimeout(timer);
+    let unsubscribe: (() => void) | undefined;
+    if (getConsent()) {
+      startTimer();
+    } else {
+      unsubscribe = onConsentChange(() => startTimer());
+    }
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      unsubscribe?.();
+    };
   }, []);
 
   const handleOpenChange = (open: boolean) => {
@@ -195,7 +213,7 @@ export default function DiscountPopup() {
 
   return (
     <Dialog open={isOpen} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-md bg-card border-border max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-md bg-card border-border max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto">
         {!submitted ?
         <>
             <DialogHeader className="text-center space-y-2">

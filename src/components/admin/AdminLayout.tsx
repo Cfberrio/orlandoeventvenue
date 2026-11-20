@@ -62,10 +62,11 @@ export default function AdminLayout() {
 
       {/* Sidebar */}
       <aside className={cn(
-        "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out",
+        // UI2-10: the 14-item menu is taller than a small phone; let it scroll.
+        "fixed lg:static inset-y-0 left-0 z-50 w-64 bg-card border-r border-border transform transition-transform duration-200 ease-in-out flex flex-col max-h-screen supports-[height:100dvh]:max-h-[100dvh] lg:max-h-none",
         sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
       )}>
-        <div className="flex items-center justify-between h-16 px-4 bg-primary border-b border-primary">
+        <div className="flex shrink-0 items-center justify-between h-16 px-4 bg-primary border-b border-primary">
           <div className="flex items-center gap-2 min-w-0">
             <img
               src={oevLogoIcon}
@@ -83,7 +84,7 @@ export default function AdminLayout() {
             <X className="h-5 w-5" />
           </Button>
         </div>
-        <nav className="p-4 space-y-1">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 space-y-1">
           {navItems.map((item) => (
             <NavLink
               key={item.to}

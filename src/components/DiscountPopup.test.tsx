@@ -1,19 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const { fromMock, insertMock, invokeMock, toastMock, trackPopupLeadMock } = vi.hoisted(() => ({
-  fromMock: vi.fn(),
-  insertMock: vi.fn(),
-  invokeMock: vi.fn(),
-  toastMock: vi.fn(),
-  trackPopupLeadMock: vi.fn(),
-}));
+const { fromMock, insertMock, invokeMock, toastMock, trackPopupLeadMock, getConsentMock, consentListeners } =
+  vi.hoisted(() => ({
+    fromMock: vi.fn(),
+    insertMock: vi.fn(),
+    invokeMock: vi.fn(),
+    toastMock: vi.fn(),
+    trackPopupLeadMock: vi.fn(),
+    getConsentMock: vi.fn(),
+    consentListeners: [] as Array<() => void>,
+  }));
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: { from: fromMock, functions: { invoke: invokeMock } },
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: toastMock }) }));
 vi.mock("@/lib/tracking/funnel", () => ({ trackPopupLead: trackPopupLeadMock }));
+vi.mock("@/lib/tracking/consent", () => ({
+  getConsent: getConsentMock,
+  onConsentChange: (cb: () => void) => {
+    consentListeners.push(cb);
+    return () => consentListeners.splice(consentListeners.indexOf(cb), 1);
+  },
+}));
+
+const DECIDED = { v: 1, ts: "2026-11-19T00:00:00Z", preferences: false, analytics: false, advertising: false };
 
 import DiscountPopup from "./DiscountPopup";
 
@@ -72,6 +84,7 @@ describe("DiscountPopup submit", () => {
         disconnect() {}
       },
     );
+    getConsentMock.mockReturnValue(DECIDED);
     fromMock.mockReturnValue({ insert: insertMock });
     insertMock.mockImplementation(() => insertBuilder({ error: null }));
     invokeMock.mockResolvedValue({ data: { ok: true }, error: null });
@@ -158,5 +171,61 @@ describe("DiscountPopup submit", () => {
     expect(invokeMock).not.toHaveBeenCalled();
     expect(trackPopupLeadMock).not.toHaveBeenCalled();
     expect(localStorage.getItem("popup_kit_shown")).toBeNull();
+  });
+});
+
+describe("DiscountPopup vs the cookie banner (UI2-2)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    consentListeners.length = 0;
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  const popupOpen = () => screen.queryByText(/free event planning kit/i) !== null;
+
+  it("waits while consent is undecided, then opens 5 s after the decision", () => {
+    getConsentMock.mockReturnValue(null);
+    render(<DiscountPopup />);
+    act(() => {
+      vi.advanceTimersByTime(30000);
+    });
+    expect(popupOpen()).toBe(false);
+
+    act(() => {
+      consentListeners.forEach((cb) => cb());
+    });
+    act(() => {
+      vi.advanceTimersByTime(4999);
+    });
+    expect(popupOpen()).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(popupOpen()).toBe(true);
+  });
+
+  it("opens at 5 s when consent was already decided on an earlier visit", () => {
+    getConsentMock.mockReturnValue(DECIDED);
+    render(<DiscountPopup />);
+    act(() => {
+      vi.advanceTimersByTime(5000);
+    });
+    expect(popupOpen()).toBe(true);
+    expect(consentListeners).toHaveLength(0);
+  });
+
+  it("never opens again once it was shown", () => {
+    localStorage.setItem("popup_kit_shown", "true");
+    getConsentMock.mockReturnValue(DECIDED);
+    render(<DiscountPopup />);
+    act(() => {
+      vi.advanceTimersByTime(10000);
+    });
+    expect(popupOpen()).toBe(false);
   });
 });

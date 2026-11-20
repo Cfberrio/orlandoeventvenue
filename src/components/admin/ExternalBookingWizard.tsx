@@ -306,7 +306,7 @@ export function ExternalBookingWizard({ open, onOpenChange }: ExternalBookingWiz
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-lg max-h-[90vh] supports-[height:100dvh]:max-h-[90dvh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create External Booking</DialogTitle>
           <DialogDescription>
