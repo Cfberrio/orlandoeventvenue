@@ -168,7 +168,7 @@ export default function PayrollDateRangePicker({
                 <Button
                   variant="outline"
                   className={cn(
-                    "min-w-[280px] justify-center text-base font-semibold h-9",
+                    "min-w-0 flex-1 sm:flex-none sm:min-w-[280px] justify-center text-sm sm:text-base font-semibold h-9 truncate",
                   )}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />

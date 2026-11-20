@@ -631,8 +631,13 @@ export default function BookingDetail() {
     try {
       await deleteAssignment.mutateAsync({ id: assignmentId, bookingId: booking.id });
       toast({ title: "Staff removed" });
-    } catch {
-      toast({ title: "Failed to remove staff", variant: "destructive" });
+    } catch (err) {
+      // ST2-19: e.g. "This assignment has paid pay lines, so it cannot be deleted."
+      toast({
+        title: "Failed to remove staff",
+        description: err instanceof Error ? err.message : String((err as { message?: string })?.message ?? err),
+        variant: "destructive",
+      });
     }
   };
 

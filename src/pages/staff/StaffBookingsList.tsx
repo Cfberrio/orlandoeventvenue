@@ -19,6 +19,7 @@ import { format, parseISO } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { getAssignmentHours } from "@/lib/assignmentHours";
+import { answerBeforeLabel, canSelfUnassign, errorText } from "@/lib/staffPortal";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -121,22 +122,16 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
         bookingId: booking.id,
         assignmentId: booking.assignment_id,
         response,
-        reservationNumber: booking.reservation_number,
-        eventDate: booking.event_date,
-        assignmentRole: booking.assignment_role,
       });
       toast({
-        title: response === "accepted" ? "Assignment Accepted" : "Assignment Rejected",
-        description:
-          response === "accepted"
-            ? "You confirmed this booking. The administrator has been notified."
-            : "You declined this booking. The administrator has been notified.",
+        title: response === "accepted" ? "Assignment accepted" : "Assignment declined",
+        description: "Thanks. The office will see your answer.",
       });
       setShowRejectDialog(false);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Could not send your response. Please try again.",
+        title: "Your answer was not saved",
+        description: errorText(error),
         variant: "destructive",
       });
     }
@@ -157,27 +152,30 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
       });
       
       toast({
-        title: "Successfully Unassigned",
-        description: "You have been removed from this booking. The administrator has been notified.",
+        title: "You are off this booking",
+        description: "The office was told so they can find someone else.",
       });
       
       setShowUnassignDialog(false);
       setAssignmentIdToRemove(null);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Could not remove the assignment. Please try again.",
+        title: "You are still on this booking",
+        description: errorText(error),
         variant: "destructive",
       });
     }
   };
+
+  const unassignAllowed = canSelfUnassign(booking.event_date, booking.start_time);
+  const answerBefore = answerBeforeLabel(booking.event_date);
   
   return (
     <>
       <Card className={`${isPast ? "opacity-70" : ""} ${isProduction && hasPackage ? "border-l-4 border-l-purple-500 bg-purple-500/5" : ""} ${isBarVendor ? "border-l-4 border-l-amber-500 bg-amber-500/5" : ""}`}>
         <CardContent className="p-4">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 space-y-3">
+          <div className="flex items-start justify-between gap-2 sm:gap-4">
+            <div className="flex-1 min-w-0 space-y-3">
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="outline" className={lifecycleColors[booking.lifecycle_status] || ""}>
                   {booking.lifecycle_status?.replace(/_/g, ' ')}
@@ -259,13 +257,13 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                     <span className="font-semibold text-blue-800 dark:text-blue-200">
                       Do you accept this assignment?
                     </span>
-                    {booking.response_due_at && (
+                    {answerBefore && (
                       <span className="text-xs text-muted-foreground">
-                        Please respond by {format(parseISO(booking.response_due_at), "MM/dd HH:mm")}. The event is not ready until you accept.
+                        {answerBefore}. The event is not ready until you accept.
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <Button
                       size="sm"
                       className="bg-green-600 hover:bg-green-700 text-white"
@@ -288,7 +286,12 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
                   </div>
                 </div>
               )}
-              {!isPast && booking.assignment_id && !isPendingResponse && booking.response_status !== "rejected" && (
+              {!isPast && booking.assignment_id && !isPendingResponse && booking.response_status !== "rejected" && !unassignAllowed && (
+                <p className="pt-2 text-xs text-muted-foreground">
+                  Can't make it? Call the office at (407) 974-5979. Unassigning online closes 48 hours before the event.
+                </p>
+              )}
+              {!isPast && booking.assignment_id && !isPendingResponse && booking.response_status !== "rejected" && unassignAllowed && (
                 <div className="pt-2">
                   <Button
                     variant="outline"
@@ -317,7 +320,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Reject this assignment?</AlertDialogTitle>
             <AlertDialogDescription>
-              You will decline working this event. The administrator will be notified immediately so they can assign someone else.
+              You will decline working this event. The office will see it so they can assign someone else.
               Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -338,7 +341,7 @@ function BookingCard({ booking, isPast }: { booking: any; isPast?: boolean }) {
           <AlertDialogHeader>
             <AlertDialogTitle>Unassign from this booking?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will remove your assignment from this event. The administrator will be notified immediately.
+              This removes you from this event. The office will be told by email.
               Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>

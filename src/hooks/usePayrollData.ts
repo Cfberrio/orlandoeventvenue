@@ -307,16 +307,17 @@ export function usePayrollData() {
       };
     }
     
-    const { error } = await supabase
-      .from('booking_staff_assignments')
-      .delete()
-      .eq('id', assignmentId);
-    
+    // ST2-19: refuses paid work and records the delete (staff_assignment_deletions).
+    const { error } = await supabase.rpc('admin_delete_staff_assignment' as never, {
+      p_assignment_id: assignmentId,
+      p_reason: 'Standalone job deleted in Payroll',
+    } as never);
+
     if (error) {
       console.error('Error deleting standalone assignment:', error);
       return { success: false, error };
     }
-    
+
     return { success: true, error: null };
   };
 

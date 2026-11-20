@@ -14,12 +14,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Calendar, Clock, Users, FileText, ClipboardCheck, UserMinus, Wine, Phone, Mail, MapPin, CheckCircle2, Check, X } from "lucide-react";
 import { useStaffBookingDetail, useBookingCleaningReport, useRemoveStaffAssignment, useMarkBarCustomerContacted, useRespondToAssignment } from "@/hooks/useStaffData";
-import { useStaffSession } from "@/hooks/useStaffSession";
 import { format, parseISO, isToday, isPast } from "date-fns";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import StaffAddonsPanel from "@/components/staff/StaffAddonsPanel";
 import { getAssignmentHours } from "@/lib/assignmentHours";
+import { answerBeforeLabel, canSelfUnassign, errorText, isCleaningAssignment } from "@/lib/staffPortal";
 
 const lifecycleColors: Record<string, string> = {
   pending: "bg-yellow-500/10 text-yellow-600 border-yellow-500/20",
@@ -41,7 +41,6 @@ const packageLabels: Record<string, string> = {
 export default function StaffBookingDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { staffMember } = useStaffSession();
   const { data: booking, isLoading: bookingLoading } = useStaffBookingDetail(id || "");
   const { data: cleaningReport, isLoading: reportLoading } = useBookingCleaningReport(id || "");
   const [showUnassignDialog, setShowUnassignDialog] = useState(false);
@@ -62,22 +61,16 @@ export default function StaffBookingDetail() {
         bookingId: booking.id,
         assignmentId: booking.assignment_id,
         response,
-        reservationNumber: booking.reservation_number,
-        eventDate: booking.event_date,
-        assignmentRole: booking.assignment_role,
       });
       toast({
-        title: response === "accepted" ? "Assignment Accepted" : "Assignment Rejected",
-        description:
-          response === "accepted"
-            ? "You confirmed this booking. The administrator has been notified."
-            : "You declined this booking. The administrator has been notified.",
+        title: response === "accepted" ? "Assignment accepted" : "Assignment declined",
+        description: "Thanks. The office will see your answer.",
       });
       setShowRejectDialog(false);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Could not send your response. Please try again.",
+        title: "Your answer was not saved",
+        description: errorText(error),
         variant: "destructive",
       });
     }
@@ -97,8 +90,8 @@ export default function StaffBookingDetail() {
       });
       
       toast({
-        title: "Successfully Unassigned",
-        description: "You have been removed from this booking. The administrator has been notified.",
+        title: "You are off this booking",
+        description: "The office was told so they can find someone else.",
       });
       
       setShowUnassignDialog(false);
@@ -109,8 +102,8 @@ export default function StaffBookingDetail() {
       }, 1500);
     } catch (error) {
       toast({
-        title: "Error",
-        description: "Could not remove the assignment. Please try again.",
+        title: "You are still on this booking",
+        description: errorText(error),
         variant: "destructive",
       });
     }
@@ -141,6 +134,10 @@ export default function StaffBookingDetail() {
   }
 
   const cleaningStatus = cleaningReport?.status === 'completed' ? 'Completed' : 'Pending';
+  const unassignAllowed = canSelfUnassign(booking.event_date, booking.start_time);
+  const answerBefore = answerBeforeLabel(booking.event_date);
+  // ST2-28: the cleaning report follows the role on this booking, not the profile role.
+  const showCleaningCard = isCleaningAssignment(booking.assignment_role, booking.assignment_type);
 
   const effectiveHours = getAssignmentHours({
     scheduledStartTime: booking.scheduled_start_time ?? null,
@@ -176,14 +173,14 @@ export default function StaffBookingDetail() {
       </div>
 
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold text-foreground break-words">
             {booking.reservation_number || "Booking Details"}
           </h1>
-          <p className="text-muted-foreground">{booking.full_name}</p>
+          <p className="text-muted-foreground break-words">{booking.full_name}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Badge variant="outline" className={lifecycleColors[booking.lifecycle_status] || ""}>
             {booking.lifecycle_status?.replace(/_/g, ' ')}
           </Badge>
@@ -193,7 +190,7 @@ export default function StaffBookingDetail() {
           {booking.assignment_response_status === "rejected" && (
             <Badge className="bg-red-100 text-red-800 border-red-300">✗ Rejected</Badge>
           )}
-          {booking.assignment_id && booking.lifecycle_status !== 'cancelled' && !isPendingResponse && booking.assignment_response_status !== "rejected" && (
+          {booking.assignment_id && booking.lifecycle_status !== 'cancelled' && !isPendingResponse && booking.assignment_response_status !== "rejected" && unassignAllowed && (
             <Button
               variant="outline"
               size="sm"
@@ -207,6 +204,12 @@ export default function StaffBookingDetail() {
         </div>
       </div>
 
+      {booking.assignment_id && booking.lifecycle_status !== 'cancelled' && !isPendingResponse && booking.assignment_response_status !== "rejected" && !unassignAllowed && booking.assignment_status !== "completed" && (
+        <p className="text-sm text-muted-foreground">
+          Can't make it? Call the office at (407) 974-5979. Unassigning online closes 48 hours before the event.
+        </p>
+      )}
+
       {/* Pending response: accept / reject */}
       {booking.assignment_id && isPendingResponse && booking.lifecycle_status !== 'cancelled' && (
         <Card className="border-blue-300/60 bg-blue-50 dark:bg-blue-950/20">
@@ -215,13 +218,13 @@ export default function StaffBookingDetail() {
               <span className="font-semibold text-blue-800 dark:text-blue-200">
                 Do you accept this assignment?
               </span>
-              {booking.assignment_response_due_at && (
+              {answerBefore && (
                 <span className="text-xs text-muted-foreground">
-                  Please respond by {format(parseISO(booking.assignment_response_due_at), "MM/dd HH:mm")}. The event is not ready until you accept.
+                  {answerBefore}. The event is not ready until you accept.
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 size="sm"
                 className="bg-green-600 hover:bg-green-700 text-white"
@@ -533,8 +536,8 @@ export default function StaffBookingDetail() {
         );
       })()}
 
-      {/* Cleaning Report Card - Hidden for Production, Assistant, and Bar Vendor roles */}
-      {staffMember?.role !== 'Production' && staffMember?.role !== 'Assistant' && staffMember?.role !== 'Bar Vendor' && (
+      {/* Cleaning Report Card - only for a cleaning assignment on this booking */}
+      {showCleaningCard && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -571,7 +574,7 @@ export default function StaffBookingDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Reject this assignment?</AlertDialogTitle>
             <AlertDialogDescription>
-              You will decline working this event. The administrator will be notified immediately so they can assign someone else.
+              You will decline working this event. The office will see it so they can assign someone else.
               Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -592,7 +595,7 @@ export default function StaffBookingDetail() {
           <AlertDialogHeader>
             <AlertDialogTitle>Unassign from this booking?</AlertDialogTitle>
             <AlertDialogDescription>
-              This action will remove your assignment from this event. The administrator will be notified immediately.
+              This removes you from this event. The office will be told by email.
               Are you sure you want to continue?
             </AlertDialogDescription>
           </AlertDialogHeader>

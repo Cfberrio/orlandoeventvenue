@@ -31,10 +31,10 @@ import {
   FileText,
 } from "lucide-react";
 import { useStaffSession } from "@/hooks/useStaffSession";
-import { useStaffPayrollData } from "@/hooks/useStaffPayrollData";
-import { PayrollLineItem } from "@/hooks/usePayrollData";
+import { useStaffPayrollData, type StaffPayrollLineItem } from "@/hooks/useStaffPayrollData";
 import { format, startOfMonth, endOfMonth, parseISO } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { awaitingAcceptance, errorText, summarizeStaffPay } from "@/lib/staffPortal";
 
 const PAY_TYPE_LABELS: Record<string, string> = {
   touch_up: "Touch-Up",
@@ -67,18 +67,24 @@ export default function StaffPayments() {
   const [sourceFilter, setSourceFilter] = useState<"all" | "booking" | "standalone">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "paid" | "pending">("all");
 
-  const [lineItems, setLineItems] = useState<PayrollLineItem[]>([]);
+  const [lineItems, setLineItems] = useState<StaffPayrollLineItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const loadData = async () => {
     if (!staffMember?.id) return;
     setIsLoading(true);
     try {
-      const { data } = await fetchStaffPayrollLineItems(staffMember.id, startDate, endDate);
+      const { data, error } = await fetchStaffPayrollLineItems(staffMember.id, startDate, endDate);
+      // ST2-18: a failed load is an error, never "No payment records".
+      if (error) throw error;
+      setLoadError(null);
       setLineItems(data || []);
     } catch (error) {
       console.error("Error loading payroll data:", error);
+      setLoadError(errorText(error, "Could not load your payments."));
+      setLineItems([]);
     } finally {
       setIsLoading(false);
     }
@@ -105,18 +111,9 @@ export default function StaffPayments() {
     return items;
   }, [lineItems, sourceFilter, statusFilter]);
 
-  // Compute totals from filtered items
-  const totals = useMemo(() => {
-    const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.amount), 0);
-    const totalPaid = filteredItems
-      .filter((item) => item.paid_status === "paid")
-      .reduce((sum, item) => sum + Number(item.amount), 0);
-    const totalPending = filteredItems
-      .filter((item) => item.paid_status === "pending")
-      .reduce((sum, item) => sum + Number(item.amount), 0);
-
-    return { totalAmount, totalPaid, totalPending };
-  }, [filteredItems]);
+  // ST2-18: "Owed" excludes paid lines and lines still waiting for the
+  // staff member to accept the booking (those cannot be paid yet).
+  const totals = useMemo(() => summarizeStaffPay(filteredItems), [filteredItems]);
 
   const handleExport = async () => {
     if (!staffMember?.id) return;
@@ -195,8 +192,8 @@ export default function StaffPayments() {
                 <DollarSign className="h-5 w-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Total Owed</p>
-                <p className="text-2xl font-bold">{formatCurrency(totals.totalAmount)}</p>
+                <p className="text-sm text-muted-foreground">Owed to you</p>
+                <p className="text-2xl font-bold">{formatCurrency(totals.owed)}</p>
               </div>
             </div>
           </CardContent>
@@ -210,7 +207,7 @@ export default function StaffPayments() {
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Paid</p>
-                <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.totalPaid)}</p>
+                <p className="text-2xl font-bold text-green-600">{formatCurrency(totals.paid)}</p>
               </div>
             </div>
           </CardContent>
@@ -223,8 +220,9 @@ export default function StaffPayments() {
                 <Clock className="h-5 w-5 text-orange-600" />
               </div>
               <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totals.totalPending)}</p>
+                <p className="text-sm text-muted-foreground">Waiting for your acceptance</p>
+                <p className="text-2xl font-bold text-orange-600">{formatCurrency(totals.awaiting)}</p>
+                <p className="text-xs text-muted-foreground">Accept the booking in My Bookings so it can be paid.</p>
               </div>
             </div>
           </CardContent>
@@ -332,7 +330,15 @@ export default function StaffPayments() {
           </Button>
         </CardHeader>
         <CardContent>
-          {filteredItems.length === 0 ? (
+          {loadError ? (
+            <div className="text-center py-12 bg-destructive/5 rounded-lg border border-destructive/30">
+              <p className="text-destructive font-medium">Could not load your payments</p>
+              <p className="text-sm text-muted-foreground mt-1 break-words">{loadError}</p>
+              <Button variant="outline" size="sm" className="mt-3" onClick={loadData}>
+                Try again
+              </Button>
+            </div>
+          ) : filteredItems.length === 0 ? (
             <div className="text-center py-12 bg-muted/30 rounded-lg">
               <DollarSign className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
               <p className="text-muted-foreground font-medium">No payment records found</p>
@@ -409,6 +415,10 @@ export default function StaffPayments() {
                             <Badge className="bg-green-100 text-green-700 hover:bg-green-100">
                               Paid
                             </Badge>
+                          ) : awaitingAcceptance(item) ? (
+                            <Badge variant="outline" className="border-orange-400 text-orange-700">
+                              Awaiting your acceptance
+                            </Badge>
                           ) : (
                             <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-100">
                               Pending
@@ -463,6 +473,10 @@ export default function StaffPayments() {
                         {item.paid_status === "paid" ? (
                           <Badge className="bg-green-100 text-green-700 hover:bg-green-100 mt-1">
                             Paid
+                          </Badge>
+                        ) : awaitingAcceptance(item) ? (
+                          <Badge variant="outline" className="border-orange-400 text-orange-700 mt-1">
+                            Awaiting your acceptance
                           </Badge>
                         ) : (
                           <Badge variant="secondary" className="bg-orange-100 text-orange-700 hover:bg-orange-100 mt-1">

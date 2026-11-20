@@ -448,11 +448,11 @@ export default function StaffInventory() {
         {/* Location Filter and View Toggle */}
         <Card>
           <CardContent className="pt-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row gap-4 items-stretch sm:items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <span className="text-sm font-medium">Location:</span>
                 <Select value={locationFilter} onValueChange={setLocationFilter}>
-                  <SelectTrigger className="w-[280px]">
+                  <SelectTrigger className="w-full sm:w-[280px]">
                     <SelectValue placeholder="Select location" />
                   </SelectTrigger>
                   <SelectContent>

@@ -57,6 +57,11 @@ verify_jwt = false
 [functions.send-staff-assignment]
 verify_jwt = false
 
+# Called by pg_net from the DB with no JWT; it only sends rows the DB queued
+# in staff_notifications (claimed atomically), so it takes no input.
+[functions.send-staff-notices]
+verify_jwt = false
+
 [functions.send-staff-response-notification]
 verify_jwt = false
 

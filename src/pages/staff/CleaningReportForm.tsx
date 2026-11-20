@@ -690,11 +690,14 @@ function MediaUploadSection({
                 alt={`${fieldId} ${index + 1}`}
                 className="h-24 w-24 object-cover rounded-md border border-border"
               />
+              {/* ST2-22: always visible; phones have no hover, so a wrong photo could not be removed. */}
               <button
+                type="button"
                 onClick={() => onRemove(index)}
-                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                aria-label="Remove photo"
+                className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full p-1.5 shadow-md"
               >
-                <X className="h-3 w-3" />
+                <X className="h-4 w-4" />
               </button>
             </div>
           ))}

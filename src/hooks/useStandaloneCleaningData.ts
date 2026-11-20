@@ -55,25 +55,29 @@ export interface StandaloneAssignment {
   notes: string | null;
 }
 
-// Use a typed helper to bypass missing generated types for the new table
-const standaloneReportsTable = () => (supabase as any).from('standalone_cleaning_reports');
+/** ST2-02: standalone photos go to the existing public cleaning-media bucket
+ * (the old "booking-cleaning-reports" bucket never existed in production). */
+export const STANDALONE_MEDIA_BUCKET = "cleaning-media";
 
 /**
- * Get cleaning report for standalone assignment
+ * Get cleaning report for standalone assignment.
+ * ST2-27: staff are anonymous, so the table policy (cleaner_id = auth.uid())
+ * never matched and the form always opened blank. The RPC checks the job is
+ * this staff member's and returns the saved report.
  */
 export function useStandaloneCleaningReport(assignmentId: string) {
+  const { staffMember } = useStaffSession();
   return useQuery({
-    queryKey: ["standalone-cleaning-report", assignmentId],
+    queryKey: ["standalone-cleaning-report", assignmentId, staffMember?.id],
     queryFn: async () => {
-      const { data, error } = await standaloneReportsTable()
-        .select("*")
-        .eq("assignment_id", assignmentId)
-        .maybeSingle();
-      
+      const { data, error } = await (supabase.rpc as any)("staff_get_standalone_cleaning_report", {
+        p_staff_id: staffMember!.id,
+        p_assignment_id: assignmentId,
+      });
       if (error) throw error;
-      return data as StandaloneCleaningReport | null;
+      return (data ?? null) as StandaloneCleaningReport | null;
     },
-    enabled: !!assignmentId,
+    enabled: !!assignmentId && !!staffMember?.id,
   });
 }
 
@@ -161,6 +165,8 @@ export function useStaffStandaloneAssignments() {
         `)
         .eq("staff_id", staffMember.id)
         .is("booking_id", null)
+        // ST2-27: a cancelled job has nothing to report.
+        .neq("status", "cancelled")
         .order("scheduled_date", { ascending: false });
       
       if (error) throw error;
@@ -183,31 +189,17 @@ export async function uploadStandaloneCleaningMedia(
   const filePath = `standalone-cleaning-reports/${fileName}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('booking-cleaning-reports')
+    .from(STANDALONE_MEDIA_BUCKET)
     .upload(filePath, file);
 
   if (uploadError) throw uploadError;
 
   const { data: { publicUrl } } = supabase.storage
-    .from('booking-cleaning-reports')
+    .from(STANDALONE_MEDIA_BUCKET)
     .getPublicUrl(filePath);
 
   return publicUrl;
 }
 
-/**
- * Delete media file from Supabase Storage
- */
-export async function deleteStandaloneCleaningMedia(url: string): Promise<void> {
-  const urlObj = new URL(url);
-  const pathParts = urlObj.pathname.split('/booking-cleaning-reports/');
-  if (pathParts.length < 2) throw new Error("Invalid media URL");
-  
-  const filePath = pathParts[1];
-
-  const { error } = await supabase.storage
-    .from('booking-cleaning-reports')
-    .remove([filePath]);
-
-  if (error) throw error;
-}
+// Removing a photo only drops it from the report (same as the booking
+// cleaning form); staff cannot delete stored files (S-10 interim, ST2-23).
