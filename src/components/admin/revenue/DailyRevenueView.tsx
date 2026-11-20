@@ -9,16 +9,37 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { DollarSign, TrendingUp, Calendar } from "lucide-react";
-import { useRevenueData, DailyRevenueRecord } from "@/hooks/useRevenueData";
+import { useRevenueData, DailyRevenueRecord, RevenueSummary } from "@/hooks/useRevenueData";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { avg, money } from "@/lib/reportMoney";
 
 interface DailyRevenueViewProps {
   startDate: string;
   endDate: string;
+  /** Range totals from SQL: the distinct booking count lives here (R2-6). */
+  summary: RevenueSummary | null;
 }
 
-export default function DailyRevenueView({ startDate, endDate }: DailyRevenueViewProps) {
+const SUM_KEYS = [
+  "baseline_revenue",
+  "cleaning_revenue",
+  "production_revenue",
+  "addon_revenue",
+  "bar_revenue",
+  "other_revenue",
+  "discount_amount",
+  "total_revenue",
+  "invoice_revenue",
+  "cancelled_kept_revenue",
+  "collected_net",
+  "card_fees",
+  "collected_gross",
+] as const;
+
+type SumKey = (typeof SUM_KEYS)[number];
+
+export default function DailyRevenueView({ startDate, endDate, summary }: DailyRevenueViewProps) {
   const [data, setData] = useState<DailyRevenueRecord[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -29,49 +50,32 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-      
       const result = await fetchDailyRevenue(startDate, endDate);
-      
       if (result.error) {
-        setError('Failed to load daily revenue data');
+        setError("Failed to load daily revenue data");
         console.error(result.error);
       } else {
         setData(result.data);
       }
-      
       setIsLoading(false);
     };
-
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate]);
 
-  // Calculate totals
-  const totals = data?.reduce(
-    (acc, day) => ({
-      total_revenue: acc.total_revenue + Number(day.total_revenue || 0),
-      baseline_revenue: acc.baseline_revenue + Number(day.baseline_revenue || 0),
-      cleaning_revenue: acc.cleaning_revenue + Number(day.cleaning_revenue || 0),
-      production_revenue: acc.production_revenue + Number(day.production_revenue || 0),
-      addon_revenue: acc.addon_revenue + Number(day.addon_revenue || 0),
-      bar_revenue: acc.bar_revenue + Number(day.bar_revenue || 0),
-      fee_revenue: acc.fee_revenue + Number(day.fee_revenue || 0),
-      discount_amount: acc.discount_amount + Number(day.discount_amount || 0),
-      tax_amount: acc.tax_amount + Number(day.tax_amount || 0),
-      booking_count: acc.booking_count + Number(day.booking_count || 0),
-    }),
-    {
-      total_revenue: 0,
-      baseline_revenue: 0,
-      cleaning_revenue: 0,
-      production_revenue: 0,
-      addon_revenue: 0,
-      bar_revenue: 0,
-      fee_revenue: 0,
-      discount_amount: 0,
-      tax_amount: 0,
-      booking_count: 0,
-    }
+  // Only days where OEV collected something. Days with only external or
+  // unrecorded-cancelled money are counted in the summary cards, not here.
+  const rows = (data ?? []).filter((d) => Number(d.collected_gross) !== 0 || Number(d.total_revenue) !== 0);
+
+  const totals = rows.reduce(
+    (acc, day) => {
+      for (const k of SUM_KEYS) acc[k] += Number(day[k] || 0);
+      return acc;
+    },
+    Object.fromEntries(SUM_KEYS.map((k) => [k, 0])) as Record<SumKey, number>,
   );
+  const showOther = Math.abs(totals.other_revenue) > 0.004;
+  const showKept = Math.abs(totals.cancelled_kept_revenue) > 0.004;
 
   if (isLoading) {
     return (
@@ -107,68 +111,65 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
     );
   }
 
-  if (!data || data.length === 0) {
+  if (rows.length === 0) {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-muted-foreground text-center">No revenue data found for this date range</p>
+          <p className="text-muted-foreground text-center">No money collected in this date range</p>
         </CardContent>
       </Card>
     );
   }
 
+  const bookingCount = summary?.booking_count ?? null;
+  const cell = (v: number) => <TableCell className="text-right">{money(v)}</TableCell>;
+
   return (
     <div className="space-y-4">
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Collected (net)</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${totals?.total_revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
+            <div className="text-2xl font-bold">{money(totals.collected_net)}</div>
             <p className="text-xs text-muted-foreground mt-1">
-              Across {totals?.booking_count} bookings
+              {bookingCount === null ? "" : `${bookingCount} distinct booking${Number(bookingCount) === 1 ? "" : "s"} paid`}
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Days with Revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Days with payments</CardTitle>
             <Calendar className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{data.length}</div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Active event days
-            </p>
+            <div className="text-2xl font-bold">{rows.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">Orlando days on which money was received</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Avg Revenue/Day</CardTitle>
+            <CardTitle className="text-sm font-medium">Avg collected per payment day</CardTitle>
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              ${(totals!.total_revenue / data.length).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Average per event day
-            </p>
+            <div className="text-2xl font-bold">{money(avg(totals.collected_net, rows.length))}</div>
+            <p className="text-xs text-muted-foreground mt-1">Net, before card fees</p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Daily Breakdown Table */}
       <Card>
         <CardHeader>
           <CardTitle>Daily Revenue Breakdown</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            By the Orlando day the payment came in. Booking columns + discounts = Booking total. Booking total +
+            invoices{showKept ? " + kept on cancelled" : ""} = Net. Net + card fees = Gross.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -177,86 +178,63 @@ export default function DailyRevenueView({ startDate, endDate }: DailyRevenueVie
                 <TableRow>
                   <TableHead>Date</TableHead>
                   <TableHead className="text-right">Bookings</TableHead>
-                  <TableHead className="text-right">Baseline</TableHead>
+                  <TableHead className="text-right">Rental</TableHead>
                   <TableHead className="text-right">Cleaning</TableHead>
                   <TableHead className="text-right">Production</TableHead>
                   <TableHead className="text-right">Add-ons</TableHead>
                   <TableHead className="text-right">Bar</TableHead>
-                  <TableHead className="text-right">Fees</TableHead>
+                  {showOther && <TableHead className="text-right">Other</TableHead>}
                   <TableHead className="text-right">Discounts</TableHead>
-                  <TableHead className="text-right">Tax</TableHead>
-                  <TableHead className="text-right font-bold">Total</TableHead>
+                  <TableHead className="text-right">Booking total</TableHead>
+                  <TableHead className="text-right">Invoices</TableHead>
+                  {showKept && <TableHead className="text-right">Kept (cancelled)</TableHead>}
+                  <TableHead className="text-right font-bold">Net</TableHead>
+                  <TableHead className="text-right">Card fees</TableHead>
+                  <TableHead className="text-right">Gross</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data.map((day) => (
+                {rows.map((day) => (
                   <TableRow key={day.revenue_date}>
                     <TableCell className="font-medium">
-                      {format(new Date(day.revenue_date + 'T00:00:00'), "MM/dd/yyyy")}
+                      {format(new Date(day.revenue_date + "T00:00:00"), "MM/dd/yyyy")}
                     </TableCell>
                     <TableCell className="text-right">{day.booking_count}</TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.baseline_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.cleaning_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.production_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.addon_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.bar_revenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.fee_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
+                    {cell(day.baseline_revenue)}
+                    {cell(day.cleaning_revenue)}
+                    {cell(day.production_revenue)}
+                    {cell(day.addon_revenue)}
+                    {cell(day.bar_revenue)}
+                    {showOther && cell(day.other_revenue)}
                     <TableCell className="text-right text-destructive">
-                      {Number(day.discount_amount) !== 0 
-                        ? `$${Number(day.discount_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}`
-                        : '-'}
+                      {Number(day.discount_amount) !== 0 ? money(day.discount_amount) : "-"}
                     </TableCell>
-                    <TableCell className="text-right">
-                      ${Number(day.tax_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
-                    <TableCell className="text-right font-bold">
-                      ${Number(day.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </TableCell>
+                    {cell(day.total_revenue)}
+                    {cell(day.invoice_revenue)}
+                    {showKept && cell(day.cancelled_kept_revenue)}
+                    <TableCell className="text-right font-bold">{money(day.collected_net)}</TableCell>
+                    {cell(day.card_fees)}
+                    {cell(day.collected_gross)}
                   </TableRow>
                 ))}
-                {/* Totals Row */}
                 <TableRow className="bg-muted/50 font-bold">
                   <TableCell>TOTAL</TableCell>
-                  <TableCell className="text-right">{totals?.booking_count}</TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.baseline_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  <TableCell className="text-right" title="Distinct bookings in the range (a booking paid on two days counts once)">
+                    {bookingCount ?? "—"}
                   </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.cleaning_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.production_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.addon_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.bar_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.fee_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right text-destructive">
-                    ${totals?.discount_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.tax_amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${totals?.total_revenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
+                  {cell(totals.baseline_revenue)}
+                  {cell(totals.cleaning_revenue)}
+                  {cell(totals.production_revenue)}
+                  {cell(totals.addon_revenue)}
+                  {cell(totals.bar_revenue)}
+                  {showOther && cell(totals.other_revenue)}
+                  <TableCell className="text-right text-destructive">{money(totals.discount_amount)}</TableCell>
+                  {cell(totals.total_revenue)}
+                  {cell(totals.invoice_revenue)}
+                  {showKept && cell(totals.cancelled_kept_revenue)}
+                  <TableCell className="text-right">{money(totals.collected_net)}</TableCell>
+                  {cell(totals.card_fees)}
+                  {cell(totals.collected_gross)}
                 </TableRow>
               </TableBody>
             </Table>

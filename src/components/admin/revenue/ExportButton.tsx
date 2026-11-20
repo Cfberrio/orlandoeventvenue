@@ -6,7 +6,7 @@ import { toast } from "sonner";
 interface ExportButtonProps {
   startDate: string;
   endDate: string;
-  onExport: (startDate: string, endDate: string) => Promise<{ success: boolean; error: any }>;
+  onExport: (startDate: string, endDate: string) => Promise<{ success: boolean; empty?: boolean; error: any }>;
 }
 
 export default function ExportButton({ startDate, endDate, onExport }: ExportButtonProps) {
@@ -20,6 +20,9 @@ export default function ExportButton({ startDate, endDate, onExport }: ExportBut
       
       if (result.success) {
         toast.success("Revenue data exported successfully");
+      } else if (result.empty) {
+        // R2-20: nothing was downloaded, so do not say it was.
+        toast.info("No rows in this range");
       } else {
         toast.error("Failed to export revenue data");
         console.error('Export error:', result.error);

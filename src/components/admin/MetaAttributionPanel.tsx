@@ -239,13 +239,13 @@ export default function MetaAttributionPanel() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Referral-attributed revenue</CardTitle>
+            <CardTitle className="text-sm font-medium">Referral-attributed contract value</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{money(attributedRevenue)}</div>
             <p className="text-xs text-muted-foreground">
-              Contract value. Compare against spend in Ads Manager.
+              Booked price of paid bookings, all time; not money collected (see Reports). Compare against spend in Ads Manager.
             </p>
           </CardContent>
         </Card>

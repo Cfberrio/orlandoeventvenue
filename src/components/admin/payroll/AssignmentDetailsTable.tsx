@@ -18,6 +18,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { NOT_PAYABLE_LABELS } from "@/lib/reportMoney";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Edit, Loader2, CheckCircle } from "lucide-react";
@@ -64,19 +65,9 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
     const result = await fetchPayrollLineItems(startDate, endDate);
     
     if (result.data) {
-      // Filter by staff_id - we need to match via staff_members table
-      const { data: staffData } = await supabase
-        .from('staff_members')
-        .select('full_name')
-        .eq('id', staffId)
-        .single();
-      
-      const staffName = staffData?.full_name;
-      const filtered = staffName 
-        ? result.data.filter((item: any) => item.staff_name === staffName)
-        : result.data;
-      
-      setLineItems(filtered);
+      // R2-19 (86e40ach2): the export rows carry staff_id; match on it, not on
+      // the name (two staff members can share a name).
+      setLineItems(result.data.filter((item) => item.staff_id === staffId));
     }
     
     setIsLoading(false);
@@ -86,7 +77,9 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
     loadLineItems();
   }, [staffId, startDate, endDate]);
 
-  const pendingItems = lineItems.filter(item => item.paid_status === 'pending' && item.payroll_item_id);
+  // Lines that are not owed (staff never accepted, booking cancelled) cannot be
+  // marked paid: the DB refuses them (R2-17).
+  const pendingItems = lineItems.filter(item => item.paid_status === 'pending' && item.payroll_item_id && !item.not_payable_reason);
 
   const toggleItemSelect = (payrollItemId: string) => {
     const newSelected = new Set(selectedItemIds);
@@ -209,7 +202,7 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
         </TableHeader>
         <TableBody>
           {lineItems.map((item, index) => {
-            const isPending = item.paid_status === 'pending' && item.payroll_item_id;
+            const isPending = item.paid_status === 'pending' && item.payroll_item_id && !item.not_payable_reason;
             return (
               <TableRow key={index}>
                 <TableCell>
@@ -248,6 +241,11 @@ export function AssignmentDetailsTable({ staffId, startDate, endDate, onDataChan
                   >
                     {item.paid_status === 'paid' ? 'Paid' : 'Pending'}
                   </Badge>
+                  {item.not_payable_reason && (
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Not payable: {NOT_PAYABLE_LABELS[item.not_payable_reason] ?? item.not_payable_reason}
+                    </div>
+                  )}
                 </TableCell>
                 <TableCell className="text-right whitespace-nowrap">
                   {item.paid_status === 'paid' && item.payroll_item_id && (

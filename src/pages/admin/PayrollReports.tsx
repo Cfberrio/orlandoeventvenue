@@ -7,6 +7,7 @@ import { usePayrollData } from "@/hooks/usePayrollData";
 import PayrollOverviewView from "@/components/admin/payroll/PayrollOverviewView";
 import StandaloneAssignmentsView from "@/components/admin/payroll/StandaloneAssignmentsView";
 import PayrollDateRangePicker from "@/components/admin/payroll/PayrollDateRangePicker";
+import { money, payrollTotals } from "@/lib/reportMoney";
 
 export default function PayrollReports() {
   const today = new Date();
@@ -26,18 +27,21 @@ export default function PayrollReports() {
     const loadSummary = async () => {
       const result = await fetchPayrollLineItems(startDate, endDate);
       if (result.data) {
-        const totalOwed = result.data.reduce((sum, item) => sum + Number(item.amount), 0);
-        const totalPaid = result.data
-          .filter(item => item.paid_status === 'paid')
-          .reduce((sum, item) => sum + Number(item.amount), 0);
-        const totalPending = result.data
-          .filter(item => item.paid_status === 'pending')
-          .reduce((sum, item) => sum + Number(item.amount), 0);
-        const staffCount = new Set(result.data.map(item => item.staff_name)).size;
+        // R2-17: lines that are not owed (staff never accepted, booking
+        // cancelled) are shown apart and kept out of owed/pending.
+        const t = payrollTotals(result.data);
+        const staffCount = new Set(result.data.map(item => item.staff_id ?? item.staff_name)).size;
 
-        setSummaryData({ totalOwed, totalPaid, totalPending, staffCount });
+        setSummaryData({
+          totalOwed: t.owed,
+          totalPaid: t.paid,
+          totalPending: t.pending,
+          notPayable: t.notPayable,
+          notPayableCount: t.notPayableCount,
+          staffCount,
+        });
       } else {
-        setSummaryData({ totalOwed: 0, totalPaid: 0, totalPending: 0, staffCount: 0 });
+        setSummaryData({ totalOwed: 0, totalPaid: 0, totalPending: 0, notPayable: 0, notPayableCount: 0, staffCount: 0 });
       }
     };
 
@@ -63,7 +67,7 @@ export default function PayrollReports() {
 
       {/* Summary Cards */}
       {summaryData && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Owed</CardTitle>
@@ -71,7 +75,7 @@ export default function PayrollReports() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                ${summaryData.totalOwed.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {money(summaryData.totalOwed)}
               </div>
             </CardContent>
           </Card>
@@ -83,7 +87,7 @@ export default function PayrollReports() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">
-                ${summaryData.totalPaid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {money(summaryData.totalPaid)}
               </div>
             </CardContent>
           </Card>
@@ -95,8 +99,23 @@ export default function PayrollReports() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-orange-600">
-                ${summaryData.totalPending.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {money(summaryData.totalPending)}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Not payable</CardTitle>
+              <Clock className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-muted-foreground">
+                {money(summaryData.notPayable)}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {summaryData.notPayableCount} line(s): staff never accepted or booking cancelled. Not in Total Owed.
+              </p>
             </CardContent>
           </Card>
 

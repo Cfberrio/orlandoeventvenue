@@ -25,6 +25,7 @@ import MetaAttributionPanel from "@/components/admin/MetaAttributionPanel";
 import { usePopupAnalytics } from "@/hooks/useAdminData";
 import { format, startOfMonth, startOfWeek, subMonths, isAfter, parseISO } from "date-fns";
 import { cn } from "@/lib/utils";
+import { formatMoney } from "@/lib/paymentSummary";
 import {
   AreaChart,
   Area,
@@ -200,15 +201,15 @@ export default function Analytics() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Revenue from Popup</CardTitle>
+            <CardTitle className="text-sm font-medium">Contract value from popup</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              ${revenueFromPopup.toLocaleString()}
+              {formatMoney(revenueFromPopup)}
             </div>
             <p className="text-xs text-muted-foreground">
-              From {convertedBookings.length} converted bookings
+              Booked price of {convertedBookings.length} converted bookings, all time. Not money collected (see Reports).
             </p>
           </CardContent>
         </Card>

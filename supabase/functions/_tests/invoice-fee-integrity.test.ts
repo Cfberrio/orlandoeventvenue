@@ -253,12 +253,15 @@ describe("F2. Revenue report (InvoiceRevenueView) uses total_charged", () => {
     expect(hook).toContain("total_charged: number | null");
   });
 
-  it("InvoiceRevenueView totals + rows use total_charged (fallback amount)", () => {
+  // R2-1/R2-10 (86e40ach2): the view now shows net, card fee and gross apart
+  // (gross = what was charged); an offline-paid invoice carries no card fee.
+  it("InvoiceRevenueView shows net, card fee and gross via invoiceMoney", () => {
     const view = read("src/components/admin/revenue/InvoiceRevenueView.tsx");
-    expect(view).toContain("Number(inv.total_charged ?? inv.amount)");
-    // both the summary reducer and the row cell
-    const matches = [...view.matchAll(/inv\.total_charged \?\? inv\.amount/g)];
-    expect(matches.length).toBeGreaterThanOrEqual(2);
+    expect(view).toContain("invoiceMoney(inv)");
+    expect(view).toMatch(/<TableHead className="text-right">Gross<\/TableHead>/);
+    const lib = read("src/lib/reportMoney.ts");
+    expect(lib).toMatch(/const fee = inv\.paid_offline_method \? 0 : round2\(Number\(inv\.processing_fee \?\? 0\)\);/);
+    expect(lib).toMatch(/return \{ net, fee, gross: round2\(net \+ fee\) \};/);
   });
 });
 

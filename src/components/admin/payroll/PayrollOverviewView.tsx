@@ -30,6 +30,8 @@ import ExportPayrollButton from "./ExportPayrollButton";
 import MissingHoursCard from "./MissingHoursCard";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { money, payrollTotalsByStaff } from "@/lib/reportMoney";
+import { staffRoleLabel } from "@/lib/statusLabels";
 
 interface StaffPayrollData {
   staff_id: string;
@@ -39,6 +41,7 @@ interface StaffPayrollData {
   total_amount: number;
   paid_amount: number;
   pending_amount: number;
+  not_payable_amount: number;
   assignment_count: number;
   hours_worked: number;
 }
@@ -79,28 +82,20 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
       const lineItemsResult = await fetchPayrollLineItems(startDate, endDate);
       
       if (lineItemsResult.data && staffResult.data) {
-        const lineItems = lineItemsResult.data as any[];
-        // Calculate paid and pending amounts for each staff
+        // R2-17/R2-19: split by staff_id, and keep lines that are not owed
+        // (staff never accepted, booking cancelled) out of owed/pending.
+        const byStaff = payrollTotalsByStaff(lineItemsResult.data);
         const enrichedData = (staffResult.data as any[]).map((staff: any) => {
-          const staffLineItems = lineItems.filter(
-            (item: any) => item.staff_name === staff.staff_name
-          );
-          
-          const paidAmount = staffLineItems
-            .filter((item: any) => item.paid_status === 'paid')
-            .reduce((sum: number, item: any) => sum + Number(item.amount), 0);
-          
-          const pendingAmount = staffLineItems
-            .filter((item: any) => item.paid_status === 'pending')
-            .reduce((sum: number, item: any) => sum + Number(item.amount), 0);
-
+          const t = byStaff.get(staff.staff_id);
           return {
             ...staff,
-            paid_amount: paidAmount,
-            pending_amount: pendingAmount,
+            total_amount: t?.owed ?? Number(staff.total_amount),
+            paid_amount: t?.paid ?? 0,
+            pending_amount: t?.pending ?? 0,
+            not_payable_amount: t?.notPayable ?? 0,
           };
         });
-        
+
         setData(enrichedData);
       } else {
         setData(staffResult.data as any);
@@ -162,19 +157,17 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
       const lineItemsResult = await fetchPayrollLineItems(startDate, endDate);
       
       if (lineItemsResult.data && data) {
-        const selectedStaffNames = Array.from(selectedIds).map(id => {
-          const staff = data.find(s => s.staff_id === id);
-          return staff?.staff_name;
-        }).filter(Boolean);
-
-        // Get pending payroll_item_ids directly from the RPC results
+        // By staff_id, and only lines that are owed: a line whose staff never
+        // accepted or whose booking is cancelled is refused by the DB.
         const payrollItemIds = lineItemsResult.data
-          .filter((item: any) => 
-            selectedStaffNames.includes(item.staff_name) && 
+          .filter((item) =>
+            item.staff_id != null &&
+            selectedIds.has(item.staff_id) &&
             item.paid_status === 'pending' &&
+            !item.not_payable_reason &&
             item.payroll_item_id
           )
-          .map((item: any) => item.payroll_item_id);
+          .map((item) => item.payroll_item_id);
 
         if (payrollItemIds.length > 0) {
           await markAsPaid(payrollItemIds, user.id);
@@ -210,6 +203,8 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
   const totalAmount = data?.reduce((sum, item) => sum + Number(item.total_amount), 0) || 0;
   const totalPaid = data?.reduce((sum, item) => sum + Number(item.paid_amount || 0), 0) || 0;
   const totalPending = data?.reduce((sum, item) => sum + Number(item.pending_amount || 0), 0) || 0;
+  const totalNotPayable = data?.reduce((sum, item) => sum + Number(item.not_payable_amount || 0), 0) || 0;
+  const staffOptions = (data ?? []).map((s) => ({ staff_id: s.staff_id, staff_name: s.staff_name }));
 
   if (isLoading) {
     return (
@@ -277,6 +272,7 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                 startDate={startDate}
                 endDate={endDate}
                 onExport={exportPayrollCsv}
+                staff={staffOptions}
               />
             </div>
           </div>
@@ -298,6 +294,9 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                   <TableHead className="text-right">Total Owed</TableHead>
                   <TableHead className="text-right">Paid</TableHead>
                   <TableHead className="text-right">Pending</TableHead>
+                  <TableHead className="text-right" title="Lines not owed: the staff member never accepted, or the booking was cancelled. Not in Total Owed and cannot be marked paid.">
+                    Not payable
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -331,24 +330,27 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                         </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant="outline">{staff.staff_role}</Badge>
+                        <Badge variant="outline">{staffRoleLabel(staff.staff_role)}</Badge>
                       </TableCell>
                       <TableCell className="text-right">{staff.assignment_count}</TableCell>
                       <TableCell className="text-right font-bold">
-                        ${Number(staff.total_amount).toFixed(2)}
+                        {money(staff.total_amount)}
                       </TableCell>
                       <TableCell className="text-right text-green-600 font-medium">
-                        ${Number(staff.paid_amount || 0).toFixed(2)}
+                        {money(staff.paid_amount || 0)}
                       </TableCell>
                       <TableCell className="text-right text-orange-600 font-medium">
-                        ${Number(staff.pending_amount || 0).toFixed(2)}
+                        {money(staff.pending_amount || 0)}
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {Number(staff.not_payable_amount || 0) !== 0 ? money(staff.not_payable_amount) : "-"}
                       </TableCell>
                     </TableRow>
                     
                     {/* Expanded row with details */}
                     {expandedRows.has(staff.staff_id) && (
                       <TableRow>
-                        <TableCell colSpan={7} className="bg-muted/20 p-4">
+                        <TableCell colSpan={8} className="bg-muted/20 p-4">
                           <AssignmentDetailsTable 
                             staffId={staff.staff_id}
                             startDate={startDate}
@@ -367,13 +369,16 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
                   <TableCell>TOTAL</TableCell>
                   <TableCell colSpan={2}></TableCell>
                   <TableCell className="text-right">
-                    ${totalAmount.toFixed(2)}
+                    {money(totalAmount)}
                   </TableCell>
                   <TableCell className="text-right text-green-600">
-                    ${totalPaid.toFixed(2)}
+                    {money(totalPaid)}
                   </TableCell>
                   <TableCell className="text-right text-orange-600">
-                    ${totalPending.toFixed(2)}
+                    {money(totalPending)}
+                  </TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {money(totalNotPayable)}
                   </TableCell>
                 </TableRow>
               </TableBody>
@@ -389,7 +394,8 @@ export default function PayrollOverviewView({ startDate, endDate }: PayrollOverv
             <AlertDialogTitle>Confirm Payment</AlertDialogTitle>
             <AlertDialogDescription>
               You are about to mark {selectedIds.size} staff member(s) as paid.
-              This action will update all pending items for these staff members.
+              This updates their pending items that are owed. Lines marked "not payable"
+              (staff never accepted, or booking cancelled) are left as they are.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

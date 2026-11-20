@@ -17,23 +17,16 @@ import {
 } from "@/components/ui/table";
 import { useRevenueData, SegmentRevenueRecord } from "@/hooks/useRevenueData";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { avg, money } from "@/lib/reportMoney";
+import { bookingOriginLabel, bookingTypeLabel, humanizeCode } from "@/lib/statusLabels";
 
 interface SegmentAnalysisProps {
   startDate: string;
   endDate: string;
 }
 
-type SegmentType = 'booking_origin' | 'event_type' | 'booking_type';
+type SegmentType = "booking_origin" | "event_type" | "booking_type";
 
 const SEGMENT_LABELS: Record<SegmentType, string> = {
   booking_origin: "Booking Origin",
@@ -41,8 +34,19 @@ const SEGMENT_LABELS: Record<SegmentType, string> = {
   booking_type: "Booking Type",
 };
 
+function segmentLabel(by: SegmentType, value: string | null): string {
+  if (!value) return "Unknown";
+  if (by === "booking_origin") return bookingOriginLabel(value);
+  if (by === "booking_type") return bookingTypeLabel(value);
+  return humanizeCode(value);
+}
+
+// ClickUp 86e40ach2 R2-4/R2-7: every origin is listed. "Collected" is booking
+// money OEV received (net, before card fees); "External" is what a platform
+// collected and is never added to Collected. Standalone invoices have no
+// booking, so they are not segmented here.
 export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisProps) {
-  const [segmentBy, setSegmentBy] = useState<SegmentType>('booking_origin');
+  const [segmentBy, setSegmentBy] = useState<SegmentType>("booking_origin");
   const [data, setData] = useState<SegmentRevenueRecord[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -53,31 +57,52 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
     const loadData = async () => {
       setIsLoading(true);
       setError(null);
-      
       const result = await fetchRevenueBySegment(startDate, endDate, segmentBy);
-      
       if (result.error) {
-        setError('Failed to load segment analysis data');
+        setError("Failed to load segment analysis data");
         console.error(result.error);
       } else {
         setData(result.data);
       }
-      
       setIsLoading(false);
     };
-
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [startDate, endDate, segmentBy]);
 
-  const totalRevenue = data?.reduce((sum, item) => sum + Number(item.total_revenue), 0) || 0;
-  const totalBookings = data?.reduce((sum, item) => sum + Number(item.booking_count), 0) || 0;
+  const rows = data ?? [];
+  const totalRevenue = rows.reduce((sum, item) => sum + Number(item.total_revenue), 0);
+  const totalBookings = rows.reduce((sum, item) => sum + Number(item.booking_count), 0);
+  const totalExternal = rows.reduce((sum, item) => sum + Number(item.external_amount || 0), 0);
+  const totalExternalCount = rows.reduce((sum, item) => sum + Number(item.external_count || 0), 0);
 
-  // Format data for chart
-  const chartData = data?.map((item) => ({
-    segment: item.segment || 'Unknown',
-    Revenue: Number(item.total_revenue),
-    'Avg Revenue': Number(item.avg_revenue),
-  })) || [];
+  const chartData = rows.map((item) => ({
+    segment: segmentLabel(segmentBy, item.segment),
+    Collected: Number(item.total_revenue),
+    "External (platform)": Number(item.external_amount || 0),
+  }));
+
+  const selector = (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle>Segment By</CardTitle>
+          <Select value={segmentBy} onValueChange={(v) => setSegmentBy(v as SegmentType)}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Object.entries(SEGMENT_LABELS).map(([value, label]) => (
+                <SelectItem key={value} value={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </CardHeader>
+    </Card>
+  );
 
   if (isLoading) {
     return (
@@ -98,48 +123,34 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
 
   if (error) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-destructive">{error}</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {selector}
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-destructive">{error}</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
-  if (!data || data.length === 0) {
+  if (rows.length === 0) {
     return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-muted-foreground text-center">No revenue data found for this date range</p>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {selector}
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-muted-foreground text-center">No revenue data found for this date range</p>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      {/* Segment Selector */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Segment By</CardTitle>
-            <Select value={segmentBy} onValueChange={(v) => setSegmentBy(v as SegmentType)}>
-              <SelectTrigger className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(SEGMENT_LABELS).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardHeader>
-      </Card>
+      {selector}
 
-      {/* Chart */}
       <Card>
         <CardHeader>
           <CardTitle>Revenue by {SEGMENT_LABELS[segmentBy]}</CardTitle>
@@ -148,26 +159,25 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
           <ResponsiveContainer width="100%" height={350}>
             <BarChart data={chartData} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis 
-                type="number"
-                tickFormatter={(value) => `$${value.toLocaleString()}`}
-              />
-              <YAxis type="category" dataKey="segment" width={120} />
-              <Tooltip 
-                formatter={(value: number) => `$${value.toLocaleString(undefined, { minimumFractionDigits: 2 })}`}
-              />
+              <XAxis type="number" tickFormatter={(value) => money(value)} />
+              <YAxis type="category" dataKey="segment" width={140} />
+              <Tooltip formatter={(value: number) => money(value)} />
               <Legend />
-              <Bar dataKey="Revenue" fill="#3b82f6" />
-              <Bar dataKey="Avg Revenue" fill="#8b5cf6" />
+              <Bar dataKey="Collected" fill="#3b82f6" />
+              <Bar dataKey="External (platform)" fill="#cbd5e1" />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
       </Card>
 
-      {/* Detailed Table */}
       <Card>
         <CardHeader>
           <CardTitle>Detailed Segment Analysis</CardTitle>
+          <p className="text-sm text-muted-foreground mt-1">
+            Collected = booking money OEV received, net of discounts and before card fees. External = paid on the
+            platform (Peerspace, etc.), shown apart. Standalone invoices are not tied to a booking and are not
+            segmented.
+          </p>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
@@ -175,60 +185,47 @@ export default function SegmentAnalysis({ startDate, endDate }: SegmentAnalysisP
               <TableHeader>
                 <TableRow>
                   <TableHead>{SEGMENT_LABELS[segmentBy]}</TableHead>
-                  <TableHead className="text-right">Total Revenue</TableHead>
+                  <TableHead className="text-right">Collected</TableHead>
                   <TableHead className="text-right">Bookings</TableHead>
-                  <TableHead className="text-right">Avg Revenue/Booking</TableHead>
-                  <TableHead className="text-right">% of Total</TableHead>
+                  <TableHead className="text-right">Avg/Booking</TableHead>
+                  <TableHead className="text-right">% of Collected</TableHead>
+                  <TableHead className="text-right text-muted-foreground">External (platform)</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {data
-                  .sort((a, b) => Number(b.total_revenue) - Number(a.total_revenue))
-                  .map((item, index) => {
-                    const percentage = (Number(item.total_revenue) / totalRevenue) * 100;
-                    return (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">
-                          {item.segment || 'Unknown'}
-                        </TableCell>
-                        <TableCell className="text-right font-bold">
-                          ${Number(item.total_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {item.booking_count}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          ${Number(item.avg_revenue).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-primary rounded-full"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                            <span className="text-muted-foreground w-12">
-                              {percentage.toFixed(1)}%
-                            </span>
+                {rows.map((item, index) => {
+                  const percentage = totalRevenue ? (Number(item.total_revenue) / totalRevenue) * 100 : 0;
+                  return (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{segmentLabel(segmentBy, item.segment)}</TableCell>
+                      <TableCell className="text-right font-bold">{money(item.total_revenue)}</TableCell>
+                      <TableCell className="text-right">{item.booking_count}</TableCell>
+                      <TableCell className="text-right">{money(item.avg_revenue)}</TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <div className="w-16 h-2 bg-muted rounded-full overflow-hidden">
+                            <div className="h-full bg-primary rounded-full" style={{ width: `${percentage}%` }} />
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                {/* Totals Row */}
+                          <span className="text-muted-foreground w-12">{percentage.toFixed(1)}%</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right text-muted-foreground">
+                        {Number(item.external_amount) !== 0
+                          ? `${money(item.external_amount)} (${item.external_count})`
+                          : "-"}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 <TableRow className="bg-muted/50 font-bold">
                   <TableCell>TOTAL</TableCell>
-                  <TableCell className="text-right">
-                    ${totalRevenue.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {totalBookings}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    ${(totalRevenue / totalBookings).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </TableCell>
+                  <TableCell className="text-right">{money(totalRevenue)}</TableCell>
+                  <TableCell className="text-right">{totalBookings}</TableCell>
+                  <TableCell className="text-right">{money(avg(totalRevenue, totalBookings))}</TableCell>
                   <TableCell className="text-right">100.0%</TableCell>
+                  <TableCell className="text-right text-muted-foreground">
+                    {totalExternal !== 0 ? `${money(totalExternal)} (${totalExternalCount})` : "-"}
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>

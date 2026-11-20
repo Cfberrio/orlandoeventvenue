@@ -34,6 +34,7 @@ export default defineConfig({
       "supabase/functions/_tests/phase2-slot-hold.test.ts",
       "supabase/functions/_tests/readiness-every-origin.test.ts",
       "supabase/functions/_tests/return-url.test.ts",
+      "supabase/functions/_tests/reports-second-pass.test.ts",
     ],
   },
 });
