@@ -21,6 +21,7 @@ import {
 } from "../_shared/billing-server.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 import { splitLabel } from "../_shared/deposit-split.ts";
+import { safeReturnUrl } from "../_shared/return-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -53,26 +54,6 @@ function json(body: Record<string, unknown>, status = 200): Response {
     status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
-}
-
-/** Only redirect back to our own site (protects against open redirects). */
-function safeReturnUrl(url: unknown): string | null {
-  if (typeof url !== "string") return null;
-  try {
-    const u = new URL(url);
-    const host = u.hostname.toLowerCase();
-    const allowed =
-      host === "orlandoeventvenue.org" ||
-      host === "www.orlandoeventvenue.org" ||
-      host.endsWith(".lovable.app") ||
-      host.endsWith(".lovableproject.com") ||
-      host.endsWith(".lovable.dev") ||
-      host === "localhost";
-    if (!allowed) return null;
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return null;
-  }
 }
 
 serve(async (req: Request) => {
