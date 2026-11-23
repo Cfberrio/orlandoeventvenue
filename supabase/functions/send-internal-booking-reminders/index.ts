@@ -8,7 +8,6 @@ import {
   gap,
   heroModule,
   linkButton,
-  numberedList,
   para,
   referenceModule,
   sanitizeForSmtp,
@@ -18,7 +17,7 @@ import {
 import { eventTypeLabel } from "../_shared/event-types.ts";
 
 import { withBuild } from "../_shared/build-info.ts";
-const REMINDER_SUBJECT = "Your Event Access Page";
+const REMINDER_SUBJECT = "Your Event Is Tomorrow";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -95,8 +94,8 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     ["Guest Count", String(booking.number_of_guests)],
   );
 
-  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
-  // section S04. Access instructions live only on the Event Page — never here.
+  // Copy is verbatim from the 2026-11-09 communication chain rewrite
+  // (ClickUp 86e3zwmg5, S04). Access instructions live only on the Event Page.
   const body =
     heroModule({
       display: displayTitle(REMINDER_SUBJECT, { size: 38 }),
@@ -104,21 +103,10 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
     gap() +
     textModule(
       `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
-      para(`Your event is tomorrow.`) +
-      para(`Your door code and complete instructions for entering the venue are available only on your Event Page:`) +
-      linkButton(accessCodeUrl) +
-      para(`Enter your reservation number when prompted.`) +
-      para(`Your Event Page includes:`) +
-      numberedList([
-        `Your live door code when it becomes available.`,
-        `Complete instructions for entering the venue.`,
-        `Wifi information.`,
-        `The venue rules.`,
-        `Your Before You Leave checklist.`,
-        `Your Guest Report.`,
-      ]) +
-      para(`Your live door code will appear on the page one hour before your event begins.`) +
-      para(`Please make sure whoever arrives first has the Event Page link and your reservation number.`) +
+      para(`Your event is tomorrow. Open your Event Page for arrival details. Your door code shows up there 1 hour before you start.`) +
+      linkButton(accessCodeUrl, "Open Your Event Page") +
+      (reservationNumber ? para(`Your reservation number: <strong>${reservationNumber}</strong>`) : "") +
+      para(`If someone else is arriving first, send them the link and your reservation number.`) +
       para(`Need help? Call or text 407 974 5979.`) +
       signature(),
     ) +
@@ -127,7 +115,7 @@ function buildReminderHTML(block: BlockWithBooking, date: string): string {
 
   return sanitizeForSmtp(emailShell({
     title: REMINDER_SUBJECT,
-    preview: "Your door code and complete entry instructions will be available on your Event Page.",
+    preview: "Your door code appears on your Event Page 1 hour before you start.",
     body,
   }));
 }

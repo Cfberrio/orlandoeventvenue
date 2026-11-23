@@ -9,7 +9,6 @@ import {
   gap,
   heroModule,
   linkButton,
-  numberedList,
   para,
   referenceModule,
   sanitizeForSmtp,
@@ -73,8 +72,8 @@ function generateE01HTML(booking: ExternalBookingRow): string {
 
   const accessCodeUrl = "https://orlandoeventvenue.org/accesscode";
 
-  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
-  // section E01. Do not reword — design carries emphasis, never the wording.
+  // Copy is verbatim from the 2026-11-09 communication chain rewrite
+  // (ClickUp 86e3zwmg5, Post-Booking sequence, E01). Do not reword.
   const body =
     heroModule({
       display: displayTitle("Your Orlando Event Venue Booking Is Confirmed", { size: 34 }),
@@ -82,19 +81,11 @@ function generateE01HTML(booking: ExternalBookingRow): string {
     gap() +
     textModule(
       `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
-      para(`Your booking at Orlando Event Venue is confirmed, and we are looking forward to hosting you.`) +
-      para(`Your payment is handled through the company or platform where you reserved, so there is nothing to pay us directly. On our side, we take care of everything about the event itself: your planning, venue access, event day support, closing, and Guest Report.`) +
-      para(`About a month out, we will check in on the few details that affect how we prepare the space:`) +
-      numberedList([
-        `Whether alcohol will be served.`,
-        `Any audio and visual needs.`,
-        `Any additional services you would like to add.`,
-      ]) +
-      para(`Everything else is in your hands, so that is all we will ask about.`) +
-      para(`The most useful thing to do today is save your Event Page. It is the single place that holds your venue instructions, live door code, Wifi, venue rules, the Before You Leave checklist, and your Guest Report:`) +
-      linkButton(accessCodeUrl) +
-      para(`Enter your reservation number when prompted. Your live door code appears there one hour before your event begins.`) +
-      para(`Questions or changes? Reply here or call 407 974 5979.`) +
+      para(`Your booking is confirmed. Payment goes through the platform you booked with, so you don't owe us anything.`) +
+      para(`About a month before, we'll check in about bar service, A/V, and add-ons. On event day, your door code appears on your Event Page 1 hour before you start.`) +
+      linkButton(accessCodeUrl, "Open Your Event Page") +
+      para(`Your reservation number: <strong>${reservationNumber}</strong>`) +
+      para(`Questions? Reply here or call 407 974 5979.`) +
       signature(),
     ) +
     gap() +
@@ -109,7 +100,7 @@ function generateE01HTML(booking: ExternalBookingRow): string {
 
   return emailShell({
     title: "Your Orlando Event Venue Booking Is Confirmed",
-    preview: "We have your reservation. Here is what happens next.",
+    preview: "Nothing to pay us. Here's what happens next.",
     body,
   });
 }
@@ -209,7 +200,7 @@ serve(async (req) => {
       from: gmailUser,
       to: booking.email,
       subject: "Your Orlando Event Venue Booking Is Confirmed",
-      content: "We have your reservation. Here is what happens next. Please view this email in an HTML-compatible email client.",
+      content: `Your booking is confirmed. Payment goes through the platform you booked with, so you don't owe us anything. Open your Event Page: https://orlandoeventvenue.org/accesscode (reservation number ${booking.reservation_number ?? ""}).`,
       html: emailHTML,
     });
 

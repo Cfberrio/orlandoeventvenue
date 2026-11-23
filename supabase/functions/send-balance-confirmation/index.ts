@@ -163,8 +163,8 @@ function generateEmailHTML(booking: BalanceEmailData, hasPdf: boolean): string {
 
   const eventPageUrl = "https://orlandoeventvenue.org/accesscode";
 
-  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
-  // section P02. Do not reword — design carries emphasis, never the wording.
+  // Copy is verbatim from the 2026-11-09 communication chain rewrite
+  // (ClickUp 86e3zwmg5, Post-Booking sequence, P02). Do not reword.
   const body =
     heroModule({
       display: displayTitle("Your Event Is Fully Paid", { size: 34 }),
@@ -172,22 +172,17 @@ function generateEmailHTML(booking: BalanceEmailData, hasPdf: boolean): string {
     gap() +
     textModule(
       `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
-      para(`Your final payment is in. Your event is fully paid, and there is nothing more to pay. Thank you.`) +
-      para(`From here on, everything is about getting ready for event day, and it all lives on your Event Page:`) +
-      linkButton(eventPageUrl) +
-      para(`Enter your reservation number when prompted. There you will find:`) +
+      para(`We received your final payment. Your event is fully paid. Thank you.`) +
+      para(`What comes next:`) +
       numberedList([
-        `Your venue access instructions.`,
-        `Your live door code.`,
-        `Wifi.`,
-        `The venue rules.`,
-        `Your Before You Leave checklist.`,
-        `Your Guest Report.`,
+        `7 days before: a quick check-in text.`,
+        `1 day before: a reminder with your Event Page link.`,
+        `1 hour before: your door code appears on the page.`,
       ]) +
-      para(`Your door code and entry instructions appear on your Event Page one hour before your event begins.`) +
-      para(`We will stay in touch as your date approaches. You will get a quick check in seven days out and a preparation reminder the day before.`) +
-      para(`Please make sure whoever arrives first also has your Event Page link and reservation number.`) +
-      signature({ phone: true }),
+      para(`Please send your Event Page link and reservation number to whoever is arriving first.`) +
+      linkButton(eventPageUrl, "Open Your Event Page") +
+      para(`Your reservation number: <strong>${escapeHtml(booking.reservation_number)}</strong>`) +
+      signature(),
     ) +
     gap() +
     referenceModule([
@@ -201,7 +196,7 @@ function generateEmailHTML(booking: BalanceEmailData, hasPdf: boolean): string {
 
   return emailShell({
     title: "Your Event Is Fully Paid",
-    preview: "No further payment is needed. Here is how to get ready.",
+    preview: "Nothing left to pay. Here's what comes next.",
     body,
     // CM2-23: only say a PDF is attached when it is.
     footerNote: hasPdf ? "Itemized receipt is attached as PDF." : undefined,
@@ -294,7 +289,7 @@ serve(withBuild(async (req) => {
       // makes Gmail treat the rest of the headers as body and render the whole MIME as raw
       // text. ASCII subjects stay on one valid line.
       subject: `Your Event Is Fully Paid`,
-      content: "Your final payment is in. Your event is fully paid, and there is nothing more to pay. Please view this email in an HTML-compatible email client.",
+      content: `We received your final payment. Your event is fully paid. Thank you. Open your Event Page: https://orlandoeventvenue.org/accesscode (reservation number ${reservationNumber}).`,
       html: emailHTML,
       attachments: pdfBase64
         ? [

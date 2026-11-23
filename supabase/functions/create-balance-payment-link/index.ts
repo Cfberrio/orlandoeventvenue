@@ -15,14 +15,16 @@ import {
   heroModule,
   para,
   primaryButton,
+  referenceModule,
   sanitizeForSmtp,
+  signature,
   textModule,
 } from "../_shared/email-layout.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 import { splitLabel } from "../_shared/deposit-split.ts";
 
 import { withBuild } from "../_shared/build-info.ts";
-import { balanceDue, orlandoToday } from "../_shared/guest-timeline.ts";
+import { balanceDue, bookingTypeLabel, formatLongDate, orlandoToday } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-ghl-backend-token",
@@ -380,7 +382,7 @@ serve(withBuild(async (req) => {
     }
 
     // Log the event
-    await supabase.from("booking_events").insert({
+    const { error: linkEventError } = await supabase.from("booking_events").insert({
       booking_id: booking.id,
       event_type: "balance_payment_link_created",
       channel: sendEmail ? "admin" : "ghl",
@@ -392,8 +394,53 @@ serve(withBuild(async (req) => {
       },
     });
 
-    // Send balance payment email if requested
+    // Sync first: the GHL workflow sends P01 only if this handoff really lands.
+    // sync-to-ghl answers 200 {ok:false} on GHL errors and {ok:true, skipped:true}
+    // for internal_admin bookings, so res.ok alone is not proof.
+    let ghlHandoff = false;
+    try {
+      const syncResponse = await fetch(
+        `${supabaseUrl}/functions/v1/sync-to-ghl`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${supabaseServiceKey}`,
+          },
+          body: JSON.stringify({ booking_id: booking.id }),
+        }
+      );
+      const syncBody = await syncResponse.json().catch(() => null);
+      ghlHandoff = syncResponse.ok && syncBody?.ok === true && syncBody?.skipped !== true;
+      if (ghlHandoff) {
+        console.log("Successfully synced booking to GHL after balance link creation");
+      } else {
+        console.error("syncToGHL did not hand off:", syncResponse.status, syncBody);
+      }
+    } catch (syncError) {
+      console.error("Error calling syncToGHL:", syncError);
+    }
+
+    // P01 has one sender: the GHL "Balance Payment Email (On URL Ready)" workflow,
+    // which fires on every new balance_payment_url (synced below) and emails the
+    // 1st, 2nd and 3rd link. A direct email here only covers what GHL will not send:
+    // an admin resend after those 3 attempts. Before this, an admin resend went out
+    // twice (SMTP here + GHL), e.g. OEV-E6CHMR on 2026-11-18.
+    let directEmail = false;
+    let directSent = false;
     if (sendEmail && session.url) {
+      // Counts the link event logged just above, so > 3 means GHL already used its 3 sends.
+      const { count: linkCount, error: countError } = await supabase
+        .from("booking_events")
+        .select("id", { count: "exact", head: true })
+        .eq("booking_id", booking.id)
+        .eq("event_type", "balance_payment_link_created");
+      // If we cannot tell, send: a duplicate beats a guest who never gets the link.
+      directEmail = !ghlHandoff || linkEventError != null || countError != null || (linkCount ?? 0) > 3;
+      if (countError) console.error("Could not count balance links, sending P01 directly:", countError);
+    }
+
+    if (directEmail && session.url) {
       const gmailUser = Deno.env.get("GMAIL_USER");
       const gmailPassword = Deno.env.get("GMAIL_APP_PASSWORD");
 
@@ -413,58 +460,51 @@ serve(withBuild(async (req) => {
             ? `${formatTime(booking.start_time)} - ${formatTime(booking.end_time)}`
             : "All Day";
           const fmtCurrency = (n: number) => `$${Number(n).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-          const balanceBaseFormatted = fmtCurrency(booking.balance_amount);
           const balanceTotalFormatted = fmtCurrency((balanceAmountCents + feeCents) / 100);
-          const totalFormatted = fmtCurrency(booking.total_amount);
-          const depositFormatted = fmtCurrency(booking.deposit_amount);
-          const processingFeeFormatted = fmtCurrency(feeCents / 100);
           const paymentUrl = session.url;
           // CM2-04: the real due date; "due now" when it is today or already past
           // (short-notice bookings), never a date that has already gone by.
           const due = balanceDue(booking.event_date, orlandoToday());
-          const dueSentence = due.dueNow
-            ? `Your balance is <strong>due now</strong>.`
-            : `Your balance is <strong>${due.phrase}</strong> (15 days before your event).`;
 
+          // Copy is verbatim from the 2026-11-09 communication chain rewrite
+          // (ClickUp 86e3zwmg5, P01), same as the GHL template. Do not reword.
+          const finalLabel = splitLabel("balance", booking).toLowerCase();
+          const dueText = due.dueNow ? "Now" : formatLongDate(due.dueDate);
+          const expiresText = new Date(expiresAt).toLocaleString("en-US", {
+            timeZone: "America/New_York", weekday: "long", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
+          });
           const emailBody =
             heroModule({
-              display: displayTitle("Balance Payment", { size: 40 }),
+              display: displayTitle("Your Remaining Payment Is Due", { size: 34 }),
             }) +
             gap() +
             textModule(
               `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${escapeHtml(firstName)}</strong>,</p>` +
-              para(`Your remaining balance for your upcoming event is ready for payment. Please complete your payment at your earliest convenience to confirm your reservation.`) +
-              `<div style="background:#FFFBEB;border:2px solid ${BRAND.amber};border-radius:14px;padding:22px;text-align:center;margin:22px 0 0;">` +
-              `<p style="margin:0 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#92400E;text-transform:uppercase;letter-spacing:1.5px;">Remaining Balance Due</p>` +
-              `<p style="margin:0;font-family:Arial,Helvetica,sans-serif;font-size:32px;font-weight:bold;color:${BRAND.amber};">${balanceTotalFormatted}</p>` +
-              `</div>` +
-              para(dueSentence) +
-              `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Event Details</p>` +
+              para(`Your ${finalLabel} is due.`) +
               detailTable([
-                ["Event Date", eventDate],
-                ["Event Time", timeRange],
-                ["Event Type", escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))],
-                ["Guests", escapeHtml(String(booking.number_of_guests || "N/A"))],
+                ["Amount", balanceTotalFormatted],
+                ["Due", dueText],
+                ["Link expires", expiresText],
               ]) +
-              `<p style="margin:20px 0 6px;font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:${BRAND.ink};">Payment Summary</p>` +
-              detailTable([
-                ["Total Amount", totalFormatted],
-                [`${splitLabel("deposit", booking)} Paid`, depositFormatted],
-                ["Remaining Balance", balanceBaseFormatted],
-                [FEE_LABEL, processingFeeFormatted],
-                ["Total Due", balanceTotalFormatted],
-              ]) +
-              primaryButton("Pay Balance Now", paymentUrl) +
-              `<p style="margin:14px 0 0;font-size:12px;color:${BRAND.muted};text-align:center;line-height:1.5;">If the button doesn't work, copy and paste this link:<br><a href="${paymentUrl}" style="color:${BRAND.amber};word-break:break-all;">${paymentUrl}</a></p>` +
-              para(`This payment link expires in <strong>24 hours</strong>. If you have any questions, simply reply to this email and we'll be happy to help.`) +
-              para(`<strong>Orlando Event Venue</strong>`),
-            );
+              primaryButton("Complete Final Payment", paymentUrl) +
+              `<p style="margin:14px 0 0;font-size:12px;color:${BRAND.muted};text-align:center;line-height:1.5;">If the button doesn't work, copy and paste this link:<br><a href="${paymentUrl}" style="color:${BRAND.accent};word-break:break-all;">${paymentUrl}</a></p>` +
+              para(`If you've already paid, you're all set. Having trouble with the link? Reply here or call 407 974 5979.`) +
+              signature(),
+            ) +
+            gap() +
+            referenceModule([
+              ["Reservation Number", escapeHtml(booking.reservation_number || "")],
+              ["Event Date", eventDate],
+              ["Event Time", timeRange],
+              ["Event Type", escapeHtml(eventTypeLabel(booking.event_type, booking.event_type_other))],
+              ["Booking Type", escapeHtml(bookingTypeLabel(booking.booking_type, booking.start_time, booking.end_time))],
+              ["Guest Count", escapeHtml(String(booking.number_of_guests ?? ""))],
+            ]);
 
           const emailHTML = sanitizeForSmtp(emailShell({
-            title: "Balance Payment",
-            preview: `Your remaining balance of ${balanceTotalFormatted} is ready for payment.`,
+            title: "Your Remaining Payment Is Due",
+            preview: `${balanceTotalFormatted}, due ${dueText}.`,
             body: emailBody,
-            footerNote: "This payment link expires 24 hours after it was created.",
           }));
 
           const smtpClient = new SMTPClient({
@@ -479,12 +519,13 @@ serve(withBuild(async (req) => {
           await smtpClient.send({
             from: gmailUser,
             to: booking.email,
-            subject: `Balance Payment Due: ${booking.reservation_number || "Event Booking"} | Orlando Event Venue`,
-            content: `Your remaining balance of ${balanceTotalFormatted} is due. Pay here: ${paymentUrl}`,
+            subject: `Your Remaining Payment Is Due`,
+            content: `Your ${splitLabel("balance", booking).toLowerCase()} is due. Amount: ${balanceTotalFormatted}. Due: ${due.dueNow ? "Now" : formatLongDate(due.dueDate)}. Pay here: ${paymentUrl}`,
             html: emailHTML,
           });
 
           await smtpClient.close();
+          directSent = true;
           console.log("Balance payment email sent to:", booking.email);
         } catch (emailError) {
           console.error("Error sending balance payment email:", emailError);
@@ -494,36 +535,15 @@ serve(withBuild(async (req) => {
       }
     }
 
-    // Call syncToGHL to send updated snapshot with balance_payment_url
-    try {
-      const syncResponse = await fetch(
-        `${supabaseUrl}/functions/v1/sync-to-ghl`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${supabaseServiceKey}`,
-          },
-          body: JSON.stringify({ booking_id: booking.id }),
-        }
-      );
-      
-      if (!syncResponse.ok) {
-        console.error("syncToGHL returned non-2xx:", syncResponse.status);
-      } else {
-        console.log("Successfully synced booking to GHL after balance link creation");
-      }
-    } catch (syncError) {
-      console.error("Error calling syncToGHL:", syncError);
-      // Don't fail the response, just log
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
         payment_url: session.url,
         session_id: session.id,
         amount: booking.balance_amount,
+        // "ghl" = the GHL balance workflow emails the link; "direct" = sent from here;
+        // "failed" = nobody sent it (admin must resend or share the link by hand).
+        email_sent_by: sendEmail ? (directEmail ? (directSent ? "direct" : "failed") : "ghl") : null,
         reservation_number: booking.reservation_number,
         customer_email: booking.email,
         customer_name: booking.full_name,

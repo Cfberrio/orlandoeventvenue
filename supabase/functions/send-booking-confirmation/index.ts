@@ -10,7 +10,6 @@ import {
   gap,
   heroModule,
   linkButton,
-  numberedList,
   para,
   referenceModule,
   signature,
@@ -23,6 +22,13 @@ import { renderInvoicePdf } from "../_shared/invoice-pdf.ts";
 import { eventTypeLabel } from "../_shared/event-types.ts";
 
 import { withBuild } from "../_shared/build-info.ts";
+import { depositSplit, splitLabel } from "../_shared/deposit-split.ts";
+
+// "First N%" from the booking's real split; a 0/100 split reads oddly, so say "First Payment".
+function firstPaymentLabel(b: { deposit_amount?: number | string | null; total_amount?: number | string | null }): string {
+  const { firstPct } = depositSplit(b);
+  return firstPct > 0 && firstPct < 100 ? splitLabel("deposit", b) : "First Payment";
+}
 import { bookingTypeLabel, policyAllows } from "../_shared/guest-timeline.ts";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -184,25 +190,24 @@ function generateEmailHTML(booking: BookingEmailData, hasPdf: boolean): string {
     ? `${formatTime(booking.start_time)} to ${formatTime(booking.end_time)}`
     : "All Day";
 
-  // Copy is verbatim from the ClickUp spec "OEV POST BOOKING COMMUNICATIONS",
-  // section I01. Do not reword — design carries emphasis, never the wording.
+  // Copy is verbatim from the 2026-11-09 communication chain rewrite
+  // (ClickUp 86e3zwmg5, Post-Booking sequence, I01). Do not reword.
+  // The spec wording assumes an even split; the real split comes from the booking (E-3).
+  const firstLabel = firstPaymentLabel(booking);
   const body =
     heroModule({
-      display: displayTitle("We Received Your First Payment", { size: 34 }),
+      display: displayTitle(`We Received Your ${firstLabel}`, { size: 34 }),
     }) +
     gap() +
     textModule(
       `<p style="margin:0;font-size:16px;font-family:Arial,Helvetica,sans-serif;color:${BRAND.text};">Hi <strong>${firstName}</strong>,</p>` +
-      para(`Thank you. We have received your deposit, and your booking is now with our team for review.`) +
-      numberedList([
-        `We take a quick look at the timing, guest count, and venue setup to make sure everything about your event will run smoothly, and we will be back in touch within about 24 hours to confirm.`,
-        `Until you hear from us, please hold off on sending invitations or making any arrangements you cannot get back. And if anything about your event has changed since you booked, just reply here so we review the right details.`,
-        `In the meantime, you can start getting familiar with your Event Page. It is the one place that will hold everything you need as your date gets closer. That includes your planning details, venue instructions, live door code on event day, the Before You Leave checklist, and your Guest Report:`,
-      ]) +
-      linkButton("https://orlandoeventvenue.org/accesscode") +
-      para(`Enter your reservation number when prompted.`) +
-      para(`We will reach out the moment your review is complete.`) +
-      signature({ phone: true, email: true }),
+      para(`We received your ${firstLabel.toLowerCase()}, and your date is held. Our team will review the details and confirm your booking within 24 hours.`) +
+      para(`Please wait to send invitations until you hear from us.`) +
+      para(`Your Event Page is where you'll find everything as your date gets closer:`) +
+      linkButton("https://orlandoeventvenue.org/accesscode", "Open Your Event Page") +
+      para(`Your reservation number: <strong>${escapeHtml(booking.reservation_number)}</strong>`) +
+      para(`If anything has changed, reply here or call 407 974 5979.`) +
+      signature(),
     ) +
     gap() +
     referenceModule([
@@ -215,8 +220,8 @@ function generateEmailHTML(booking: BookingEmailData, hasPdf: boolean): string {
     ]);
 
   return emailShell({
-    title: "We Received Your First Payment",
-    preview: "Your booking is now being reviewed by our team.",
+    title: `We Received Your ${firstPaymentLabel(booking)}`,
+    preview: "Your date is held. We'll confirm within 24 hours.",
     body,
     // CM2-23: only say a PDF is attached when it is.
     footerNote: hasPdf ? "Itemized receipt is attached as PDF." : undefined,
@@ -319,8 +324,8 @@ serve(withBuild(async (req) => {
     await client.send({
       from: gmailUser,
       to: booking.email,
-      subject: `We Received Your First Payment`,
-      content: "We have received your deposit, and your booking is now with our team for review. Please view this email in an HTML-compatible email client. Itemized receipt attached as PDF.",
+      subject: `We Received Your ${firstPaymentLabel(booking)}`,
+      content: `We received your ${firstPaymentLabel(booking).toLowerCase()}, and your date is held. Our team will review the details and confirm your booking within 24 hours. Open your Event Page: https://orlandoeventvenue.org/accesscode (reservation number ${reservationNumber}).`,
       html: emailHTML,
       attachments: pdfBase64
         ? [

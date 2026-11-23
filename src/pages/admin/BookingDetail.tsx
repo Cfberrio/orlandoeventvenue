@@ -258,9 +258,15 @@ export default function BookingDetail() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      toast({
+      toast(data?.email_sent_by === "failed" ? {
+        title: "Link created, but the email did not go out",
+        description: "The link is copied to your clipboard. Send it to the guest by hand.",
+        variant: "destructive",
+      } : {
         title: "Balance payment link sent",
-        description: `Email sent to ${data.customer_email || booking.email}`,
+        description: data?.email_sent_by === "direct"
+          ? `Email sent to ${data.customer_email || booking.email}`
+          : `GoHighLevel is emailing the link to ${data?.customer_email || booking.email}`,
       });
 
       if (data?.payment_url) {
