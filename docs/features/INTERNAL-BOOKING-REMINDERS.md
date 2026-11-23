@@ -235,7 +235,7 @@ Orlando, FL 32803
 
 Access Instructions:
 - Use the magnetic key from the lockbox (CODE: 10102025)
-- WiFi: TMOBILE-9371 / 7km6r7y5ybn
+- WiFi: network and password are managed in the `venue_access_content` table (admin) and shown on the Access page
 - Full venue rules in your booking confirmation
  
  Questions? Contact us at 407-974-5979

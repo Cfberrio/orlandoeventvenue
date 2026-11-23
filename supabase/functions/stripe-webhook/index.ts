@@ -3,6 +3,7 @@ import Stripe from "https://esm.sh/stripe@14.21.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import { getFrontendUrl } from "../_shared/config.ts";
+import { splitLabel, type DepositSplitInput } from "../_shared/deposit-split.ts";
 import {
   BRAND,
   detailTable,
@@ -122,7 +123,10 @@ async function sendInternalPaymentEmail(
   }
 
   const reservationNumber = booking.reservation_number || booking.id;
-  const paymentLabel = paymentType === "deposit" ? "Deposit (50%)" : "Balance (Remaining 50%)";
+  const split = booking as DepositSplitInput;
+  const paymentLabel = paymentType === "deposit"
+    ? `Deposit (${splitLabel("deposit", split).replace("First ", "")})`
+    : `Balance (Remaining ${splitLabel("balance", split).replace("Final ", "")})`;
   const subjectPrefix = paymentType === "deposit" ? "Deposit" : "Balance";
   
   const adminUrl = `${getFrontendUrl()}/admin/bookings/${booking.id}`;

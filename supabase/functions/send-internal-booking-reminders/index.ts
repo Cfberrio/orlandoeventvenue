@@ -394,6 +394,7 @@ serve(withBuild(async (req) => {
         .select("id, sent_at")
         .eq("block_id", block.id)
         .eq("reminder_type", "1d_before")
+        .neq("status", "failed") // a failed attempt must not block the retry
         .maybeSingle();
 
       if (existingReminder) {
@@ -427,12 +428,14 @@ serve(withBuild(async (req) => {
         } else {
           console.warn("[WARN] No email provider configured!");
           channel = "none";
+          // Never record "sent" when nothing was delivered.
+          throw new Error("No email provider configured (SENDGRID_API_KEY / GHL_API_KEY)");
         }
 
         // Record successful send
         const { error: insertError } = await supabase
           .from("availability_block_reminders")
-          .insert({
+          .upsert({
             block_id: block.id,
             booking_id: booking.id,
             reminder_type: "1d_before",
@@ -444,7 +447,7 @@ serve(withBuild(async (req) => {
               recipient_email: booking.email,
               recipient_phone: booking.phone,
             }
-          });
+          }, { onConflict: "block_id,reminder_type" });
 
         if (insertError) {
           console.error("[DB_ERROR] Failed to record reminder:", insertError);
@@ -463,16 +466,19 @@ serve(withBuild(async (req) => {
         console.error(`[ERROR] Failed to send reminder for block ${block.id}:`, errorMessage);
         
         // Record failed attempt
-        await supabase
+        const { error: failInsertError } = await supabase
           .from("availability_block_reminders")
-          .insert({
+          .upsert({
             block_id: block.id,
             booking_id: booking.id,
             reminder_type: "1d_before",
             channel: channel,
             status: "failed",
             error_message: errorMessage,
-          });
+          }, { onConflict: "block_id,reminder_type" });
+        if (failInsertError) {
+          console.error("[DB_ERROR] Failed to record failed reminder:", failInsertError);
+        }
 
         errors++;
         results.push({
